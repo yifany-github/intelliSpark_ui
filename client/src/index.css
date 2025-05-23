@@ -1,0 +1,84 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Noto+Sans:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: 240 40% 9%;
+  --foreground: 0 0% 98%;
+  --muted: 240 3.7% 15.9%;
+  --muted-foreground: 240 5% 64.9%;
+  --popover: 240 40% 9%;
+  --popover-foreground: 0 0% 98%;
+  --card: 240 10% 13%;
+  --card-foreground: 0 0% 98%;
+  --border: 240 13% 25%;
+  --input: 240 13% 20%;
+  --primary: 270 70% 44%;
+  --primary-foreground: 211 100% 99%;
+  --secondary: 240 13% 20%;
+  --secondary-foreground: 0 0% 98%;
+  --accent: 260 70% 48%;
+  --accent-foreground: 0 0% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --ring: 240 4.9% 83.9%;
+  --radius: 1rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Noto Sans', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Poppins', sans-serif;
+  }
+}
+
+@layer components {
+  .chat-bubble-ai {
+    @apply bg-gradient-to-r from-primary to-accent rounded-[18px] rounded-bl-[4px] p-3 text-white;
+  }
+
+  .chat-bubble-user {
+    @apply bg-secondary rounded-[18px] rounded-br-[4px] p-3 text-white;
+  }
+
+  .masonry-grid {
+    @apply grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4;
+  }
+
+  .tab-indicator {
+    @apply absolute bottom-0 h-[3px] transition-all duration-300 ease-spring;
+  }
+
+  .character-list-item {
+    @apply transition-all duration-200 ease-in-out;
+  }
+
+  .character-list-item.active {
+    @apply bg-primary/15 border-l-2 border-primary;
+  }
+}
+
+@layer utilities {
+  .ease-spring {
+    transition-timing-function: cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  }
+  
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
