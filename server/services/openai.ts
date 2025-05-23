@@ -6,13 +6,12 @@ interface OpenAIMessage {
   content: string;
 }
 
-
-
-OPENAI_API_KEY=your_openai_api_key_here
-// Initialize the OpenAI API client with a fallback for development
-const openai = process.env.OPENAI_API_KEY 
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-  : null;
+// Initialize the OpenAI API client lazily
+function getOpenAIClient() {
+  return process.env.OPENAI_API_KEY 
+    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+    : null;
+}
 
 /**
  * Generate a response from the AI model based on the scene, character, and conversation history.
@@ -57,6 +56,7 @@ export async function generateResponse(
     ];
     
     // Call the OpenAI API
+    const openai = getOpenAIClient();
     if (!openai) {
       return simulateAIResponse(character, scene, conversationHistory);
     }
@@ -92,6 +92,7 @@ function mapToOpenAIMessages(messages: ChatMessage[]): OpenAIMessage[] {
  */
 export async function generateDataAnalysis(prompt: string, data: any): Promise<string> {
   try {
+    const openai = getOpenAIClient();
     if (!process.env.OPENAI_API_KEY || !openai) {
       return "OpenAI API key is required for data analysis.";
     }
@@ -129,6 +130,7 @@ export async function generateDataAnalysis(prompt: string, data: any): Promise<s
  */
 export async function generateSQLQuery(prompt: string, databaseSchema: string): Promise<string> {
   try {
+    const openai = getOpenAIClient();
     if (!process.env.OPENAI_API_KEY || !openai) {
       return "OpenAI API key is required for SQL generation.";
     }
