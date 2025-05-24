@@ -8,9 +8,13 @@ interface OpenAIMessage {
 
 // Initialize the OpenAI API client lazily
 function getOpenAIClient() {
-  return process.env.OPENAI_API_KEY 
-    ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-    : null;
+  if (process.env.OPENAI_API_KEY) {
+    console.log("OpenAI API key found. Initializing OpenAI client.");
+    return new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  } else {
+    console.warn("OpenAI API key not found. Using simulated responses.");
+    return null;
+  }
 }
 
 /**
