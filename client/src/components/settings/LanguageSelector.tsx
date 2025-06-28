@@ -35,6 +35,9 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({ type, className = '
   const currentValue = type === 'interface' ? interfaceLanguage : chatLanguage;
   const label = type === 'interface' ? t('interfaceLanguage') : t('chatLanguage');
 
+  // Filter to only show Chinese language
+  const filteredLanguages = Object.entries(availableLanguages).filter(([code]) => code === 'zh');
+
   return (
     <div className={`space-y-2 ${className}`}>
       <Label htmlFor={`${type}-language`}>{label}</Label>
@@ -43,7 +46,7 @@ const LanguageSelector: React.FC<LanguageSelectorProps> = ({ type, className = '
           <SelectValue placeholder={label} />
         </SelectTrigger>
         <SelectContent>
-          {Object.entries(availableLanguages).map(([code, lang]) => (
+          {filteredLanguages.map(([code, lang]) => (
             <SelectItem key={code} value={code}>
               {lang.name} ({lang.englishName})
             </SelectItem>

@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useRoute, Link } from "wouter";
-import { Chat, ChatMessage, Character, Scene } from "@shared/schema";
+import { Chat, ChatMessage, Character, Scene, EnrichedChat } from "../types";
 import ChatBubble from "@/components/chats/ChatBubble";
 import ChatInput from "@/components/chats/ChatInput";
 import TypingIndicator from "@/components/ui/TypingIndicator";
@@ -30,7 +30,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     isLoading: isLoadingChat,
     error: chatError
   } = useQuery<Chat>({
-    queryKey: chatId ? [`/api/chats/${chatId}`] : null,
+    queryKey: [`/api/chats/${chatId}`],
     enabled: !!chatId,
   });
   
@@ -40,7 +40,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     isLoading: isLoadingMessages,
     error: messagesError
   } = useQuery<ChatMessage[]>({
-    queryKey: chatId ? [`/api/chats/${chatId}/messages`] : null,
+    queryKey: [`/api/chats/${chatId}/messages`],
     enabled: !!chatId,
   });
   
@@ -49,8 +49,8 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     data: character,
     isLoading: isLoadingCharacter
   } = useQuery<Character>({
-    queryKey: chat ? [`/api/characters/${chat.characterId}`] : null,
-    enabled: !!chat,
+    queryKey: [`/api/characters/${chat?.characterId}`],
+    enabled: !!chat?.characterId,
   });
   
   // Fetch scene details for the chat
@@ -58,16 +58,16 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     data: scene,
     isLoading: isLoadingScene
   } = useQuery<Scene>({
-    queryKey: chat ? [`/api/scenes/${chat.sceneId}`] : null,
-    enabled: !!chat,
+    queryKey: [`/api/scenes/${chat?.sceneId}`],
+    enabled: !!chat?.sceneId,
   });
   
   // Fetch all chats for the chat list
   const {
     data: chats = [],
     isLoading: isLoadingChats
-  } = useQuery<Chat[]>({
-    queryKey: showChatList ? ["/api/chats"] : null,
+  } = useQuery<EnrichedChat[]>({
+    queryKey: ["/api/chats"],
     enabled: showChatList,
   });
   
@@ -121,6 +121,13 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
   
+  // Refresh chat list when returning to it
+  useEffect(() => {
+    if (showChatList) {
+      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
+    }
+  }, [showChatList]);
+  
   // If we're showing the chat list
   if (showChatList) {
     return (
@@ -153,7 +160,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
           </div>
         ) : (
           <div className="space-y-3">
-            {chats.map(chat => (
+            {chats.map((chat: EnrichedChat) => (
               <Link 
                 key={chat.id} 
                 href={`/chats/${chat.id}`}
@@ -161,16 +168,27 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <div className="w-12 h-12 rounded-full bg-gradient-to-r from-primary/40 to-accent/40"></div>
+                    <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-r from-primary/40 to-accent/40">
+                      {chat.character?.avatarUrl && (
+                        <img 
+                          src={chat.character.avatarUrl} 
+                          alt={chat.character.name} 
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+                    </div>
                     <div className="ml-3">
                       <h3 className="font-medium">{chat.title}</h3>
                       <p className="text-sm text-gray-400">
-                        {new Date(chat.updatedAt).toLocaleDateString()}
+                        {chat.character?.name} • {chat.scene?.name}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        {chat.updatedAt ? new Date(chat.updatedAt).toLocaleDateString() : ''}
                       </p>
                     </div>
                   </div>
                   <span className="text-sm text-gray-400">
-                    {new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {chat.updatedAt ? new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
                   </span>
                 </div>
               </Link>

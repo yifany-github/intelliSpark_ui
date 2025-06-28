@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Character } from "@shared/schema";
+import { Character } from "../types";
 import CharacterListItem from "@/components/characters/CharacterListItem";
 import CharacterDetails from "@/components/characters/CharacterDetails";
 import { Search, Filter } from "lucide-react";

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
-import { Scene, Character, Chat, ChatMessage } from '@shared/schema';
+import { Scene, Character, Chat, ChatMessage } from '../types';
 
 interface RolePlayContextType {
   // User Preferences

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useRolePlay } from "@/context/RolePlayContext";
 import { useLanguage } from "@/context/LanguageContext";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Scene, Character } from "@shared/schema";
 import { 
   Clock, 
@@ -14,21 +14,57 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import LanguageSelector from "@/components/settings/LanguageSelector";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 
 const ProfilePage = () => {
   const { 
     nsfwLevel, setNsfwLevel,
     contextWindowLength, setContextWindowLength,
     temperature, setTemperature,
-    memoryEnabled, setMemoryEnabled
+    memoryEnabled, setMemoryEnabled,
+    setCurrentChat
   } = useRolePlay();
   
   const { t } = useLanguage();
+  const { toast } = useToast();
   
   // Fetch recent scenes
   const { data: scenes = [] } = useQuery<Scene[]>({
     queryKey: ["/api/scenes?limit=5"],
   });
+  
+  // Simple clear chat history function
+  const handleClearChatHistory = async () => {
+    try {
+      const response = await fetch('/api/chats', { method: 'DELETE' });
+      if (response.ok) {
+        setCurrentChat(null);
+        queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
+        toast({
+          title: "Success",
+          description: "Chat history cleared successfully",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error", 
+        description: "Failed to clear chat history",
+        variant: "destructive",
+      });
+    }
+  };
   
   // Format temperature for display (0.0 - 1.0)
   const formattedTemperature = (temperature / 100).toFixed(1);
@@ -164,9 +200,33 @@ const ProfilePage = () => {
         </div>
         
         <div className="space-y-3">
-          <button className="w-full bg-secondary hover:bg-secondary/80 rounded-2xl px-4 py-3 text-white font-medium transition-colors flex items-center justify-center">
-            <Trash2 className="mr-2 h-5 w-5" /> {t('clearChatHistory')}
-          </button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button 
+                className="w-full bg-secondary hover:bg-secondary/80 rounded-2xl px-4 py-3 text-white font-medium transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Trash2 className="mr-2 h-5 w-5" /> 
+                {t('clearChatHistory')}
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear Chat History</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to clear all your chat history? This action cannot be undone and will permanently delete all your conversations.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction 
+                  onClick={handleClearChatHistory}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  Clear History
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           
           <button className="w-full bg-secondary hover:bg-secondary/80 rounded-2xl px-4 py-3 text-white font-medium transition-colors flex items-center justify-center">
             <Download className="mr-2 h-5 w-5" /> {t('exportScripts')}

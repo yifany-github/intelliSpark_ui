@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Scene } from "@shared/schema";
+import { Scene } from "../types";
 import SceneCard from "@/components/scenes/SceneCard";
 import ScenePreviewModal from "@/components/scenes/ScenePreviewModal";
 import FilterChip from "@/components/ui/FilterChip";
