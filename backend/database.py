@@ -1,70 +1,40 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from config import settings
 from models import Base, User, Scene, Character, Chat, ChatMessage
-import asyncio
 
-# Create database engine
-if settings.database_url.startswith("sqlite"):
-    # For SQLite, use synchronous engine
-    engine = create_engine(
-        settings.database_url,
-        connect_args={"check_same_thread": False}  # SQLite specific
-    )
-    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    
-    def get_db():
-        """Dependency to get database session"""
-        db = SessionLocal()
-        try:
-            yield db
-        finally:
-            db.close()
-            
-    async def init_db():
-        """Initialize database and create tables"""
-        Base.metadata.create_all(bind=engine)
+# Create database engine (simplified to sync-only for now)
+engine = create_engine(
+    settings.database_url,
+    connect_args={"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
+)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+def get_db():
+    """Dependency to get database session"""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
         
-        # Create initial data
-        db = SessionLocal()
-        try:
-            await create_initial_data(db)
-        finally:
-            db.close()
-
-else:
-    # For PostgreSQL, use async engine
-    engine = create_async_engine(settings.database_url)
-    AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
+async def init_db():
+    """Initialize database and create tables"""
+    Base.metadata.create_all(bind=engine)
     
-    async def get_db():
-        """Dependency to get async database session"""
-        async with AsyncSessionLocal() as session:
-            yield session
-            
-    async def init_db():
-        """Initialize database and create tables"""
-        async with engine.begin() as conn:
-            await conn.run_sync(Base.metadata.create_all)
-        
-        # Create initial data
-        async with AsyncSessionLocal() as session:
-            await create_initial_data(session)
+    # Create initial data
+    db = SessionLocal()
+    try:
+        create_initial_data(db)
+    finally:
+        db.close()
 
-async def create_initial_data(db: Session):
+def create_initial_data(db: Session):
     """Create initial scenes and characters if they don't exist"""
     
     # Check if data already exists
-    if hasattr(db, 'query'):
-        # Sync session
-        existing_scenes = db.query(Scene).first()
-        existing_chars = db.query(Character).first()
-    else:
-        # Async session - we'll handle this differently
-        # For now, just create the data
-        existing_scenes = None
-        existing_chars = None
+    existing_scenes = db.query(Scene).first()
+    existing_chars = db.query(Character).first()
     
     if not existing_scenes:
         # Create sample scenes
@@ -183,7 +153,4 @@ async def create_initial_data(db: Session):
             db.add(character)
     
     # Commit the changes
-    if hasattr(db, 'commit'):
-        db.commit()
-    else:
-        await db.commit()
+    db.commit()

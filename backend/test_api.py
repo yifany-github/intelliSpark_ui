@@ -41,13 +41,13 @@ def test_create_chat():
     """Test creating a chat"""
     try:
         chat_data = {
-            "scene_id": 1,
-            "character_id": 1,
+            "sceneId": 1,
+            "characterId": 1,
             "title": "Test Chat"
         }
         response = requests.post(f"{BASE_URL}/api/chats", json=chat_data)
         print(f"Create chat: {response.status_code}")
-        if response.status_code == 201:
+        if response.status_code == 200:
             chat = response.json()
             print(f"Created chat ID: {chat['id']}")
             return chat['id']

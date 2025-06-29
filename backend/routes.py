@@ -156,6 +156,16 @@ async def get_chat(chat_id: int, db: Session = Depends(get_db)):
 async def create_chat(chat_data: ChatCreate, db: Session = Depends(get_db)):
     """Create a new chat"""
     try:
+        # Validate scene exists
+        scene = db.query(Scene).filter(Scene.id == chat_data.sceneId).first()
+        if not scene:
+            raise HTTPException(status_code=404, detail="Scene not found")
+        
+        # Validate character exists  
+        character = db.query(Character).filter(Character.id == chat_data.characterId).first()
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
+        
         # For now, hardcode user_id to 1 (matching your original logic)
         chat = Chat(
             user_id=1,
@@ -167,10 +177,6 @@ async def create_chat(chat_data: ChatCreate, db: Session = Depends(get_db)):
         db.add(chat)
         db.commit()
         db.refresh(chat)
-        
-        # Create initial welcome message
-        scene = db.query(Scene).filter(Scene.id == chat_data.sceneId).first()
-        character = db.query(Character).filter(Character.id == chat_data.characterId).first()
         
         if scene and character:
             initial_message = ChatMessage(
