@@ -77,11 +77,11 @@ DATABASE_URL=your_postgresql_connection_string
 npm run dev
 ```
 
-服务器将在 `http://localhost:5000` 启动
+前端开发服务器将在 `http://localhost:5173` 启动，后端 API 服务器将在 `http://localhost:8000` 启动
 
 ### 5. 访问应用
 
-在浏览器中打开 [http://localhost:5000](http://localhost:5000)
+在浏览器中打开 [http://localhost:5173](http://localhost:5173)
 
 ## 📱 使用指南
 
@@ -181,14 +181,17 @@ npm run db:push
    curl -H "Authorization: Bearer YOUR_API_KEY" https://api.openai.com/v1/models
    ```
 
-#### 2. 端口 5000 被占用
+#### 2. 端口被占用
 
-**症状**：`EADDRINUSE: address already in use :::5000`
+**症状**：`EADDRINUSE: address already in use`
 
 **解决方案**：
 ```bash
-# 查找占用端口的进程
-lsof -i :5000
+# 查找占用端口的进程 (前端端口 5173)
+lsof -i :5173
+
+# 或者查找后端端口 8000
+lsof -i :8000
 
 # 终止进程
 kill -9 <PID>
@@ -196,7 +199,7 @@ kill -9 <PID>
 
 #### 3. 网络绑定错误 (macOS)
 
-**症状**：`ENOTSUP: operation not supported on socket 0.0.0.0:5000`
+**症状**：`ENOTSUP: operation not supported on socket`
 
 **解决方案**：项目已配置为使用 `localhost` 而非 `0.0.0.0`，如果仍有问题，请重启服务器。
 
@@ -214,14 +217,14 @@ npm install
 运行以下命令验证各组件是否正常工作：
 
 ```bash
-# 检查服务器状态
-curl http://localhost:5000
+# 检查前端服务器状态
+curl http://localhost:5173
 
-# 检查 API 响应
-curl http://localhost:5000/api/scenes
+# 检查后端 API 响应
+curl http://localhost:8000/api/scenes
 
-# 检查 OpenAI 集成（应该看到智能回复，而非模板回复）
-curl -X POST "http://localhost:5000/api/chats" \
+# 检查 AI 集成（应该看到智能回复，而非模板回复）
+curl -X POST "http://localhost:8000/api/chats" \
      -H "Content-Type: application/json" \
      -d '{"sceneId": 1, "characterId": 1, "title": "Test"}'
 ```
