@@ -26,7 +26,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { queryClient } from "@/lib/queryClient";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 
 const ProfilePage = () => {
   const { 
@@ -48,15 +48,13 @@ const ProfilePage = () => {
   // Simple clear chat history function
   const handleClearChatHistory = async () => {
     try {
-      const response = await fetch('/api/chats', { method: 'DELETE' });
-      if (response.ok) {
-        setCurrentChat(null);
-        queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
-        toast({
-          title: "Success",
-          description: "Chat history cleared successfully",
-        });
-      }
+      await apiRequest('DELETE', '/api/chats');
+      setCurrentChat(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
+      toast({
+        title: "Success",
+        description: "Chat history cleared successfully",
+      });
     } catch (error) {
       toast({
         title: "Error", 
