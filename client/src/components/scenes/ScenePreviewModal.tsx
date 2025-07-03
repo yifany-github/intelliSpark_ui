@@ -1,6 +1,15 @@
 import { useRolePlay } from "@/context/RolePlayContext";
 import { useLocation } from "wouter";
 
+// Utility function to convert relative URLs to absolute URLs
+const getAbsoluteUrl = (url: string | undefined): string | undefined => {
+  if (!url) return undefined;
+  if (url.startsWith('http')) return url;
+  
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+  return `${API_BASE_URL}${url}`;
+};
+
 const ScenePreviewModal = () => {
   const { 
     isPreviewModalOpen, 
@@ -38,13 +47,23 @@ const ScenePreviewModal = () => {
 
   if (!isPreviewModalOpen || !previewScene) return null;
 
+  const absoluteImageUrl = getAbsoluteUrl(previewScene.imageUrl);
+
   return (
     <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
       <div className="bg-background rounded-2xl w-full max-w-md overflow-hidden">
         <div 
-          className="h-40 bg-cover bg-center" 
-          style={{ backgroundImage: `url(${previewScene.imageUrl})` }}
-        ></div>
+          className="h-40 bg-cover bg-center bg-gradient-to-b from-primary/20 to-accent/20" 
+          style={{ 
+            backgroundImage: absoluteImageUrl ? `url(${absoluteImageUrl})` : undefined
+          }}
+        >
+          {!absoluteImageUrl && (
+            <div className="h-full flex items-center justify-center text-white font-medium text-lg">
+              {previewScene.name.split(' ').map(word => word.charAt(0)).join('').toUpperCase().substring(0, 2)}
+            </div>
+          )}
+        </div>
         
         <div className="p-4">
           <div className="flex justify-between items-center mb-4">

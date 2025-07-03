@@ -46,14 +46,25 @@ async def get_scenes(db: Session = Depends(get_db)):
         logger.error(f"Error fetching scenes: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch scenes")
 
-@router.get("/scenes/{scene_id}", response_model=SceneSchema)
+@router.get("/scenes/{scene_id}")
 async def get_scene(scene_id: int, db: Session = Depends(get_db)):
     """Get a single scene by ID"""
     try:
         scene = db.query(Scene).filter(Scene.id == scene_id).first()
         if not scene:
             raise HTTPException(status_code=404, detail="Scene not found")
-        return scene
+        
+        # Convert to frontend-compatible format
+        return {
+            "id": scene.id,
+            "name": scene.name,
+            "description": scene.description,
+            "imageUrl": scene.image_url,  # Convert snake_case to camelCase
+            "location": scene.location,
+            "mood": scene.mood,
+            "rating": scene.rating,
+            "createdAt": scene.created_at.isoformat() + "Z"  # Match Node.js format
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -85,14 +96,25 @@ async def get_characters(db: Session = Depends(get_db)):
         logger.error(f"Error fetching characters: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch characters")
 
-@router.get("/characters/{character_id}", response_model=CharacterSchema)
+@router.get("/characters/{character_id}")
 async def get_character(character_id: int, db: Session = Depends(get_db)):
     """Get a single character by ID"""
     try:
         character = db.query(Character).filter(Character.id == character_id).first()
         if not character:
             raise HTTPException(status_code=404, detail="Character not found")
-        return character
+        
+        # Convert to frontend-compatible format
+        return {
+            "id": character.id,
+            "name": character.name,
+            "avatarUrl": character.avatar_url,  # Convert snake_case to camelCase
+            "backstory": character.backstory,
+            "voiceStyle": character.voice_style,  # Convert snake_case to camelCase
+            "traits": character.traits,
+            "personalityTraits": character.personality_traits,  # Convert snake_case to camelCase
+            "createdAt": character.created_at.isoformat() + "Z"  # Match Node.js format
+        }
     except HTTPException:
         raise
     except Exception as e:
@@ -138,14 +160,24 @@ async def get_chats(db: Session = Depends(get_db)):
         logger.error(f"Error fetching chats: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch chats")
 
-@router.get("/chats/{chat_id}", response_model=ChatSchema)
+@router.get("/chats/{chat_id}")
 async def get_chat(chat_id: int, db: Session = Depends(get_db)):
     """Get a single chat by ID"""
     try:
         chat = db.query(Chat).filter(Chat.id == chat_id).first()
         if not chat:
             raise HTTPException(status_code=404, detail="Chat not found")
-        return chat
+        
+        # Convert to frontend-compatible format
+        return {
+            "id": chat.id,
+            "userId": chat.user_id,
+            "sceneId": chat.scene_id,
+            "characterId": chat.character_id,
+            "title": chat.title,
+            "createdAt": chat.created_at.isoformat() + "Z",
+            "updatedAt": chat.updated_at.isoformat() + "Z"
+        }
     except HTTPException:
         raise
     except Exception as e:

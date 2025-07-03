@@ -10,6 +10,7 @@ import { useRolePlay } from "@/context/RolePlayContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { queryClient } from "@/lib/queryClient";
 import { ChevronLeft, MoreVertical } from "lucide-react";
+import ImageWithFallback from "@/components/ui/ImageWithFallback";
 
 interface ChatsPageProps {
   chatId?: string;
@@ -168,15 +169,13 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-r from-primary/40 to-accent/40">
-                      {chat.character?.avatarUrl && (
-                        <img 
-                          src={chat.character.avatarUrl} 
-                          alt={chat.character.name} 
-                          className="w-full h-full object-cover"
-                        />
-                      )}
-                    </div>
+                    <ImageWithFallback
+                      src={chat.character?.avatarUrl}
+                      alt={chat.character?.name || "Character"}
+                      fallbackText={chat.character?.name || "?"}
+                      size="md"
+                      showSpinner={true}
+                    />
                     <div className="ml-3">
                       <h3 className="font-medium">{chat.title}</h3>
                       <p className="text-sm text-gray-400">
@@ -214,15 +213,14 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
             </button>
             <div className="flex items-center">
               {character && (
-                <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-r from-primary/40 to-accent/40">
-                  {character.avatarUrl && (
-                    <img 
-                      src={character.avatarUrl} 
-                      alt={character.name} 
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                </div>
+                <ImageWithFallback
+                  src={character.avatarUrl}
+                  alt={character.name}
+                  fallbackText={character.name}
+                  size="md"
+                  showSpinner={true}
+                  className="w-10 h-10"
+                />
               )}
               <div className="ml-3">
                 <h2 className="font-medium text-white">
@@ -269,15 +267,14 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
         
         {isTyping && (
           <div className="flex items-end mb-4">
-            <div className="w-8 h-8 rounded-full overflow-hidden mr-2 bg-gradient-to-r from-primary/40 to-accent/40">
-              {character?.avatarUrl && (
-                <img 
-                  src={character.avatarUrl} 
-                  alt={character?.name} 
-                  className="w-full h-full object-cover"
-                />
-              )}
-            </div>
+            <ImageWithFallback
+              src={character?.avatarUrl}
+              alt={character?.name || "Character"}
+              fallbackText={character?.name || "AI"}
+              size="sm"
+              showSpinner={true}
+              className="mr-2"
+            />
             <div className="max-w-[80%]">
               <div className="chat-bubble-ai">
                 <TypingIndicator />
