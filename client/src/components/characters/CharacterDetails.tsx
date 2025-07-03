@@ -1,6 +1,7 @@
 import { Character } from "@shared/schema";
 import { useRolePlay } from "@/context/RolePlayContext";
 import { useLocation } from "wouter";
+import ImageWithFallback from "@/components/ui/ImageWithFallback";
 
 interface CharacterDetailsProps {
   character: Character;
@@ -36,15 +37,14 @@ const CharacterDetails = ({ character }: CharacterDetailsProps) => {
   return (
     <div className="p-4 overflow-y-auto">
       <div className="flex flex-col sm:flex-row items-start sm:items-center mb-6">
-        <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-r from-primary/40 to-accent/40 mb-4 sm:mb-0">
-          {character.avatarUrl && (
-            <img 
-              src={character.avatarUrl} 
-              alt={character.name} 
-              className="w-full h-full object-cover"
-            />
-          )}
-        </div>
+        <ImageWithFallback
+          src={character.avatarUrl}
+          alt={character.name}
+          fallbackText={character.name}
+          size="xl"
+          showSpinner={true}
+          className="mb-4 sm:mb-0"
+        />
         <div className="sm:ml-6">
           <h2 className="font-poppins font-bold text-2xl mb-2">{character.name}</h2>
           <div className="flex flex-wrap">

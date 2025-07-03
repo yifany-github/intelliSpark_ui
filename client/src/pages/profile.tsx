@@ -3,6 +3,7 @@ import { useRolePlay } from "@/context/RolePlayContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Scene, Character } from "@shared/schema";
+import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import { 
   Clock, 
   Users, 
@@ -97,15 +98,14 @@ const ProfilePage = () => {
           <div className="flex overflow-x-auto py-2 hide-scrollbar">
             {scenes.map(scene => (
               <div key={scene.id} className="flex-shrink-0 mr-3 w-16 text-center">
-                <div className="w-14 h-14 rounded-full mx-auto mb-1 overflow-hidden bg-gradient-to-r from-primary/40 to-accent/40">
-                  {scene.imageUrl && (
-                    <img 
-                      src={scene.imageUrl} 
-                      alt={scene.name} 
-                      className="w-full h-full object-cover"
-                    />
-                  )}
-                </div>
+                <ImageWithFallback
+                  src={scene.imageUrl}
+                  alt={scene.name}
+                  fallbackText={scene.name}
+                  size="lg"
+                  showSpinner={true}
+                  className="w-14 h-14 mx-auto mb-1"
+                />
                 <span className="text-xs">{scene.name}</span>
               </div>
             ))}
