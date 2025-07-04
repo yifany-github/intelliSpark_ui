@@ -17,7 +17,7 @@ const ScenePreviewModal = () => {
     setIsPreviewModalOpen, 
     previewScene,
     startChat,
-    requestAuthForChat,
+    startChatPreview,
     selectedCharacter,
   } = useRolePlay();
   
@@ -39,20 +39,20 @@ const ScenePreviewModal = () => {
       return;
     }
 
-    // Check authentication
-    if (!isAuthenticated) {
-      // Show auth modal instead of redirecting
-      requestAuthForChat(previewScene, selectedCharacter);
+    if (isAuthenticated) {
+      // If already authenticated, create chat immediately
+      try {
+        const chatId = await startChat(previewScene, selectedCharacter);
+        handleClose();
+        navigate(`/chats/${chatId}`);
+      } catch (error) {
+        console.error("Failed to start chat:", error);
+      }
+    } else {
+      // Set up preview mode - user can see chat interface and start typing
+      startChatPreview(previewScene, selectedCharacter);
       handleClose(); // Close the scene modal
-      return;
-    }
-
-    try {
-      const chatId = await startChat(previewScene, selectedCharacter);
-      handleClose();
-      navigate(`/chats/${chatId}`);
-    } catch (error) {
-      console.error("Failed to start chat:", error);
+      navigate(`/chat-preview`);
     }
   };
 
