@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Switch, Route, Redirect } from "wouter";
+import { Switch, Route, Redirect, useLocation } from "wouter";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
@@ -13,9 +13,49 @@ import OnboardingPage from "@/pages/onboarding";
 import LoginPage from "@/pages/auth/login";
 import RegisterPage from "@/pages/auth/register";
 import TabNavigation from "@/components/layout/TabNavigation";
-import { RolePlayProvider } from "@/context/RolePlayContext";
+import AuthModal from "@/components/auth/AuthModal";
+import { RolePlayProvider, useRolePlay } from "@/context/RolePlayContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+
+// Auth Modal Handler - handles post-login actions
+function AuthModalHandler() {
+  const { 
+    isAuthModalOpen, 
+    setIsAuthModalOpen, 
+    pendingChatAction, 
+    setPendingChatAction 
+  } = useRolePlay();
+  const [_, navigate] = useLocation();
+
+  const handleAuthSuccess = async () => {
+    if (pendingChatAction) {
+      try {
+        const chatId = await pendingChatAction();
+        navigate(`/chats/${chatId}`);
+      } catch (error) {
+        console.error("Failed to execute pending chat action:", error);
+      } finally {
+        setPendingChatAction(null);
+      }
+    }
+  };
+
+  const handleAuthClose = () => {
+    setIsAuthModalOpen(false);
+    setPendingChatAction(null);
+  };
+
+  return (
+    <AuthModal
+      isOpen={isAuthModalOpen}
+      onClose={handleAuthClose}
+      onSuccess={handleAuthSuccess}
+      title="Login to Start Chatting"
+      description="Please sign in to continue your conversation with this character"
+    />
+  );
+}
 
 // Main App component - now allows browsing without authentication
 function MainApp() {
@@ -44,6 +84,7 @@ function MainApp() {
     <RolePlayProvider>
       <div className="min-h-screen pb-16">
         <Toaster />
+        <AuthModalHandler />
         <div className="max-w-5xl mx-auto">
           <Switch>
             <Route path="/" component={ScenesPage} />

@@ -30,8 +30,15 @@ interface RolePlayContextType {
   previewScene: Scene | null;
   setPreviewScene: (scene: Scene | null) => void;
   
+  // Auth Modal State
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (isOpen: boolean) => void;
+  pendingChatAction: (() => Promise<void>) | null;
+  setPendingChatAction: (action: (() => Promise<void>) | null) => void;
+  
   // Start Chat Function
   startChat: (scene: Scene, character: Character) => Promise<string>;
+  requestAuthForChat: (scene: Scene, character: Character) => void;
 }
 
 const RolePlayContext = createContext<RolePlayContextType | undefined>(undefined);
@@ -55,7 +62,24 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewScene, setPreviewScene] = useState<Scene | null>(null);
   
-  // Start a new chat
+  // Auth Modal State
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [pendingChatAction, setPendingChatAction] = useState<(() => Promise<void>) | null>(null);
+  
+  // Request authentication for chat - shows auth modal
+  const requestAuthForChat = (scene: Scene, character: Character) => {
+    const chatAction = async () => {
+      // This will be called after successful authentication
+      const chatId = await startChat(scene, character);
+      // The navigation will be handled by the component that called requestAuthForChat
+      return chatId;
+    };
+    
+    setPendingChatAction(() => chatAction);
+    setIsAuthModalOpen(true);
+  };
+
+  // Start a new chat (only call this when authenticated)
   const startChat = async (scene: Scene, character: Character): Promise<string> => {
     try {
       const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -112,7 +136,13 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
         previewScene,
         setPreviewScene,
         
+        isAuthModalOpen,
+        setIsAuthModalOpen,
+        pendingChatAction,
+        setPendingChatAction,
+        
         startChat,
+        requestAuthForChat,
       }}
     >
       {children}

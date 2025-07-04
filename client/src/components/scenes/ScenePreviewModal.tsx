@@ -17,6 +17,7 @@ const ScenePreviewModal = () => {
     setIsPreviewModalOpen, 
     previewScene,
     startChat,
+    requestAuthForChat,
     selectedCharacter,
   } = useRolePlay();
   
@@ -28,14 +29,6 @@ const ScenePreviewModal = () => {
   };
 
   const handleStartChat = async () => {
-    // Check authentication first
-    if (!isAuthenticated) {
-      // Redirect to login
-      handleClose();
-      navigate("/login");
-      return;
-    }
-
     if (!previewScene || !selectedCharacter) {
       // If no character is selected, redirect to characters page
       if (!selectedCharacter) {
@@ -43,6 +36,14 @@ const ScenePreviewModal = () => {
         handleClose();
         return;
       }
+      return;
+    }
+
+    // Check authentication
+    if (!isAuthenticated) {
+      // Show auth modal instead of redirecting
+      requestAuthForChat(previewScene, selectedCharacter);
+      handleClose(); // Close the scene modal
       return;
     }
 

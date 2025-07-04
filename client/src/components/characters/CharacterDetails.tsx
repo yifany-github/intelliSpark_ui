@@ -9,21 +9,21 @@ interface CharacterDetailsProps {
 }
 
 const CharacterDetails = ({ character }: CharacterDetailsProps) => {
-  const { selectedScene, startChat } = useRolePlay();
+  const { selectedScene, startChat, requestAuthForChat } = useRolePlay();
   const { isAuthenticated } = useAuth();
   const [_, navigate] = useLocation();
 
   const handleStartChat = async () => {
-    // Check authentication first
-    if (!isAuthenticated) {
-      // Redirect to login with a return path
-      navigate("/login");
-      return;
-    }
-
     if (!selectedScene) {
       // If no scene is selected, redirect to scenes page
       navigate("/scenes");
+      return;
+    }
+
+    // Check authentication
+    if (!isAuthenticated) {
+      // Show auth modal instead of redirecting
+      requestAuthForChat(selectedScene, character);
       return;
     }
 
