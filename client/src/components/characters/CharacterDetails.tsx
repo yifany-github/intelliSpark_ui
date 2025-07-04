@@ -1,5 +1,6 @@
 import { Character } from "@shared/schema";
 import { useRolePlay } from "@/context/RolePlayContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 
@@ -9,9 +10,17 @@ interface CharacterDetailsProps {
 
 const CharacterDetails = ({ character }: CharacterDetailsProps) => {
   const { selectedScene, startChat } = useRolePlay();
+  const { isAuthenticated } = useAuth();
   const [_, navigate] = useLocation();
 
   const handleStartChat = async () => {
+    // Check authentication first
+    if (!isAuthenticated) {
+      // Redirect to login with a return path
+      navigate("/login");
+      return;
+    }
+
     if (!selectedScene) {
       // If no scene is selected, redirect to scenes page
       navigate("/scenes");

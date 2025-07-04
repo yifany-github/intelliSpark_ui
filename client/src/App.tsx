@@ -17,13 +17,13 @@ import { RolePlayProvider } from "@/context/RolePlayContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 
-// Protected App component that requires authentication
-function ProtectedApp() {
+// Main App component - now allows browsing without authentication
+function MainApp() {
   const { isAuthenticated, isLoading } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
   
   useEffect(() => {
-    // Check if the user has completed onboarding
+    // Only show onboarding for authenticated users who haven't completed it
     const hasCompletedOnboarding = localStorage.getItem("onboardingCompleted");
     if (!hasCompletedOnboarding && isAuthenticated) {
       setShowOnboarding(true);
@@ -35,25 +35,8 @@ function ProtectedApp() {
     setShowOnboarding(false);
   };
 
-  // Show loading while checking auth
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Redirect to login if not authenticated
-  if (!isAuthenticated) {
-    return <Redirect to="/login" />;
-  }
-
-  // Show onboarding if needed
-  if (showOnboarding) {
+  // Show onboarding if user is authenticated and hasn't completed it
+  if (isAuthenticated && showOnboarding) {
     return <OnboardingPage onComplete={completeOnboarding} />;
   }
 
@@ -66,11 +49,23 @@ function ProtectedApp() {
             <Route path="/" component={ScenesPage} />
             <Route path="/scenes" component={ScenesPage} />
             <Route path="/characters" component={CharactersPage} />
-            <Route path="/chats" component={ChatsPage} />
-            <Route path="/chats/:id">
-              {params => <ChatsPage chatId={params.id} />}
+            <Route path="/chats">
+              <ProtectedRoute>
+                <ChatsPage />
+              </ProtectedRoute>
             </Route>
-            <Route path="/profile" component={ProfilePage} />
+            <Route path="/chats/:id">
+              {params => (
+                <ProtectedRoute>
+                  <ChatsPage chatId={params.id} />
+                </ProtectedRoute>
+              )}
+            </Route>
+            <Route path="/profile">
+              <ProtectedRoute>
+                <ProfilePage />
+              </ProtectedRoute>
+            </Route>
             <Route component={NotFound} />
           </Switch>
         </div>
@@ -78,6 +73,28 @@ function ProtectedApp() {
       </div>
     </RolePlayProvider>
   );
+}
+
+// Protected wrapper for auth-required features
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = useAuth();
+  
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Redirect to="/login" />;
+  }
+
+  return <>{children}</>;
 }
 
 function App() {
@@ -90,7 +107,7 @@ function App() {
               <Route path="/login" component={LoginPage} />
               <Route path="/register" component={RegisterPage} />
               <Route>
-                <ProtectedApp />
+                <MainApp />
               </Route>
             </Switch>
           </AuthProvider>

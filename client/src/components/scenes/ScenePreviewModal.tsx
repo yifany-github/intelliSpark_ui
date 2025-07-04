@@ -1,4 +1,5 @@
 import { useRolePlay } from "@/context/RolePlayContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 
 // Utility function to convert relative URLs to absolute URLs
@@ -19,6 +20,7 @@ const ScenePreviewModal = () => {
     selectedCharacter,
   } = useRolePlay();
   
+  const { isAuthenticated } = useAuth();
   const [_, navigate] = useLocation();
 
   const handleClose = () => {
@@ -26,6 +28,14 @@ const ScenePreviewModal = () => {
   };
 
   const handleStartChat = async () => {
+    // Check authentication first
+    if (!isAuthenticated) {
+      // Redirect to login
+      handleClose();
+      navigate("/login");
+      return;
+    }
+
     if (!previewScene || !selectedCharacter) {
       // If no character is selected, redirect to characters page
       if (!selectedCharacter) {
