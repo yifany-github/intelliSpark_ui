@@ -7,7 +7,7 @@ import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Alert, AlertDescription } from '../../components/ui/alert';
 import { useToast } from '../../hooks/use-toast';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { Eye, EyeOff, UserPlus } from 'lucide-react';
 
 const RegisterPage = () => {
@@ -22,6 +22,7 @@ const RegisterPage = () => {
   const { register } = useAuth();
   const { t } = useLanguage();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -51,7 +52,8 @@ const RegisterPage = () => {
         title: "Registration successful",
         description: "Welcome! Your account has been created and you are now logged in.",
       });
-      // Navigation will be handled by the auth state change
+      // Explicitly redirect to main app
+      setLocation('/');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Registration failed';
       setError(errorMessage);

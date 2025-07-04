@@ -7,7 +7,7 @@ import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Alert, AlertDescription } from '../../components/ui/alert';
 import { useToast } from '../../hooks/use-toast';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { Eye, EyeOff, LogIn } from 'lucide-react';
 
 const LoginPage = () => {
@@ -20,6 +20,7 @@ const LoginPage = () => {
   const { login } = useAuth();
   const { t } = useLanguage();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,7 +33,8 @@ const LoginPage = () => {
         title: "Login successful",
         description: "Welcome back! You are now logged in.",
       });
-      // Navigation will be handled by the auth state change
+      // Explicitly redirect to main app
+      setLocation('/');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
       setError(errorMessage);
