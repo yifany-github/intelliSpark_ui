@@ -9,7 +9,7 @@ interface CharacterDetailsProps {
 }
 
 const CharacterDetails = ({ character }: CharacterDetailsProps) => {
-  const { selectedScene, startChat, requestAuthForChat } = useRolePlay();
+  const { selectedScene, startChat, startChatPreview } = useRolePlay();
   const { isAuthenticated } = useAuth();
   const [_, navigate] = useLocation();
 
@@ -20,18 +20,18 @@ const CharacterDetails = ({ character }: CharacterDetailsProps) => {
       return;
     }
 
-    // Check authentication
-    if (!isAuthenticated) {
-      // Show auth modal instead of redirecting
-      requestAuthForChat(selectedScene, character);
-      return;
-    }
-
-    try {
-      const chatId = await startChat(selectedScene, character);
-      navigate(`/chats/${chatId}`);
-    } catch (error) {
-      console.error("Failed to start chat:", error);
+    if (isAuthenticated) {
+      // If already authenticated, create chat immediately
+      try {
+        const chatId = await startChat(selectedScene, character);
+        navigate(`/chats/${chatId}`);
+      } catch (error) {
+        console.error("Failed to start chat:", error);
+      }
+    } else {
+      // Set up preview mode - user can see chat interface and start typing
+      startChatPreview(selectedScene, character);
+      navigate(`/chat-preview`);
     }
   };
 

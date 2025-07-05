@@ -12,6 +12,7 @@ import ProfilePage from "@/pages/profile";
 import OnboardingPage from "@/pages/onboarding";
 import LoginPage from "@/pages/auth/login";
 import RegisterPage from "@/pages/auth/register";
+import ChatPreviewPage from "@/pages/chat-preview";
 import TabNavigation from "@/components/layout/TabNavigation";
 import AuthModal from "@/components/auth/AuthModal";
 import { RolePlayProvider, useRolePlay } from "@/context/RolePlayContext";
@@ -23,6 +24,8 @@ function AuthModalHandler() {
   const { 
     isAuthModalOpen, 
     setIsAuthModalOpen, 
+    pendingMessage,
+    setPendingMessage,
     pendingChatAction, 
     setPendingChatAction 
   } = useRolePlay();
@@ -32,11 +35,18 @@ function AuthModalHandler() {
     if (pendingChatAction) {
       try {
         const chatId = await pendingChatAction();
-        navigate(`/chats/${chatId}`);
+        // Navigate to the actual chat with the pending message
+        if (pendingMessage) {
+          // The chat page will handle sending the pending message
+          navigate(`/chats/${chatId}?message=${encodeURIComponent(pendingMessage)}`);
+        } else {
+          navigate(`/chats/${chatId}`);
+        }
       } catch (error) {
         console.error("Failed to execute pending chat action:", error);
       } finally {
         setPendingChatAction(null);
+        setPendingMessage(null);
       }
     }
   };
@@ -44,6 +54,7 @@ function AuthModalHandler() {
   const handleAuthClose = () => {
     setIsAuthModalOpen(false);
     setPendingChatAction(null);
+    setPendingMessage(null);
   };
 
   return (
@@ -51,8 +62,11 @@ function AuthModalHandler() {
       isOpen={isAuthModalOpen}
       onClose={handleAuthClose}
       onSuccess={handleAuthSuccess}
-      title="Login to Start Chatting"
-      description="Please sign in to continue your conversation with this character"
+      title="Login to Continue"
+      description={pendingMessage 
+        ? "Please sign in to send your message and start the conversation" 
+        : "Please sign in to continue your conversation with this character"
+      }
     />
   );
 }
@@ -90,6 +104,7 @@ function MainApp() {
             <Route path="/" component={ScenesPage} />
             <Route path="/scenes" component={ScenesPage} />
             <Route path="/characters" component={CharactersPage} />
+            <Route path="/chat-preview" component={ChatPreviewPage} />
             <Route path="/chats">
               <ProtectedRoute>
                 <ChatsPage />
