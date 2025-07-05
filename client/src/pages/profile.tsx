@@ -3,6 +3,7 @@ import { useRolePlay } from "@/context/RolePlayContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Scene, Character } from "@shared/schema";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import { 
@@ -44,6 +45,7 @@ const ProfilePage = () => {
   const { t } = useLanguage();
   const { user, logout } = useAuth();
   const { toast } = useToast();
+  const [_, navigate] = useLocation();
   
   // Fetch recent scenes
   const { data: scenes = [] } = useQuery<Scene[]>({
@@ -72,6 +74,7 @@ const ProfilePage = () => {
   // Logout function
   const handleLogout = () => {
     logout();
+    navigate("/");
     toast({
       title: "Logged out",
       description: "You have been successfully logged out",
@@ -110,7 +113,7 @@ const ProfilePage = () => {
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you sure you want to logout?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will sign you out of your account and redirect you to the login page.
+                  This will sign you out of your account and redirect you to the home page.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
