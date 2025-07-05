@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ChatMessage } from '@shared/schema';
+import { ChatMessage } from '../../types';
 import { format } from 'date-fns';
 import { Menu, X, RefreshCw, Copy, Palette } from 'lucide-react';
 import { 

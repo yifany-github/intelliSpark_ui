@@ -1,4 +1,4 @@
-import { Character } from "@shared/schema";
+import { Character } from "../../types";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 
 interface CharacterListItemProps {

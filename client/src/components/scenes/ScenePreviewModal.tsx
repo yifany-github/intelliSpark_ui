@@ -1,4 +1,5 @@
 import { useRolePlay } from "@/context/RolePlayContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 
 // Utility function to convert relative URLs to absolute URLs
@@ -16,9 +17,11 @@ const ScenePreviewModal = () => {
     setIsPreviewModalOpen, 
     previewScene,
     startChat,
+    startChatPreview,
     selectedCharacter,
   } = useRolePlay();
   
+  const { isAuthenticated } = useAuth();
   const [_, navigate] = useLocation();
 
   const handleClose = () => {
@@ -36,12 +39,20 @@ const ScenePreviewModal = () => {
       return;
     }
 
-    try {
-      const chatId = await startChat(previewScene, selectedCharacter);
-      handleClose();
-      navigate(`/chats/${chatId}`);
-    } catch (error) {
-      console.error("Failed to start chat:", error);
+    if (isAuthenticated) {
+      // If already authenticated, create chat immediately
+      try {
+        const chatId = await startChat(previewScene, selectedCharacter);
+        handleClose();
+        navigate(`/chats/${chatId}`);
+      } catch (error) {
+        console.error("Failed to start chat:", error);
+      }
+    } else {
+      // Set up preview mode - user can see chat interface and start typing
+      startChatPreview(previewScene, selectedCharacter);
+      handleClose(); // Close the scene modal
+      navigate(`/chat-preview`);
     }
   };
 

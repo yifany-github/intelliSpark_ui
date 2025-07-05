@@ -1,5 +1,6 @@
-import { Character } from "@shared/schema";
+import { Character } from "../../types";
 import { useRolePlay } from "@/context/RolePlayContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 
@@ -8,7 +9,8 @@ interface CharacterDetailsProps {
 }
 
 const CharacterDetails = ({ character }: CharacterDetailsProps) => {
-  const { selectedScene, startChat } = useRolePlay();
+  const { selectedScene, startChat, startChatPreview } = useRolePlay();
+  const { isAuthenticated } = useAuth();
   const [_, navigate] = useLocation();
 
   const handleStartChat = async () => {
@@ -18,11 +20,18 @@ const CharacterDetails = ({ character }: CharacterDetailsProps) => {
       return;
     }
 
-    try {
-      const chatId = await startChat(selectedScene, character);
-      navigate(`/chats/${chatId}`);
-    } catch (error) {
-      console.error("Failed to start chat:", error);
+    if (isAuthenticated) {
+      // If already authenticated, create chat immediately
+      try {
+        const chatId = await startChat(selectedScene, character);
+        navigate(`/chats/${chatId}`);
+      } catch (error) {
+        console.error("Failed to start chat:", error);
+      }
+    } else {
+      // Set up preview mode - user can see chat interface and start typing
+      startChatPreview(selectedScene, character);
+      navigate(`/chat-preview`);
     }
   };
 

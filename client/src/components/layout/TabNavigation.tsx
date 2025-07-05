@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { useLocation, useRoute, Link } from "wouter";
 import { useLanguage } from "@/context/LanguageContext";
+import { useAuth } from "@/contexts/AuthContext";
 
 const TabNavigation = () => {
   const [location, setLocation] = useLocation();
   const [activeTab, setActiveTab] = useState("scenes");
   const { t } = useLanguage();
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     if (location === "/" || location.startsWith("/scenes")) {
@@ -16,14 +18,22 @@ const TabNavigation = () => {
       setActiveTab("chats");
     } else if (location.startsWith("/profile")) {
       setActiveTab("profile");
+    } else if (location.startsWith("/login")) {
+      setActiveTab("login");
     }
   }, [location]);
 
-  const tabs = [
-    { id: "scenes", icon: "map-location-dot", label: t("scenes"), path: "/scenes" },
-    { id: "characters", icon: "user", label: t("characters"), path: "/characters" },
-    { id: "chats", icon: "message", label: t("chats"), path: "/chats" },
-    { id: "profile", icon: "user-gear", label: t("profile"), path: "/profile" },
+  // Dynamic tabs based on authentication status
+  const tabs = isAuthenticated ? [
+    { id: "scenes", icon: "map-location-dot", label: t("scenes"), path: "/scenes", enabled: true },
+    { id: "characters", icon: "user", label: t("characters"), path: "/characters", enabled: true },
+    { id: "chats", icon: "message", label: t("chats"), path: "/chats", enabled: true },
+    { id: "profile", icon: "user-gear", label: t("profile"), path: "/profile", enabled: true },
+  ] : [
+    { id: "scenes", icon: "map-location-dot", label: t("scenes"), path: "/scenes", enabled: true },
+    { id: "characters", icon: "user", label: t("characters"), path: "/characters", enabled: true },
+    { id: "chats", icon: "message", label: "Chats", path: "/login", enabled: false },
+    { id: "login", icon: "sign-in-alt", label: "Login", path: "/login", enabled: true },
   ];
 
   return (
@@ -35,8 +45,9 @@ const TabNavigation = () => {
             href={tab.path}
             onClick={() => setActiveTab(tab.id)}
             className={`flex flex-col items-center py-3 px-4 relative ${
-              activeTab === tab.id ? "text-white" : "text-gray-500"
-            }`}
+              activeTab === tab.id ? "text-white" : 
+              tab.enabled ? "text-gray-500" : "text-gray-700"
+            } ${!tab.enabled ? "opacity-60" : ""}`}
           >
             <i className={`fas fa-${tab.icon} text-lg`}></i>
             <span className="text-xs mt-1">{tab.label}</span>

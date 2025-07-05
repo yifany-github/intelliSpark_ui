@@ -11,6 +11,7 @@ from schemas import (
     EnrichedChat, ChatCreate, ChatMessageCreate, MessageResponse
 )
 from gemini_service import GeminiService
+from auth.routes import get_current_user
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -124,10 +125,10 @@ async def get_character(character_id: int, db: Session = Depends(get_db)):
 # ===== CHAT ROUTES =====
 
 @router.get("/chats", response_model=List[EnrichedChat])
-async def get_chats(db: Session = Depends(get_db)):
+async def get_chats(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get all chats with enriched character and scene data"""
     try:
-        chats = db.query(Chat).all()
+        chats = db.query(Chat).filter(Chat.user_id == current_user.id).all()
         
         # Enrich chats with character and scene data
         enriched_chats = []
@@ -161,10 +162,10 @@ async def get_chats(db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Failed to fetch chats")
 
 @router.get("/chats/{chat_id}")
-async def get_chat(chat_id: int, db: Session = Depends(get_db)):
+async def get_chat(chat_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get a single chat by ID"""
     try:
-        chat = db.query(Chat).filter(Chat.id == chat_id).first()
+        chat = db.query(Chat).filter(Chat.id == chat_id, Chat.user_id == current_user.id).first()
         if not chat:
             raise HTTPException(status_code=404, detail="Chat not found")
         
@@ -185,7 +186,7 @@ async def get_chat(chat_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Failed to fetch chat")
 
 @router.post("/chats", response_model=ChatSchema)
-async def create_chat(chat_data: ChatCreate, db: Session = Depends(get_db)):
+async def create_chat(chat_data: ChatCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Create a new chat"""
     try:
         # Validate scene exists
@@ -198,9 +199,9 @@ async def create_chat(chat_data: ChatCreate, db: Session = Depends(get_db)):
         if not character:
             raise HTTPException(status_code=404, detail="Character not found")
         
-        # For now, hardcode user_id to 1 (matching your original logic)
+        # Use authenticated user instead of hardcoded user_id
         chat = Chat(
-            user_id=1,
+            user_id=current_user.id,
             scene_id=chat_data.sceneId,  # Use frontend field names
             character_id=chat_data.characterId,  # Use frontend field names
             title=chat_data.title
@@ -226,9 +227,14 @@ async def create_chat(chat_data: ChatCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Failed to create chat")
 
 @router.get("/chats/{chat_id}/messages", response_model=List[ChatMessageSchema])
-async def get_chat_messages(chat_id: int, db: Session = Depends(get_db)):
+async def get_chat_messages(chat_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Get all messages for a chat"""
     try:
+        # First check if chat belongs to current user
+        chat = db.query(Chat).filter(Chat.id == chat_id, Chat.user_id == current_user.id).first()
+        if not chat:
+            raise HTTPException(status_code=404, detail="Chat not found")
+        
         messages = db.query(ChatMessage).filter(
             ChatMessage.chat_id == chat_id
         ).order_by(ChatMessage.id).all()
@@ -242,10 +248,16 @@ async def get_chat_messages(chat_id: int, db: Session = Depends(get_db)):
 async def add_chat_message(
     chat_id: int, 
     message_data: ChatMessageCreate, 
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
     """Add a message to a chat"""
     try:
+        # First check if chat belongs to current user
+        chat = db.query(Chat).filter(Chat.id == chat_id, Chat.user_id == current_user.id).first()
+        if not chat:
+            raise HTTPException(status_code=404, detail="Chat not found")
+        
         message = ChatMessage(
             chat_id=chat_id,
             role=message_data.role,
@@ -263,11 +275,11 @@ async def add_chat_message(
         raise HTTPException(status_code=500, detail="Failed to create message")
 
 @router.post("/chats/{chat_id}/generate", response_model=ChatMessageSchema)
-async def generate_ai_response(chat_id: int, db: Session = Depends(get_db)):
+async def generate_ai_response(chat_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Generate AI response for a chat"""
     try:
-        # Get the chat
-        chat = db.query(Chat).filter(Chat.id == chat_id).first()
+        # Get the chat and verify it belongs to current user
+        chat = db.query(Chat).filter(Chat.id == chat_id, Chat.user_id == current_user.id).first()
         if not chat:
             raise HTTPException(status_code=404, detail="Chat not found")
         
@@ -310,13 +322,19 @@ async def generate_ai_response(chat_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail="Failed to generate AI response")
 
 @router.delete("/chats", response_model=MessageResponse)
-async def clear_all_chats(db: Session = Depends(get_db)):
-    """Clear all chat history"""
+async def clear_all_chats(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Clear all chat history for the current user"""
     try:
-        # Delete all chat messages first (due to foreign key constraints)
-        db.query(ChatMessage).delete()
-        # Delete all chats
-        db.query(Chat).delete()
+        # Get all chats for the current user
+        user_chats = db.query(Chat).filter(Chat.user_id == current_user.id).all()
+        chat_ids = [chat.id for chat in user_chats]
+        
+        # Delete all chat messages for these chats first (due to foreign key constraints)
+        if chat_ids:
+            db.query(ChatMessage).filter(ChatMessage.chat_id.in_(chat_ids)).delete()
+            # Delete all chats for this user
+            db.query(Chat).filter(Chat.user_id == current_user.id).delete()
+        
         db.commit()
         
         return MessageResponse(message="Chat history cleared successfully")

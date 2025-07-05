@@ -26,6 +26,22 @@ class User(UserBase):
     id: int
     created_at: datetime
 
+# Authentication schemas
+class UserLogin(BaseSchema):
+    username: str
+    password: str
+
+class UserRegister(BaseSchema):
+    username: str
+    password: str
+
+class Token(BaseSchema):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseSchema):
+    username: Optional[str] = None
+
 # Scene schemas
 class SceneBase(BaseSchema):
     name: str
