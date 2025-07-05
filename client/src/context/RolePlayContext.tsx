@@ -36,8 +36,8 @@ interface RolePlayContextType {
   setIsAuthModalOpen: (isOpen: boolean) => void;
   pendingMessage: string | null;
   setPendingMessage: (message: string | null) => void;
-  pendingChatAction: (() => Promise<void>) | null;
-  setPendingChatAction: (action: (() => Promise<void>) | null) => void;
+  pendingChatAction: (() => Promise<string>) | null;
+  setPendingChatAction: (action: (() => Promise<string>) | null) => void;
   
   // Start Chat Function
   startChat: (scene: Scene, character: Character) => Promise<string>;
@@ -69,7 +69,7 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
   // Auth Modal State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
-  const [pendingChatAction, setPendingChatAction] = useState<(() => Promise<void>) | null>(null);
+  const [pendingChatAction, setPendingChatAction] = useState<(() => Promise<string>) | null>(null);
   
   // Start chat preview (without authentication) - sets up scene/character context
   const startChatPreview = (scene: Scene, character: Character) => {

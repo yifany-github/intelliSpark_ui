@@ -1,4 +1,4 @@
-import { Character } from "@shared/schema";
+import { Character } from "../../types";
 import { useRolePlay } from "@/context/RolePlayContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";

@@ -4,7 +4,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Scene, Character } from "@shared/schema";
+import { Scene, Character } from "../types";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import { 
   Clock, 

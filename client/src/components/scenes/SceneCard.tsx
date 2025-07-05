@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Scene } from "@shared/schema";
+import { Scene } from "../../types";
 import { useRolePlay } from "@/context/RolePlayContext";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 
