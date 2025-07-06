@@ -54,7 +54,7 @@ class AuthService:
     
     @staticmethod
     def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
-        """Authenticate user credentials"""
+        """Authenticate user credentials by username (legacy)"""
         user = db.query(User).filter(User.username == username).first()
         if not user:
             return None
@@ -63,8 +63,18 @@ class AuthService:
         return user
     
     @staticmethod
+    def authenticate_user_by_email(db: Session, email: str, password: str) -> Optional[User]:
+        """Authenticate user credentials by email"""
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            return None
+        if not AuthService.verify_password(password, user.password):
+            return None
+        return user
+    
+    @staticmethod
     def create_user(db: Session, username: str, password: str) -> User:
-        """Create a new user with hashed password"""
+        """Create a new user with hashed password (legacy)"""
         hashed_password = AuthService.get_password_hash(password)
         user = User(username=username, password=hashed_password)
         db.add(user)
@@ -73,18 +83,91 @@ class AuthService:
         return user
     
     @staticmethod
+    def create_user_with_email(db: Session, email: str, password: str, username: str = None) -> User:
+        """Create a new user with email and hashed password"""
+        hashed_password = AuthService.get_password_hash(password)
+        # Generate username if not provided
+        if not username:
+            username = email.split('@')[0]
+            # Make username unique if it already exists
+            counter = 1
+            base_username = username
+            while db.query(User).filter(User.username == username).first():
+                username = f"{base_username}_{counter}"
+                counter += 1
+        
+        user = User(username=username, email=email, password=hashed_password, provider='email')
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    
+    @staticmethod
+    def create_user_from_firebase(db: Session, firebase_uid: str, email: str, provider: str = 'google') -> User:
+        """Create a new user from Firebase social login"""
+        # Generate username from email
+        username = email.split('@')[0]
+        # Make username unique if it already exists
+        counter = 1
+        base_username = username
+        while db.query(User).filter(User.username == username).first():
+            username = f"{base_username}_{counter}"
+            counter += 1
+        
+        # No password needed for social login
+        user = User(
+            username=username,
+            email=email,
+            password='',  # Empty password for social login
+            provider=provider,
+            firebase_uid=firebase_uid
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    
+    @staticmethod
+    def authenticate_user_by_firebase_token(db: Session, firebase_token: str) -> Optional[User]:
+        """Authenticate user by Firebase token (placeholder - requires Firebase Admin SDK)"""
+        # TODO: Implement Firebase token validation
+        # This would require Firebase Admin SDK to verify the token
+        # For now, this is a placeholder that needs to be implemented
+        # when Firebase is properly set up
+        
+        # firebase_admin.auth.verify_id_token(firebase_token)
+        # decoded_token = firebase_admin.auth.verify_id_token(firebase_token)
+        # firebase_uid = decoded_token['uid']
+        # email = decoded_token.get('email')
+        # provider = decoded_token.get('firebase', {}).get('sign_in_provider', 'google')
+        
+        # user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
+        # if not user and email:
+        #     user = AuthService.create_user_from_firebase(db, firebase_uid, email, provider)
+        # return user
+        
+        raise HTTPException(
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
+            detail="Firebase authentication not yet implemented"
+        )
+    
+    @staticmethod
     def get_current_user(db: Session, token: str) -> User:
         """Get current user from JWT token"""
         payload = AuthService.verify_token(token)
-        username: str = payload.get("sub")
-        if username is None:
+        identifier: str = payload.get("sub")
+        if identifier is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        user = db.query(User).filter(User.username == username).first()
+        # Try to find user by email first (new tokens), then by username (legacy tokens)
+        user = db.query(User).filter(User.email == identifier).first()
+        if user is None:
+            user = db.query(User).filter(User.username == identifier).first()
+        
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
