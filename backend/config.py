@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     # Gemini AI settings
     gemini_api_key: Optional[str] = None
     
+    # Firebase settings
+    firebase_api_key: Optional[str] = None
+    
     # App settings
     app_name: str = "ProductInsightAI Backend"
     debug: bool = True
@@ -32,12 +35,16 @@ def validate_settings():
     if not settings.gemini_api_key:
         print("WARNING: GEMINI_API_KEY not found. AI responses will be simulated.")
     
+    if not settings.firebase_api_key:
+        print("WARNING: FIREBASE_API_KEY not found. Google OAuth will not work.")
+    
     if not settings.secret_key:
         raise ValueError("SECRET_KEY is required for JWT authentication")
     
     print(f"Database URL: {settings.database_url}")
     print(f"Debug mode: {settings.debug}")
     print(f"Gemini API Key present: {'Yes' if settings.gemini_api_key else 'No'}")
+    print(f"Firebase API Key present: {'Yes' if settings.firebase_api_key else 'No'}")
     print(f"Secret Key present: {'Yes' if settings.secret_key else 'No'}")
 
 # Call validation on import

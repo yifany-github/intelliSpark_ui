@@ -54,7 +54,7 @@ class AuthService:
     
     @staticmethod
     def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
-        """Authenticate user credentials"""
+        """Authenticate user credentials by username (legacy)"""
         user = db.query(User).filter(User.username == username).first()
         if not user:
             return None
@@ -63,10 +63,135 @@ class AuthService:
         return user
     
     @staticmethod
+    def authenticate_user_by_email(db: Session, email: str, password: str) -> Optional[User]:
+        """Authenticate user credentials by email"""
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            return None
+        if not AuthService.verify_password(password, user.password):
+            return None
+        return user
+    
+    @staticmethod
     def create_user(db: Session, username: str, password: str) -> User:
-        """Create a new user with hashed password"""
+        """Create a new user with hashed password (legacy)"""
         hashed_password = AuthService.get_password_hash(password)
         user = User(username=username, password=hashed_password)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    
+    @staticmethod
+    def create_user_with_email(db: Session, email: str, password: str, username: str = None) -> User:
+        """Create a new user with email and hashed password"""
+        hashed_password = AuthService.get_password_hash(password)
+        # Generate username if not provided
+        if not username:
+            username = email.split('@')[0]
+            # Make username unique if it already exists
+            counter = 1
+            base_username = username
+            while db.query(User).filter(User.username == username).first():
+                username = f"{base_username}_{counter}"
+                counter += 1
+        
+        user = User(username=username, email=email, password=hashed_password, provider='email')
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    
+    @staticmethod
+    def authenticate_user_by_firebase_token(db: Session, firebase_token: str) -> Optional[User]:
+        """Authenticate user by Firebase token and create user if doesn't exist"""
+        try:
+            import requests
+            from config import settings
+            
+            # Verify Firebase token using Firebase REST API
+            if not settings.firebase_api_key:
+                print("Firebase API key not configured")
+                return None
+                
+            verify_url = f"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={settings.firebase_api_key}"
+            response = requests.post(verify_url, json={"idToken": firebase_token})
+            
+            if response.status_code != 200:
+                print(f"Firebase token verification failed: {response.text}")
+                return None
+                
+            data = response.json()
+            if 'users' not in data or len(data['users']) == 0:
+                print("No user found in Firebase token")
+                return None
+                
+            firebase_user = data['users'][0]
+            email = firebase_user.get('email')
+            firebase_uid = firebase_user.get('localId')
+            
+            if not email:
+                print("No email found in Firebase token")
+                return None
+            
+            # Check if user exists by firebase_uid first, then by email
+            user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
+            if not user:
+                user = db.query(User).filter(User.email == email).first()
+            
+            if not user:
+                # Create new user from Firebase data
+                username = email.split('@')[0]
+                counter = 1
+                base_username = username
+                while db.query(User).filter(User.username == username).first():
+                    username = f"{base_username}_{counter}"
+                    counter += 1
+                
+                user = User(
+                    username=username,
+                    email=email,
+                    password="",  # No password for OAuth users
+                    provider='google',
+                    firebase_uid=firebase_uid
+                )
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+                print(f"Created new Firebase user: {email}")
+            else:
+                # Update firebase_uid if user exists but doesn't have it
+                if not user.firebase_uid:
+                    user.firebase_uid = firebase_uid
+                    db.commit()
+                print(f"Authenticated existing user: {email}")
+            
+            return user
+            
+        except Exception as e:
+            print(f"Firebase authentication error: {e}")
+            return None
+    
+    @staticmethod
+    def create_user_from_firebase(db: Session, firebase_uid: str, email: str, provider: str = 'google') -> User:
+        """Create a new user from Firebase social login"""
+        # Generate username from email
+        username = email.split('@')[0]
+        # Make username unique if it already exists
+        counter = 1
+        base_username = username
+        while db.query(User).filter(User.username == username).first():
+            username = f"{base_username}_{counter}"
+            counter += 1
+        
+        # No password needed for social login
+        user = User(
+            username=username,
+            email=email,
+            password='',  # Empty password for social login
+            provider=provider,
+            firebase_uid=firebase_uid
+        )
         db.add(user)
         db.commit()
         db.refresh(user)
@@ -76,15 +201,19 @@ class AuthService:
     def get_current_user(db: Session, token: str) -> User:
         """Get current user from JWT token"""
         payload = AuthService.verify_token(token)
-        username: str = payload.get("sub")
-        if username is None:
+        identifier: str = payload.get("sub")
+        if identifier is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Could not validate credentials",
                 headers={"WWW-Authenticate": "Bearer"},
             )
         
-        user = db.query(User).filter(User.username == username).first()
+        # Try to find user by email first (new tokens), then by username (legacy tokens)
+        user = db.query(User).filter(User.email == identifier).first()
+        if user is None:
+            user = db.query(User).filter(User.username == identifier).first()
+        
         if user is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
