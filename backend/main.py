@@ -10,6 +10,7 @@ load_dotenv()
 
 # Import our routes
 from routes import router
+from admin.routes import router as admin_router
 from auth.routes import router as auth_router
 from database import init_db
 
@@ -43,6 +44,7 @@ if client_dist_path.exists():
 
 # Include API routes
 app.include_router(router, prefix="/api")
+app.include_router(admin_router, prefix="/api")
 app.include_router(auth_router, prefix="/api/auth", tags=["authentication"])
 
 @app.on_event("startup")
