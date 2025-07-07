@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react';
-import { ChatMessage } from '@shared/schema';
+import { ChatMessage } from '../../types';
 import { format } from 'date-fns';
 import { Menu, X, RefreshCw, Copy, Palette } from 'lucide-react';
 import { 
@@ -9,6 +9,7 @@ import {
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
+import ImageWithFallback from '@/components/ui/ImageWithFallback';
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -48,15 +49,14 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
   return (
     <div className={`flex items-end mb-4 ${!isAI && 'justify-end'}`}>
       {isAI && (
-        <div className="w-8 h-8 rounded-full overflow-hidden mr-2 flex-shrink-0 bg-gradient-to-r from-primary/40 to-accent/40">
-          {avatarUrl && (
-            <img 
-              src={avatarUrl} 
-              alt="Character" 
-              className="w-full h-full object-cover" 
-            />
-          )}
-        </div>
+        <ImageWithFallback
+          src={avatarUrl}
+          alt="Character"
+          fallbackText="AI"
+          size="sm"
+          showSpinner={true}
+          className="mr-2 flex-shrink-0"
+        />
       )}
       
       <div className="max-w-[80%]">

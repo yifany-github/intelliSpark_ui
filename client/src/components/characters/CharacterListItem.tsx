@@ -1,4 +1,5 @@
-import { Character } from "@shared/schema";
+import { Character } from "../../types";
+import ImageWithFallback from "@/components/ui/ImageWithFallback";
 
 interface CharacterListItemProps {
   character: Character;
@@ -14,15 +15,13 @@ const CharacterListItem = ({ character, isActive, onClick }: CharacterListItemPr
       }`}
       onClick={onClick}
     >
-      <div className="w-12 h-12 rounded-full overflow-hidden bg-gradient-to-r from-primary/40 to-accent/40">
-        {character.avatarUrl && (
-          <img 
-            src={character.avatarUrl} 
-            alt={character.name} 
-            className="w-full h-full object-cover"
-          />
-        )}
-      </div>
+      <ImageWithFallback
+        src={character.avatarUrl}
+        alt={character.name}
+        fallbackText={character.name}
+        size="md"
+        showSpinner={true}
+      />
       <div className="ml-3">
         <h3 className="font-medium">{character.name}</h3>
         <div className="flex mt-1 flex-wrap">

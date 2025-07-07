@@ -14,6 +14,21 @@
             "date": 1751119811871,
             "name": "/Users/yongboyu/Desktop/intelliSpark_ui/logs/mcp-puppeteer-2025-06-28.log",
             "hash": "d949cff6f955b108d734c86fe331203d03372fb1deccee02ca6c3ba5f0fd095c"
+        },
+        {
+            "date": 1751327418466,
+            "name": "/Users/yongboyu/Desktop/intelliSpark_ui/logs/mcp-puppeteer-2025-06-30.log",
+            "hash": "733e2a4d1b3c0c16d16b65d503a45cc7eab7581edf9e17a6ff5e526b6d653037"
+        },
+        {
+            "date": 1751382467454,
+            "name": "/Users/yongboyu/Desktop/intelliSpark_ui/logs/mcp-puppeteer-2025-07-01.log",
+            "hash": "92f5eb4a3b9d101b3e4bbf1b94e4a89826ec252cfdf59b2a322f3e73b359e822"
+        },
+        {
+            "date": 1751577983596,
+            "name": "/Users/yongboyu/Desktop/intelliSpark_ui/logs/mcp-puppeteer-2025-07-03.log",
+            "hash": "b9f583bdc207be3256d2ce018c07fa1816a1a870ce75614cc08311dc4c9e4907"
         }
     ],
     "hashType": "sha256"

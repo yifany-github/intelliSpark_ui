@@ -12,6 +12,9 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(255), unique=True, nullable=False, index=True)
     password = Column(String(255), nullable=False)
+    email = Column(String(255), unique=True, nullable=True, index=True)  # nullable for existing users
+    provider = Column(String(50), default='email')  # 'email', 'google', 'apple'
+    firebase_uid = Column(String(255), unique=True, nullable=True)  # Firebase user ID
     nsfw_level = Column(Integer, default=1)
     context_window_length = Column(Integer, default=10)
     temperature = Column(Integer, default=70)

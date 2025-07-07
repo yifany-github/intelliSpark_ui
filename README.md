@@ -6,7 +6,8 @@
 
 - **🎭 多角色扮演**：与不同性格的 AI 角色互动
 - **🏰 多种场景**：皇家宫廷、太空探索、未来都市等丰富场景
-- **🤖 智能对话**：基于 OpenAI GPT-4 的高质量 AI 对话
+- **🤖 智能对话**：基于 Gemini AI 的高质量 AI 对话
+- **🔐 现代认证**：邮箱登录 + Google OAuth 社交登录
 - **🎨 现代界面**：使用 React + TypeScript + Tailwind CSS 构建的美观 UI
 - **⚡ 实时体验**：快速响应的聊天体验
 
@@ -20,22 +21,26 @@
 - **Radix UI** - 无障碍组件库
 
 ### 后端
-- **Node.js** - JavaScript 运行时
-- **Express** - Web 应用框架
-- **TypeScript** - 服务端类型安全
-- **OpenAI API** - AI 对话能力
-- **Drizzle ORM** - 数据库 ORM
+- **Python** - 编程语言
+- **FastAPI** - 现代 Python Web 框架
+- **SQLAlchemy** - Python ORM
+- **Gemini AI** - AI 对话能力
+- **Firebase Auth** - 身份验证服务
+- **JWT** - JSON Web Token 认证
 
 ### 数据库
-- **PostgreSQL** - 主数据库（可选，使用 Neon 云数据库）
+- **SQLite** - 开发环境数据库
+- **PostgreSQL** - 生产环境数据库（可选）
 
 ## 📋 前提条件
 
 确保你的系统已安装以下软件：
 
-- **Node.js** >= 16.0.0
+- **Node.js** >= 16.0.0 (前端)
+- **Python** >= 3.8 (后端)
 - **npm** 或 **yarn**
-- **OpenAI API Key**（必需）
+- **Gemini API Key**（必需）
+- **Firebase 项目**（用于身份验证）
 
 ## 🚀 快速开始
 
@@ -54,27 +59,58 @@ npm install
 
 ### 3. 环境配置
 
-创建 `.env` 文件：
+#### 前端环境变量 (根目录 `.env`)：
 
 ```bash
-# OpenAI API 配置（必需）
-OPENAI_API_KEY=your_openai_api_key_here
-
-# 数据库配置（可选，有默认数据）
-DATABASE_URL=your_postgresql_connection_string
+# Firebase 配置（必需，用于身份验证）
+VITE_FIREBASE_API_KEY=your-firebase-api-key
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
+VITE_FIREBASE_APP_ID=your-app-id
 ```
 
-**获取 OpenAI API Key：**
-1. 访问 [OpenAI Platform](https://platform.openai.com/)
-2. 注册/登录账户
-3. 进入 API Keys 页面
-4. 创建新的 API Key
-5. 将 API Key 添加到 `.env` 文件中
+#### 后端环境变量 (`backend/.env`)：
+
+```bash
+# 数据库配置
+DATABASE_URL=sqlite:///./roleplay_chat.db
+
+# 身份验证配置
+SECRET_KEY=your-jwt-secret-key
+FIREBASE_API_KEY=your-firebase-api-key
+
+# AI 服务配置
+GEMINI_API_KEY=your-gemini-api-key
+```
+
+#### 获取必需的 API Keys：
+
+**1. Gemini API Key：**
+1. 访问 [Google AI Studio](https://makersuite.google.com/)
+2. 创建新的 API Key
+3. 将 API Key 添加到 `backend/.env` 文件中
+
+**2. Firebase 配置：**
+1. 访问 [Firebase Console](https://console.firebase.google.com/)
+2. 创建新项目或选择现有项目
+3. 启用 Authentication 服务
+4. 在 Sign-in method 中启用 Email/Password 和 Google
+5. 在项目设置中获取配置信息
+6. 将配置添加到根目录 `.env` 文件中
 
 ### 4. 启动开发服务器
 
+#### 启动前端 (在根目录)：
 ```bash
 npm run dev
+```
+
+#### 启动后端 (在新终端，切换到 backend 目录)：
+```bash
+cd backend
+python main.py
 ```
 
 前端开发服务器将在 `http://localhost:5173` 启动，后端 API 服务器将在 `http://localhost:8000` 启动
@@ -87,10 +123,11 @@ npm run dev
 
 ### 基本使用流程
 
-1. **选择场景**：从多个预设场景中选择一个（皇家宫廷、太空探索等）
-2. **选择角色**：选择你想要对话的 AI 角色
-3. **开始对话**：在聊天界面中与 AI 角色进行对话
-4. **角色扮演**：AI 会根据角色设定和场景背景回应你的消息
+1. **注册/登录**：使用邮箱注册账户或通过 Google 账户登录
+2. **选择场景**：从多个预设场景中选择一个（皇家宫廷、太空探索等）
+3. **选择角色**：选择你想要对话的 AI 角色
+4. **开始对话**：在聊天界面中与 AI 角色进行对话
+5. **角色扮演**：AI 会根据角色设定和场景背景回应你的消息
 
 ### 可用场景
 
@@ -149,6 +186,14 @@ npm run db:push
 
 ### API 端点
 
+#### 身份验证 API
+- `POST /api/auth/register` - 邮箱注册
+- `POST /api/auth/login` - 邮箱登录
+- `POST /api/auth/login/firebase` - Firebase OAuth 登录
+- `POST /api/auth/login/legacy` - 传统用户名登录（向后兼容）
+- `GET /api/auth/me` - 获取当前用户信息
+- `POST /api/auth/logout` - 登出
+
 #### 场景 API
 - `GET /api/scenes` - 获取所有场景
 - `GET /api/scenes/:id` - 获取特定场景
@@ -169,19 +214,26 @@ npm run db:push
 
 ### 常见问题
 
-#### 1. OpenAI API 连接失败
+#### 1. Firebase 身份验证失败
 
-**症状**：看到 "Using simulated responses" 警告
+**症状**：看到 "Firebase not configured" 或 "Invalid API key" 错误
 
 **解决方案**：
-1. 检查 `.env` 文件是否存在且包含有效的 `OPENAI_API_KEY`
-2. 确认 API Key 格式正确（以 `sk-` 开头）
-3. 验证 API Key 是否有效：
-   ```bash
-   curl -H "Authorization: Bearer YOUR_API_KEY" https://api.openai.com/v1/models
-   ```
+1. 检查根目录 `.env` 文件是否包含有效的 Firebase 配置
+2. 确认 Firebase Console 中已启用 Authentication 服务
+3. 验证 Email/Password 和 Google 登录方式已启用
+4. 重启前端开发服务器以加载新的环境变量
 
-#### 2. 端口被占用
+#### 2. Gemini AI 连接失败
+
+**症状**：AI 回复失败或使用模拟回复
+
+**解决方案**：
+1. 检查 `backend/.env` 文件是否包含有效的 `GEMINI_API_KEY`
+2. 确认 API Key 格式正确
+3. 验证 API Key 是否有效
+
+#### 3. 端口被占用
 
 **症状**：`EADDRINUSE: address already in use`
 
@@ -197,13 +249,18 @@ lsof -i :8000
 kill -9 <PID>
 ```
 
-#### 3. 网络绑定错误 (macOS)
+#### 4. 数据库模式错误
 
-**症状**：`ENOTSUP: operation not supported on socket`
+**症状**：`no such column` 错误
 
-**解决方案**：项目已配置为使用 `localhost` 而非 `0.0.0.0`，如果仍有问题，请重启服务器。
+**解决方案**：
+```bash
+# 删除旧数据库文件让系统重新创建
+rm backend/roleplay_chat.db
+# 重启后端服务器
+```
 
-#### 4. 模块找不到错误
+#### 5. 模块找不到错误
 
 **解决方案**：
 ```bash
@@ -220,13 +277,14 @@ npm install
 # 检查前端服务器状态
 curl http://localhost:5173
 
-# 检查后端 API 响应
+# 检查后端 API 健康状态
+curl http://localhost:8000/health
+
+# 检查身份验证 API
 curl http://localhost:8000/api/scenes
 
-# 检查 AI 集成（应该看到智能回复，而非模板回复）
-curl -X POST "http://localhost:8000/api/chats" \
-     -H "Content-Type: application/json" \
-     -d '{"sceneId": 1, "characterId": 1, "title": "Test"}'
+# 检查数据库连接（应该返回场景列表）
+curl http://localhost:8000/api/characters
 ```
 
 ## 📄 许可证

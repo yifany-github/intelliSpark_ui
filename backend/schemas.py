@@ -13,6 +13,8 @@ class BaseSchema(BaseModel):
 # User schemas
 class UserBase(BaseSchema):
     username: str
+    email: Optional[str] = None
+    provider: str = 'email'
     nsfw_level: int = 1
     context_window_length: int = 10
     temperature: int = 70
@@ -25,6 +27,31 @@ class UserCreate(BaseSchema):
 class User(UserBase):
     id: int
     created_at: datetime
+
+# Authentication schemas
+class UserLogin(BaseSchema):
+    email: str
+    password: str
+
+class UserLoginLegacy(BaseSchema):
+    username: str
+    password: str
+
+class UserRegister(BaseSchema):
+    email: str
+    password: str
+    username: Optional[str] = None
+
+class FirebaseAuthRequest(BaseSchema):
+    firebase_token: str
+
+class Token(BaseSchema):
+    access_token: str
+    token_type: str
+
+class TokenData(BaseSchema):
+    username: Optional[str] = None
+    email: Optional[str] = None
 
 # Scene schemas
 class SceneBase(BaseSchema):

@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 import { Scene, Character, Chat, ChatMessage } from '../types';
+import { apiRequest } from '../lib/queryClient';
 
 interface RolePlayContextType {
   // User Preferences
@@ -30,8 +31,18 @@ interface RolePlayContextType {
   previewScene: Scene | null;
   setPreviewScene: (scene: Scene | null) => void;
   
+  // Auth Modal State
+  isAuthModalOpen: boolean;
+  setIsAuthModalOpen: (isOpen: boolean) => void;
+  pendingMessage: string | null;
+  setPendingMessage: (message: string | null) => void;
+  pendingChatAction: (() => Promise<string>) | null;
+  setPendingChatAction: (action: (() => Promise<string>) | null) => void;
+  
   // Start Chat Function
   startChat: (scene: Scene, character: Character) => Promise<string>;
+  startChatPreview: (scene: Scene, character: Character) => void;
+  requestAuthForMessage: (message: string, chatId?: string) => void;
 }
 
 const RolePlayContext = createContext<RolePlayContextType | undefined>(undefined);
@@ -55,26 +66,50 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [previewScene, setPreviewScene] = useState<Scene | null>(null);
   
-  // Start a new chat
+  // Auth Modal State
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
+  const [pendingChatAction, setPendingChatAction] = useState<(() => Promise<string>) | null>(null);
+  
+  // Start chat preview (without authentication) - sets up scene/character context
+  const startChatPreview = (scene: Scene, character: Character) => {
+    setSelectedScene(scene);
+    setSelectedCharacter(character);
+    // Don't create actual chat yet - will be created when user sends first message
+  };
+
+  // Request authentication for sending message
+  const requestAuthForMessage = (message: string, chatId?: string) => {
+    const messageAction = async () => {
+      if (!selectedScene || !selectedCharacter) {
+        throw new Error('No scene or character selected');
+      }
+      
+      let actualChatId = chatId;
+      
+      // Create chat if it doesn't exist yet
+      if (!actualChatId) {
+        actualChatId = await startChat(selectedScene, selectedCharacter);
+      }
+      
+      // Send the pending message
+      // This will be handled by the chat component after auth
+      return actualChatId;
+    };
+    
+    setPendingMessage(message);
+    setPendingChatAction(() => messageAction);
+    setIsAuthModalOpen(true);
+  };
+
+  // Start a new chat (only call this when authenticated)
   const startChat = async (scene: Scene, character: Character): Promise<string> => {
     try {
-      const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-      const response = await fetch(`${API_BASE_URL}/api/chats`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sceneId: scene.id,
-          characterId: character.id,
-          title: `${character.name} in ${scene.name}`,
-        }),
-        credentials: 'include',
+      const response = await apiRequest('POST', '/api/chats', {
+        sceneId: scene.id,
+        characterId: character.id,
+        title: `${character.name} in ${scene.name}`,
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to create chat');
-      }
       
       const chat = await response.json();
       setCurrentChat(chat);
@@ -112,7 +147,16 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
         previewScene,
         setPreviewScene,
         
+        isAuthModalOpen,
+        setIsAuthModalOpen,
+        pendingMessage,
+        setPendingMessage,
+        pendingChatAction,
+        setPendingChatAction,
+        
         startChat,
+        startChatPreview,
+        requestAuthForMessage,
       }}
     >
       {children}
