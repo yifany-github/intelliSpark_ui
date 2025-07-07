@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '../../components/ui/alert';
 import { useToast } from '../../hooks/use-toast';
 import { Link, useLocation } from 'wouter';
 import { Eye, EyeOff, UserPlus } from 'lucide-react';
+import LanguageSelector from '../../components/settings/LanguageSelector';
 
 const RegisterPage = () => {
   const [email, setEmail] = useState('');
@@ -30,19 +31,19 @@ const RegisterPage = () => {
 
     // Validation
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      setError(t('passwordsDoNotMatch'));
       return;
     }
 
     if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
+      setError(t('mustBeAtLeast6Chars'));
       return;
     }
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
-      setError('Please enter a valid email address');
+      setError(t('enterValidEmail'));
       return;
     }
 
@@ -51,16 +52,16 @@ const RegisterPage = () => {
     try {
       await register(email, password);
       toast({
-        title: "Registration successful",
-        description: "Welcome! Your account has been created and you are now logged in.",
+        title: t('registrationSuccessful'),
+        description: t('accountCreated'),
       });
       // Explicitly redirect to main app
       setLocation('/');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Registration failed';
+      const errorMessage = error instanceof Error ? error.message : t('registrationFailed');
       setError(errorMessage);
       toast({
-        title: "Registration failed",
+        title: t('registrationFailed'),
         description: errorMessage,
         variant: "destructive",
       });
@@ -76,16 +77,16 @@ const RegisterPage = () => {
     try {
       await loginWithGoogle();
       toast({
-        title: "Registration successful",
-        description: "Welcome! Your account has been created with Google and you are now logged in.",
+        title: t('registrationSuccessful'),
+        description: t('accountCreated'),
       });
       // Explicitly redirect to main app
       setLocation('/');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Google registration failed';
+      const errorMessage = error instanceof Error ? error.message : t('googleLoginFailed');
       setError(errorMessage);
       toast({
-        title: "Google registration failed",
+        title: t('googleLoginFailed'),
         description: errorMessage,
         variant: "destructive",
       });
@@ -95,17 +96,23 @@ const RegisterPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center mb-4">
-            <UserPlus className="h-8 w-8 text-green-600" />
-          </div>
-          <CardTitle className="text-2xl text-center">Create Account</CardTitle>
-          <CardDescription className="text-center">
-            Sign up for ProductInsightAI to get started
-          </CardDescription>
-        </CardHeader>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-purple-900 to-indigo-900 p-4">
+      <div className="w-full max-w-md">
+        <div className="mb-6 flex justify-center">
+          <LanguageSelector type="interface" className="w-48" />
+        </div>
+        <Card className="w-full shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+          <CardHeader className="space-y-1 pb-6">
+            <div className="flex items-center justify-center mb-4">
+              <div className="p-3 bg-green-100 rounded-full">
+                <UserPlus className="h-8 w-8 text-green-600" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl text-center font-bold text-gray-800">{t('createAccount')}</CardTitle>
+            <CardDescription className="text-center text-gray-600">
+              {t('signUpToStart')}
+            </CardDescription>
+          </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
@@ -115,33 +122,31 @@ const RegisterPage = () => {
             )}
             
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-gray-700 font-medium">{t('email')}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="Enter your email"
+                placeholder={t('enterEmail')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
+                className="border-gray-300 focus:border-green-500 focus:ring-green-500"
               />
-              <p className="text-xs text-gray-500">
-                We'll use this to create your account
-              </p>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-gray-700 font-medium">{t('password')}</Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Create a password"
+                  placeholder={t('createPassword')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   disabled={isLoading}
-                  className="pr-10"
+                  className="pr-10 border-gray-300 focus:border-green-500 focus:ring-green-500"
                   minLength={6}
                 />
                 <Button
@@ -160,22 +165,22 @@ const RegisterPage = () => {
                 </Button>
               </div>
               <p className="text-xs text-gray-500">
-                Must be at least 6 characters long
+                {t('mustBeAtLeast6Chars')}
               </p>
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
+              <Label htmlFor="confirmPassword" className="text-gray-700 font-medium">{t('confirmPassword')}</Label>
               <div className="relative">
                 <Input
                   id="confirmPassword"
                   type={showConfirmPassword ? "text" : "password"}
-                  placeholder="Confirm your password"
+                  placeholder={t('confirmYourPassword')}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
                   disabled={isLoading}
-                  className="pr-10"
+                  className="pr-10 border-gray-300 focus:border-green-500 focus:ring-green-500"
                   minLength={6}
                 />
                 <Button
@@ -197,10 +202,10 @@ const RegisterPage = () => {
             
             <Button 
               type="submit" 
-              className="w-full" 
+              className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2.5" 
               disabled={isLoading}
             >
-              {isLoading ? "Creating account..." : "Create Account"}
+              {isLoading ? t('creatingAccount') : t('createAccount')}
             </Button>
           </form>
 
@@ -210,14 +215,14 @@ const RegisterPage = () => {
                 <div className="w-full border-t border-gray-300" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                <span className="px-3 bg-white text-gray-500 font-medium">{t('orContinueWith')}</span>
               </div>
             </div>
 
             <Button
               type="button"
               variant="outline"
-              className="w-full mt-3"
+              className="w-full mt-4 border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2.5"
               onClick={handleGoogleRegister}
               disabled={isLoading}
             >
@@ -239,22 +244,20 @@ const RegisterPage = () => {
                   d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                 />
               </svg>
-              Continue with Google
+              {t('continueWithGoogle')}
             </Button>
           </div>
           
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              Already have an account?{' '}
-              <Link href="/login">
-                <a className="text-green-600 hover:text-green-500 font-medium">
-                  Sign in
-                </a>
-              </Link>
-            </p>
+            <Link href="/login">
+              <a className="text-sm text-green-600 hover:text-green-500 font-medium">
+                {t('alreadyHaveAccount')}
+              </a>
+            </Link>
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };

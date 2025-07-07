@@ -10,6 +10,7 @@ import CharactersPage from "@/pages/characters";
 import ChatsPage from "@/pages/chats";
 import ProfilePage from "@/pages/profile";
 import OnboardingPage from "@/pages/onboarding";
+import AdminPage from "@/pages/admin";
 import LoginPage from "@/pages/auth/login";
 import RegisterPage from "@/pages/auth/register";
 import ChatPreviewPage from "@/pages/chat-preview";
@@ -75,22 +76,28 @@ function AuthModalHandler() {
 function MainApp() {
   const { isAuthenticated, isLoading } = useAuth();
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [location] = useLocation();
   
   useEffect(() => {
+    // Skip onboarding for admin routes
+    if (location.startsWith('/admin')) {
+      return;
+    }
+    
     // Only show onboarding for authenticated users who haven't completed it
     const hasCompletedOnboarding = localStorage.getItem("onboardingCompleted");
     if (!hasCompletedOnboarding && isAuthenticated) {
       setShowOnboarding(true);
     }
-  }, [isAuthenticated]);
+  }, [location, isAuthenticated]);
   
   const completeOnboarding = () => {
     localStorage.setItem("onboardingCompleted", "true");
     setShowOnboarding(false);
   };
 
-  // Show onboarding if user is authenticated and hasn't completed it
-  if (isAuthenticated && showOnboarding) {
+  // Show onboarding if user is authenticated and hasn't completed it, but skip for admin routes
+  if (isAuthenticated && showOnboarding && !location.startsWith('/admin')) {
     return <OnboardingPage onComplete={completeOnboarding} />;
   }
 
@@ -122,6 +129,7 @@ function MainApp() {
                 <ProfilePage />
               </ProtectedRoute>
             </Route>
+            <Route path="/admin" component={AdminPage} />
             <Route component={NotFound} />
           </Switch>
         </div>

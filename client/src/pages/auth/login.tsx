@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '../../components/ui/alert';
 import { useToast } from '../../hooks/use-toast';
 import { Link, useLocation } from 'wouter';
 import { Eye, EyeOff, LogIn, Mail } from 'lucide-react';
+import LanguageSelector from '../../components/settings/LanguageSelector';
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -30,16 +31,16 @@ const LoginPage = () => {
     try {
       await login(email, password);
       toast({
-        title: "Login successful",
-        description: "Welcome back! You are now logged in.",
+        title: t('loginSuccessful'),
+        description: t('welcomeBack'),
       });
       // Explicitly redirect to main app
       setLocation('/');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Login failed';
+      const errorMessage = error instanceof Error ? error.message : t('loginFailed');
       setError(errorMessage);
       toast({
-        title: "Login failed",
+        title: t('loginFailed'),
         description: errorMessage,
         variant: "destructive",
       });
@@ -55,16 +56,16 @@ const LoginPage = () => {
     try {
       await loginWithGoogle();
       toast({
-        title: "Login successful",
-        description: "Welcome back! You are now logged in with Google.",
+        title: t('loginSuccessful'),
+        description: t('welcomeBack'),
       });
       // Explicitly redirect to main app
       setLocation('/');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Google login failed';
+      const errorMessage = error instanceof Error ? error.message : t('googleLoginFailed');
       setError(errorMessage);
       toast({
-        title: "Google login failed",
+        title: t('googleLoginFailed'),
         description: errorMessage,
         variant: "destructive",
       });
@@ -74,17 +75,23 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <div className="flex items-center justify-center mb-4">
-            <LogIn className="h-8 w-8 text-blue-600" />
-          </div>
-          <CardTitle className="text-2xl text-center">Welcome Back</CardTitle>
-          <CardDescription className="text-center">
-            Sign in to your ProductInsightAI account
-          </CardDescription>
-        </CardHeader>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 p-4">
+      <div className="w-full max-w-md">
+        <div className="mb-6 flex justify-center">
+          <LanguageSelector type="interface" className="w-48" />
+        </div>
+        <Card className="w-full shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
+          <CardHeader className="space-y-1 pb-6">
+            <div className="flex items-center justify-center mb-4">
+              <div className="p-3 bg-blue-100 rounded-full">
+                <LogIn className="h-8 w-8 text-blue-600" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl text-center font-bold text-gray-800">{t('welcomeBack')}</CardTitle>
+            <CardDescription className="text-center text-gray-600">
+              {t('signInToAccount')}
+            </CardDescription>
+          </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
@@ -94,30 +101,36 @@ const LoginPage = () => {
             )}
             
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="text-gray-700 font-medium">{t('email')}</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="Enter your email"
+                placeholder={t('enterEmail')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={isLoading}
+                className="border-gray-300 focus:border-blue-500 focus:ring-blue-500"
               />
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-gray-700 font-medium">{t('password')}</Label>
+                <button type="button" className="text-sm text-blue-600 hover:text-blue-500 font-medium">
+                  {t('forgotPassword')}
+                </button>
+              </div>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
+                  placeholder={t('enterPassword')}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   disabled={isLoading}
-                  className="pr-10"
+                  className="pr-10 border-gray-300 focus:border-blue-500 focus:ring-blue-500"
                 />
                 <Button
                   type="button"
@@ -138,10 +151,10 @@ const LoginPage = () => {
             
             <Button 
               type="submit" 
-              className="w-full" 
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5" 
               disabled={isLoading}
             >
-              {isLoading ? "Signing in..." : "Sign In"}
+              {isLoading ? t('signingIn') : t('signIn')}
             </Button>
           </form>
 
@@ -151,14 +164,14 @@ const LoginPage = () => {
                 <div className="w-full border-t border-gray-300" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                <span className="px-3 bg-white text-gray-500 font-medium">{t('orContinueWith')}</span>
               </div>
             </div>
 
             <Button
               type="button"
               variant="outline"
-              className="w-full mt-3"
+              className="w-full mt-4 border-gray-300 text-gray-700 hover:bg-gray-50 font-medium py-2.5"
               onClick={handleGoogleLogin}
               disabled={isLoading}
             >
@@ -180,22 +193,20 @@ const LoginPage = () => {
                   fill="#EA4335"
                 />
               </svg>
-              Continue with Google
+              {t('continueWithGoogle')}
             </Button>
           </div>
           
           <div className="mt-6 text-center">
-            <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
-              <Link href="/register">
-                <a className="text-blue-600 hover:text-blue-500 font-medium">
-                  Sign up
-                </a>
-              </Link>
-            </p>
+            <Link href="/register">
+              <a className="text-sm text-blue-600 hover:text-blue-500 font-medium">
+                {t('dontHaveAccount')}
+              </a>
+            </Link>
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };
