@@ -74,7 +74,44 @@ export type TranslationKey =
   | 'precise'
   | 'creative'
   | 'none'
-  | 'strict';
+  | 'strict'
+  | 'welcomeBack'
+  | 'signIn'
+  | 'signUp'
+  | 'register'
+  | 'createAccount'
+  | 'email'
+  | 'password'
+  | 'confirmPassword'
+  | 'enterEmail'
+  | 'enterPassword'
+  | 'createPassword'
+  | 'confirmYourPassword'
+  | 'forgotPassword'
+  | 'signingIn'
+  | 'creatingAccount'
+  | 'orContinueWith'
+  | 'continueWithGoogle'
+  | 'dontHaveAccount'
+  | 'alreadyHaveAccount'
+  | 'signInToAccount'
+  | 'signUpToStart'
+  | 'loginRequired'
+  | 'pleaseSignIn'
+  | 'mustBeAtLeast6Chars'
+  | 'passwordsDoNotMatch'
+  | 'enterValidEmail'
+  | 'loginSuccessful'
+  | 'registrationSuccessful'
+  | 'accountCreated'
+  | 'loginFailed'
+  | 'registrationFailed'
+  | 'googleLoginFailed'
+  | 'heyLetsGetStarted'
+  | 'account'
+  | 'emailOrName'
+  | 'yourPassword'
+  | 'otherMethods';
 
 // Define translations for each language
 const translations: Record<Language, Record<TranslationKey, string>> = {
@@ -124,6 +161,43 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     creative: 'Creative',
     none: 'None',
     strict: 'Strict',
+    welcomeBack: 'Welcome Back',
+    signIn: 'Sign In',
+    signUp: 'Sign Up',
+    register: 'Register',
+    createAccount: 'Create Account',
+    email: 'Email',
+    password: 'Password',
+    confirmPassword: 'Confirm Password',
+    enterEmail: 'Enter your email',
+    enterPassword: 'Enter your password',
+    createPassword: 'Create a password',
+    confirmYourPassword: 'Confirm your password',
+    forgotPassword: 'Forgot password?',
+    signingIn: 'Signing in...',
+    creatingAccount: 'Creating account...',
+    orContinueWith: 'Or continue with',
+    continueWithGoogle: 'Continue with Google',
+    dontHaveAccount: "Don't have an account? Sign up",
+    alreadyHaveAccount: 'Already have an account? Sign in',
+    signInToAccount: 'Sign in to your ProductInsightAI account',
+    signUpToStart: 'Sign up to start chatting with AI characters',
+    loginRequired: 'Login Required',
+    pleaseSignIn: 'Please sign in to continue with your chat',
+    mustBeAtLeast6Chars: 'Must be at least 6 characters long',
+    passwordsDoNotMatch: 'Passwords do not match',
+    enterValidEmail: 'Please enter a valid email address',
+    loginSuccessful: 'Login successful',
+    registrationSuccessful: 'Registration successful',
+    accountCreated: 'Welcome! Your account has been created.',
+    loginFailed: 'Login failed',
+    registrationFailed: 'Registration failed',
+    googleLoginFailed: 'Google login failed',
+    heyLetsGetStarted: "Hey, let's get started!",
+    account: 'Account',
+    emailOrName: 'Email address or Name',
+    yourPassword: 'Your password',
+    otherMethods: 'Other Methods',
   },
   zh: {
     scenes: '场景',
@@ -171,6 +245,43 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     creative: '创意',
     none: '无',
     strict: '严格',
+    welcomeBack: '欢迎回来',
+    signIn: '登录',
+    signUp: '注册',
+    register: '注册',
+    createAccount: '创建账户',
+    email: '邮箱',
+    password: '密码',
+    confirmPassword: '确认密码',
+    enterEmail: '输入邮箱地址',
+    enterPassword: '输入密码',
+    createPassword: '创建密码',
+    confirmYourPassword: '确认密码',
+    forgotPassword: '忘记密码？',
+    signingIn: '登录中...',
+    creatingAccount: '创建账户中...',
+    orContinueWith: '或继续使用',
+    continueWithGoogle: '使用Google登录',
+    dontHaveAccount: '没有账户？注册',
+    alreadyHaveAccount: '已有账户？登录',
+    signInToAccount: '登录到您的ProductInsightAI账户',
+    signUpToStart: '注册开始与AI角色聊天',
+    loginRequired: '需要登录',
+    pleaseSignIn: '请登录以继续聊天',
+    mustBeAtLeast6Chars: '密码至少6个字符',
+    passwordsDoNotMatch: '密码不匹配',
+    enterValidEmail: '请输入有效的邮箱地址',
+    loginSuccessful: '登录成功',
+    registrationSuccessful: '注册成功',
+    accountCreated: '欢迎！您的账户已创建',
+    loginFailed: '登录失败',
+    registrationFailed: '注册失败',
+    googleLoginFailed: 'Google登录失败',
+    heyLetsGetStarted: '嗨，让我们开始吧！',
+    account: '账户',
+    emailOrName: '邮箱地址或用户名',
+    yourPassword: '请输入密码',
+    otherMethods: '其他方式',
   },
 };
 
