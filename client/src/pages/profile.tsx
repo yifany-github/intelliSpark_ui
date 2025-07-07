@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
+import { TokenBalance } from "@/components/payment/TokenBalance";
 
 const ProfilePage = () => {
   const { 
@@ -125,6 +126,11 @@ const ProfilePage = () => {
             </AlertDialogContent>
           </AlertDialog>
         </div>
+      </div>
+      
+      {/* Token Balance Section */}
+      <div className="mb-6">
+        <TokenBalance />
       </div>
       
       {/* Dashboard Cards */}
