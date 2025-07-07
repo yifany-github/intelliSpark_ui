@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { useLanguage } from '../../context/LanguageContext';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -21,8 +22,8 @@ const AuthModal = ({
   isOpen, 
   onClose, 
   onSuccess, 
-  title = "Login Required",
-  description = "Please sign in to continue with your chat"
+  title,
+  description
 }: AuthModalProps) => {
   const [mode, setMode] = useState<'login' | 'register'>('login');
   const [email, setEmail] = useState('');
@@ -34,7 +35,11 @@ const AuthModal = ({
   const [error, setError] = useState('');
   
   const { login, register, loginWithGoogle } = useAuth();
+  const { t } = useLanguage();
   const { toast } = useToast();
+
+  const modalTitle = title || t('loginRequired');
+  const modalDescription = description || t('pleaseSignIn');
 
   const resetForm = () => {
     setEmail('');
@@ -52,8 +57,8 @@ const AuthModal = ({
   const handleSuccess = () => {
     resetForm();
     toast({
-      title: mode === 'login' ? "Login successful" : "Registration successful",
-      description: mode === 'login' ? "Welcome back!" : "Welcome! Your account has been created.",
+      title: mode === 'login' ? t('loginSuccessful') : t('registrationSuccessful'),
+      description: mode === 'login' ? t('welcomeBack') : t('accountCreated'),
     });
     onSuccess?.();
     onClose();
@@ -68,15 +73,15 @@ const AuthModal = ({
       if (mode === 'register') {
         // Validation for registration
         if (password !== confirmPassword) {
-          setError('Passwords do not match');
+          setError(t('passwordsDoNotMatch'));
           return;
         }
         if (password.length < 6) {
-          setError('Password must be at least 6 characters long');
+          setError(t('mustBeAtLeast6Chars'));
           return;
         }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-          setError('Please enter a valid email address');
+          setError(t('enterValidEmail'));
           return;
         }
         
@@ -88,10 +93,10 @@ const AuthModal = ({
       handleSuccess();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 
-        mode === 'login' ? 'Login failed' : 'Registration failed';
+        mode === 'login' ? t('loginFailed') : t('registrationFailed');
       setError(errorMessage);
       toast({
-        title: mode === 'login' ? "Login failed" : "Registration failed",
+        title: mode === 'login' ? t('loginFailed') : t('registrationFailed'),
         description: errorMessage,
         variant: "destructive",
       });
@@ -113,10 +118,10 @@ const AuthModal = ({
       await loginWithGoogle();
       handleSuccess();
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Google login failed';
+      const errorMessage = error instanceof Error ? error.message : t('googleLoginFailed');
       setError(errorMessage);
       toast({
-        title: "Google login failed",
+        title: t('googleLoginFailed'),
         description: errorMessage,
         variant: "destructive",
       });
@@ -135,17 +140,17 @@ const AuthModal = ({
                 {mode === 'login' ? (
                   <>
                     <LogIn className="h-5 w-5 text-blue-600" />
-                    {title}
+                    {modalTitle}
                   </>
                 ) : (
                   <>
                     <UserPlus className="h-5 w-5 text-green-600" />
-                    Create Account
+                    {t('createAccount')}
                   </>
                 )}
               </DialogTitle>
               <DialogDescription className="mt-1">
-                {mode === 'login' ? description : "Sign up to start chatting with AI characters"}
+                {mode === 'login' ? modalDescription : t('signUpToStart')}
               </DialogDescription>
             </div>
           </div>
@@ -159,11 +164,11 @@ const AuthModal = ({
           )}
           
           <div className="space-y-2">
-            <Label htmlFor="modal-email">Email</Label>
+            <Label htmlFor="modal-email">{t('email')}</Label>
             <Input
               id="modal-email"
               type="email"
-              placeholder={mode === 'login' ? "Enter your email" : "Enter your email address"}
+              placeholder={t('enterEmail')}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -172,12 +177,12 @@ const AuthModal = ({
           </div>
           
           <div className="space-y-2">
-            <Label htmlFor="modal-password">Password</Label>
+            <Label htmlFor="modal-password">{t('password')}</Label>
             <div className="relative">
               <Input
                 id="modal-password"
                 type={showPassword ? "text" : "password"}
-                placeholder={mode === 'login' ? "Enter your password" : "Create a password"}
+                placeholder={mode === 'login' ? t('enterPassword') : t('createPassword')}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -201,18 +206,18 @@ const AuthModal = ({
               </Button>
             </div>
             {mode === 'register' && (
-              <p className="text-xs text-gray-500">Must be at least 6 characters long</p>
+              <p className="text-xs text-gray-500">{t('mustBeAtLeast6Chars')}</p>
             )}
           </div>
           
           {mode === 'register' && (
             <div className="space-y-2">
-              <Label htmlFor="modal-confirm-password">Confirm Password</Label>
+              <Label htmlFor="modal-confirm-password">{t('confirmPassword')}</Label>
               <div className="relative">
                 <Input
                   id="modal-confirm-password"
                   type={showConfirmPassword ? "text" : "password"}
-                  placeholder="Confirm your password"
+                  placeholder={t('confirmYourPassword')}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   required
@@ -241,8 +246,8 @@ const AuthModal = ({
           <div className="flex flex-col gap-3 pt-4">
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? 
-                (mode === 'login' ? "Signing in..." : "Creating account...") : 
-                (mode === 'login' ? "Sign In" : "Create Account")
+                (mode === 'login' ? t('signingIn') : t('creatingAccount')) : 
+                (mode === 'login' ? t('signIn') : t('createAccount'))
               }
             </Button>
             
@@ -253,7 +258,7 @@ const AuthModal = ({
                     <span className="w-full border-t" />
                   </div>
                   <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                    <span className="bg-background px-2 text-muted-foreground">{t('orContinueWith')}</span>
                   </div>
                 </div>
                 
@@ -282,7 +287,7 @@ const AuthModal = ({
                       fill="#EA4335"
                     />
                   </svg>
-                  Continue with Google
+                  {t('continueWithGoogle')}
                 </Button>
               </>
             )}
@@ -295,8 +300,8 @@ const AuthModal = ({
                 disabled={isLoading}
               >
                 {mode === 'login' 
-                  ? "Don't have an account? Sign up" 
-                  : "Already have an account? Sign in"
+                  ? t('dontHaveAccount') 
+                  : t('alreadyHaveAccount')
                 }
               </button>
             </div>
