@@ -154,15 +154,100 @@ python main.py
 ProductInsightAI/
 ├── client/                 # 前端代码
 │   └── src/
-├── server/                 # 后端代码
-│   ├── index.ts           # 服务器入口
-│   ├── routes.ts          # API 路由
-│   ├── storage.ts         # 数据存储
-│   └── services/
-│       └── openai.ts      # OpenAI 集成
-├── shared/                # 共享类型定义
+├── backend/               # 后端代码
+│   ├── main.py           # 服务器入口
+│   ├── models.py         # 数据库模型
+│   ├── auth/             # 认证模块
+│   └── services/         # 业务服务
+├── .env                  # 前端环境变量
+├── backend/.env          # 后端环境变量
 ├── package.json
 └── README.md
+```
+
+### 🛠 开发环境清理和重置
+
+当遇到问题或需要重新开始时，请按以下顺序执行清理操作：
+
+#### 1. 清理缓存和临时文件
+```bash
+# 清理 Vite 缓存
+rm -rf node_modules/.vite
+
+# 清理 Python 缓存
+find backend -name "__pycache__" -type d -exec rm -rf {} +
+find backend -name "*.pyc" -type f -delete
+
+# 清理 npm 缓存（可选）
+npm cache clean --force
+```
+
+#### 2. 重置数据库
+```bash
+# 删除现有数据库文件
+rm -f backend/roleplay_chat.db
+
+# 重启后端服务器将自动重新创建数据库
+```
+
+#### 3. 重新安装依赖
+```bash
+# 删除 node_modules 并重新安装
+rm -rf node_modules package-lock.json
+npm install
+```
+
+#### 4. 必需文件检查清单
+
+确保以下文件存在且配置正确：
+
+**根目录 `.env` 文件**：
+```bash
+# Firebase 配置（必需）
+VITE_FIREBASE_API_KEY=your-firebase-api-key
+VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your-project-id
+VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
+VITE_FIREBASE_APP_ID=your-app-id
+```
+
+**backend/.env 文件**：
+```bash
+# 数据库配置
+DATABASE_URL=sqlite:///./roleplay_chat.db
+
+# 身份验证配置
+SECRET_KEY=your-jwt-secret-key-here
+FIREBASE_API_KEY=your-firebase-api-key
+
+# AI 服务配置
+GEMINI_API_KEY=your-gemini-api-key
+```
+
+#### 5. 完整重置流程
+如果需要完全重置开发环境：
+
+```bash
+# 1. 停止所有服务器
+# Ctrl+C 停止前端和后端服务器
+
+# 2. 完全清理
+rm -rf node_modules package-lock.json
+rm -rf node_modules/.vite
+rm -f backend/roleplay_chat.db
+find backend -name "__pycache__" -type d -exec rm -rf {} +
+
+# 3. 重新安装
+npm install
+
+# 4. 检查环境变量文件
+ls -la .env backend/.env
+
+# 5. 重新启动服务器
+npm run dev  # 前端
+# 在新终端中：
+cd backend && python main.py  # 后端
 ```
 
 ### 可用脚本
