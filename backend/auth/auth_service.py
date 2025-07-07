@@ -103,6 +103,76 @@ class AuthService:
         return user
     
     @staticmethod
+    def authenticate_user_by_firebase_token(db: Session, firebase_token: str) -> Optional[User]:
+        """Authenticate user by Firebase token and create user if doesn't exist"""
+        try:
+            import requests
+            from config import settings
+            
+            # Verify Firebase token using Firebase REST API
+            if not settings.firebase_api_key:
+                print("Firebase API key not configured")
+                return None
+                
+            verify_url = f"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={settings.firebase_api_key}"
+            response = requests.post(verify_url, json={"idToken": firebase_token})
+            
+            if response.status_code != 200:
+                print(f"Firebase token verification failed: {response.text}")
+                return None
+                
+            data = response.json()
+            if 'users' not in data or len(data['users']) == 0:
+                print("No user found in Firebase token")
+                return None
+                
+            firebase_user = data['users'][0]
+            email = firebase_user.get('email')
+            firebase_uid = firebase_user.get('localId')
+            
+            if not email:
+                print("No email found in Firebase token")
+                return None
+            
+            # Check if user exists by firebase_uid first, then by email
+            user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
+            if not user:
+                user = db.query(User).filter(User.email == email).first()
+            
+            if not user:
+                # Create new user from Firebase data
+                username = email.split('@')[0]
+                counter = 1
+                base_username = username
+                while db.query(User).filter(User.username == username).first():
+                    username = f"{base_username}_{counter}"
+                    counter += 1
+                
+                user = User(
+                    username=username,
+                    email=email,
+                    password="",  # No password for OAuth users
+                    provider='google',
+                    firebase_uid=firebase_uid
+                )
+                db.add(user)
+                db.commit()
+                db.refresh(user)
+                print(f"Created new Firebase user: {email}")
+            else:
+                # Update firebase_uid if user exists but doesn't have it
+                if not user.firebase_uid:
+                    user.firebase_uid = firebase_uid
+                    db.commit()
+                print(f"Authenticated existing user: {email}")
+            
+            return user
+            
+        except Exception as e:
+            print(f"Firebase authentication error: {e}")
+            return None
+    
+    @staticmethod
     def create_user_from_firebase(db: Session, firebase_uid: str, email: str, provider: str = 'google') -> User:
         """Create a new user from Firebase social login"""
         # Generate username from email
@@ -126,30 +196,6 @@ class AuthService:
         db.commit()
         db.refresh(user)
         return user
-    
-    @staticmethod
-    def authenticate_user_by_firebase_token(db: Session, firebase_token: str) -> Optional[User]:
-        """Authenticate user by Firebase token (placeholder - requires Firebase Admin SDK)"""
-        # TODO: Implement Firebase token validation
-        # This would require Firebase Admin SDK to verify the token
-        # For now, this is a placeholder that needs to be implemented
-        # when Firebase is properly set up
-        
-        # firebase_admin.auth.verify_id_token(firebase_token)
-        # decoded_token = firebase_admin.auth.verify_id_token(firebase_token)
-        # firebase_uid = decoded_token['uid']
-        # email = decoded_token.get('email')
-        # provider = decoded_token.get('firebase', {}).get('sign_in_provider', 'google')
-        
-        # user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
-        # if not user and email:
-        #     user = AuthService.create_user_from_firebase(db, firebase_uid, email, provider)
-        # return user
-        
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="Firebase authentication not yet implemented"
-        )
     
     @staticmethod
     def get_current_user(db: Session, token: str) -> User:

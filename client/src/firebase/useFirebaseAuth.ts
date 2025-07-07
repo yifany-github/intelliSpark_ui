@@ -30,6 +30,12 @@ export const useFirebaseAuth = (): AuthState & AuthMethods => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    // If Firebase auth is not available, set loading to false
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
@@ -70,45 +76,65 @@ export const useFirebaseAuth = (): AuthState & AuthMethods => {
   };
 
   const signInWithEmail = async (email: string, password: string): Promise<FirebaseUser> => {
+    if (!auth) {
+      setError('Firebase not configured - email authentication not available');
+      throw new Error('Firebase not configured - email authentication not available');
+    }
+
     try {
       setError(null);
       setLoading(true);
       const result = await signInWithEmailAndPassword(auth, email, password);
       return result.user;
     } catch (error) {
-      handleAuthError(error as AuthError);
+      return handleAuthError(error as AuthError);
     } finally {
       setLoading(false);
     }
   };
 
   const signUpWithEmail = async (email: string, password: string): Promise<FirebaseUser> => {
+    if (!auth) {
+      setError('Firebase not configured - email authentication not available');
+      throw new Error('Firebase not configured - email authentication not available');
+    }
+
     try {
       setError(null);
       setLoading(true);
       const result = await createUserWithEmailAndPassword(auth, email, password);
       return result.user;
     } catch (error) {
-      handleAuthError(error as AuthError);
+      return handleAuthError(error as AuthError);
     } finally {
       setLoading(false);
     }
   };
 
   const signInWithGoogle = async (): Promise<FirebaseUser> => {
+    if (!auth || !googleProvider) {
+      setError('Firebase not configured - Google authentication not available');
+      throw new Error('Firebase not configured - Google authentication not available');
+    }
+
     try {
       setError(null);
       setLoading(true);
       const result = await signInWithPopup(auth, googleProvider);
       return result.user;
     } catch (error) {
-      handleAuthError(error as AuthError);
+      return handleAuthError(error as AuthError);
     } finally {
       setLoading(false);
     }
   };
 
   const logout = async (): Promise<void> => {
+    if (!auth) {
+      setError('Firebase not configured - logout not available');
+      throw new Error('Firebase not configured - logout not available');
+    }
+
     try {
       setError(null);
       await signOut(auth);
