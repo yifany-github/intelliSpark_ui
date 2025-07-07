@@ -106,24 +106,23 @@ class AuthService:
     def authenticate_user_by_firebase_token(db: Session, firebase_token: str) -> Optional[User]:
         """Authenticate user by Firebase token and create user if doesn't exist"""
         try:
+            # Use Firebase REST API for token verification (simpler than Admin SDK)
             import requests
             from config import settings
             
-            # Verify Firebase token using Firebase REST API
             if not settings.firebase_api_key:
                 print("Firebase API key not configured")
                 return None
-                
+            
+            # Verify the ID token using Firebase Auth REST API
             verify_url = f"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={settings.firebase_api_key}"
             response = requests.post(verify_url, json={"idToken": firebase_token})
             
             if response.status_code != 200:
-                print(f"Firebase token verification failed: {response.text}")
                 return None
                 
             data = response.json()
             if 'users' not in data or len(data['users']) == 0:
-                print("No user found in Firebase token")
                 return None
                 
             firebase_user = data['users'][0]
@@ -131,7 +130,6 @@ class AuthService:
             firebase_uid = firebase_user.get('localId')
             
             if not email:
-                print("No email found in Firebase token")
                 return None
             
             # Check if user exists by firebase_uid first, then by email
@@ -158,18 +156,16 @@ class AuthService:
                 db.add(user)
                 db.commit()
                 db.refresh(user)
-                print(f"Created new Firebase user: {email}")
+                pass
             else:
                 # Update firebase_uid if user exists but doesn't have it
                 if not user.firebase_uid:
                     user.firebase_uid = firebase_uid
                     db.commit()
-                print(f"Authenticated existing user: {email}")
             
             return user
             
         except Exception as e:
-            print(f"Firebase authentication error: {e}")
             return None
     
     @staticmethod
