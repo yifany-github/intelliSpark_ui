@@ -1,12 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from backend.database import get_db
-from backend.auth.auth_service import get_current_user
-from backend.models import User
-from backend.schemas import TokenPurchaseRequest, TokenPurchaseResponse, UserTokenBalance, MessageResponse
-from backend.payment.stripe_service import StripeService
-from backend.payment.token_service import TokenService, get_all_pricing_tiers
+from database import get_db
+from auth.routes import get_current_user
+from models import User
+from schemas import TokenPurchaseRequest, TokenPurchaseResponse, UserTokenBalance, MessageResponse
+from payment.stripe_service import StripeService
+from payment.token_service import TokenService, get_all_pricing_tiers
 import json
 import logging
 
@@ -102,7 +102,7 @@ async def get_user_tokens(
         balance = token_service.get_user_balance(current_user.id)
         
         # Get token record for timestamps
-        from backend.models import UserToken
+        from models import UserToken
         user_token = db.query(UserToken).filter(UserToken.user_id == current_user.id).first()
         
         if not user_token:

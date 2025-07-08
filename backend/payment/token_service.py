@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
-from backend.models import UserToken, TokenTransaction, User
-from backend.database import get_db
+from models import UserToken, TokenTransaction, User
+from database import get_db
 from typing import Optional
 import logging
 

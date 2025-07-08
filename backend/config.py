@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     # Firebase settings
     firebase_api_key: Optional[str] = None
     
+    # Stripe settings
+    stripe_secret_key: Optional[str] = None
+    stripe_webhook_secret: Optional[str] = None
+    
     # App settings
     app_name: str = "ProductInsightAI Backend"
     debug: bool = True
@@ -38,6 +42,9 @@ def validate_settings():
     if not settings.firebase_api_key:
         print("WARNING: FIREBASE_API_KEY not found. Google OAuth will not work.")
     
+    if not settings.stripe_secret_key:
+        print("WARNING: STRIPE_SECRET_KEY not found. Payment processing will not work.")
+    
     if not settings.secret_key:
         raise ValueError("SECRET_KEY is required for JWT authentication")
     
@@ -46,6 +53,7 @@ def validate_settings():
     print(f"Gemini API Key present: {'Yes' if settings.gemini_api_key else 'No'}")
     print(f"Firebase API Key present: {'Yes' if settings.firebase_api_key else 'No'}")
     print(f"Secret Key present: {'Yes' if settings.secret_key else 'No'}")
+    print(f"Stripe Secret Key present: {'Yes' if settings.stripe_secret_key else 'No'}")
 
 # Call validation on import
 validate_settings()

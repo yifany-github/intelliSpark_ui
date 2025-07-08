@@ -2,16 +2,17 @@ import stripe
 import os
 from typing import Optional, Dict, Any
 import logging
-from backend.payment.token_service import get_pricing_tier
+from payment.token_service import get_pricing_tier
+from config import settings
 
 logger = logging.getLogger(__name__)
 
 # Configure Stripe API key
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+stripe.api_key = settings.stripe_secret_key
 
 class StripeService:
     def __init__(self):
-        self.webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+        self.webhook_secret = settings.stripe_webhook_secret
         
     def create_payment_intent(self, user_id: int, tier: str) -> Optional[Dict[str, Any]]:
         """Create a Stripe payment intent for token purchase"""
