@@ -4,8 +4,11 @@ This document explains how to set up and test the token-based payment system wit
 
 ## Prerequisites
 
-1. **Stripe Account**: You need a Stripe account to get API keys
+1. **Stripe Account**: You need a Stripe account to get API keys (REQUIRED)
 2. **Test Mode**: Use Stripe test mode for development and testing
+3. **API Keys**: Both frontend and backend Stripe keys are required for the payment system to function
+
+⚠️ **IMPORTANT**: The payment system will not work without valid Stripe API keys configured in both frontend and backend environment files.
 
 ## Environment Variables
 
@@ -118,10 +121,17 @@ This will give you a webhook secret to use in your `.env` file.
 
 ### Common Issues
 
-1. **Payment fails**: Check Stripe dashboard for error details
-2. **Tokens not added**: Verify webhook is working and receiving events
-3. **Authentication errors**: Ensure user is logged in before making payments
-4. **Environment variables**: Double-check all Stripe keys are correct
+1. **"Failed to load balance"**: Check if user is logged in and using correct localStorage key (`auth_token`)
+2. **"No authentication token found"**: Authentication issue - user needs to log in again
+3. **Payment fails**: Check Stripe dashboard for error details
+4. **Tokens not added**: Webhook not working (requires ngrok for local testing)
+5. **Environment variables**: Double-check all Stripe keys are correct
+
+### Known Limitations
+
+1. **Webhook Integration**: Requires public URL (use ngrok for local testing)
+2. **Manual Token Addition**: For local testing, tokens may need to be added manually to database
+3. **Token Balance Sync**: Refresh page after payment to see updated balance
 
 ### Error Codes
 

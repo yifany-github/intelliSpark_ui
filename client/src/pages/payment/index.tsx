@@ -38,7 +38,7 @@ const fetchPricingTiers = async (): Promise<PricingTiers> => {
 };
 
 const createPaymentIntent = async (tier: string) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('auth_token');
   if (!token) {
     throw new Error('No authentication token found');
   }
