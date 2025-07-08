@@ -21,8 +21,16 @@ npm start
 # TypeScript type checking
 npm run check
 
+# Run tests
+npm test
+
 # Database migrations (if using database)
 npm run db:push
+
+# Backend specific commands
+cd backend
+python -m uvicorn main:app --reload  # Start backend server
+python -m pytest                     # Run backend tests
 ```
 
 ## Architecture
@@ -172,6 +180,29 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 - Conversation history maintained for context continuity
 - Token-based usage: 1 token deducted per AI message generation
 
+## Error Handling Patterns
+
+### Frontend Error Handling
+- **Error Boundaries**: React Error Boundaries in `client/src/components/error/ErrorBoundary.tsx`
+- **Query Error Handling**: TanStack Query error states with consistent UI patterns
+- **Toast Notifications**: Global error notifications using Radix UI toast system
+- **Loading States**: Skeleton loading components and loading indicators
+- **Form Validation**: Client-side validation with proper error feedback
+
+### Backend Error Handling
+- **HTTP Status Codes**: Proper REST API error responses (400, 401, 403, 404, 500)
+- **Pydantic Validation**: Request/response validation with detailed error messages
+- **Database Errors**: SQLAlchemy error handling with user-friendly messages
+- **Authentication Errors**: JWT and Firebase token validation error handling
+- **AI Service Errors**: Gemini API error handling with fallback responses
+
+### Error Handling Components
+- `ErrorBoundary.tsx` - Catches React component errors
+- `ErrorFallback.tsx` - Fallback UI for error states
+- `toast.tsx` - Global error notifications
+- `alert.tsx` - Local error messages
+- `queryClient.ts` - Centralized API error handling
+
 ## Development Notes
 
 - **Frontend**: Vite dev server with HMR, TypeScript strict mode
@@ -181,3 +212,4 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 - **Authentication**: Email-based with Firebase OAuth integration
 - **Environment**: Separate .env files for frontend (Vite) and backend (FastAPI)
 - **Schema Changes**: Delete `backend/roleplay_chat.db` to reset database schema
+- **Error Handling**: Comprehensive error boundaries and user-friendly error messages
