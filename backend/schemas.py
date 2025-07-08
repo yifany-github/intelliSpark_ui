@@ -146,3 +146,29 @@ class ChatContext(BaseSchema):
     scene: Scene
     messages: List[ChatMessage]
     user_preferences: Optional[Dict[str, Any]] = None
+
+# Token and Payment schemas
+class UserTokenBalance(BaseSchema):
+    user_id: int
+    balance: int
+    created_at: datetime
+    updated_at: datetime
+
+class TokenPurchaseRequest(BaseSchema):
+    amount: int = Field(..., description="Number of tokens to purchase")
+    tier: str = Field(..., description="Pricing tier (starter, standard, premium)")
+
+class TokenPurchaseResponse(BaseSchema):
+    client_secret: str
+    payment_intent_id: str
+    amount: int
+    tokens: int
+
+class TokenTransaction(BaseSchema):
+    id: int
+    user_id: int
+    transaction_type: str
+    amount: int
+    description: Optional[str] = None
+    stripe_payment_intent_id: Optional[str] = None
+    created_at: datetime

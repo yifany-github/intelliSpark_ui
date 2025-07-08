@@ -12,6 +12,7 @@ load_dotenv()
 from routes import router
 from admin.routes import router as admin_router
 from auth.routes import router as auth_router
+from payment.routes import router as payment_router
 from database import init_db
 
 # Create FastAPI app
@@ -46,6 +47,7 @@ if client_dist_path.exists():
 app.include_router(router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(auth_router, prefix="/api/auth", tags=["authentication"])
+app.include_router(payment_router)
 
 @app.on_event("startup")
 async def startup_event():

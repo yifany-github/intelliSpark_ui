@@ -283,6 +283,18 @@ async def generate_ai_response(chat_id: int, db: Session = Depends(get_db), curr
         if not chat:
             raise HTTPException(status_code=404, detail="Chat not found")
         
+        # Check token balance before generating response
+        from payment.token_service import TokenService
+        token_service = TokenService(db)
+        
+        TOKENS_PER_MESSAGE = 1  # Cost per AI generation
+        
+        if not token_service.has_sufficient_balance(current_user.id, TOKENS_PER_MESSAGE):
+            raise HTTPException(
+                status_code=402,  # Payment Required
+                detail="Insufficient tokens. Please purchase more tokens to continue."
+            )
+        
         # Get recent messages, character, and scene
         messages = db.query(ChatMessage).filter(
             ChatMessage.chat_id == chat_id
@@ -300,6 +312,18 @@ async def generate_ai_response(chat_id: int, db: Session = Depends(get_db), curr
             scene=scene,
             messages=messages
         )
+        
+        # Deduct tokens after successful generation
+        token_deduction_success = token_service.deduct_tokens(
+            user_id=current_user.id,
+            amount=TOKENS_PER_MESSAGE,
+            description=f"AI response generation for chat {chat_id}"
+        )
+        
+        if not token_deduction_success:
+            logger.error(f"Failed to deduct tokens for user {current_user.id} after AI generation")
+            # We could either raise an error here or log it and continue
+            # For now, let's continue but log the error
         
         # Save the AI response
         ai_message = ChatMessage(

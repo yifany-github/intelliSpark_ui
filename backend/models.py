@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, Numeric
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -23,6 +23,8 @@ class User(Base):
     
     # Relationships
     chats = relationship("Chat", back_populates="user")
+    token_balance = relationship("UserToken", back_populates="user", uselist=False)
+    token_transactions = relationship("TokenTransaction", back_populates="user")
 
 class Scene(Base):
     __tablename__ = "scenes"
@@ -82,3 +84,29 @@ class ChatMessage(Base):
     
     # Relationships
     chat = relationship("Chat", back_populates="messages")
+
+class UserToken(Base):
+    __tablename__ = "user_tokens"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, unique=True)
+    balance = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="token_balance")
+
+class TokenTransaction(Base):
+    __tablename__ = "token_transactions"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    transaction_type = Column(String(50), nullable=False)  # 'purchase', 'deduction', 'refund'
+    amount = Column(Integer, nullable=False)  # positive for purchase/refund, negative for deduction
+    description = Column(String(500), nullable=True)
+    stripe_payment_intent_id = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=func.now())
+    
+    # Relationships
+    user = relationship("User", back_populates="token_transactions")

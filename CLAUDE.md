@@ -74,8 +74,20 @@ npm run db:push
 - `GET /api/chats/:id` - Get specific chat
 - `GET /api/chats/:id/messages` - Get chat messages
 - `POST /api/chats/:id/messages` - Add message to chat
-- `POST /api/chats/:id/generate` - Generate AI response
+- `POST /api/chats/:id/generate` - Generate AI response (requires 1 token)
 - `DELETE /api/chats` - Clear all chat history
+
+### Payment System
+- `POST /api/payment/create-payment-intent` - Create Stripe payment intent for token purchase
+- `POST /api/payment/webhook` - Handle Stripe webhook events  
+- `GET /api/payment/user/tokens` - Get user's current token balance
+- `GET /api/payment/pricing-tiers` - Get available token packages
+- `GET /api/payment/user/transactions` - Get user's payment history
+
+**Token Economy:**
+- Each AI message generation costs 1 token
+- Pricing tiers: Starter (100 tokens/$5), Standard (500 tokens/$20), Premium (1500 tokens/$50)
+- Tokens never expire and are tied to user accounts
 
 ## Environment Setup
 
@@ -88,6 +100,9 @@ VITE_FIREBASE_PROJECT_ID=your-project-id
 VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
 VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
 VITE_FIREBASE_APP_ID=your-app-id
+
+# Stripe Configuration (required for payment processing)
+VITE_STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key_here
 ```
 
 ### Backend Environment (/backend/.env)
@@ -102,6 +117,10 @@ FIREBASE_API_KEY=your-firebase-api-key  # For token verification
 
 # AI Services
 GEMINI_API_KEY=your-gemini-api-key
+
+# Payment Processing (REQUIRED)
+STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key_here
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
 ```
 
 ## Database Schema
@@ -122,6 +141,8 @@ The app uses SQLAlchemy ORM with SQLite (development) or PostgreSQL (production)
 - `characters` - AI characters with personality traits and backstories  
 - `chats` - Chat sessions linking users, scenes, and characters
 - `chat_messages` - Individual messages within chats
+- `user_tokens` - User token balances for payment system
+- `token_transactions` - Payment and usage transaction history
 
 Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_chat.db` and restart the backend to recreate with new schema.
 
@@ -139,15 +160,17 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 - **Legacy Support**: Backward compatible username-based login endpoint
 
 ### Page Structure
-- App uses tab-based navigation with routes for scenes, characters, chats, and profile
+- App uses tab-based navigation with routes for scenes, characters, chats, profile, and payment
 - Email-based authentication with social login options
 - AuthModal popup for login during chat interactions
 - Mobile-responsive design with bottom tab navigation
+- Token-based payment system with Stripe integration
 
 ### AI Integration
 - Uses Gemini AI for character conversations
 - Character personalities and scene context are injected into AI prompts
 - Conversation history maintained for context continuity
+- Token-based usage: 1 token deducted per AI message generation
 
 ## Development Notes
 

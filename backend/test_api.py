@@ -83,6 +83,50 @@ def test_ai_response(chat_id):
         print(f"AI response test failed: {e}")
         return False
 
+def test_pricing_tiers():
+    """Test pricing tiers endpoint"""
+    try:
+        response = requests.get(f"{BASE_URL}/api/payment/pricing-tiers")
+        print(f"Pricing tiers: {response.status_code}")
+        if response.status_code == 200:
+            tiers = response.json()
+            print(f"Found {len(tiers)} pricing tiers")
+            for tier_name, tier_data in tiers.items():
+                print(f"  {tier_name}: {tier_data['tokens']} tokens for ${tier_data['price']/100:.2f}")
+            return True
+        else:
+            print(f"Error: {response.text}")
+        return False
+    except Exception as e:
+        print(f"Pricing tiers test failed: {e}")
+        return False
+
+def test_token_balance_unauthenticated():
+    """Test token balance endpoint without authentication (should fail)"""
+    try:
+        response = requests.get(f"{BASE_URL}/api/payment/user/tokens")
+        print(f"Token balance (unauthenticated): {response.status_code}")
+        # Should return 401 or 403 for unauthenticated requests
+        return response.status_code in [401, 403]
+    except Exception as e:
+        print(f"Token balance test failed: {e}")
+        return False
+
+def test_payment_intent_unauthenticated():
+    """Test payment intent creation without authentication (should fail)"""
+    try:
+        payment_data = {
+            "tier": "starter",
+            "amount": 100
+        }
+        response = requests.post(f"{BASE_URL}/api/payment/create-payment-intent", json=payment_data)
+        print(f"Payment intent (unauthenticated): {response.status_code}")
+        # Should return 401 or 403 for unauthenticated requests
+        return response.status_code in [401, 403]
+    except Exception as e:
+        print(f"Payment intent test failed: {e}")
+        return False
+
 if __name__ == "__main__":
     print("Testing Python Backend API...")
     print("=" * 50)
@@ -118,6 +162,23 @@ if __name__ == "__main__":
             print("❌ AI response generation failed")
     else:
         print("❌ Chat creation failed")
+    
+    print("\n--- Payment System Tests ---")
+    
+    if test_pricing_tiers():
+        print("✅ Pricing tiers endpoint working")
+    else:
+        print("❌ Pricing tiers endpoint failed")
+    
+    if test_token_balance_unauthenticated():
+        print("✅ Token balance authentication check working")
+    else:
+        print("❌ Token balance authentication check failed")
+    
+    if test_payment_intent_unauthenticated():
+        print("✅ Payment intent authentication check working")
+    else:
+        print("❌ Payment intent authentication check failed")
     
     print("=" * 50)
     print("Testing complete!")
