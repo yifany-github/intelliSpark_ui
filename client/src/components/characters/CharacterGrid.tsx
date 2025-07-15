@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Star, Eye, Crown, Flame, TrendingUp, Users } from 'lucide-react';
 import { Character } from '@/types';
 import { useRolePlay } from '@/context/RolePlayContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import CharacterPreviewModal from './CharacterPreviewModal';
 import { useLocation } from 'wouter';
+import { apiRequest } from '@/lib/queryClient';
+import { useAuth } from '@/contexts/AuthContext';
 
 const filters = ['Popular', 'Recent', 'Trending', 'New', 'Following', 'Editor Choice'];
 const categories = ['All', 'Anime', 'Game', 'Movie', 'Book', 'Original', 'Fantasy', 'Sci-Fi', 'Romance', 'Action'];
@@ -23,6 +25,35 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [_, navigate] = useLocation();
+  
+  const { setSelectedCharacter } = useRolePlay();
+  const { isAuthenticated } = useAuth();
+  
+  // Mutation for creating a new chat
+  const { mutate: createChat, isPending: isCreatingChat } = useMutation({
+    mutationFn: async ({ characterId, sceneId }: { characterId: number; sceneId: number }) => {
+      const response = await apiRequest(
+        "POST",
+        "/api/chats",
+        {
+          characterId,
+          sceneId,
+          title: `Chat with ${mockCharacters.find(c => c.id === characterId)?.name || 'Character'}`
+        }
+      );
+      return response.json();
+    },
+    onSuccess: (chat) => {
+      // Navigate to the new chat
+      navigate(`/chat/${chat.id}`);
+      handlePreviewClose();
+    },
+    onError: (error) => {
+      console.error('Failed to create chat:', error);
+      // Fallback to generic chat page
+      navigate('/chat');
+    }
+  });
   
   // Mock data for demonstration
   const mockCharacters: Character[] = [
@@ -177,9 +208,20 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   };
 
   const handleStartChat = (character: Character) => {
+    if (!isAuthenticated) {
+      // Redirect to login if not authenticated
+      navigate('/login');
+      return;
+    }
+    
     setSelectedCharacter(character);
-    navigate('/chat');
-    handlePreviewClose();
+    
+    // Create a new chat with the selected character
+    // Using default scene ID 1 for now
+    createChat({
+      characterId: character.id,
+      sceneId: 1 // Default scene, you might want to let users choose
+    });
   };
 
   return (
