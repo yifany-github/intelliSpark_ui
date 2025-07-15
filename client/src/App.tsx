@@ -25,6 +25,7 @@ import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { NavigationProvider } from "@/contexts/NavigationContext";
 import { FavoritesProvider } from "@/contexts/FavoritesContext";
+import ErrorBoundary from "@/components/error/ErrorBoundary";
 
 // Auth Modal Handler - handles post-login actions
 function AuthModalHandler() {
@@ -108,67 +109,69 @@ function MainApp() {
   }
 
   return (
-    <RolePlayProvider>
-      <div className="min-h-screen">
-        <Toaster />
-        <AuthModalHandler />
-        <div className="max-w-full mx-auto">
-          <Switch>
-            <Route path="/" component={CharactersPage} />
-            <Route path="/characters" component={CharactersPage} />
-            <Route path="/favorites" component={FavoritesPage} />
-            <Route path="/discover" component={DiscoverPage} />
-            <Route path="/create-character">
-              <ProtectedRoute>
-                <CreateCharacterPage />
-              </ProtectedRoute>
-            </Route>
-            <Route path="/chat-preview" component={ChatPreviewPage} />
-            <Route path="/chats">
-              <ProtectedRoute>
-                <ChatsPage />
-              </ProtectedRoute>
-            </Route>
-            <Route path="/chats/:id">
-              {params => (
+    <ErrorBoundary>
+      <RolePlayProvider>
+        <div className="min-h-screen">
+          <Toaster />
+          <AuthModalHandler />
+          <div className="max-w-full mx-auto">
+            <Switch>
+              <Route path="/" component={CharactersPage} />
+              <Route path="/characters" component={CharactersPage} />
+              <Route path="/favorites" component={FavoritesPage} />
+              <Route path="/discover" component={DiscoverPage} />
+              <Route path="/create-character">
                 <ProtectedRoute>
-                  <ChatsPage chatId={params.id} />
+                  <CreateCharacterPage />
                 </ProtectedRoute>
-              )}
-            </Route>
-            <Route path="/chat">
-              <ProtectedRoute>
-                <ChatPage />
-              </ProtectedRoute>
-            </Route>
-            <Route path="/chat/:id">
-              {params => (
+              </Route>
+              <Route path="/chat-preview" component={ChatPreviewPage} />
+              <Route path="/chats">
                 <ProtectedRoute>
-                  <ChatPage chatId={params.id} />
+                  <ChatsPage />
                 </ProtectedRoute>
-              )}
-            </Route>
-            <Route path="/profile">
-              <ProtectedRoute>
-                <ProfilePage />
-              </ProtectedRoute>
-            </Route>
-            <Route path="/payment">
-              <ProtectedRoute>
-                <PaymentPage />
-              </ProtectedRoute>
-            </Route>
-            <Route path="/notifications">
-              <ProtectedRoute>
-                <NotificationsPage />
-              </ProtectedRoute>
-            </Route>
-            <Route path="/admin" component={AdminPage} />
-            <Route component={NotFound} />
-          </Switch>
+              </Route>
+              <Route path="/chats/:id">
+                {params => (
+                  <ProtectedRoute>
+                    <ChatsPage chatId={params.id} />
+                  </ProtectedRoute>
+                )}
+              </Route>
+              <Route path="/chat">
+                <ProtectedRoute>
+                  <ChatPage />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/chat/:id">
+                {params => (
+                  <ProtectedRoute>
+                    <ChatPage chatId={params.id} />
+                  </ProtectedRoute>
+                )}
+              </Route>
+              <Route path="/profile">
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/payment">
+                <ProtectedRoute>
+                  <PaymentPage />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/notifications">
+                <ProtectedRoute>
+                  <NotificationsPage />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/admin" component={AdminPage} />
+              <Route component={NotFound} />
+            </Switch>
+          </div>
         </div>
-      </div>
-    </RolePlayProvider>
+      </RolePlayProvider>
+    </ErrorBoundary>
   );
 }
 

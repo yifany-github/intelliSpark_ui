@@ -93,6 +93,26 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
         aiResponse();
       }, 1000);
     },
+    onError: (error: any) => {
+      console.error("Message sending failed:", error);
+      const errorMessage = error?.response?.data?.detail || "Failed to send message";
+      
+      // Add error message to chat
+      queryClient.setQueryData([`/api/chats/${chatId}/messages`], (old: ChatMessage[] | undefined) => {
+        if (!old) return old;
+        
+        const errorMsg: ChatMessage = {
+          id: Date.now(), // temporary ID
+          content: `Error: ${errorMessage}`,
+          role: "system",
+          chatId: parseInt(chatId || "0"),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        
+        return [...old, errorMsg];
+      });
+    },
   });
   
   // Mutation for AI responses
@@ -108,8 +128,28 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
       setIsTyping(false);
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error("AI response generation failed:", error);
       setIsTyping(false);
+      
+      // Show error message to user
+      const errorMessage = error?.response?.data?.detail || "Failed to generate AI response";
+      
+      // Add error message to chat
+      queryClient.setQueryData([`/api/chats/${chatId}/messages`], (old: ChatMessage[] | undefined) => {
+        if (!old) return old;
+        
+        const errorMsg: ChatMessage = {
+          id: Date.now(), // temporary ID
+          content: `Error: ${errorMessage}`,
+          role: "system",
+          chatId: parseInt(chatId || "0"),
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+        
+        return [...old, errorMsg];
+      });
     },
   });
   

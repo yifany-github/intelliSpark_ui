@@ -17,7 +17,8 @@ const missingVars = Object.entries(requiredEnvVars)
   .map(([key]) => key);
 
 if (missingVars.length > 0) {
-  throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  console.error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  console.error('Firebase authentication will not be available. Please check your .env file.');
 }
 
 // Firebase configuration from environment variables

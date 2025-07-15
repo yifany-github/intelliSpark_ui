@@ -20,6 +20,7 @@ interface ChatBubbleProps {
 const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
   const { toast } = useToast();
   const isAI = message.role === 'assistant';
+  const isSystem = message.role === 'system';
   const messageTime = message.timestamp 
     ? format(new Date(message.timestamp), 'h:mm a')
     : '';
@@ -45,6 +46,19 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
     
     return content;
   };
+  
+  // Handle system messages (errors) differently
+  if (isSystem) {
+    return (
+      <div className="flex justify-center mb-4">
+        <div className="max-w-[80%] bg-red-600/20 border border-red-500/50 rounded-lg p-3 text-center">
+          <div className="text-red-300 text-sm">
+            {message.content}
+          </div>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className={`flex items-end mb-4 ${!isAI && 'justify-end'}`}>
