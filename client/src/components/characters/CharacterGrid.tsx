@@ -138,7 +138,6 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     gcTime: 10 * 60 * 1000, // 10 minutes
   });
 
-  const { setSelectedCharacter } = useRolePlay();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
 
   const tabs = ['Characters', 'Chats', 'Favorites'];
