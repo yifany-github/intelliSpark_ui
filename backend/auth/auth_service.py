@@ -100,6 +100,17 @@ class AuthService:
         db.add(user)
         db.commit()
         db.refresh(user)
+        
+        # Give new users 10 free tokens to start
+        try:
+            from payment.token_service import TokenService
+            token_service = TokenService(db)
+            token_service.add_tokens(user.id, 10, "Welcome bonus - 10 free tokens")
+        except Exception as e:
+            # Don't fail user creation if token assignment fails
+            import logging
+            logging.warning(f"Failed to assign welcome tokens to user {user.id}: {e}")
+        
         return user
     
     @staticmethod
@@ -156,7 +167,16 @@ class AuthService:
                 db.add(user)
                 db.commit()
                 db.refresh(user)
-                pass
+                
+                # Give new users 10 free tokens to start
+                try:
+                    from payment.token_service import TokenService
+                    token_service = TokenService(db)
+                    token_service.add_tokens(user.id, 10, "Welcome bonus - 10 free tokens")
+                except Exception as e:
+                    # Don't fail user creation if token assignment fails
+                    import logging
+                    logging.warning(f"Failed to assign welcome tokens to user {user.id}: {e}")
             else:
                 # Update firebase_uid if user exists but doesn't have it
                 if not user.firebase_uid:
