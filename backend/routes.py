@@ -6,7 +6,7 @@ import logging
 from database import get_db
 from models import Scene, Character, Chat, ChatMessage, User
 from schemas import (
-    Scene as SceneSchema, Character as CharacterSchema, 
+    Scene as SceneSchema, Character as CharacterSchema, CharacterCreate,
     Chat as ChatSchema, ChatMessage as ChatMessageSchema,
     EnrichedChat, ChatCreate, ChatMessageCreate, MessageResponse
 )
@@ -85,11 +85,22 @@ async def get_characters(db: Session = Depends(get_db)):
             result.append({
                 "id": char.id,
                 "name": char.name,
+                "description": char.description,
                 "avatarUrl": char.avatar_url,  # Convert snake_case to camelCase
                 "backstory": char.backstory,
                 "voiceStyle": char.voice_style,  # Convert snake_case to camelCase
                 "traits": char.traits,
                 "personalityTraits": char.personality_traits,  # Convert snake_case to camelCase
+                "category": char.category,
+                "gender": char.gender,
+                "age": char.age,
+                "occupation": char.occupation,
+                "hobbies": char.hobbies,
+                "catchphrase": char.catchphrase,
+                "conversationStyle": char.conversation_style,
+                "isPublic": char.is_public,
+                "nsfwLevel": char.nsfw_level,
+                "createdBy": char.created_by,
                 "createdAt": char.created_at.isoformat() + "Z"  # Match Node.js format
             })
         return result
@@ -109,11 +120,22 @@ async def get_character(character_id: int, db: Session = Depends(get_db)):
         return {
             "id": character.id,
             "name": character.name,
+            "description": character.description,
             "avatarUrl": character.avatar_url,  # Convert snake_case to camelCase
             "backstory": character.backstory,
             "voiceStyle": character.voice_style,  # Convert snake_case to camelCase
             "traits": character.traits,
             "personalityTraits": character.personality_traits,  # Convert snake_case to camelCase
+            "category": character.category,
+            "gender": character.gender,
+            "age": character.age,
+            "occupation": character.occupation,
+            "hobbies": character.hobbies,
+            "catchphrase": character.catchphrase,
+            "conversationStyle": character.conversation_style,
+            "isPublic": character.is_public,
+            "nsfwLevel": character.nsfw_level,
+            "createdBy": character.created_by,
             "createdAt": character.created_at.isoformat() + "Z"  # Match Node.js format
         }
     except HTTPException:
@@ -121,6 +143,66 @@ async def get_character(character_id: int, db: Session = Depends(get_db)):
     except Exception as e:
         logger.error(f"Error fetching character {character_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch character")
+
+@router.post("/characters", response_model=CharacterSchema)
+async def create_character(
+    character_data: CharacterCreate, 
+    db: Session = Depends(get_db), 
+    current_user: User = Depends(get_current_user)
+):
+    """Create a new character"""
+    try:
+        # Convert frontend data to database format
+        character = Character(
+            name=character_data.name,
+            description=character_data.description,
+            avatar_url=character_data.avatarUrl,
+            backstory=character_data.backstory,
+            voice_style=character_data.voiceStyle,
+            traits=character_data.traits,
+            personality_traits=character_data.personalityTraits,
+            category=character_data.category,
+            gender=character_data.gender,
+            age=character_data.age,
+            occupation=character_data.occupation,
+            hobbies=character_data.hobbies,
+            catchphrase=character_data.catchphrase,
+            conversation_style=character_data.conversationStyle,
+            is_public=character_data.isPublic,
+            nsfw_level=character_data.nsfwLevel,
+            created_by=current_user.id
+        )
+        
+        db.add(character)
+        db.commit()
+        db.refresh(character)
+        
+        # Return in frontend-compatible format
+        return {
+            "id": character.id,
+            "name": character.name,
+            "description": character.description,
+            "avatarUrl": character.avatar_url,
+            "backstory": character.backstory,
+            "voiceStyle": character.voice_style,
+            "traits": character.traits,
+            "personalityTraits": character.personality_traits,
+            "category": character.category,
+            "gender": character.gender,
+            "age": character.age,
+            "occupation": character.occupation,
+            "hobbies": character.hobbies,
+            "catchphrase": character.catchphrase,
+            "conversationStyle": character.conversation_style,
+            "isPublic": character.is_public,
+            "nsfwLevel": character.nsfw_level,
+            "createdBy": character.created_by,
+            "createdAt": character.created_at.isoformat() + "Z"
+        }
+    except Exception as e:
+        logger.error(f"Error creating character: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to create character")
 
 # ===== CHAT ROUTES =====
 

@@ -5,8 +5,10 @@ import { queryClient } from "./lib/queryClient";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import NotFound from "@/pages/not-found";
-import ScenesPage from "@/pages/scenes";
 import CharactersPage from "@/pages/characters";
+import FavoritesPage from "@/pages/favorites";
+import DiscoverPage from "@/pages/discover";
+import CreateCharacterPage from "@/pages/create-character";
 import ChatsPage from "@/pages/chats";
 import ProfilePage from "@/pages/profile";
 import OnboardingPage from "@/pages/onboarding";
@@ -14,12 +16,15 @@ import AdminPage from "@/pages/admin";
 import LoginPage from "@/pages/auth/login";
 import RegisterPage from "@/pages/auth/register";
 import ChatPreviewPage from "@/pages/chat-preview";
+import ChatPage from "@/pages/chat";
 import PaymentPage from "@/pages/payment";
-import TabNavigation from "@/components/layout/TabNavigation";
+import NotificationsPage from "@/pages/notifications";
 import AuthModal from "@/components/auth/AuthModal";
 import { RolePlayProvider, useRolePlay } from "@/context/RolePlayContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { NavigationProvider } from "@/contexts/NavigationContext";
+import { FavoritesProvider } from "@/contexts/FavoritesContext";
 
 // Auth Modal Handler - handles post-login actions
 function AuthModalHandler() {
@@ -104,14 +109,20 @@ function MainApp() {
 
   return (
     <RolePlayProvider>
-      <div className="min-h-screen pb-16">
+      <div className="min-h-screen">
         <Toaster />
         <AuthModalHandler />
-        <div className="max-w-5xl mx-auto">
+        <div className="max-w-full mx-auto">
           <Switch>
-            <Route path="/" component={ScenesPage} />
-            <Route path="/scenes" component={ScenesPage} />
+            <Route path="/" component={CharactersPage} />
             <Route path="/characters" component={CharactersPage} />
+            <Route path="/favorites" component={FavoritesPage} />
+            <Route path="/discover" component={DiscoverPage} />
+            <Route path="/create-character">
+              <ProtectedRoute>
+                <CreateCharacterPage />
+              </ProtectedRoute>
+            </Route>
             <Route path="/chat-preview" component={ChatPreviewPage} />
             <Route path="/chats">
               <ProtectedRoute>
@@ -125,6 +136,18 @@ function MainApp() {
                 </ProtectedRoute>
               )}
             </Route>
+            <Route path="/chat">
+              <ProtectedRoute>
+                <ChatPage />
+              </ProtectedRoute>
+            </Route>
+            <Route path="/chat/:id">
+              {params => (
+                <ProtectedRoute>
+                  <ChatPage chatId={params.id} />
+                </ProtectedRoute>
+              )}
+            </Route>
             <Route path="/profile">
               <ProtectedRoute>
                 <ProfilePage />
@@ -135,11 +158,15 @@ function MainApp() {
                 <PaymentPage />
               </ProtectedRoute>
             </Route>
+            <Route path="/notifications">
+              <ProtectedRoute>
+                <NotificationsPage />
+              </ProtectedRoute>
+            </Route>
             <Route path="/admin" component={AdminPage} />
             <Route component={NotFound} />
           </Switch>
         </div>
-        <TabNavigation />
       </div>
     </RolePlayProvider>
   );
@@ -173,13 +200,17 @@ function App() {
       <TooltipProvider>
         <LanguageProvider>
           <AuthProvider>
-            <Switch>
-              <Route path="/login" component={LoginPage} />
-              <Route path="/register" component={RegisterPage} />
-              <Route>
-                <MainApp />
-              </Route>
-            </Switch>
+            <NavigationProvider>
+              <FavoritesProvider>
+                <Switch>
+                <Route path="/login" component={LoginPage} />
+                <Route path="/register" component={RegisterPage} />
+                <Route>
+                  <MainApp />
+                </Route>
+              </Switch>
+              </FavoritesProvider>
+            </NavigationProvider>
           </AuthProvider>
         </LanguageProvider>
       </TooltipProvider>

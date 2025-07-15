@@ -12,6 +12,7 @@ import { queryClient } from "@/lib/queryClient";
 import { ChevronLeft, MoreVertical } from "lucide-react";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import { TokenBalance } from "@/components/payment/TokenBalance";
+import GlobalLayout from "@/components/layout/GlobalLayout";
 
 interface ChatsPageProps {
   chatId?: string;
@@ -133,8 +134,9 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
   // If we're showing the chat list
   if (showChatList) {
     return (
-      <div className="px-4 pt-4 pb-16">
-        <h1 className="font-poppins font-bold text-2xl mb-4">{t('chats')}</h1>
+      <GlobalLayout>
+        <div className="px-4 pt-4 pb-16">
+          <h1 className="font-poppins font-bold text-2xl mb-4">{t('chats')}</h1>
         
         {isLoadingChats ? (
           <div className="space-y-4">
@@ -195,7 +197,8 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
             ))}
           </div>
         )}
-      </div>
+        </div>
+      </GlobalLayout>
     );
   }
   

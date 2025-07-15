@@ -5,19 +5,19 @@ import { useAuth } from "@/contexts/AuthContext";
 
 const TabNavigation = () => {
   const [location, setLocation] = useLocation();
-  const [activeTab, setActiveTab] = useState("scenes");
+  const [activeTab, setActiveTab] = useState("characters");
   const { t } = useLanguage();
   const { isAuthenticated } = useAuth();
 
   useEffect(() => {
-    if (location === "/" || location.startsWith("/scenes")) {
-      setActiveTab("scenes");
-    } else if (location.startsWith("/characters")) {
+    if (location === "/" || location.startsWith("/characters")) {
       setActiveTab("characters");
     } else if (location.startsWith("/chats")) {
       setActiveTab("chats");
     } else if (location.startsWith("/profile")) {
       setActiveTab("profile");
+    } else if (location.startsWith("/payment")) {
+      setActiveTab("payment");
     } else if (location.startsWith("/login")) {
       setActiveTab("login");
     }
@@ -25,12 +25,11 @@ const TabNavigation = () => {
 
   // Dynamic tabs based on authentication status
   const tabs = isAuthenticated ? [
-    { id: "scenes", icon: "map-location-dot", label: t("scenes"), path: "/scenes", enabled: true },
     { id: "characters", icon: "user", label: t("characters"), path: "/characters", enabled: true },
     { id: "chats", icon: "message", label: t("chats"), path: "/chats", enabled: true },
+    { id: "payment", icon: "coins", label: "Tokens", path: "/payment", enabled: true },
     { id: "profile", icon: "user-gear", label: t("profile"), path: "/profile", enabled: true },
   ] : [
-    { id: "scenes", icon: "map-location-dot", label: t("scenes"), path: "/scenes", enabled: true },
     { id: "characters", icon: "user", label: t("characters"), path: "/characters", enabled: true },
     { id: "chats", icon: "message", label: "Chats", path: "/login", enabled: false },
     { id: "login", icon: "sign-in-alt", label: "Login", path: "/login", enabled: true },

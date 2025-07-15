@@ -3,6 +3,7 @@
 export interface User {
   id: number;
   username: string;
+  email?: string;
   nsfw_level: number;
   context_window_length: number;
   temperature: number;
@@ -25,7 +26,9 @@ export interface Character {
   id: number;
   name: string;
   avatarUrl: string;
+  image?: string;
   backstory: string;
+  description?: string;
   voiceStyle: string;
   traits: string[];
   personalityTraits: Record<string, number>;

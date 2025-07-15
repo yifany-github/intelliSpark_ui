@@ -14,6 +14,7 @@ import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ImageSelector } from "@/components/admin/ImageSelector";
 import {
   Users,
   FileText,
@@ -39,7 +40,9 @@ import {
   Database,
   FileCode,
   Zap,
-  Target
+  Target,
+  Bell,
+  Send
 } from "lucide-react";
 
 interface AdminStats {
@@ -103,6 +106,15 @@ const AdminPage = () => {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
+  const [showNotificationDialog, setShowNotificationDialog] = useState(false);
+  const [notificationForm, setNotificationForm] = useState({
+    title: "",
+    content: "",
+    type: "admin",
+    priority: "normal",
+    target: "all",
+    userIds: [] as number[]
+  });
 
   const queryClient = useQueryClient();
 
@@ -308,6 +320,7 @@ const AdminPage = () => {
 
   const characterUpdateMutation = useMutation({
     mutationFn: async ({ id, ...characterData }: Character) => {
+      console.log('Updating character with data:', characterData);
       const response = await fetch(`/api/admin/characters/${id}`, {
         method: "PUT",
         headers: {
@@ -317,10 +330,20 @@ const AdminPage = () => {
         body: JSON.stringify(characterData),
       });
       if (!response.ok) throw new Error("Failed to update character");
-      return response.json();
+      const result = await response.json();
+      console.log('Update response:', result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (updatedCharacter) => {
+      console.log('Character update successful:', updatedCharacter);
+      
+      // Clear all related caches first
+      queryClient.removeQueries({ queryKey: ["admin-characters"] });
+      
+      // Force a fresh refetch
       queryClient.invalidateQueries({ queryKey: ["admin-characters"] });
+      queryClient.refetchQueries({ queryKey: ["admin-characters"] });
+      
       toast({ 
         title: "✅ Character updated successfully",
         className: "border-green-200 bg-green-50"
@@ -362,6 +385,67 @@ const AdminPage = () => {
   const filteredUsers = users.filter(user =>
     user.username.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Notification mutations
+  const sendNotificationMutation = useMutation({
+    mutationFn: async (notificationData: {
+      title: string;
+      content: string;
+      type: string;
+      priority: string;
+      target: string;
+      userIds?: number[];
+    }) => {
+      const endpoint = notificationData.target === "all" ? "bulk" : "";
+      const response = await fetch(`/api/notifications/admin/${endpoint}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify(notificationData.target === "all" ? {
+          template_name: "admin_message",
+          variables: {
+            title: notificationData.title,
+            content: notificationData.content
+          },
+          type: notificationData.type,
+          priority: notificationData.priority
+        } : {
+          title: notificationData.title,
+          content: notificationData.content,
+          type: notificationData.type,
+          priority: notificationData.priority,
+          user_ids: notificationData.userIds
+        }),
+      });
+      if (!response.ok) throw new Error("Failed to send notification");
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({ 
+        title: "✅ Notification sent successfully",
+        description: "Your notification has been delivered to the selected users",
+        className: "border-green-200 bg-green-50"
+      });
+      setShowNotificationDialog(false);
+      setNotificationForm({
+        title: "",
+        content: "",
+        type: "admin",
+        priority: "normal",
+        target: "all",
+        userIds: []
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "❌ Failed to send notification",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  });
 
   if (!isAuthenticated) {
     return (
@@ -413,7 +497,7 @@ const AdminPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+    <div className="admin-theme min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
       {/* Header */}
       <div className="bg-white border-b border-slate-200 shadow-sm">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -453,7 +537,7 @@ const AdminPage = () => {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 bg-white p-1 rounded-lg shadow-sm border border-slate-200">
+          <TabsList className="grid w-full grid-cols-7 bg-white p-1 rounded-lg shadow-sm border border-slate-200">
             <TabsTrigger value="overview" className="text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-blue-600 data-[state=active]:text-white">
               <BarChart3 className="w-4 h-4 mr-2" />
               Overview
@@ -469,6 +553,10 @@ const AdminPage = () => {
             <TabsTrigger value="users" className="text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-blue-600 data-[state=active]:text-white">
               <Globe className="w-4 h-4 mr-2" />
               Users
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-blue-600 data-[state=active]:text-white">
+              <Bell className="w-4 h-4 mr-2" />
+              Notifications
             </TabsTrigger>
             <TabsTrigger value="analytics" className="text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-blue-600 data-[state=active]:text-white">
               <Activity className="w-4 h-4 mr-2" />
@@ -564,7 +652,7 @@ const AdminPage = () => {
                       </div>
                     ))}
                     {(!stats?.popular_content.scenes.length) && (
-                      <p className="text-slate-500 text-center py-4">No data available yet</p>
+                      <p className="text-gray-500 text-center py-4">No data available yet</p>
                     )}
                   </div>
                 </CardContent>
@@ -593,7 +681,7 @@ const AdminPage = () => {
                       </div>
                     ))}
                     {(!stats?.popular_content.characters.length) && (
-                      <p className="text-slate-500 text-center py-4">No data available yet</p>
+                      <p className="text-gray-500 text-center py-4">No data available yet</p>
                     )}
                   </div>
                 </CardContent>
@@ -662,8 +750,27 @@ const AdminPage = () => {
                 <Card key={scene.id} className="shadow-sm border-slate-200 hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg text-slate-900">{scene.name}</CardTitle>
-                      <div className="flex gap-1">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-lg text-slate-900 mb-2">{scene.name}</CardTitle>
+                        {scene.imageUrl && (
+                          <div className="w-full h-24 bg-slate-100 rounded-lg overflow-hidden mb-2">
+                            <img
+                              src={scene.imageUrl}
+                              alt={scene.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                target.nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                            <div className="hidden w-full h-full flex items-center justify-center bg-slate-200">
+                              <FileText className="w-8 h-8 text-slate-400" />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex gap-1 ml-2">
                         <Button
                           size="sm"
                           variant="ghost"
@@ -695,7 +802,7 @@ const AdminPage = () => {
                       <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-300">{scene.mood}</Badge>
                       <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-300">{scene.rating}</Badge>
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-gray-500">
                       Created: {new Date(scene.createdAt).toLocaleDateString()}
                     </div>
                   </CardContent>
@@ -708,7 +815,7 @@ const AdminPage = () => {
                 <CardContent className="flex flex-col items-center justify-center py-16">
                   <FileText className="w-16 h-16 text-slate-300 mb-4" />
                   <h3 className="text-lg font-semibold text-slate-700 mb-2">No scenes found</h3>
-                  <p className="text-slate-500 text-center mb-4">
+                  <p className="text-gray-500 text-center mb-4">
                     {searchTerm ? "No scenes match your search criteria." : "Get started by creating your first scene."}
                   </p>
                   {!searchTerm && (
@@ -771,11 +878,38 @@ const AdminPage = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredCharacters.map((character) => (
+              {filteredCharacters.map((character) => {
+                // Debug logging
+                console.log('Rendering character:', character.name, 'with avatar:', character.avatarUrl);
+                return (
                 <Card key={character.id} className="shadow-sm border-slate-200 hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
                     <div className="flex justify-between items-start">
-                      <CardTitle className="text-lg text-slate-900">{character.name}</CardTitle>
+                      <div className="flex items-center space-x-3">
+                        <div className="w-12 h-12 bg-slate-100 rounded-full overflow-hidden flex-shrink-0">
+                          {character.avatarUrl ? (
+                            <img
+                              key={`${character.id}-${character.avatarUrl}-${Date.now()}`}
+                              src={`${character.avatarUrl}?v=${Date.now()}`}
+                              alt={character.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                console.error('Image failed to load:', character.avatarUrl);
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                target.nextElementSibling?.classList.remove('hidden');
+                              }}
+                              onLoad={() => {
+                                console.log('Image loaded successfully:', character.avatarUrl);
+                              }}
+                            />
+                          ) : null}
+                          <div className={`${character.avatarUrl ? 'hidden' : ''} w-full h-full flex items-center justify-center bg-slate-200`}>
+                            <Users className="w-6 h-6 text-slate-400" />
+                          </div>
+                        </div>
+                        <CardTitle className="text-lg text-slate-900">{character.name}</CardTitle>
+                      </div>
                       <div className="flex gap-1">
                         <Button
                           size="sm"
@@ -815,12 +949,13 @@ const AdminPage = () => {
                         </Badge>
                       )}
                     </div>
-                    <div className="text-xs text-slate-500">
+                    <div className="text-xs text-gray-500">
                       Created: {new Date(character.createdAt).toLocaleDateString()}
                     </div>
                   </CardContent>
                 </Card>
-              ))}
+                );
+              })}
             </div>
             
             {filteredCharacters.length === 0 && (
@@ -828,7 +963,7 @@ const AdminPage = () => {
                 <CardContent className="flex flex-col items-center justify-center py-16">
                   <Users className="w-16 h-16 text-slate-300 mb-4" />
                   <h3 className="text-lg font-semibold text-slate-700 mb-2">No characters found</h3>
-                  <p className="text-slate-500 text-center mb-4">
+                  <p className="text-gray-500 text-center mb-4">
                     {searchTerm ? "No characters match your search criteria." : "Get started by creating your first character."}
                   </p>
                   {!searchTerm && (
@@ -871,33 +1006,33 @@ const AdminPage = () => {
                   <CardContent>
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-slate-600">Total Chats:</span>
+                        <span className="text-sm text-gray-600">Total Chats:</span>
                         <Badge variant="outline" className="bg-blue-50 text-blue-700">
                           {user.total_chats}
                         </Badge>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-slate-600">NSFW Level:</span>
+                        <span className="text-sm text-gray-600">NSFW Level:</span>
                         <Badge variant="outline" className="bg-orange-50 text-orange-700">
                           {user.nsfw_level}
                         </Badge>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-slate-600">Temperature:</span>
+                        <span className="text-sm text-gray-600">Temperature:</span>
                         <Badge variant="outline" className="bg-green-50 text-green-700">
                           {user.temperature}%
                         </Badge>
                       </div>
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-slate-600">Memory:</span>
+                        <span className="text-sm text-gray-600">Memory:</span>
                         <Badge variant="outline" className={user.memory_enabled ? "bg-green-100 text-green-700 border-green-300" : "bg-gray-100 text-gray-700 border-gray-300"}>
                           {user.memory_enabled ? "Enabled" : "Disabled"}
                         </Badge>
                       </div>
                       <Separator />
                       <div className="flex justify-between items-center">
-                        <span className="text-sm text-slate-600">Joined:</span>
-                        <span className="text-sm text-slate-700">
+                        <span className="text-sm text-gray-600">Joined:</span>
+                        <span className="text-sm text-gray-700">
                           {new Date(user.created_at).toLocaleDateString()}
                         </span>
                       </div>
@@ -912,7 +1047,7 @@ const AdminPage = () => {
                 <CardContent className="flex flex-col items-center justify-center py-16">
                   <Globe className="w-16 h-16 text-slate-300 mb-4" />
                   <h3 className="text-lg font-semibold text-slate-700 mb-2">No users found</h3>
-                  <p className="text-slate-500 text-center">
+                  <p className="text-gray-500 text-center">
                     {searchTerm ? "No users match your search criteria." : "No users have registered yet."}
                   </p>
                 </CardContent>
@@ -940,7 +1075,7 @@ const AdminPage = () => {
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-sm font-medium text-green-800">Average Chats per Scene</span>
                         <span className="text-lg font-bold text-green-600">
-                          {stats?.totals.scenes > 0 ? Math.round((stats?.totals.chats || 0) / stats.totals.scenes) : 0}
+                          {stats?.totals?.scenes && stats.totals.scenes > 0 ? Math.round((stats?.totals?.chats || 0) / stats.totals.scenes) : 0}
                         </span>
                       </div>
                       <div className="w-full bg-green-200 rounded-full h-2">
@@ -952,7 +1087,7 @@ const AdminPage = () => {
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-sm font-medium text-blue-800">Average Messages per Chat</span>
                         <span className="text-lg font-bold text-blue-600">
-                          {stats?.totals.chats > 0 ? Math.round((stats?.totals.messages || 0) / stats.totals.chats) : 0}
+                          {stats?.totals?.chats && stats.totals.chats > 0 ? Math.round((stats?.totals?.messages || 0) / stats.totals.chats) : 0}
                         </span>
                       </div>
                       <div className="w-full bg-blue-200 rounded-full h-2">
@@ -964,7 +1099,7 @@ const AdminPage = () => {
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-sm font-medium text-purple-800">User Engagement Rate</span>
                         <span className="text-lg font-bold text-purple-600">
-                          {stats?.totals.users > 0 ? Math.round(((stats?.totals.chats || 0) / stats.totals.users) * 100) : 0}%
+                          {stats?.totals?.users && stats.totals.users > 0 ? Math.round(((stats?.totals?.chats || 0) / stats.totals.users) * 100) : 0}%
                         </span>
                       </div>
                       <div className="w-full bg-purple-200 rounded-full h-2">
@@ -1014,6 +1149,178 @@ const AdminPage = () => {
                         <span className="text-sm font-medium text-purple-800">Admin Panel</span>
                       </div>
                       <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-300">Active</Badge>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="notifications" className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Notification Management</h2>
+                <p className="text-slate-600">Send notifications to users and manage communication</p>
+              </div>
+              <Dialog open={showNotificationDialog} onOpenChange={setShowNotificationDialog}>
+                <DialogTrigger asChild>
+                  <Button className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white">
+                    <Send className="w-4 h-4 mr-2" />
+                    Send Notification
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl">
+                  <DialogHeader>
+                    <DialogTitle className="text-xl text-slate-900">Send Notification</DialogTitle>
+                  </DialogHeader>
+                  <NotificationForm
+                    form={notificationForm}
+                    setForm={setNotificationForm}
+                    users={users}
+                    onSubmit={() => sendNotificationMutation.mutate(notificationForm)}
+                    onCancel={() => setShowNotificationDialog(false)}
+                    isLoading={sendNotificationMutation.isPending}
+                  />
+                </DialogContent>
+              </Dialog>
+            </div>
+
+            {/* Notification Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <Card className="shadow-sm border-slate-200">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-slate-900">Total Notifications</CardTitle>
+                  <Bell className="w-4 h-4 text-slate-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-slate-900">---</div>
+                  <p className="text-xs text-slate-600">All time notifications sent</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="shadow-sm border-slate-200">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-slate-900">Active Users</CardTitle>
+                  <Users className="w-4 h-4 text-slate-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-slate-900">{users.length}</div>
+                  <p className="text-xs text-slate-600">Users who can receive notifications</p>
+                </CardContent>
+              </Card>
+              
+              <Card className="shadow-sm border-slate-200">
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium text-slate-900">Recent Activity</CardTitle>
+                  <Activity className="w-4 h-4 text-slate-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-slate-900">---</div>
+                  <p className="text-xs text-slate-600">Notifications sent this week</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className="shadow-sm border-slate-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-slate-900">
+                    <Send className="w-5 h-5 mr-2 text-blue-600" />
+                    Quick Actions
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start text-slate-700 border-slate-300 bg-white hover:bg-slate-50"
+                      onClick={() => {
+                        setNotificationForm({
+                          title: "Welcome to ProductInsightAI",
+                          content: "Thank you for joining our AI role-playing community. Start exploring scenes and characters to begin your journey!",
+                          type: "admin",
+                          priority: "normal",
+                          target: "all",
+                          userIds: []
+                        });
+                        setShowNotificationDialog(true);
+                      }}
+                    >
+                      <Users className="w-4 h-4 mr-2" />
+                      Send Welcome Message
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start text-slate-700 border-slate-300 bg-white hover:bg-slate-50"
+                      onClick={() => {
+                        setNotificationForm({
+                          title: "System Maintenance Notice",
+                          content: "We will be performing scheduled maintenance tonight from 2:00 AM to 4:00 AM. Please save your progress.",
+                          type: "system",
+                          priority: "high",
+                          target: "all",
+                          userIds: []
+                        });
+                        setShowNotificationDialog(true);
+                      }}
+                    >
+                      <Settings className="w-4 h-4 mr-2" />
+                      Maintenance Notice
+                    </Button>
+                    
+                    <Button 
+                      variant="outline" 
+                      className="w-full justify-start text-slate-700 border-slate-300 bg-white hover:bg-slate-50"
+                      onClick={() => {
+                        setNotificationForm({
+                          title: "New Feature Available",
+                          content: "Discover our new character creation feature! Create your own AI personas and share them with the community.",
+                          type: "admin",
+                          priority: "normal",
+                          target: "all",
+                          userIds: []
+                        });
+                        setShowNotificationDialog(true);
+                      }}
+                    >
+                      <Zap className="w-4 h-4 mr-2" />
+                      Feature Announcement
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-sm border-slate-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-slate-900">
+                    <Target className="w-5 h-5 mr-2 text-green-600" />
+                    Notification Tips
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 text-sm text-gray-600">
+                    <div className="flex items-start">
+                      <div className="w-2 h-2 bg-blue-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                      <div>
+                        <p className="font-medium text-gray-700">Keep it concise</p>
+                        <p>Short, clear messages are more effective than long explanations.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <div className="w-2 h-2 bg-green-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                      <div>
+                        <p className="font-medium text-gray-700">Use appropriate priority</p>
+                        <p>Set high priority only for urgent system-wide issues.</p>
+                      </div>
+                    </div>
+                    <div className="flex items-start">
+                      <div className="w-2 h-2 bg-purple-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                      <div>
+                        <p className="font-medium text-gray-700">Target your audience</p>
+                        <p>Send specific notifications to relevant user groups when possible.</p>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -1153,17 +1460,13 @@ const SceneForm = ({ scene, onSubmit, onCancel }: {
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="imageUrl" className="text-sm font-medium text-slate-900">Image URL</Label>
-          <Input
-            id="imageUrl"
-            value={formData.imageUrl}
-            onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-            placeholder="https://example.com/scene-image.jpg"
-            className="bg-white border-slate-300 text-slate-900"
-            required
-          />
-        </div>
+        <ImageSelector
+          value={formData.imageUrl}
+          onChange={(url) => setFormData({ ...formData, imageUrl: url })}
+          assetType="scenes"
+          label="Scene Image"
+          required
+        />
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -1229,6 +1532,18 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
 
   const [newTrait, setNewTrait] = useState("");
 
+  // Reset form data when character changes
+  useEffect(() => {
+    setFormData({
+      name: character?.name || "",
+      avatarUrl: character?.avatarUrl || "",
+      backstory: character?.backstory || "",
+      voiceStyle: character?.voiceStyle || "",
+      traits: character?.traits || [],
+      personalityTraits: character?.personalityTraits || {},
+    });
+  }, [character]);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     onSubmit(formData);
@@ -1254,7 +1569,7 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
   return (
     <ScrollArea className="max-h-[70vh]">
       <form onSubmit={handleSubmit} className="space-y-6 p-1">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-sm font-medium text-slate-900">Character Name</Label>
             <Input
@@ -1266,17 +1581,14 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
               required
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="avatarUrl" className="text-sm font-medium text-slate-900">Avatar URL</Label>
-            <Input
-              id="avatarUrl"
-              value={formData.avatarUrl}
-              onChange={(e) => setFormData({ ...formData, avatarUrl: e.target.value })}
-              placeholder="https://example.com/avatar.jpg"
-              className="bg-white border-slate-300 text-slate-900"
-              required
-            />
-          </div>
+          
+          <ImageSelector
+            value={formData.avatarUrl}
+            onChange={(url) => setFormData({ ...formData, avatarUrl: url })}
+            assetType="characters"
+            label="Character Avatar"
+            required
+          />
         </div>
 
         <div className="space-y-2">
@@ -1331,7 +1643,7 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
               </Badge>
             ))}
             {formData.traits.length === 0 && (
-              <span className="text-slate-400 text-sm">No traits added yet</span>
+              <span className="text-gray-400 text-sm">No traits added yet</span>
             )}
           </div>
         </div>
@@ -1342,6 +1654,174 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
           </Button>
           <Button type="submit" className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white">
             {character ? "Update Character" : "Create Character"}
+          </Button>
+        </div>
+      </form>
+    </ScrollArea>
+  );
+};
+
+const NotificationForm = ({ form, setForm, users, onSubmit, onCancel, isLoading }: {
+  form: {
+    title: string;
+    content: string;
+    type: string;
+    priority: string;
+    target: string;
+    userIds: number[];
+  };
+  setForm: (form: any) => void;
+  users: User[];
+  onSubmit: () => void;
+  onCancel: () => void;
+  isLoading: boolean;
+}) => {
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit();
+  };
+
+  const handleUserToggle = (userId: number, checked: boolean) => {
+    if (checked) {
+      setForm({ ...form, userIds: [...form.userIds, userId] });
+    } else {
+      setForm({ ...form, userIds: form.userIds.filter(id => id !== userId) });
+    }
+  };
+
+  return (
+    <ScrollArea className="max-h-[70vh]">
+      <form onSubmit={handleSubmit} className="space-y-6 p-1">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="title" className="text-sm font-medium text-slate-900">Title</Label>
+            <Input
+              id="title"
+              value={form.title}
+              onChange={(e) => setForm({ ...form, title: e.target.value })}
+              placeholder="Enter notification title"
+              className="bg-white border-slate-300 text-slate-900"
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="type" className="text-sm font-medium text-slate-900">Type</Label>
+            <Select value={form.type} onValueChange={(value) => setForm({ ...form, type: value })}>
+              <SelectTrigger className="bg-white border-slate-300 text-slate-900">
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="system">System</SelectItem>
+                <SelectItem value="announcement">Announcement</SelectItem>
+                <SelectItem value="achievement">Achievement</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="content" className="text-sm font-medium text-slate-900">Message Content</Label>
+          <Textarea
+            id="content"
+            value={form.content}
+            onChange={(e) => setForm({ ...form, content: e.target.value })}
+            placeholder="Enter your notification message..."
+            className="bg-white border-slate-300 text-slate-900"
+            rows={4}
+            required
+          />
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="priority" className="text-sm font-medium text-slate-900">Priority</Label>
+            <Select value={form.priority} onValueChange={(value) => setForm({ ...form, priority: value })}>
+              <SelectTrigger className="bg-white border-slate-300 text-slate-900">
+                <SelectValue placeholder="Select priority" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="normal">Normal</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="urgent">Urgent</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="target" className="text-sm font-medium text-slate-900">Target Audience</Label>
+            <Select value={form.target} onValueChange={(value) => setForm({ ...form, target: value, userIds: [] })}>
+              <SelectTrigger className="bg-white border-slate-300 text-slate-900">
+                <SelectValue placeholder="Select target" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Users</SelectItem>
+                <SelectItem value="specific">Specific Users</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        {form.target === "specific" && (
+          <div className="space-y-3">
+            <Label className="text-sm font-medium text-slate-900">Select Users</Label>
+            <div className="max-h-48 overflow-y-auto border border-slate-300 rounded-lg p-3 bg-slate-50">
+              {users.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">No users available</p>
+              ) : (
+                <div className="space-y-2">
+                  {users.map((user) => (
+                    <div key={user.id} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`user-${user.id}`}
+                        checked={form.userIds.includes(user.id)}
+                        onCheckedChange={(checked) => handleUserToggle(user.id, checked as boolean)}
+                      />
+                      <Label
+                        htmlFor={`user-${user.id}`}
+                        className="text-sm text-gray-700 cursor-pointer flex-1"
+                      >
+                        {user.username} (ID: {user.id})
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            {form.target === "specific" && (
+              <p className="text-xs text-gray-600">
+                {form.userIds.length} user(s) selected
+              </p>
+            )}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-3 pt-4">
+          <Button 
+            type="button" 
+            variant="outline" 
+            onClick={onCancel}
+            disabled={isLoading}
+            className="text-slate-700 border-slate-300 bg-white hover:bg-slate-50"
+          >
+            Cancel
+          </Button>
+          <Button 
+            type="submit" 
+            disabled={isLoading || (form.target === "specific" && form.userIds.length === 0)}
+            className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+          >
+            {isLoading ? (
+              <>
+                <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              <>
+                <Send className="w-4 h-4 mr-2" />
+                Send Notification
+              </>
+            )}
           </Button>
         </div>
       </form>

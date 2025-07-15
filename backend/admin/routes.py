@@ -7,6 +7,9 @@ import logging
 import os
 from datetime import datetime
 from pydantic import BaseModel
+from typing import Optional
+import glob
+from pathlib import Path
 
 from database import get_db
 from models import Scene, Character, Chat, ChatMessage, User
@@ -364,3 +367,72 @@ async def get_admin_payments(
     except Exception as e:
         logger.error(f"Error fetching payment data: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch payment data")
+
+# ===== ASSET MANAGEMENT ROUTES =====
+
+@router.get("/assets/images")
+async def get_asset_images(
+    asset_type: str = "characters",  # "characters" or "scenes"
+    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+):
+    """Get available images from attached_assets directory"""
+    try:
+        # Get the project root directory (go up from backend/admin to project root)
+        current_dir = Path(__file__).resolve().parent.parent.parent
+        assets_dir = current_dir / "attached_assets"
+        
+        if asset_type == "characters":
+            image_dir = assets_dir / "characters_img"
+        elif asset_type == "scenes":
+            image_dir = assets_dir / "scenes_img"
+        else:
+            raise HTTPException(status_code=400, detail="Invalid asset type. Use 'characters' or 'scenes'")
+        
+        if not image_dir.exists():
+            # Create directory if it doesn't exist
+            image_dir.mkdir(parents=True, exist_ok=True)
+            return {"images": []}
+        
+        # Supported image extensions
+        supported_extensions = ["*.jpg", "*.jpeg", "*.png", "*.gif", "*.webp"]
+        
+        images = []
+        for ext in supported_extensions:
+            image_files = glob.glob(str(image_dir / ext))
+            image_files.extend(glob.glob(str(image_dir / ext.upper())))
+            
+            for image_file in image_files:
+                file_path = Path(image_file)
+                relative_path = f"/assets/{asset_type}_img/{file_path.name}"
+                images.append({
+                    "filename": file_path.name,
+                    "name": file_path.stem,  # filename without extension
+                    "url": relative_path,
+                    "size": file_path.stat().st_size if file_path.exists() else 0
+                })
+        
+        # Sort by filename
+        images.sort(key=lambda x: x['filename'])
+        
+        return {"images": images}
+    
+    except Exception as e:
+        logger.error(f"Error fetching asset images: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch asset images")
+
+@router.post("/assets/images/upload")
+async def upload_asset_image(
+    # This is a placeholder for future file upload functionality
+    # In a real implementation, you would handle file uploads here
+    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+):
+    """Upload image to attached_assets directory (placeholder)"""
+    try:
+        # This is a placeholder for file upload functionality
+        # You would typically use FastAPI's File and UploadFile here
+        return {
+            "message": "File upload functionality not yet implemented. Please manually place images in /attached_assets/characters_img/ or /attached_assets/scenes_img/ directories."
+        }
+    except Exception as e:
+        logger.error(f"Error uploading image: {e}")
+        raise HTTPException(status_code=500, detail="Failed to upload image")

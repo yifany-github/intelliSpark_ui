@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Scene, Character } from "../types";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
+import GlobalLayout from "@/components/layout/GlobalLayout";
 import { 
   Clock, 
   Users, 
@@ -32,7 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { TokenBalance } from "@/components/payment/TokenBalance";
+import { TokenManagement } from "@/components/payment/TokenManagement";
 
 const ProfilePage = () => {
   const { 
@@ -89,7 +90,8 @@ const ProfilePage = () => {
   const nsfwLevelLabels = ["None", "Mild", "Moderate", "Maximum"];
   
   return (
-    <div className="px-4 pt-4 pb-16">
+    <GlobalLayout>
+      <div className="px-2 sm:px-4 pt-2 sm:pt-4 pb-8 sm:pb-16 max-w-4xl mx-auto">
       <h1 className="font-poppins font-bold text-2xl mb-4">{t('profile')}</h1>
       
       {/* User Info Section */}
@@ -128,13 +130,13 @@ const ProfilePage = () => {
         </div>
       </div>
       
-      {/* Token Balance Section */}
+      {/* Token Management Section */}
       <div className="mb-6">
-        <TokenBalance />
+        <TokenManagement />
       </div>
       
       {/* Dashboard Cards */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-6">
         <div className="bg-secondary rounded-2xl p-4">
           <h3 className="text-sm text-gray-400 mb-2">{t('todaysChatTime')}</h3>
           <div className="flex items-center">
@@ -151,7 +153,7 @@ const ProfilePage = () => {
           </div>
         </div>
         
-        <div className="bg-secondary rounded-2xl p-4 col-span-2">
+        <div className="bg-secondary rounded-2xl p-4 col-span-1 sm:col-span-2">
           <h3 className="text-sm text-gray-400 mb-2">{t('activeScenes')}</h3>
           <div className="flex overflow-x-auto py-2 hide-scrollbar">
             {scenes.map(scene => (
@@ -288,12 +290,13 @@ const ProfilePage = () => {
             <Download className="mr-2 h-5 w-5" /> {t('exportScripts')}
           </button>
           
-          <button className="w-full bg-primary hover:bg-accent rounded-2xl px-4 py-3 text-white font-medium transition-colors flex items-center justify-center">
+          <button className="w-full bg-blue-600 hover:bg-blue-700 rounded-2xl px-4 py-3 text-white font-medium transition-colors flex items-center justify-center">
             <Crown className="mr-2 h-5 w-5" /> {t('subscribe')}
           </button>
         </div>
       </div>
-    </div>
+      </div>
+    </GlobalLayout>
   );
 };
 

@@ -7,6 +7,7 @@ from models import User
 from schemas import TokenPurchaseRequest, TokenPurchaseResponse, UserTokenBalance, MessageResponse
 from payment.stripe_service import StripeService
 from payment.token_service import TokenService, get_all_pricing_tiers
+from notification_service import get_notification_service
 import json
 import logging
 
@@ -77,13 +78,65 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 
                 if success:
                     logger.info(f"Successfully added {payment_data['tokens']} tokens to user {payment_data['user_id']}")
+                    
+                    # Create payment success notification
+                    try:
+                        notification_service = get_notification_service(db)
+                        notification_service.create_from_template(
+                            template_name="payment_success",
+                            user_id=payment_data["user_id"],
+                            variables={
+                                "amount": payment_data["amount_cents"] // 100,  # Convert to dollars
+                                "tokens": payment_data["tokens"],
+                                "tier": payment_data["tier"],
+                                "payment_id": payment_data["payment_intent_id"]
+                            }
+                        )
+                        logger.info(f"Created payment success notification for user {payment_data['user_id']}")
+                    except Exception as e:
+                        logger.error(f"Failed to create payment success notification: {str(e)}")
                 else:
                     logger.error(f"Failed to add tokens to user {payment_data['user_id']}")
+                    
+                    # Create payment failed notification
+                    try:
+                        notification_service = get_notification_service(db)
+                        notification_service.create_from_template(
+                            template_name="payment_failed",
+                            user_id=payment_data["user_id"],
+                            variables={
+                                "amount": payment_data["amount_cents"] // 100,
+                                "tier": payment_data["tier"],
+                                "payment_id": payment_data["payment_intent_id"]
+                            }
+                        )
+                        logger.info(f"Created payment failed notification for user {payment_data['user_id']}")
+                    except Exception as e:
+                        logger.error(f"Failed to create payment failed notification: {str(e)}")
         
         # Handle payment failure
         elif event["type"] == "payment_intent.payment_failed":
             payment_intent = event["data"]["object"]
             logger.warning(f"Payment failed for payment intent: {payment_intent['id']}")
+            
+            # Extract user ID from metadata if available
+            if payment_intent.get("metadata") and payment_intent["metadata"].get("user_id"):
+                user_id = int(payment_intent["metadata"]["user_id"])
+                
+                # Create payment failed notification
+                try:
+                    notification_service = get_notification_service(db)
+                    notification_service.create_from_template(
+                        template_name="payment_failed",
+                        user_id=user_id,
+                        variables={
+                            "amount": payment_intent["amount"] // 100,  # Convert to dollars
+                            "payment_id": payment_intent["id"]
+                        }
+                    )
+                    logger.info(f"Created payment failed notification for user {user_id}")
+                except Exception as e:
+                    logger.error(f"Failed to create payment failed notification: {str(e)}")
         
         return {"status": "success"}
         
