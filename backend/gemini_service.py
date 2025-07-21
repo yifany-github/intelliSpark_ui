@@ -38,11 +38,19 @@ class GeminiService:
             return self._simulate_response(character, scene, messages)
         
         try:
-            # Load character and scene prompts
-            from prompt_service import load_character_prompt, load_scene_prompt
+            # Load character and scene prompts directly
+            character_prompt = ""
+            scene_prompt = ""
             
-            character_prompt = await load_character_prompt(character)
-            scene_prompt = await load_scene_prompt(scene)
+            # Load character prompt
+            if character and character.chinese_name == "艾莉丝":
+                from prompts.characters.艾莉丝 import PERSONA_PROMPT, FEW_SHOT_EXAMPLES
+                character_prompt = f"{PERSONA_PROMPT}\n\n{FEW_SHOT_EXAMPLES}"
+            
+            # Load scene prompt  
+            if scene and scene.slug == "royal_court":
+                from prompts.scenes.royal_court import SCENE_PROMPT
+                scene_prompt = SCENE_PROMPT
             
             # Build conversation context
             context = self._build_conversation_context(
@@ -53,14 +61,14 @@ class GeminiService:
             response = await self.model.generate_content_async(context)
             
             if response and response.text:
-                return response.text.strip()
+                return response.text.strip(), {"tokens_used": 1}
             else:
                 logger.warning("Empty response from Gemini, using fallback")
-                return self._simulate_response(character, scene, messages)
+                return self._simulate_response(character, scene, messages), {"tokens_used": 1}
                 
         except Exception as e:
             logger.error(f"Error generating Gemini response: {e}")
-            return self._simulate_response(character, scene, messages)
+            return self._simulate_response(character, scene, messages), {"tokens_used": 1}
     
     def _build_conversation_context(
         self,
