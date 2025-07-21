@@ -388,18 +388,29 @@ async def generate_ai_response(chat_id: int, db: Session = Depends(get_db), curr
         if not character or not scene:
             raise HTTPException(status_code=404, detail="Character or scene not found")
         
-        # Generate response using Gemini
-        response_content = await gemini_service.generate_response(
+        # Get user preferences for AI generation
+        user_preferences = {
+            'temperature': getattr(current_user, 'temperature', 0.8),
+            'nsfw_level': getattr(current_user, 'nsfw_level', 1)
+        }
+        
+        # Generate response using Enhanced Gemini
+        response_content, token_info = await gemini_service.generate_response(
             character=character,
             scene=scene,
-            messages=messages
+            messages=messages,
+            user_preferences=user_preferences
         )
+        
+        # Log token usage information
+        if token_info:
+            logger.info(f"Token usage for chat {chat_id}: Input={token_info.get('input_tokens', 0)}, Output={token_info.get('output_tokens', 0)}, Total={token_info.get('total_tokens', 0)}")
         
         # Deduct tokens after successful generation
         token_deduction_success = token_service.deduct_tokens(
             user_id=current_user.id,
             amount=TOKENS_PER_MESSAGE,
-            description=f"AI response generation for chat {chat_id}"
+            description=f"AI response generation for chat {chat_id} (Input: {token_info.get('input_tokens', 0)}, Output: {token_info.get('output_tokens', 0)})"
         )
         
         if not token_deduction_success:
@@ -426,6 +437,45 @@ async def generate_ai_response(chat_id: int, db: Session = Depends(get_db), curr
         logger.error(f"Error generating AI response for chat {chat_id}: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to generate AI response")
+
+@router.post("/chats/{chat_id}/opening-line")
+async def generate_opening_line(chat_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Generate an opening line for a new chat"""
+    try:
+        # Get the chat and verify it belongs to current user
+        chat = db.query(Chat).filter(Chat.id == chat_id, Chat.user_id == current_user.id).first()
+        if not chat:
+            raise HTTPException(status_code=404, detail="Chat not found")
+        
+        # Get character and scene
+        character = db.query(Character).filter(Character.id == chat.character_id).first()
+        scene = db.query(Scene).filter(Scene.id == chat.scene_id).first()
+        
+        if not character or not scene:
+            raise HTTPException(status_code=404, detail="Character or scene not found")
+        
+        # Generate opening line
+        opening_line = await gemini_service.generate_opening_line(character, scene)
+        
+        # Save the opening line as the first assistant message
+        opening_message = ChatMessage(
+            chat_id=chat_id,
+            role="assistant", 
+            content=opening_line
+        )
+        
+        db.add(opening_message)
+        db.commit()
+        db.refresh(opening_message)
+        
+        return opening_message
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating opening line for chat {chat_id}: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to generate opening line")
 
 @router.delete("/chats", response_model=MessageResponse)
 async def clear_all_chats(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):

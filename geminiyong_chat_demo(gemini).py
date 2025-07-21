@@ -166,8 +166,113 @@ def chat(user_message, history, token_log=None):
 
 
 
+def generate_opening_line():
+    """Generates an opening line using a dedicated prompt, but without history or cache."""
+    print("正在生成开场白...")
+    # This prompt is self-contained and doesn't rely on the cache or few-shots,
+    # ensuring a clean, high-quality opening.
+    opening_prompt = f"""
+    # [核心指令：生成自然的角色开场白]
+    你现在是角色“艾莉丝”。你的任务是根据你的角色设定，对一位初次见面的用户说一句得体、自然且富有吸引力的第一句话，以开启一段对话。
+
+    # [角色设定]
+    {persona_prompt}
+
+    # [开场白情境与约束 (Opening Context & Constraints)]
+    1.  **情境**: 这是你与用户的第一次互动。你的目标是**建立联系 (Establish Connection)**，而不是立即进入深度亲密或极端情绪。
+    2.  **行为准则**: 你的开场白应该侧重于**语言和温和的姿态**。请**避免**立即使用你角色档案中那些表示极度紧张、害羞或高度挑逗的“标志性动作”。那些是关系深入后才应出现的行为。
+    3.  **目标**: 你的话语应该像一个自然的开场，可以是一个温暖的问候、一个基于你身份的简单问题，或是一句能引起对方好奇的观察。
+
+    # [要求]
+    - 完全符合你的角色个性和说话风格。
+    - 听起来自然、得体，适合作为对话的开始。
+    - 直接输出开场白内容，不要包含任何其他解释或引号。
+
+    # [开场白]"""
+    try:
+        # We use a separate, non-cached call for the opening line
+        response = client.models.generate_content(model="gemini-2.0-flash-001",contents=opening_prompt)
+
+        return response.text.strip()
+    except Exception as e:
+        print(f"生成开场白时出错: {e}")
+        return "你好呀，很高兴见到你。" # Fallback opening
+
+
+def chat(user_message, history, token_log=None):
+    if token_log is None:
+        token_log = {"input":0,"output":0,"total":0}
+
+
+    prompt = build_history(user_message, history)
+
+    in_tok = client.models.count_tokens(
+        model="gemini-2.0-flash-001",
+        contents=prompt,
+        config=types.GenerateContentConfig(
+                  cached_content=cache.name)
+            ).total_tokens
+
+    # --- generation
+    try:
+        #print("caht history:", prompt)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                  cached_content=cache.name)
+            )
+
+
+        meta     = response.usage_metadata
+        out_tok  = getattr(meta, "candidates_token_count",
+                    getattr(meta, "output_token_count",
+                    getattr(meta, "output_tokens", 0)))
+
+        token_log["input"]  += in_tok
+        token_log["output"] += out_tok
+        token_log["total"]   = token_log["input"] + token_log["output"]
+
+        bot_reply = (
+            response.text
+            if hasattr(response, "text")
+            else response.candidates[0].content.parts[0].text
+        )
+
+        decorated = (
+            bot_reply
+            + f"\n\n🔢  in {in_tok}  out {out_tok}"
+            + f"   |   total {token_log['total']}"
+        )
+
+    except Exception as e:
+        bot_reply = decorated = f"⚠️ error: {e}"
+
+    history.append([user_message, bot_reply])
+    display_history = history[:-1] + [[user_message, decorated]]
+    return display_history, history, token_log
+
+# Initialize state variables - UNCHANGED
 history = []
 token_log = {"input": 0, "output": 0, "total": 0}
+
+print("欢迎来到聊天机器人！输入 'exit' 结束对话。")
+
+# --- ADDED LOGIC FOR OPENING LINE ---
+# 1. Generate the opening line BEFORE the main loop starts
+opening_line = generate_opening_line()
+
+# 2. Display it to the user
+# Assuming the character is '艾莉丝' since the persona is hardcoded
+character_name = "艾莉丝"
+print(f"{character_name}: {opening_line}")
+
+# 3. Add it to the conversation history
+# The user's turn is an empty string to signify the bot started
+history.append(["", opening_line])
+# --- END OF ADDED LOGIC ---
+
+
 
 print("欢迎来到聊天机器人！输入 'exit' 结束对话。")
 
@@ -190,37 +295,3 @@ print("\n--- 令牌使用情况 ---")
 print(f"输入令牌: {token_log['input']}")
 print(f"输出令牌: {token_log['output']}")
 print(f"总令牌: {token_log['total']}")
-
-# ------------------ Gradio UI (identical to yours, just hooked up) ----------
-with gr.Blocks(title="Pyrite") as demo:
-    gr.Markdown("## Pyrite – your virtual companion")
-
-    chatbot      = gr.Chatbot(label="Chat")
-    state        = gr.State([])                       # [[user, assistant], …]
-    token_state  = gr.State({"input":0,"output":0,"total":0})
-
-    with gr.Row():           # live counters (read-only ints)
-        tok_in  = gr.Number(label="Input tokens",  value=0, interactive=False, precision=0)
-        tok_out = gr.Number(label="Output tokens", value=0, interactive=False, precision=0)
-        tok_tot = gr.Number(label="Total tokens",  value=0, interactive=False, precision=0)
-
-    txt = gr.Textbox(show_label=False, placeholder="Type here…")
-
-    # 1️⃣ run the model + update both States
-    txt.submit(chat,           # your callback
-               [txt, state, token_state],
-               [chatbot, state, token_state])
-
-    # 2️⃣ clear the textbox
-    txt.submit(lambda:"", None, txt)
-
-    # 3️⃣ refresh the three counters
-    txt.submit(lambda s:(s["input"], s["output"], s["total"]),
-               [token_state],
-               [tok_in, tok_out, tok_tot])
-
-# Optional but helpful for long LLM calls
-demo.queue().launch(share=True)
-
-demo.close()
-
