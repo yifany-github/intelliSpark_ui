@@ -240,3 +240,29 @@ Dockerfile.prod
 .env.example
 sitemap.xml
 robots.txt
+
+# ===================================================
+# Development artifacts and temporary files
+# ===================================================
+# Scratchpad files
+scratchpad-*.md
+
+# Documentation artifacts (except essential docs)
+*_DEBUG.md
+*_COMPLETE.md
+*_SETUP.md
+*_FIXES.md
+*_UPDATE.md
+*_SUMMARY.md
+*_GUIDE.md
+*_README.md
+*-improvements.md
+
+# Demo and test files in root
+*_demo.*
+test_*.py
+chat_demo.*
+
+# Temporary logs and demo directories
+web_demo/
+demo_*/
