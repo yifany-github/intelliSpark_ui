@@ -39,18 +39,22 @@ class GeminiService:
         
         try:
             # Load character and scene prompts directly
-            character_prompt = ""
-            scene_prompt = ""
+            character_prompt = {}
+            scene_prompt = {}
             
             # Load character prompt
-            if character and character.chinese_name == "艾莉丝":
+            if character and character.name == "艾莉丝":
                 from prompts.characters.艾莉丝 import PERSONA_PROMPT, FEW_SHOT_EXAMPLES
-                character_prompt = f"{PERSONA_PROMPT}\n\n{FEW_SHOT_EXAMPLES}"
+                character_prompt = {
+                    "persona_prompt": f"{PERSONA_PROMPT}\n\n{FEW_SHOT_EXAMPLES}"
+                }
             
             # Load scene prompt  
-            if scene and scene.slug == "royal_court":
+            if scene and "royal_court" in scene.name.lower():
                 from prompts.scenes.royal_court import SCENE_PROMPT
-                scene_prompt = SCENE_PROMPT
+                scene_prompt = {
+                    "scene_prompt": SCENE_PROMPT
+                }
             
             # Build conversation context
             context = self._build_conversation_context(
