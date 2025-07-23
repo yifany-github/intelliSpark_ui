@@ -12,11 +12,13 @@ import { useLocation } from 'wouter';
 import { apiRequest } from '@/lib/queryClient';
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 import { createRecommendationEngine } from '@/lib/recommendationEngine';
+import { useLanguage } from '@/context/LanguageContext';
 
 const DiscoverSection = () => {
   const [_, navigate] = useLocation();
   const { setSelectedCharacter, nsfwLevel, temperature } = useRolePlay();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
+  const { t } = useLanguage();
   const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -176,18 +178,18 @@ const DiscoverSection = () => {
 
   // Define explore categories with icons and colors
   const exploreCategories = [
-    { id: 'All', name: 'All Characters', icon: Globe, color: 'text-blue-400', bgColor: 'bg-blue-600' },
-    { id: 'Fantasy', name: 'Fantasy & Magic', icon: Sparkles, color: 'text-purple-400', bgColor: 'bg-purple-600' },
-    { id: 'Sci-Fi', name: 'Sci-Fi & Future', icon: Bot, color: 'text-cyan-400', bgColor: 'bg-cyan-600' },
-    { id: 'Adventure', name: 'Adventure & Action', icon: Sword, color: 'text-orange-400', bgColor: 'bg-orange-600' },
-    { id: 'Romance', name: 'Romance & Drama', icon: Heart, color: 'text-pink-400', bgColor: 'bg-pink-600' },
-    { id: 'Mystery', name: 'Mystery & Thriller', icon: Search, color: 'text-indigo-400', bgColor: 'bg-indigo-600' },
-    { id: 'Historical', name: 'Historical', icon: Crown, color: 'text-yellow-400', bgColor: 'bg-yellow-600' },
-    { id: 'Modern', name: 'Modern & Lifestyle', icon: Coffee, color: 'text-green-400', bgColor: 'bg-green-600' },
-    { id: 'Creative', name: 'Creative & Arts', icon: Palette, color: 'text-teal-400', bgColor: 'bg-teal-600' },
-    { id: 'Gaming', name: 'Gaming & Virtual', icon: Gamepad2, color: 'text-red-400', bgColor: 'bg-red-600' },
-    { id: 'Anime', name: 'Anime & Manga', icon: BookOpen, color: 'text-rose-400', bgColor: 'bg-rose-600' },
-    { id: 'Movies', name: 'Movies & TV', icon: Film, color: 'text-amber-400', bgColor: 'bg-amber-600' }
+    { id: 'All', name: t('allCharacters'), icon: Globe, color: 'text-blue-400', bgColor: 'bg-blue-600' },
+    { id: 'Fantasy', name: t('fantasyMagic'), icon: Sparkles, color: 'text-purple-400', bgColor: 'bg-purple-600' },
+    { id: 'Sci-Fi', name: t('sciFiFuture'), icon: Bot, color: 'text-cyan-400', bgColor: 'bg-cyan-600' },
+    { id: 'Adventure', name: t('adventureAction'), icon: Sword, color: 'text-orange-400', bgColor: 'bg-orange-600' },
+    { id: 'Romance', name: t('romanceDrama'), icon: Heart, color: 'text-pink-400', bgColor: 'bg-pink-600' },
+    { id: 'Mystery', name: t('mysteryThriller'), icon: Search, color: 'text-indigo-400', bgColor: 'bg-indigo-600' },
+    { id: 'Historical', name: t('historical'), icon: Crown, color: 'text-yellow-400', bgColor: 'bg-yellow-600' },
+    { id: 'Modern', name: t('modernLifestyle'), icon: Coffee, color: 'text-green-400', bgColor: 'bg-green-600' },
+    { id: 'Creative', name: t('creativeArts'), icon: Palette, color: 'text-teal-400', bgColor: 'bg-teal-600' },
+    { id: 'Gaming', name: t('gamingVirtual'), icon: Gamepad2, color: 'text-red-400', bgColor: 'bg-red-600' },
+    { id: 'Anime', name: t('animeManga'), icon: BookOpen, color: 'text-rose-400', bgColor: 'bg-rose-600' },
+    { id: 'Movies', name: t('moviesTv'), icon: Film, color: 'text-amber-400', bgColor: 'bg-amber-600' }
   ];
 
   // Filter characters by category
@@ -266,7 +268,7 @@ const DiscoverSection = () => {
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
               disabled={isCreatingChat}
             >
-              {isCreatingChat ? 'Creating...' : 'Chat Now'}
+              {isCreatingChat ? t('creating') : t('chatNow')}
             </button>
             <button 
               onClick={(e) => {
@@ -275,7 +277,7 @@ const DiscoverSection = () => {
               }}
               className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
             >
-              Preview
+              {t('preview')}
             </button>
           </div>
         </div>
@@ -307,15 +309,15 @@ const DiscoverSection = () => {
           <div>
             <div className="flex items-center space-x-2 mb-2">
               <Compass className="w-6 h-6 text-blue-400" />
-              <h1 className="text-3xl font-bold text-white">Discover</h1>
+              <h1 className="text-3xl font-bold text-white">{t('discoverPage')}</h1>
             </div>
-            <p className="text-gray-400">Explore trending characters, new arrivals, and personalized recommendations</p>
+            <p className="text-gray-400">{t('exploreTrendingCharacters')}</p>
           </div>
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setViewMode(viewMode === 'grid' ? 'masonry' : 'grid')}
               className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-              title={`Switch to ${viewMode === 'grid' ? 'masonry' : 'grid'} layout`}
+              title={viewMode === 'grid' ? t('switchToMasonryLayout') : t('switchToGridLayout')}
             >
               <Filter className="w-4 h-4" />
             </button>
@@ -326,7 +328,7 @@ const DiscoverSection = () => {
         <div className="mb-6">
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
             <Mountain className="w-5 h-5 text-emerald-400 mr-2" />
-            Explore Types
+            {t('exploreTypes')}
           </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {exploreCategories.map((category) => {
@@ -364,8 +366,8 @@ const DiscoverSection = () => {
         <section>
           <div className="flex items-center space-x-2 mb-4">
             <Crown className="w-5 h-5 text-yellow-400" />
-            <h2 className="text-xl font-semibold text-white">Featured Characters</h2>
-            <span className="text-sm text-gray-400">Handpicked selections</span>
+            <h2 className="text-xl font-semibold text-white">{t('featuredCharacters')}</h2>
+            <span className="text-sm text-gray-400">{t('handpickedSelections')}</span>
             {selectedCategory !== 'All' && (
               <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
                 {selectedCategory}
@@ -390,8 +392,8 @@ const DiscoverSection = () => {
         <section>
           <div className="flex items-center space-x-2 mb-4">
             <TrendingUp className="w-5 h-5 text-pink-400" />
-            <h2 className="text-xl font-semibold text-white">Trending This Week</h2>
-            <span className="text-sm text-gray-400">Hot picks from the community</span>
+            <h2 className="text-xl font-semibold text-white">{t('trendingThisWeek')}</h2>
+            <span className="text-sm text-gray-400">{t('hotPicksCommunity')}</span>
             {selectedCategory !== 'All' && (
               <span className="px-2 py-1 bg-pink-600 text-white text-xs rounded-full">
                 {selectedCategory}
@@ -416,8 +418,8 @@ const DiscoverSection = () => {
         <section>
           <div className="flex items-center space-x-2 mb-4">
             <Zap className="w-5 h-5 text-green-400" />
-            <h2 className="text-xl font-semibold text-white">New Arrivals</h2>
-            <span className="text-sm text-gray-400">Fresh characters added recently</span>
+            <h2 className="text-xl font-semibold text-white">{t('newArrivals')}</h2>
+            <span className="text-sm text-gray-400">{t('freshCharactersAdded')}</span>
             {selectedCategory !== 'All' && (
               <span className="px-2 py-1 bg-green-600 text-white text-xs rounded-full">
                 {selectedCategory}
@@ -442,8 +444,8 @@ const DiscoverSection = () => {
         <section>
           <div className="flex items-center space-x-2 mb-4">
             <Flame className="w-5 h-5 text-orange-400" />
-            <h2 className="text-xl font-semibold text-white">Most Popular</h2>
-            <span className="text-sm text-gray-400">Community favorites</span>
+            <h2 className="text-xl font-semibold text-white">{t('mostPopular')}</h2>
+            <span className="text-sm text-gray-400">{t('communityFavorites')}</span>
             {selectedCategory !== 'All' && (
               <span className="px-2 py-1 bg-orange-600 text-white text-xs rounded-full">
                 {selectedCategory}
@@ -468,8 +470,8 @@ const DiscoverSection = () => {
         <section>
           <div className="flex items-center space-x-2 mb-4">
             <Users className="w-5 h-5 text-blue-400" />
-            <h2 className="text-xl font-semibold text-white">Recommended for You</h2>
-            <span className="text-sm text-gray-400">Based on your preferences</span>
+            <h2 className="text-xl font-semibold text-white">{t('recommendedForYou')}</h2>
+            <span className="text-sm text-gray-400">{t('basedOnPreferences')}</span>
             {selectedCategory !== 'All' && (
               <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
                 {selectedCategory}
@@ -498,15 +500,15 @@ const DiscoverSection = () => {
        filteredSections.recommended.length === 0 && (
         <section className="text-center py-16">
           <div className="text-6xl mb-4">🔍</div>
-          <h3 className="text-xl font-semibold mb-2">No {selectedCategory} Characters Found</h3>
+          <h3 className="text-xl font-semibold mb-2">{t('noCharactersFound').replace('{category}', selectedCategory)}</h3>
           <p className="text-gray-400 mb-6">
-            Try exploring other categories or check back later for new additions.
+            {t('tryExploringOther')}
           </p>
           <button
             onClick={() => setSelectedCategory('All')}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
           >
-            View All Characters
+            {t('viewAllCharacters')}
           </button>
         </section>
       )}

@@ -28,9 +28,9 @@ export default function GlobalLayout({
           onSearchChange={onSearchChange} 
         />
       )}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1">
         {showSidebar && (
-          <div className={`${isCollapsed ? 'hidden sm:block' : 'block'} flex-shrink-0`}>
+          <div className="flex-shrink-0 h-full">
             <GlobalSidebar />
           </div>
         )}

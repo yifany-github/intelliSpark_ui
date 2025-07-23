@@ -35,6 +35,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface CharacterFormData {
   name: string;
@@ -62,35 +63,90 @@ interface CharacterFormData {
   conversationStyle: string;
 }
 
-const predefinedTraits = [
-  'Friendly', 'Mysterious', 'Intelligent', 'Funny', 'Serious', 'Caring', 'Adventurous',
-  'Shy', 'Confident', 'Creative', 'Logical', 'Emotional', 'Brave', 'Cautious',
-  'Optimistic', 'Pessimistic', 'Loyal', 'Independent', 'Playful', 'Wise',
-  'Curious', 'Passionate', 'Calm', 'Energetic', 'Romantic', 'Practical'
+const getPredefinedTraits = (t: (key: string) => string) => [
+  { key: 'friendly', label: t('friendly') },
+  { key: 'mysterious', label: t('mysterious') },
+  { key: 'intelligent', label: t('intelligent') },
+  { key: 'funny', label: t('funny') },
+  { key: 'serious', label: t('serious') },
+  { key: 'caring', label: t('caring') },
+  { key: 'adventurous', label: t('adventurous') },
+  { key: 'shy', label: t('shy') },
+  { key: 'confident', label: t('confident') },
+  { key: 'creative', label: t('creative') },
+  { key: 'logical', label: t('logical') },
+  { key: 'emotional', label: t('emotional') },
+  { key: 'brave', label: t('brave') },
+  { key: 'cautious', label: t('cautious') },
+  { key: 'optimistic', label: t('optimistic') },
+  { key: 'pessimistic', label: t('pessimistic') },
+  { key: 'loyal', label: t('loyal') },
+  { key: 'independent', label: t('independent') },
+  { key: 'playful', label: t('playful') },
+  { key: 'wise', label: t('wise') },
+  { key: 'curious', label: t('curious') },
+  { key: 'passionate', label: t('passionate') },
+  { key: 'calm', label: t('calm') },
+  { key: 'energetic', label: t('energetic') },
+  { key: 'romantic', label: t('romantic') },
+  { key: 'practical', label: t('practical') }
 ];
 
-const categories = [
-  'Fantasy', 'Sci-Fi', 'Modern', 'Historical', 'Anime', 'Game', 'Movie', 'Book', 'Original'
+const getCategories = (t: (key: string) => string) => [
+  { key: 'Fantasy', label: t('fantasy') },
+  { key: 'Sci-Fi', label: t('sciFi') },
+  { key: 'Modern', label: t('modern') },
+  { key: 'Historical', label: t('historical') },
+  { key: 'Anime', label: t('anime') },
+  { key: 'Game', label: t('game') },
+  { key: 'Movie', label: t('movie') },
+  { key: 'Book', label: t('book') },
+  { key: 'Original', label: t('original') }
 ];
 
-const voiceStyles = [
-  'Casual', 'Formal', 'Playful', 'Mysterious', 'Wise', 'Energetic', 'Calm', 'Dramatic',
-  'Humorous', 'Serious', 'Friendly', 'Professional', 'Romantic', 'Sarcastic'
+const getVoiceStyles = (t: (key: string) => string) => [
+  { key: 'Casual', label: t('casual') },
+  { key: 'Formal', label: t('formal') },
+  { key: 'Playful', label: t('playful') },
+  { key: 'Mysterious', label: t('mystical') },
+  { key: 'Wise', label: t('wise') },
+  { key: 'Energetic', label: t('energetic') },
+  { key: 'Calm', label: t('calm') },
+  { key: 'Dramatic', label: t('dramatic') },
+  { key: 'Humorous', label: t('humorous') },
+  { key: 'Serious', label: t('serious') },
+  { key: 'Friendly', label: t('friendly') },
+  { key: 'Professional', label: t('professional') },
+  { key: 'Romantic', label: t('romantic') },
+  { key: 'Sarcastic', label: t('sarcastic') }
 ];
 
-const conversationStyles = [
-  'Detailed responses', 'Concise responses', 'Storytelling', 'Interactive',
-  'Question-focused', 'Emotional', 'Analytical', 'Creative'
+const getConversationStyles = (t: (key: string) => string) => [
+  { key: 'Detailed responses', label: t('detailedResponses') },
+  { key: 'Concise responses', label: t('conciseResponses') },
+  { key: 'Storytelling', label: t('storytelling') },
+  { key: 'Interactive', label: t('interactive') },
+  { key: 'Question-focused', label: t('questionFocused') },
+  { key: 'Emotional', label: t('emotional') },
+  { key: 'Analytical', label: t('analytical') },
+  { key: 'Creative', label: t('creative') }
 ];
 
 const CreateCharacterPage = () => {
   const [_, navigate] = useLocation();
   const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [activeTab, setActiveTab] = useState('basic');
+
+  // Get localized options
+  const predefinedTraits = getPredefinedTraits(t);
+  const voiceStyles = getVoiceStyles(t);
+  const conversationStyles = getConversationStyles(t);
+  const categories = getCategories(t);
 
   const [formData, setFormData] = useState<CharacterFormData>({
     name: '',
@@ -126,19 +182,19 @@ const CreateCharacterPage = () => {
     const newErrors: Partial<Record<keyof CharacterFormData, string>> = {};
     
     if (!formData.name.trim()) {
-      newErrors.name = 'Character name is required';
+      newErrors.name = t('characterNameRequired');
     }
     
     if (!formData.description.trim()) {
-      newErrors.description = 'Character description is required';
+      newErrors.description = t('characterDescriptionRequired');
     }
     
     if (!formData.backstory.trim()) {
-      newErrors.backstory = 'Character backstory is required';
+      newErrors.backstory = t('characterBackstoryRequired');
     }
     
     if (formData.traits.length === 0) {
-      newErrors.traits = 'At least one trait is required';
+      newErrors.traits = t('atLeastOneTrait');
     }
     
     setErrors(newErrors);
@@ -173,12 +229,12 @@ const CreateCharacterPage = () => {
   };
 
   // Handle trait selection
-  const handleTraitToggle = (trait: string) => {
+  const handleTraitToggle = (traitKey: string, traitLabel: string) => {
     setFormData(prev => ({
       ...prev,
-      traits: prev.traits.includes(trait)
-        ? prev.traits.filter(t => t !== trait)
-        : [...prev.traits, trait]
+      traits: prev.traits.includes(traitLabel)
+        ? prev.traits.filter(t => t !== traitLabel)
+        : [...prev.traits, traitLabel]
     }));
   };
 
@@ -200,8 +256,8 @@ const CreateCharacterPage = () => {
     // Validate file type
     if (!file.type.startsWith('image/')) {
       toast({
-        title: 'Invalid file type',
-        description: 'Please select an image file',
+        title: t('invalidFileType'),
+        description: t('selectImageFile'),
         variant: 'destructive'
       });
       return;
@@ -210,8 +266,8 @@ const CreateCharacterPage = () => {
     // Validate file size (max 5MB)
     if (file.size > 5 * 1024 * 1024) {
       toast({
-        title: 'File too large',
-        description: 'Please select an image smaller than 5MB',
+        title: t('fileTooLarge'),
+        description: t('selectSmallerImage'),
         variant: 'destructive'
       });
       return;
@@ -234,8 +290,8 @@ const CreateCharacterPage = () => {
     } catch (error) {
       setIsUploading(false);
       toast({
-        title: 'Upload failed',
-        description: 'Failed to upload avatar. Please try again.',
+        title: t('uploadFailed'),
+        description: t('failedToUploadAvatar'),
         variant: 'destructive'
       });
     }
@@ -245,7 +301,7 @@ const CreateCharacterPage = () => {
   const saveCharacterMutation = useMutation({
     mutationFn: async (characterData: CharacterFormData) => {
       if (!isAuthenticated) {
-        throw new Error('Authentication required');
+        throw new Error(t('authenticationRequired'));
       }
 
       // Convert form data to API format
@@ -292,7 +348,7 @@ const CreateCharacterPage = () => {
     },
     onSuccess: (data) => {
       toast({
-        title: 'Character created successfully!',
+        title: t('characterCreatedSuccessfully'),
         description: `${formData.name} has been created and ${formData.isPublic ? 'published' : 'saved as draft'}.`
       });
       
@@ -308,8 +364,8 @@ const CreateCharacterPage = () => {
       // Handle authentication errors
       if (error.message.includes('403') || error.message.includes('Not authenticated')) {
         toast({
-          title: 'Authentication required',
-          description: 'Please log in to create characters',
+          title: t('authenticationRequired'),
+          description: t('pleaseLoginToCreate'),
           variant: 'destructive'
         });
         navigate('/login');
@@ -329,8 +385,8 @@ const CreateCharacterPage = () => {
     
     if (!isAuthenticated) {
       toast({
-        title: 'Authentication required',
-        description: 'Please log in to create a character',
+        title: t('authenticationRequired'),
+        description: t('pleaseLoginToCreate'),
         variant: 'destructive'
       });
       return;
@@ -415,7 +471,7 @@ const CreateCharacterPage = () => {
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-2">
               <Plus className="w-6 h-6 text-green-400" />
-              <h1 className="text-2xl font-bold text-white">Create Character</h1>
+              <h1 className="text-2xl font-bold text-white">{t('createCharacter')}</h1>
             </div>
             <div className="flex items-center space-x-2">
               <Button
@@ -424,13 +480,13 @@ const CreateCharacterPage = () => {
                 className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white border-blue-600"
               >
                 <Eye className="w-4 h-4" />
-                <span>{showPreview ? 'Hide' : 'Show'} Preview</span>
+                <span>{showPreview ? t('hide') : t('show')} {t('preview')}</span>
               </Button>
               <Button
                 variant="outline"
                 onClick={() => navigate('/characters')}
               >
-                Cancel
+                {t('cancel')}
               </Button>
             </div>
           </div>
@@ -441,10 +497,10 @@ const CreateCharacterPage = () => {
               <form onSubmit={handleSubmit} className="space-y-6">
                 <Tabs value={activeTab} onValueChange={setActiveTab}>
                   <TabsList className="grid w-full grid-cols-4">
-                    <TabsTrigger value="basic">Basic Info</TabsTrigger>
-                    <TabsTrigger value="personality">Personality</TabsTrigger>
-                    <TabsTrigger value="details">Details</TabsTrigger>
-                    <TabsTrigger value="settings">Settings</TabsTrigger>
+                    <TabsTrigger value="basic">{t('basicInfo')}</TabsTrigger>
+                    <TabsTrigger value="personality">{t('personality')}</TabsTrigger>
+                    <TabsTrigger value="details">{t('details')}</TabsTrigger>
+                    <TabsTrigger value="settings">{t('settings')}</TabsTrigger>
                   </TabsList>
 
                   {/* Basic Information Tab */}
@@ -453,16 +509,16 @@ const CreateCharacterPage = () => {
                       <CardHeader>
                         <CardTitle className="flex items-center space-x-2">
                           <User className="w-5 h-5" />
-                          <span>Basic Information</span>
+                          <span>{t('basicInfo')}</span>
                         </CardTitle>
                         <CardDescription>
-                          Essential details about your character
+                          {t('essentialDetails')}
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         {/* Avatar Upload */}
                         <div>
-                          <Label htmlFor="avatar">Character Avatar</Label>
+                          <Label htmlFor="avatar">{t('characterAvatar')}</Label>
                           <div className="mt-2 flex items-center space-x-4">
                             <div className="relative">
                               <div className="w-20 h-20 bg-gray-700 rounded-full flex items-center justify-center overflow-hidden">
@@ -502,10 +558,10 @@ const CreateCharacterPage = () => {
                                 className="flex items-center space-x-2"
                               >
                                 <Upload className="w-4 h-4" />
-                                <span>{isUploading ? 'Uploading...' : 'Upload Avatar'}</span>
+                                <span>{isUploading ? t('uploading') : t('uploadAvatar')}</span>
                               </Button>
                               <p className="text-sm text-gray-400 mt-1">
-                                PNG, JPG up to 5MB
+                                {t('pngJpgUpTo5MB')}
                               </p>
                             </div>
                           </div>
@@ -513,12 +569,12 @@ const CreateCharacterPage = () => {
 
                         {/* Character Name */}
                         <div>
-                          <Label htmlFor="name">Character Name *</Label>
+                          <Label htmlFor="name">{t('characterName')} *</Label>
                           <Input
                             id="name"
                             value={formData.name}
                             onChange={(e) => handleInputChange('name', e.target.value)}
-                            placeholder="Enter character name"
+                            placeholder={t('enterCharacterName')}
                             className={errors.name ? 'border-red-500' : ''}
                           />
                           {errors.name && (
@@ -528,12 +584,12 @@ const CreateCharacterPage = () => {
 
                         {/* Description */}
                         <div>
-                          <Label htmlFor="description">Short Description *</Label>
+                          <Label htmlFor="description">{t('shortDescription')} *</Label>
                           <Textarea
                             id="description"
                             value={formData.description}
                             onChange={(e) => handleInputChange('description', e.target.value)}
-                            placeholder="Brief description of your character (1-2 sentences)"
+                            placeholder={t('briefDescription')}
                             rows={3}
                             className={errors.description ? 'border-red-500' : ''}
                           />
@@ -544,12 +600,12 @@ const CreateCharacterPage = () => {
 
                         {/* Backstory */}
                         <div>
-                          <Label htmlFor="backstory">Backstory *</Label>
+                          <Label htmlFor="backstory">{t('detailedBackstory')} *</Label>
                           <Textarea
                             id="backstory"
                             value={formData.backstory}
                             onChange={(e) => handleInputChange('backstory', e.target.value)}
-                            placeholder="Detailed backstory and background information"
+                            placeholder={t('detailedBackstory')}
                             rows={4}
                             className={errors.backstory ? 'border-red-500' : ''}
                           />
@@ -560,14 +616,14 @@ const CreateCharacterPage = () => {
 
                         {/* Category */}
                         <div>
-                          <Label htmlFor="category">Category</Label>
+                          <Label htmlFor="category">{t('category')}</Label>
                           <Select value={formData.category} onValueChange={(value) => handleInputChange('category', value)}>
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               {categories.map(category => (
-                                <SelectItem key={category} value={category}>{category}</SelectItem>
+                                <SelectItem key={category.key} value={category.key}>{category.label}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -582,7 +638,7 @@ const CreateCharacterPage = () => {
                             </SelectTrigger>
                             <SelectContent>
                               {voiceStyles.map(style => (
-                                <SelectItem key={style} value={style}>{style}</SelectItem>
+                                <SelectItem key={style.key} value={style.key}>{style.label}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -597,29 +653,29 @@ const CreateCharacterPage = () => {
                       <CardHeader>
                         <CardTitle className="flex items-center space-x-2">
                           <Star className="w-5 h-5" />
-                          <span>Personality Traits</span>
+                          <span>{t('personalityTraits')}</span>
                         </CardTitle>
                         <CardDescription>
-                          Select traits that define your character's personality
+                          {t('selectTraits')}
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         {/* Trait Selection */}
                         <div>
-                          <Label>Character Traits *</Label>
+                          <Label>{t('characterTraits')} *</Label>
                           <div className="flex flex-wrap gap-2 mt-2">
                             {predefinedTraits.map(trait => (
                               <button
-                                key={trait}
+                                key={trait.key}
                                 type="button"
-                                onClick={() => handleTraitToggle(trait)}
+                                onClick={() => handleTraitToggle(trait.key, trait.label)}
                                 className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                                  formData.traits.includes(trait)
+                                  formData.traits.includes(trait.label)
                                     ? 'bg-blue-600 text-white'
                                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                                 }`}
                               >
-                                {trait}
+                                {trait.label}
                               </button>
                             ))}
                           </div>
@@ -630,11 +686,11 @@ const CreateCharacterPage = () => {
 
                         {/* Personality Sliders */}
                         <div className="space-y-4">
-                          <h4 className="font-medium">Personality Dimensions</h4>
+                          <h4 className="font-medium">{t('personalityDimensions')}</h4>
                           {Object.entries(formData.personalityTraits).map(([trait, value]) => (
                             <div key={trait}>
                               <div className="flex justify-between items-center mb-2">
-                                <Label className="capitalize">{trait}</Label>
+                                <Label className="capitalize">{t(trait as keyof typeof formData.personalityTraits)}</Label>
                                 <span className="text-sm text-gray-400">{value}%</span>
                               </div>
                               <Slider
@@ -657,69 +713,69 @@ const CreateCharacterPage = () => {
                       <CardHeader>
                         <CardTitle className="flex items-center space-x-2">
                           <Tag className="w-5 h-5" />
-                          <span>Character Details</span>
+                          <span>{t('characterDetails')}</span>
                         </CardTitle>
                         <CardDescription>
-                          Additional information about your character
+                          {t('additionalInformation')}
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {/* Gender */}
                           <div>
-                            <Label htmlFor="gender">Gender</Label>
+                            <Label htmlFor="gender">{t('gender')}</Label>
                             <Input
                               id="gender"
                               value={formData.gender}
                               onChange={(e) => handleInputChange('gender', e.target.value)}
-                              placeholder="e.g., Male, Female, Non-binary"
+                              placeholder={t('genderExample')}
                             />
                           </div>
 
                           {/* Age */}
                           <div>
-                            <Label htmlFor="age">Age</Label>
+                            <Label htmlFor="age">{t('age')}</Label>
                             <Input
                               id="age"
                               value={formData.age}
                               onChange={(e) => handleInputChange('age', e.target.value)}
-                              placeholder="e.g., 25, Young Adult, Ancient"
+                              placeholder={t('ageExample')}
                             />
                           </div>
                         </div>
 
                         {/* Occupation */}
                         <div>
-                          <Label htmlFor="occupation">Occupation</Label>
+                          <Label htmlFor="occupation">{t('occupation')}</Label>
                           <Input
                             id="occupation"
                             value={formData.occupation}
                             onChange={(e) => handleInputChange('occupation', e.target.value)}
-                            placeholder="Character's job or role"
+                            placeholder={t('charactersJob')}
                           />
                         </div>
 
                         {/* Catchphrase */}
                         <div>
-                          <Label htmlFor="catchphrase">Catchphrase</Label>
+                          <Label htmlFor="catchphrase">{t('catchphrase')}</Label>
                           <Input
                             id="catchphrase"
                             value={formData.catchphrase}
                             onChange={(e) => handleInputChange('catchphrase', e.target.value)}
-                            placeholder="A memorable phrase your character often says"
+                            placeholder={t('memorablePhrase')}
                           />
                         </div>
 
                         {/* Conversation Style */}
                         <div>
-                          <Label htmlFor="conversationStyle">Conversation Style</Label>
+                          <Label htmlFor="conversationStyle">{t('conversationStyle')}</Label>
                           <Select value={formData.conversationStyle} onValueChange={(value) => handleInputChange('conversationStyle', value)}>
                             <SelectTrigger>
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
                               {conversationStyles.map(style => (
-                                <SelectItem key={style} value={style}>{style}</SelectItem>
+                                <SelectItem key={style.key} value={style.key}>{style.label}</SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
@@ -734,19 +790,19 @@ const CreateCharacterPage = () => {
                       <CardHeader>
                         <CardTitle className="flex items-center space-x-2">
                           <Settings className="w-5 h-5" />
-                          <span>Publishing Settings</span>
+                          <span>{t('publishingSettings')}</span>
                         </CardTitle>
                         <CardDescription>
-                          Configure how your character will be shared
+                          {t('configureSharing')}
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="space-y-4">
                         {/* Public/Private */}
                         <div className="flex items-center justify-between">
                           <div>
-                            <Label htmlFor="isPublic">Make Public</Label>
+                            <Label htmlFor="isPublic">{t('makePublic')}</Label>
                             <p className="text-sm text-gray-400">
-                              Allow others to discover and chat with your character
+                              {t('allowOthersDiscover')}
                             </p>
                           </div>
                           <Switch
@@ -759,7 +815,7 @@ const CreateCharacterPage = () => {
                         {/* NSFW Level */}
                         <div>
                           <div className="flex justify-between items-center mb-2">
-                            <Label>Content Rating</Label>
+                            <Label>{t('contentRating')}</Label>
                             <span className="text-sm text-gray-400">
                               Level {formData.nsfwLevel}
                             </span>
@@ -772,10 +828,10 @@ const CreateCharacterPage = () => {
                             className="w-full"
                           />
                           <div className="flex justify-between text-xs text-gray-400 mt-1">
-                            <span>Safe</span>
-                            <span>Mild</span>
-                            <span>Moderate</span>
-                            <span>Mature</span>
+                            <span>{t('safe')}</span>
+                            <span>{t('mild')}</span>
+                            <span>{t('moderate')}</span>
+                            <span>{t('mature')}</span>
                           </div>
                         </div>
                       </CardContent>
@@ -793,7 +849,7 @@ const CreateCharacterPage = () => {
                     className="flex items-center space-x-2"
                   >
                     <Save className="w-4 h-4" />
-                    <span>Save Draft</span>
+                    <span>{t('saveDraft')}</span>
                   </Button>
                   <Button
                     type="submit"
@@ -802,7 +858,7 @@ const CreateCharacterPage = () => {
                   >
                     <Plus className="w-4 h-4" />
                     <span>
-                      {saveCharacterMutation.isPending ? 'Creating...' : 'Create Character'}
+                      {saveCharacterMutation.isPending ? t('creating') : t('createCharacter')}
                     </span>
                   </Button>
                 </div>
@@ -817,10 +873,10 @@ const CreateCharacterPage = () => {
                     <CardHeader>
                       <CardTitle className="flex items-center space-x-2">
                         <Eye className="w-5 h-5" />
-                        <span>Preview</span>
+                        <span>{t('preview')}</span>
                       </CardTitle>
                       <CardDescription>
-                        How your character will appear to others
+                        {t('howCharacterAppears')}
                       </CardDescription>
                     </CardHeader>
                     <CardContent>

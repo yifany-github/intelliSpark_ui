@@ -35,7 +35,7 @@ const fetchTokenBalance = async () => {
 
 export default function TopNavigation({ searchQuery = '', onSearchChange }: TopNavigationProps) {
   const { user, isAuthenticated, logout } = useAuth();
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, t } = useLanguage();
   const [_, navigate] = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -88,7 +88,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search characters..."
+              placeholder={t('searchCharacters')}
               value={searchQuery}
               onChange={(e) => onSearchChange?.(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 text-white placeholder-gray-400"
@@ -112,7 +112,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
             onClick={() => navigate('/payment')}
             className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:from-blue-600 hover:to-blue-700 transition-colors"
           >
-            <span className="hidden sm:inline">💎 Upgrade Plan</span>
+            <span className="hidden sm:inline">💎 {t('upgradePlan')}</span>
             <span className="sm:hidden">💎</span>
           </button>
           
@@ -134,7 +134,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
                   <div className="w-6 h-6 bg-gray-600 rounded-full flex items-center justify-center">
                     <span className="text-xs">{user?.email?.[0]?.toUpperCase() || 'U'}</span>
                   </div>
-                  <span className="text-sm">Free Plan</span>
+                  <span className="text-sm">{t('freePlan')}</span>
                   <ChevronDown className="w-4 h-4" />
                 </button>
                 
@@ -148,7 +148,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
                       className="w-full px-4 py-2 text-left hover:bg-gray-700 text-sm flex items-center space-x-2"
                     >
                       <User className="w-4 h-4" />
-                      <span>Profile</span>
+                      <span>{t('profile')}</span>
                     </button>
                     <button 
                       onClick={() => {
@@ -158,7 +158,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
                       className="w-full px-4 py-2 text-left hover:bg-gray-700 text-sm flex items-center space-x-2"
                     >
                       <MessageCircle className="w-4 h-4" />
-                      <span>My Chats</span>
+                      <span>{t('myChats')}</span>
                     </button>
                     <button 
                       onClick={() => {
@@ -168,7 +168,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
                       className="w-full px-4 py-2 text-left hover:bg-gray-700 text-sm flex items-center space-x-2"
                     >
                       <Bell className="w-4 h-4" />
-                      <span>Notifications</span>
+                      <span>{t('notifications')}</span>
                     </button>
                     <button 
                       onClick={() => {
@@ -178,7 +178,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
                       className="w-full px-4 py-2 text-left hover:bg-gray-700 text-sm flex items-center space-x-2"
                     >
                       <Settings className="w-4 h-4" />
-                      <span>Tokens & Billing</span>
+                      <span>{t('tokensBilling')}</span>
                     </button>
                     <hr className="border-gray-700 my-1" />
                     <button 
@@ -189,7 +189,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
                       className="w-full px-4 py-2 text-left hover:bg-gray-700 text-sm flex items-center space-x-2 text-red-400"
                     >
                       <LogOut className="w-4 h-4" />
-                      <span>Logout</span>
+                      <span>{t('logout')}</span>
                     </button>
                   </div>
                 )}
@@ -201,13 +201,13 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
                   className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
                   <LogIn className="w-4 h-4" />
-                  <span>Login</span>
+                  <span>{t('login')}</span>
                 </button>
                 <div className="flex items-center space-x-2 bg-gray-700 rounded-lg px-3 py-2">
                   <div className="w-6 h-6 bg-gray-600 rounded-full flex items-center justify-center">
                     <User className="w-4 h-4" />
                   </div>
-                  <span className="text-sm">Guest</span>
+                  <span className="text-sm">{t('guest')}</span>
                 </div>
               </div>
             )}
@@ -219,9 +219,9 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
       {isAuthenticated && (
         <div className="px-4 pb-3">
           <div className="flex items-center space-x-2 text-sm text-gray-400">
-            <span>💬 Chat with AI characters</span>
+            <span>💬 {t('chatWithAICharacters')}</span>
             <div className="ml-auto flex items-center space-x-2">
-              <span>🎯 Tokens: {tokenLoading ? '...' : (tokenBalance?.balance ?? '?')}</span>
+              <span>🎯 {t('tokensLabel')}: {tokenLoading ? '...' : (tokenBalance?.balance ?? '?')}</span>
             </div>
           </div>
         </div>

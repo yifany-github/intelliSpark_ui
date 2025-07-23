@@ -103,14 +103,14 @@ const SettingsPage = () => {
             <SettingsIcon className="w-6 h-6 text-blue-400" />
             <h1 className="font-poppins font-bold text-2xl text-white">{t('settings')}</h1>
           </div>
-          <p className="text-gray-400">Customize your AI chat experience and application preferences</p>
+          <p className="text-gray-400">{t('customizeAIChat')} {t('applicationPreferences')}</p>
         </div>
         
         {/* Language Settings */}
         <div className="bg-gray-800 rounded-2xl p-6 mb-6">
           <div className="flex items-center space-x-2 mb-4">
             <Globe className="w-5 h-5 text-green-400" />
-            <h3 className="font-semibold text-lg text-white">Language Settings</h3>
+            <h3 className="font-semibold text-lg text-white">{t('languageSettings')}</h3>
           </div>
           <div className="space-y-4">
             <LanguageSelector type="interface" />
@@ -144,7 +144,7 @@ const SettingsPage = () => {
                 <span>{t('short')}</span>
                 <span>{t('long')}</span>
               </div>
-              <p className="text-xs text-gray-500 mt-2">Controls how much conversation history the AI remembers</p>
+              <p className="text-xs text-gray-500 mt-2">{t('controlsContextWindow')}</p>
             </div>
             
             {/* Temperature */}
@@ -165,14 +165,14 @@ const SettingsPage = () => {
                 <span>{t('precise')}</span>
                 <span>{t('creative')}</span>
               </div>
-              <p className="text-xs text-gray-500 mt-2">Higher values make responses more creative and unpredictable</p>
+              <p className="text-xs text-gray-500 mt-2">{t('higherValues')} {t('moreCreative')} {t('unpredictable')}</p>
             </div>
             
             {/* Memory */}
             <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
               <div>
                 <label className="text-sm text-gray-300 font-medium">{t('memoryEnabled')}</label>
-                <p className="text-xs text-gray-500">Allow AI to remember context across conversations</p>
+                <p className="text-xs text-gray-500">{t('allowAI')} {t('rememberContext')} {t('acrossConversations')}</p>
               </div>
               <Switch 
                 checked={memoryEnabled}
@@ -186,7 +186,7 @@ const SettingsPage = () => {
         <div className="bg-gray-800 rounded-2xl p-6 mb-6">
           <div className="flex items-center space-x-2 mb-4">
             <Shield className="w-5 h-5 text-red-400" />
-            <h3 className="font-semibold text-lg text-white">Content & Safety</h3>
+            <h3 className="font-semibold text-lg text-white">{t('contentSafety')}</h3>
           </div>
           
           <div>
@@ -208,7 +208,7 @@ const SettingsPage = () => {
               <span>{t('none')}</span>
               <span>{t('strict')}</span>
             </div>
-            <p className="text-xs text-gray-500 mt-2">Controls the level of mature content allowed in conversations</p>
+            <p className="text-xs text-gray-500 mt-2">{t('controlsLevel')} {t('matureContent')} {t('allowedConversations')}</p>
           </div>
         </div>
 
@@ -216,9 +216,9 @@ const SettingsPage = () => {
         <div className="bg-gray-800 rounded-2xl p-6 mb-6">
           <div className="flex items-center space-x-2 mb-4">
             <Palette className="w-5 h-5 text-cyan-400" />
-            <h3 className="font-semibold text-lg text-white">Active Scenes</h3>
+            <h3 className="font-semibold text-lg text-white">{t('activeScenes')}</h3>
           </div>
-          <p className="text-sm text-gray-400 mb-4">Your recently used conversation settings</p>
+          <p className="text-sm text-gray-400 mb-4">{t('yourRecentlyUsed')} {t('conversationSettings')}</p>
           <div className="flex overflow-x-auto py-2 hide-scrollbar">
             {scenes.map(scene => (
               <div key={scene.id} className="flex-shrink-0 mr-3 w-20 text-center">
@@ -240,7 +240,7 @@ const SettingsPage = () => {
         <div className="bg-gray-800 rounded-2xl p-6 mb-6">
           <div className="flex items-center space-x-2 mb-4">
             <Database className="w-5 h-5 text-yellow-400" />
-            <h3 className="font-semibold text-lg text-white">Data & Privacy</h3>
+            <h3 className="font-semibold text-lg text-white">{t('dataPrivacy')}</h3>
           </div>
           
           <div className="space-y-3">
@@ -255,18 +255,18 @@ const SettingsPage = () => {
               </AlertDialogTrigger>
               <AlertDialogContent className="bg-gray-800 border-gray-700">
                 <AlertDialogHeader>
-                  <AlertDialogTitle className="text-white">Clear Chat History</AlertDialogTitle>
+                  <AlertDialogTitle className="text-white">{t('clearChatHistory')}</AlertDialogTitle>
                   <AlertDialogDescription className="text-gray-400">
-                    Are you sure you want to clear all your chat history? This action cannot be undone and will permanently delete all your conversations.
+                    {t('areYouSure')} {t('clearAllChat')} {t('historyAction')} {t('cannotUndone')} {t('permanentlyDelete')} {t('allConversations')}.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel className="bg-gray-700 text-white border-gray-600">Cancel</AlertDialogCancel>
+                  <AlertDialogCancel className="bg-gray-700 text-white border-gray-600">{t('cancel')}</AlertDialogCancel>
                   <AlertDialogAction 
                     onClick={handleClearChatHistory}
                     className="bg-red-600 hover:bg-red-700"
                   >
-                    Clear History
+                    {t('clearHistory')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -283,7 +283,7 @@ const SettingsPage = () => {
         <div className="bg-gray-800 rounded-2xl p-6 mb-6">
           <div className="flex items-center space-x-2 mb-4">
             <Zap className="w-5 h-5 text-indigo-400" />
-            <h3 className="font-semibold text-lg text-white">Account Actions</h3>
+            <h3 className="font-semibold text-lg text-white">{t('accountActions')}</h3>
           </div>
           
           <div className="space-y-3">
@@ -304,15 +304,15 @@ const SettingsPage = () => {
               </AlertDialogTrigger>
               <AlertDialogContent className="bg-gray-800 border-gray-700">
                 <AlertDialogHeader>
-                  <AlertDialogTitle className="text-white">Are you sure you want to logout?</AlertDialogTitle>
+                  <AlertDialogTitle className="text-white">{t('areYouSure')} {t('wantLogout')}</AlertDialogTitle>
                   <AlertDialogDescription className="text-gray-400">
-                    This will sign you out of your account and redirect you to the home page.
+                    {t('signOut')} {t('redirectHome')}.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel className="bg-gray-700 text-white border-gray-600">Cancel</AlertDialogCancel>
+                  <AlertDialogCancel className="bg-gray-700 text-white border-gray-600">{t('cancel')}</AlertDialogCancel>
                   <AlertDialogAction onClick={handleLogout} className="bg-red-600 hover:bg-red-700">
-                    Logout
+                    {t('logout')}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>

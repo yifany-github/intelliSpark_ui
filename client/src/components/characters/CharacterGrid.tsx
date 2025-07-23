@@ -8,9 +8,10 @@ import CharacterPreviewModal from './CharacterPreviewModal';
 import { useLocation } from 'wouter';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 
-const filters = ['Popular', 'Recent', 'Trending', 'New', 'Following', 'Editor Choice'];
-const categories = ['All', 'Anime', 'Game', 'Movie', 'Book', 'Original', 'Fantasy', 'Sci-Fi', 'Romance', 'Action'];
+const filterKeys = ['popular', 'recent', 'trending', 'new', 'following', 'editorChoice'] as const;
+const categoryKeys = ['all', 'anime', 'game', 'movie', 'book', 'original', 'fantasy', 'sciFi', 'romance', 'action'] as const;
 
 interface CharacterGridProps {
   searchQuery?: string;
@@ -18,9 +19,9 @@ interface CharacterGridProps {
 
 export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) {
   const [activeTab, setActiveTab] = useState('Characters');
-  const [selectedFilter, setSelectedFilter] = useState('Popular');
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [genderFilter, setGenderFilter] = useState('All');
+  const [selectedFilter, setSelectedFilter] = useState('popular');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [genderFilter, setGenderFilter] = useState('all');
   const [nsfwEnabled, setNsfwEnabled] = useState(false);
   const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -28,6 +29,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   
   const { setSelectedCharacter } = useRolePlay();
   const { isAuthenticated } = useAuth();
+  const { t } = useLanguage();
   
   // Mutation for creating a new chat
   const { mutate: createChat, isPending: isCreatingChat } = useMutation({
@@ -140,7 +142,11 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
 
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
 
-  const tabs = ['Characters', 'Chats', 'Favorites'];
+  const tabs = [
+    { key: 'Characters', label: t('characters') },
+    { key: 'Chats', label: t('chats') },
+    { key: 'Favorites', label: t('favorites') }
+  ];
 
 
   // Ensure characters is an array
@@ -160,9 +166,22 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     }
     
     // Category filter
-    if (selectedCategory !== 'All') {
+    if (selectedCategory !== 'all') {
+      const categoryMap: { [key: string]: string[] } = {
+        'anime': ['anime', 'manga'],
+        'game': ['game', 'gaming'],
+        'movie': ['movie', 'film'],
+        'book': ['book', 'novel'],
+        'original': ['original'],
+        'fantasy': ['fantasy', 'magical'],
+        'sciFi': ['sci-fi', 'science fiction'],
+        'romance': ['romance', 'romantic'],
+        'action': ['action', 'adventure']
+      };
+      
+      const searchTerms = categoryMap[selectedCategory] || [selectedCategory];
       return character.traits.some((trait: string) => 
-        trait.toLowerCase().includes(selectedCategory.toLowerCase())
+        searchTerms.some(term => trait.toLowerCase().includes(term.toLowerCase()))
       );
     }
     
@@ -177,11 +196,11 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   // Apply sorting based on selected filter
   const sortedCharacters = [...tabFilteredCharacters].sort((a: Character, b: Character) => {
     switch (selectedFilter) {
-      case 'Popular':
+      case 'popular':
         return b.id - a.id; // Mock popularity sorting
-      case 'Recent':
+      case 'recent':
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-      case 'New':
+      case 'new':
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       default:
         return 0;
@@ -228,22 +247,22 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       {/* Content Header */}
       <div className="mb-6">
         <div className="text-sm text-gray-400 mb-4">
-          Discover amazing AI characters for immersive conversations
+          {t('discoverAICharacters')}
         </div>
         
         {/* Tabs */}
         <div className="flex space-x-6 mb-6">
           {tabs.map(tab => (
             <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
               className={`text-lg font-medium pb-2 border-b-2 transition-colors ${
-                activeTab === tab
+                activeTab === tab.key
                   ? 'text-pink-400 border-pink-400'
                   : 'text-gray-400 border-transparent hover:text-white'
               }`}
             >
-              {tab}
+              {tab.label}
             </button>
           ))}
         </div>
@@ -251,38 +270,38 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
         {/* Filters */}
         <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
           <div className="flex flex-wrap gap-2">
-            {filters.map(filter => (
+            {filterKeys.map(filterKey => (
               <button
-                key={filter}
-                onClick={() => setSelectedFilter(filter)}
+                key={filterKey}
+                onClick={() => setSelectedFilter(filterKey)}
                 className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm transition-colors flex items-center space-x-1 ${
-                  selectedFilter === filter
+                  selectedFilter === filterKey
                     ? 'bg-pink-600 text-white'
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}
               >
-                {filter === 'Popular' && <Flame className="w-3 h-3" />}
-                {filter === 'Trending' && <TrendingUp className="w-3 h-3" />}
-                {filter === 'New' && <Star className="w-3 h-3" />}
-                {filter === 'Following' && <Users className="w-3 h-3" />}
-                {filter === 'Editor Choice' && <Crown className="w-3 h-3" />}
-                <span className="hidden sm:inline">{filter}</span>
-                <span className="sm:hidden">{filter.charAt(0)}</span>
+                {filterKey === 'popular' && <Flame className="w-3 h-3" />}
+                {filterKey === 'trending' && <TrendingUp className="w-3 h-3" />}
+                {filterKey === 'new' && <Star className="w-3 h-3" />}
+                {filterKey === 'following' && <Users className="w-3 h-3" />}
+                {filterKey === 'editorChoice' && <Crown className="w-3 h-3" />}
+                <span className="hidden sm:inline">{t(filterKey)}</span>
+                <span className="sm:hidden">{t(filterKey).charAt(0)}</span>
               </button>
             ))}
           </div>
           
           <div className="flex items-center space-x-2 sm:space-x-4 sm:ml-auto">
             <div className="flex items-center space-x-2">
-              <span className="text-sm">Gender</span>
+              <span className="text-sm">{t('gender')}</span>
               <select 
                 value={genderFilter}
                 onChange={(e) => setGenderFilter(e.target.value)}
                 className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm"
               >
-                <option>All</option>
-                <option>Male</option>
-                <option>Female</option>
+                <option value="all">{t('all')}</option>
+                <option value="male">{t('male')}</option>
+                <option value="female">{t('female')}</option>
               </select>
             </div>
             
@@ -304,17 +323,17 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
 
         {/* Category Tags */}
         <div className="flex flex-wrap gap-2 mb-6">
-          {categories.map(category => (
+          {categoryKeys.map(categoryKey => (
             <button
-              key={category}
-              onClick={() => setSelectedCategory(category)}
+              key={categoryKey}
+              onClick={() => setSelectedCategory(categoryKey)}
               className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                selectedCategory === category
+                selectedCategory === categoryKey
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
               }`}
             >
-              {category}
+              {t(categoryKey)}
             </button>
           ))}
         </div>
@@ -336,20 +355,20 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
         </div>
       ) : error ? (
         <div className="text-center py-8">
-          <p className="text-red-500">Error loading characters. Please try again.</p>
+          <p className="text-red-500">{t('errorLoadingCharacters')}</p>
         </div>
       ) : sortedCharacters.length === 0 ? (
         <div className="text-center py-16">
           <div className="text-6xl mb-4">🤖</div>
           <h3 className="text-xl font-semibold mb-2">
-            {activeTab === 'Favorites' ? 'No favorites yet' : 'No characters found'}
+            {activeTab === 'Favorites' ? t('noFavoritesYet') : t('noCharactersFound')}
           </h3>
           <p className="text-gray-400">
             {activeTab === 'Favorites' 
-              ? 'Start exploring characters and add them to your favorites' 
+              ? t('startExploring') 
               : searchQuery 
-                ? 'Try adjusting your search terms or filters'
-                : 'No characters match your current filters'
+                ? t('tryAdjustingSearch')
+                : t('noCharactersMatch')
             }
           </p>
         </div>
@@ -399,7 +418,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                       }}
                       className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
                     >
-                      Chat Now
+                      {t('chatNow')}
                     </button>
                     <button 
                       onClick={(e) => {
@@ -408,7 +427,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                       }}
                       className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
                     >
-                      Preview
+                      {t('preview')}
                     </button>
                   </div>
                 </div>

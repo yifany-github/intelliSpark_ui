@@ -60,7 +60,7 @@ const ProfilePage = () => {
               <User className="w-6 h-6 text-blue-400" />
               <h1 className="font-poppins font-bold text-2xl text-white">{t('profile')}</h1>
             </div>
-            <p className="text-gray-400">Manage your account and view your activity</p>
+            <p className="text-gray-400">{t('manageAccount')}</p>
           </div>
           <div className="flex items-center space-x-2">
             <button
@@ -137,7 +137,7 @@ const ProfilePage = () => {
                 <span className="text-2xl font-bold text-white">37 min</span>
               </div>
             </div>
-            <div className="text-xs text-gray-500">+12 min from yesterday</div>
+            <div className="text-xs text-gray-500">+12 min {t('fromYesterday')}</div>
           </div>
           
           <div className="bg-gray-800 rounded-2xl p-6">
@@ -150,7 +150,7 @@ const ProfilePage = () => {
                 <span className="text-2xl font-bold text-white">12</span>
               </div>
             </div>
-            <div className="text-xs text-gray-500">Across 8 different scenes</div>
+            <div className="text-xs text-gray-500">{t('acrossScenes')}</div>
           </div>
           
           <div className="bg-gray-800 rounded-2xl p-6">
@@ -159,11 +159,11 @@ const ProfilePage = () => {
                 <Award className="text-green-400 w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm text-gray-400">Achievement Level</h3>
+                <h3 className="text-sm text-gray-400">{t('achievementLevel')}</h3>
                 <span className="text-2xl font-bold text-white">8</span>
               </div>
             </div>
-            <div className="text-xs text-gray-500">Conversation Expert</div>
+            <div className="text-xs text-gray-500">{t('conversationExpert')}</div>
           </div>
         </div>
         
@@ -171,7 +171,7 @@ const ProfilePage = () => {
         <div className="bg-gray-800 rounded-2xl p-6 mb-6">
           <h3 className="font-semibold text-lg text-white mb-4 flex items-center">
             <Activity className="w-5 h-5 text-indigo-400 mr-2" />
-            Recent Activity
+            {t('recentActivity')}
           </h3>
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
@@ -180,11 +180,11 @@ const ProfilePage = () => {
                   <User className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm text-white">Started chat with Elara</p>
-                  <p className="text-xs text-gray-400">2 hours ago</p>
+                  <p className="text-sm text-white">{t('startedChatWith')} Elara</p>
+                  <p className="text-xs text-gray-400">2 {t('hoursAgo')}</p>
                 </div>
               </div>
-              <span className="text-xs text-blue-400">Active</span>
+              <span className="text-xs text-blue-400">{t('active')}</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
               <div className="flex items-center space-x-3">
@@ -192,8 +192,8 @@ const ProfilePage = () => {
                   <Award className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm text-white">Unlocked achievement: Conversationalist</p>
-                  <p className="text-xs text-gray-400">1 day ago</p>
+                  <p className="text-sm text-white">{t('unlockedAchievement')}: {t('conversationalist')}</p>
+                  <p className="text-xs text-gray-400">1 {t('dayAgo')}</p>
                 </div>
               </div>
               <span className="text-xs text-green-400">+50 XP</span>
@@ -204,11 +204,11 @@ const ProfilePage = () => {
                   <Users className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <p className="text-sm text-white">Explored 3 new characters</p>
-                  <p className="text-xs text-gray-400">2 days ago</p>
+                  <p className="text-sm text-white">{t('explored')} 3 {t('newCharacters')}</p>
+                  <p className="text-xs text-gray-400">2 {t('daysAgo')}</p>
                 </div>
               </div>
-              <span className="text-xs text-gray-400">Completed</span>
+              <span className="text-xs text-gray-400">{t('completed')}</span>
             </div>
           </div>
         </div>
@@ -228,7 +228,7 @@ const ProfilePage = () => {
                   className="w-20 h-20 mx-auto mb-2 rounded-xl hover:scale-105 transition-transform cursor-pointer"
                 />
                 <span className="text-sm text-gray-300 font-medium">{scene.name}</span>
-                <p className="text-xs text-gray-500 mt-1">Recently used</p>
+                <p className="text-xs text-gray-500 mt-1">{t('recentlyUsedSettings')}</p>
               </div>
             ))}
           </div>
@@ -246,10 +246,10 @@ const ProfilePage = () => {
               </div>
               <div>
                 <h3 className="font-semibold text-white">Settings</h3>
-                <p className="text-sm text-gray-400">Customize your experience</p>
+                <p className="text-sm text-gray-400">{t('customizeExperience')}</p>
               </div>
             </div>
-            <p className="text-xs text-gray-500">Manage AI settings, preferences, and privacy</p>
+            <p className="text-xs text-gray-500">{t('manageAISettings')}</p>
           </button>
           
           <button 
@@ -261,11 +261,11 @@ const ProfilePage = () => {
                 <Award className="w-5 h-5 text-green-400" />
               </div>
               <div>
-                <h3 className="font-semibold text-white">Get More Tokens</h3>
-                <p className="text-sm text-gray-400">Continue conversations</p>
+                <h3 className="font-semibold text-white">{t('getMoreTokens')}</h3>
+                <p className="text-sm text-gray-400">{t('continueConversations')}</p>
               </div>
             </div>
-            <p className="text-xs text-gray-500">Purchase token packages for unlimited chats</p>
+            <p className="text-xs text-gray-500">{t('purchaseTokenPackages')}</p>
           </button>
         </div>
       </div>

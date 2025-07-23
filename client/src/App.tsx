@@ -21,6 +21,7 @@ import ChatPage from "@/pages/chat";
 import PaymentPage from "@/pages/payment";
 import NotificationsPage from "@/pages/notifications";
 import AuthModal from "@/components/auth/AuthModal";
+import TabNavigation from "@/components/layout/TabNavigation";
 import { RolePlayProvider, useRolePlay } from "@/context/RolePlayContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -175,6 +176,12 @@ function MainApp() {
               <Route component={NotFound} />
             </Switch>
           </div>
+          {/* Show TabNavigation on mobile only, and not on certain pages */}
+          {!location.startsWith('/chat/') && !location.startsWith('/admin') && !location.startsWith('/login') && !location.startsWith('/register') && (
+            <div className="sm:hidden">
+              <TabNavigation />
+            </div>
+          )}
         </div>
       </RolePlayProvider>
     </ErrorBoundary>

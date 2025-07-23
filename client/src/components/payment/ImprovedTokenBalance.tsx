@@ -98,28 +98,28 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
       color: 'text-red-600', 
       bgColor: 'bg-red-50 border-red-200', 
       icon: AlertTriangle, 
-      label: 'Critical',
+      label: t('critical'),
       description: t('purchaseTokensImmediately')
     };
     if (isLowBalance) return { 
       color: 'text-orange-600', 
       bgColor: 'bg-orange-50 border-orange-200', 
       icon: Clock, 
-      label: 'Low',
+      label: t('lowBalance'),
       description: t('considerPurchasingMore')
     };
     if (isGoodBalance) return { 
       color: 'text-green-600', 
       bgColor: 'bg-green-50 border-green-200', 
       icon: TrendingUp, 
-      label: 'Good',
+      label: t('good'),
       description: t('plentyTokensForChatting')
     };
     return { 
       color: 'text-blue-600', 
       bgColor: 'bg-blue-50 border-blue-200', 
       icon: Zap, 
-      label: 'Active',
+      label: t('active'),
       description: t('readyForAIConversations')
     };
   };
@@ -160,7 +160,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
         )}
         <CardContent className={cn("pt-2", compact && "p-2")}>
           <div className="text-center space-y-2">
-            <div className="text-sm text-red-400">Failed to load balance</div>
+            <div className="text-sm text-red-400">{t('failedToLoadBalance')}</div>
             <Button 
               size="sm" 
               variant="outline" 
@@ -168,7 +168,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
               className="w-full bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl"
             >
               <RefreshCw className="h-4 w-4 mr-2" />
-              Retry
+              {t('retry')}
             </Button>
           </div>
         </CardContent>
@@ -197,7 +197,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
             className="h-6 text-xs px-2 bg-blue-600 hover:bg-blue-700 border-blue-600 text-white rounded-full"
           >
             <Plus className="h-3 w-3 mr-1" />
-            Buy
+            {t('buy')}
           </Button>
         )}
       </div>
@@ -210,7 +210,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
             <Coins className="h-4 w-4 text-yellow-400" />
-            Token Balance
+            {t('tokenBalance')}
           </CardTitle>
         </CardHeader>
       )}
@@ -222,7 +222,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
               <span className={cn("text-3xl font-bold", balanceStatus.color)}>
                 {balance}
               </span>
-              <span className="text-sm text-gray-400">tokens</span>
+              <span className="text-sm text-gray-400">{t('tokens')}</span>
             </div>
             <Badge 
               variant="outline" 
@@ -285,7 +285,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
               className="flex-1 bg-blue-600 hover:bg-blue-700 border-blue-600 text-white rounded-2xl"
             >
               <Gift className="h-4 w-4 mr-2" />
-              Quick Buy
+              {t('quickBuy')}
             </Button>
             <Button 
               size="sm" 

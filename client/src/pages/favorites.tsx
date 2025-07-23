@@ -8,18 +8,20 @@ import { useLocation } from 'wouter';
 import { apiRequest } from '@/lib/queryClient';
 import GlobalLayout from '@/components/layout/GlobalLayout';
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
+import { useLanguage } from '@/context/LanguageContext';
 
 const FavoritesPage = () => {
   const [_, navigate] = useLocation();
   const { setSelectedCharacter } = useRolePlay();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
+  const { t } = useLanguage();
   const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'name' | 'date' | 'rating'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [filterCategory, setFilterCategory] = useState('All');
+  const [filterCategory, setFilterCategory] = useState('all');
 
   // Mock data for demonstration
   const mockCharacters: Character[] = [
@@ -118,9 +120,20 @@ const FavoritesPage = () => {
     }
     
     // Apply category filter
-    if (filterCategory !== 'All') {
+    if (filterCategory !== 'all') {
+      const categoryMap: { [key: string]: string[] } = {
+        'fantasy': ['fantasy', 'magical', 'mystical'],
+        'sciFi': ['sci-fi', 'science fiction', 'robotic', 'android'],
+        'romance': ['romance', 'romantic', 'charismatic'],
+        'adventure': ['adventure', 'warrior', 'strong'],
+        'mystery': ['mystery', 'mysterious', 'cunning']
+      };
+      
+      const searchTerms = categoryMap[filterCategory] || [filterCategory];
       filtered = filtered.filter(char => 
-        char.traits.some(trait => trait.toLowerCase().includes(filterCategory.toLowerCase()))
+        char.traits.some(trait => 
+          searchTerms.some(term => trait.toLowerCase().includes(term.toLowerCase()))
+        )
       );
     }
     
@@ -148,7 +161,8 @@ const FavoritesPage = () => {
     return sorted;
   }, [characters, isFavorite, searchQuery, filterCategory, sortBy, sortOrder]);
 
-  const categories = ['All', 'Fantasy', 'Sci-Fi', 'Romance', 'Adventure', 'Mystery'];
+  const categoryKeys = ['all', 'fantasy', 'sciFi', 'romance', 'adventure', 'mystery'] as const;
+  const categories = categoryKeys.map(key => ({ key, label: t(key) }));
 
   // Mutation for creating a new chat
   const { mutate: createChat, isPending: isCreatingChat } = useMutation({
@@ -244,7 +258,7 @@ const FavoritesPage = () => {
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
               disabled={isCreatingChat}
             >
-              {isCreatingChat ? 'Creating...' : 'Chat Now'}
+              {isCreatingChat ? t('creating') : t('chatNow')}
             </button>
             <button 
               onClick={(e) => {
@@ -253,7 +267,7 @@ const FavoritesPage = () => {
               }}
               className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
             >
-              Preview
+              {t('preview')}
             </button>
           </div>
         </div>
@@ -321,15 +335,15 @@ const FavoritesPage = () => {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-2">
             <Heart className="w-6 h-6 text-pink-400" />
-            <h1 className="text-2xl font-bold text-white">My Favorites</h1>
-            <span className="text-sm text-gray-400">({favoriteCharacters.length} characters)</span>
+            <h1 className="text-2xl font-bold text-white">{t('myFavorites')}</h1>
+            <span className="text-sm text-gray-400">({favoriteCharacters.length} {t('charactersCount')})</span>
           </div>
           
           <div className="flex items-center space-x-2">
             <button
               onClick={() => setViewMode(viewMode === 'grid' ? 'list' : 'grid')}
               className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-              title={`Switch to ${viewMode === 'grid' ? 'list' : 'grid'} view`}
+              title={viewMode === 'grid' ? t('switchToListView') : t('switchToGridView')}
             >
               {viewMode === 'grid' ? <List className="w-4 h-4" /> : <Grid className="w-4 h-4" />}
             </button>
@@ -342,7 +356,7 @@ const FavoritesPage = () => {
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search your favorite characters..."
+              placeholder={t('searchFavoriteCharacters')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
@@ -356,7 +370,7 @@ const FavoritesPage = () => {
               className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
             >
               {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
+                <option key={category.key} value={category.key}>{category.label}</option>
               ))}
             </select>
             
@@ -365,15 +379,15 @@ const FavoritesPage = () => {
               onChange={(e) => setSortBy(e.target.value as 'name' | 'date' | 'rating')}
               className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
             >
-              <option value="date">Sort by Date</option>
-              <option value="name">Sort by Name</option>
-              <option value="rating">Sort by Rating</option>
+              <option value="date">{t('sortByDate')}</option>
+              <option value="name">{t('sortByName')}</option>
+              <option value="rating">{t('sortByRating')}</option>
             </select>
             
             <button
               onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
               className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-              title={`Sort ${sortOrder === 'asc' ? 'descending' : 'ascending'}`}
+              title={sortOrder === 'asc' ? t('sortDescending') : t('sortAscending')}
             >
               {sortOrder === 'asc' ? <SortAsc className="w-4 h-4" /> : <SortDesc className="w-4 h-4" />}
             </button>
@@ -385,19 +399,19 @@ const FavoritesPage = () => {
           <div className="text-center py-16">
             <div className="text-6xl mb-4">💔</div>
             <h3 className="text-xl font-semibold mb-2">
-              {searchQuery || filterCategory !== 'All' ? 'No matching favorites' : 'No favorites yet'}
+              {searchQuery || filterCategory !== 'all' ? t('noMatchingFavorites') : t('noFavoritesYet')}
             </h3>
             <p className="text-gray-400 mb-6">
-              {searchQuery || filterCategory !== 'All' 
-                ? 'Try adjusting your search or filter criteria' 
-                : 'Start exploring characters and add them to your favorites'
+              {searchQuery || filterCategory !== 'all' 
+                ? t('tryAdjustingFilters') 
+                : t('startExploring')
               }
             </p>
             <button
               onClick={() => navigate('/')}
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
             >
-              Explore Characters
+              {t('exploreCharacters')}
             </button>
           </div>
         ) : (
