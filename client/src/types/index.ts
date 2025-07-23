@@ -11,16 +11,6 @@ export interface User {
   created_at: string;
 }
 
-export interface Scene {
-  id: number;
-  name: string;
-  description: string;
-  imageUrl: string;
-  location: string;
-  mood: string;
-  rating: string;
-  createdAt: string;
-}
 
 export interface Character {
   id: number;
@@ -38,7 +28,6 @@ export interface Character {
 export interface Chat {
   id: number;
   userId: number;
-  sceneId: number;
   characterId: number;
   title: string;
   createdAt: string;
@@ -48,20 +37,18 @@ export interface Chat {
 export interface ChatMessage {
   id: number;
   chatId: number;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
-  timestamp: string;
+  timestamp?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-// Enriched chat type with character and scene data
+// Enriched chat type with character data
 export interface EnrichedChat extends Chat {
   character: {
     id: number;
     name: string;
     avatarUrl: string;
-  } | null;
-  scene: {
-    id: number;
-    name: string;
   } | null;
 }

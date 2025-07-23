@@ -10,7 +10,6 @@ import { Send, ArrowLeft } from 'lucide-react';
 
 const ChatPreviewPage = () => {
   const { 
-    selectedScene, 
     selectedCharacter, 
     requestAuthForMessage,
     startChat
@@ -19,8 +18,8 @@ const ChatPreviewPage = () => {
   const [_, navigate] = useLocation();
   const [message, setMessage] = useState('');
 
-  // If no scene/character selected, redirect back
-  if (!selectedScene || !selectedCharacter) {
+  // If no character selected, redirect back
+  if (!selectedCharacter) {
     navigate('/');
     return null;
   }
@@ -31,7 +30,7 @@ const ChatPreviewPage = () => {
     if (isAuthenticated) {
       // If authenticated, create real chat and send message
       try {
-        const chatId = await startChat(selectedScene, selectedCharacter);
+        const chatId = await startChat(selectedCharacter);
         navigate(`/chats/${chatId}`);
         // The actual message sending will be handled by the chat page
       } catch (error) {
@@ -76,7 +75,7 @@ const ChatPreviewPage = () => {
                   {selectedCharacter.name}
                 </h2>
                 <div className="flex items-center text-xs text-gray-400">
-                  <span>{selectedScene.name}</span>
+                  <span>Chat Preview</span>
                   <i className="fas fa-circle text-[6px] mx-2"></i>
                   <span>Tokens: 3,250</span>
                 </div>
@@ -104,7 +103,7 @@ const ChatPreviewPage = () => {
           <div className="max-w-[80%]">
             <div className="bg-primary/10 border border-primary/20 rounded-2xl rounded-tl-md px-4 py-3">
               <p className="text-sm text-white">
-                Welcome to {selectedScene.name}! I'm {selectedCharacter.name}. How can I assist you today?
+                Hello! I'm {selectedCharacter.name}. How can I assist you today?
               </p>
             </div>
           </div>

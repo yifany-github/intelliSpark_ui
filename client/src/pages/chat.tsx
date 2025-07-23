@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation, useRoute, Link } from "wouter";
-import { Chat, ChatMessage, Character, Scene, EnrichedChat } from "../types";
+import { Chat, ChatMessage, Character, EnrichedChat } from "../types";
 import ChatBubble from "@/components/chats/ChatBubble";
 import ChatInput from "@/components/chats/ChatInput";
 import TypingIndicator from "@/components/ui/TypingIndicator";
@@ -58,14 +58,6 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: !!chat?.characterId,
   });
   
-  // Fetch scene details for the chat
-  const {
-    data: scene,
-    isLoading: isLoadingScene
-  } = useQuery<Scene>({
-    queryKey: [`/api/scenes/${chat?.sceneId}`],
-    enabled: !!chat?.sceneId,
-  });
   
   // Fetch all chats for the chat list
   const {
@@ -196,7 +188,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
         ) : chats.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-gray-400 mb-4">{t('noChatsYet')}</p>
-            <Link href="/scenes">
+            <Link href="/characters">
               <button className="bg-primary hover:bg-accent text-white px-4 py-2 rounded-full transition-colors">
                 {t('startNewChat')}
               </button>
@@ -222,7 +214,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                     <div className="ml-3">
                       <h3 className="font-medium">{chat.title}</h3>
                       <p className="text-sm text-gray-400">
-                        {chat.character?.name} • {chat.scene?.name}
+                        {chat.character?.name}
                       </p>
                       <p className="text-xs text-gray-500">
                         {chat.updatedAt ? new Date(chat.updatedAt).toLocaleDateString() : ''}
@@ -364,8 +356,6 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                     {isLoadingCharacter ? "Loading..." : character?.name}
                   </h1>
                   <div className="flex items-center text-xs text-gray-400">
-                    <span>{isLoadingScene ? "Loading..." : scene?.name}</span>
-                    <i className="fas fa-circle text-[6px] mx-2"></i>
                     <TokenBalance compact={true} showTitle={false} />
                   </div>
                 </div>
