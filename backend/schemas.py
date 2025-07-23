@@ -53,21 +53,6 @@ class TokenData(BaseSchema):
     username: Optional[str] = None
     email: Optional[str] = None
 
-# Scene schemas
-class SceneBase(BaseSchema):
-    name: str
-    description: str
-    imageUrl: str = Field(alias="image_url")  # Map database field to frontend field
-    location: str
-    mood: str
-    rating: str
-
-class SceneCreate(SceneBase):
-    pass
-
-class Scene(SceneBase):
-    id: int
-    createdAt: datetime = Field(alias="created_at")  # Map database field to frontend field
 
 # Character schemas  
 class CharacterBase(BaseSchema):
@@ -99,12 +84,10 @@ class Character(CharacterBase):
 # Chat schemas
 class ChatBase(BaseSchema):
     user_id: int
-    scene_id: int
     character_id: int
     title: str
 
 class ChatCreate(BaseSchema):
-    sceneId: int  # Frontend sends sceneId, not scene_id
     characterId: int  # Frontend sends characterId, not character_id  
     title: str
 
@@ -113,17 +96,15 @@ class Chat(ChatBase):
     created_at: datetime
     updated_at: datetime
 
-# Enriched chat for API responses (includes character and scene info)
+# Enriched chat for API responses (includes character info)
 class EnrichedChat(BaseSchema):
     id: int
     user_id: int
-    scene_id: int
     character_id: int
     title: str
     created_at: datetime
     updated_at: datetime
     character: Optional[Dict[str, Any]] = None
-    scene: Optional[Dict[str, Any]] = None
 
 # Chat message schemas
 class ChatMessageBase(BaseSchema):
@@ -154,7 +135,6 @@ class GenerateRequest(BaseSchema):
 # Chat context for AI generation (internal use)
 class ChatContext(BaseSchema):
     character: Character
-    scene: Scene
     messages: List[ChatMessage]
     user_preferences: Optional[Dict[str, Any]] = None
 

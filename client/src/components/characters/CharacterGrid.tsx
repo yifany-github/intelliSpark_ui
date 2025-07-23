@@ -31,13 +31,12 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   
   // Mutation for creating a new chat
   const { mutate: createChat, isPending: isCreatingChat } = useMutation({
-    mutationFn: async ({ characterId, sceneId }: { characterId: number; sceneId: number }) => {
+    mutationFn: async ({ characterId }: { characterId: number }) => {
       const response = await apiRequest(
         "POST",
         "/api/chats",
         {
           characterId,
-          sceneId,
           title: `Chat with ${mockCharacters.find(c => c.id === characterId)?.name || 'Character'}`
         }
       );
@@ -216,10 +215,8 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     setSelectedCharacter(character);
     
     // Create a new chat with the selected character
-    // Using default scene ID 1 for now
     createChat({
-      characterId: character.id,
-      sceneId: 1 // Default scene, you might want to let users choose
+      characterId: character.id
     });
   };
 

@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
-import { Scene, Character, Chat, ChatMessage } from '../types';
+import { Character, Chat, ChatMessage } from '../types';
 import { apiRequest } from '../lib/queryClient';
 
 interface RolePlayContextType {
@@ -14,8 +14,6 @@ interface RolePlayContextType {
   setMemoryEnabled: (enabled: boolean) => void;
   
   // Active Selections
-  selectedScene: Scene | null;
-  setSelectedScene: (scene: Scene | null) => void;
   selectedCharacter: Character | null;
   setSelectedCharacter: (character: Character | null) => void;
   currentChat: Chat | null;
@@ -25,11 +23,6 @@ interface RolePlayContextType {
   isTyping: boolean;
   setIsTyping: (isTyping: boolean) => void;
   
-  // Preview Modal State
-  isPreviewModalOpen: boolean;
-  setIsPreviewModalOpen: (isOpen: boolean) => void;
-  previewScene: Scene | null;
-  setPreviewScene: (scene: Scene | null) => void;
   
   // Auth Modal State
   isAuthModalOpen: boolean;
@@ -40,8 +33,8 @@ interface RolePlayContextType {
   setPendingChatAction: (action: (() => Promise<string>) | null) => void;
   
   // Start Chat Function
-  startChat: (scene: Scene, character: Character) => Promise<string>;
-  startChatPreview: (scene: Scene, character: Character) => void;
+  startChat: (character: Character) => Promise<string>;
+  startChatPreview: (character: Character) => void;
   requestAuthForMessage: (message: string, chatId?: string) => void;
 }
 
@@ -55,25 +48,19 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
   const [memoryEnabled, setMemoryEnabled] = useState(true);
   
   // Active Selections
-  const [selectedScene, setSelectedScene] = useState<Scene | null>(null);
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
   const [currentChat, setCurrentChat] = useState<Chat | null>(null);
   
   // Active Chat State
   const [isTyping, setIsTyping] = useState(false);
   
-  // Preview Modal State
-  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
-  const [previewScene, setPreviewScene] = useState<Scene | null>(null);
-  
   // Auth Modal State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [pendingChatAction, setPendingChatAction] = useState<(() => Promise<string>) | null>(null);
   
-  // Start chat preview (without authentication) - sets up scene/character context
-  const startChatPreview = (scene: Scene, character: Character) => {
-    setSelectedScene(scene);
+  // Start chat preview (without authentication) - sets up character context
+  const startChatPreview = (character: Character) => {
     setSelectedCharacter(character);
     // Don't create actual chat yet - will be created when user sends first message
   };
@@ -81,15 +68,15 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
   // Request authentication for sending message
   const requestAuthForMessage = (message: string, chatId?: string) => {
     const messageAction = async () => {
-      if (!selectedScene || !selectedCharacter) {
-        throw new Error('No scene or character selected');
+      if (!selectedCharacter) {
+        throw new Error('No character selected');
       }
       
       let actualChatId = chatId;
       
       // Create chat if it doesn't exist yet
       if (!actualChatId) {
-        actualChatId = await startChat(selectedScene, selectedCharacter);
+        actualChatId = await startChat(selectedCharacter);
       }
       
       // Send the pending message
@@ -103,12 +90,11 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // Start a new chat (only call this when authenticated)
-  const startChat = async (scene: Scene, character: Character): Promise<string> => {
+  const startChat = async (character: Character): Promise<string> => {
     try {
       const response = await apiRequest('POST', '/api/chats', {
-        sceneId: scene.id,
         characterId: character.id,
-        title: `${character.name} in ${scene.name}`,
+        title: `Chat with ${character.name}`,
       });
       
       const chat = await response.json();
@@ -132,8 +118,6 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
         memoryEnabled,
         setMemoryEnabled,
         
-        selectedScene,
-        setSelectedScene,
         selectedCharacter,
         setSelectedCharacter,
         currentChat,
@@ -141,11 +125,6 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
         
         isTyping,
         setIsTyping,
-        
-        isPreviewModalOpen,
-        setIsPreviewModalOpen,
-        previewScene,
-        setPreviewScene,
         
         isAuthModalOpen,
         setIsAuthModalOpen,

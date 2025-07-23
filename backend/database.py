@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from config import settings
-from models import Base, User, Scene, Character, Chat, ChatMessage
+from models import Base, User, Character, Chat, ChatMessage
 
 # Create database engine (simplified to sync-only for now)
 engine = create_engine(
@@ -30,67 +30,10 @@ async def init_db():
         db.close()
 
 def create_initial_data(db: Session):
-    """Create initial scenes and characters if they don't exist"""
+    """Create initial characters if they don't exist"""
     
     # Check if data already exists
-    existing_scenes = db.query(Scene).first()
     existing_chars = db.query(Character).first()
-    
-    if not existing_scenes:
-        # Create sample scenes
-        scenes = [
-            Scene(
-                name="Royal Court",
-                description="Medieval castle intrigue",
-                image_url="/assets/scenes_img/royal_court.jpeg",
-                location="Castle",
-                mood="Intrigue",
-                rating="PG"
-            ),
-            Scene(
-                name="Star Voyager",
-                description="Deep space exploration",
-                image_url="https://via.placeholder.com/800x600.png?text=Star+Voyager",
-                location="Space",
-                mood="Adventure",
-                rating="PG-13"
-            ),
-            Scene(
-                name="Neo Tokyo",
-                description="Futuristic urban adventure",
-                image_url="https://via.placeholder.com/800x600.png?text=Neo+Tokyo",
-                location="City",
-                mood="Dark",
-                rating="M"
-            ),
-            Scene(
-                name="Tropical Getaway",
-                description="Paradise island resort",
-                image_url="https://via.placeholder.com/800x600.png?text=Tropical+Getaway",
-                location="Beach",
-                mood="Relaxed",
-                rating="PG"
-            ),
-            Scene(
-                name="Enchanted Woods",
-                description="Magical forest adventure",
-                image_url="https://via.placeholder.com/800x600.png?text=Enchanted+Woods",
-                location="Forest",
-                mood="Magical",
-                rating="G"
-            ),
-            Scene(
-                name="Wasteland",
-                description="Survival in the ruins",
-                image_url="https://via.placeholder.com/800x600.png?text=Wasteland",
-                location="Ruins",
-                mood="Gritty",
-                rating="M"
-            )
-        ]
-        
-        for scene in scenes:
-            db.add(scene)
     
     if not existing_chars:
         # Create sample characters

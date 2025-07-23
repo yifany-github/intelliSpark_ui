@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a React-based AI role-playing chat application called "ProductInsightAI" (Chinese name). Users can select scenes and characters to engage in immersive AI conversations. The app uses OpenAI GPT-4/Gemini for AI responses and features a modern UI built with React, TypeScript, and Tailwind CSS.
+This is a React-based AI role-playing chat application called "ProductInsightAI" (Chinese name). Users can select characters to engage in immersive AI conversations. The app uses Gemini AI for character responses and features a modern UI built with React, TypeScript, and Tailwind CSS.
 
 ## Development Commands
 
@@ -68,16 +68,13 @@ python -m pytest                     # Run backend tests
 - `GET /api/auth/me` - Get current authenticated user
 - `POST /api/auth/logout` - Logout (client-side token removal)
 
-### Scenes
-- `GET /api/scenes` - List all scenes
-- `GET /api/scenes/:id` - Get specific scene
 
 ### Characters  
 - `GET /api/characters` - List all characters
 - `GET /api/characters/:id` - Get specific character
 
 ### Chats
-- `GET /api/chats` - List all chats (enriched with character/scene data)
+- `GET /api/chats` - List all chats (enriched with character data)
 - `POST /api/chats` - Create new chat
 - `GET /api/chats/:id` - Get specific chat
 - `GET /api/chats/:id/messages` - Get chat messages
@@ -145,9 +142,8 @@ The app uses SQLAlchemy ORM with SQLite (development) or PostgreSQL (production)
 - `nsfw_level`, `temperature`, etc. - User preferences
 
 ### Other Tables
-- `scenes` - Roleplay scenarios with images and metadata
 - `characters` - AI characters with personality traits and backstories  
-- `chats` - Chat sessions linking users, scenes, and characters
+- `chats` - Chat sessions linking users and characters
 - `chat_messages` - Individual messages within chats
 - `user_tokens` - User token balances for payment system
 - `token_transactions` - Payment and usage transaction history
@@ -158,7 +154,7 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 
 ### Context Management
 - `AuthContext` - Manages user authentication state, login/logout, Firebase integration
-- `RolePlayContext` - Manages active scene/character selection, user preferences (NSFW level, temperature, etc.)
+- `RolePlayContext` - Manages active character selection, user preferences (NSFW level, temperature, etc.)
 - `LanguageContext` - Handles internationalization
 
 ### Authentication System
@@ -168,7 +164,7 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 - **Legacy Support**: Backward compatible username-based login endpoint
 
 ### Page Structure
-- App uses tab-based navigation with routes for scenes, characters, chats, profile, and payment
+- App uses tab-based navigation with routes for characters, chats, profile, and payment
 - Email-based authentication with social login options
 - AuthModal popup for login during chat interactions
 - Mobile-responsive design with bottom tab navigation
@@ -176,7 +172,7 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 
 ### AI Integration
 - Uses Gemini AI for character conversations
-- Character personalities and scene context are injected into AI prompts
+- Character personalities are injected into AI prompts
 - Conversation history maintained for context continuity
 - Token-based usage: 1 token deducted per AI message generation
 

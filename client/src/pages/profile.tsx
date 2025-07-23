@@ -4,7 +4,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Scene, Character } from "../types";
+import { Character, EnrichedChat } from "../types";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import GlobalLayout from "@/components/layout/GlobalLayout";
 import { 
@@ -49,9 +49,10 @@ const ProfilePage = () => {
   const { toast } = useToast();
   const [_, navigate] = useLocation();
   
-  // Fetch recent scenes
-  const { data: scenes = [] } = useQuery<Scene[]>({
-    queryKey: ["/api/scenes?limit=5"],
+  // Fetch recent chats for the profile dashboard
+  const { data: recentChats = [] } = useQuery<EnrichedChat[]>({
+    queryKey: ["/api/chats"],
+    select: (chats) => chats.slice(0, 3), // Get only the 3 most recent chats
   });
   
   // Simple clear chat history function
@@ -154,21 +155,36 @@ const ProfilePage = () => {
         </div>
         
         <div className="bg-secondary rounded-2xl p-4 col-span-1 sm:col-span-2">
-          <h3 className="text-sm text-gray-400 mb-2">{t('activeScenes')}</h3>
-          <div className="flex overflow-x-auto py-2 hide-scrollbar">
-            {scenes.map(scene => (
-              <div key={scene.id} className="flex-shrink-0 mr-3 w-16 text-center">
-                <ImageWithFallback
-                  src={scene.imageUrl}
-                  alt={scene.name}
-                  fallbackText={scene.name}
-                  size="lg"
-                  showSpinner={true}
-                  className="w-14 h-14 mx-auto mb-1"
-                />
-                <span className="text-xs">{scene.name}</span>
-              </div>
-            ))}
+          <h3 className="text-sm text-gray-400 mb-2">{t('recentChats')}</h3>
+          <div className="space-y-2">
+            {recentChats.length > 0 ? (
+              recentChats.map(chat => (
+                <div 
+                  key={chat.id} 
+                  className="flex items-center p-2 rounded-lg hover:bg-gray-700 transition-colors cursor-pointer"
+                  onClick={() => navigate(`/chats/${chat.id}`)}
+                >
+                  <ImageWithFallback
+                    src={chat.character?.avatarUrl || ''}
+                    alt={chat.character?.name || 'Character'}
+                    fallbackText={chat.character?.name || 'Character'}
+                    size="sm"
+                    showSpinner={true}
+                    className="w-8 h-8 mr-3"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{chat.title}</p>
+                    <p className="text-xs text-gray-400">
+                      {chat.character?.name} • {new Date(chat.updatedAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-gray-400 text-center py-4">
+                {t('noRecentChats')}
+              </p>
+            )}
           </div>
         </div>
       </div>
