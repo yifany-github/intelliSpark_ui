@@ -411,7 +411,8 @@ const PaymentPage: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ['tokenBalance'] });
   };
 
-  const handleBack = () => {
+  // Back function for sub-pages only
+  const handleBackToProfile = () => {
     setLocation('/profile');
   };
 
@@ -435,7 +436,7 @@ const PaymentPage: React.FC = () => {
                 <Button onClick={() => setLocation('/chats')} size="lg" className="bg-blue-600 hover:bg-blue-700 rounded-2xl">
                   Start Chatting
                 </Button>
-                <Button onClick={handleBack} variant="outline" size="lg" className="bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl">
+                <Button onClick={handleBackToProfile} variant="outline" size="lg" className="bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl">
                   Back to Profile
                 </Button>
               </div>
@@ -478,14 +479,6 @@ const PaymentPage: React.FC = () => {
     <GlobalLayout>
       <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-4xl">
         <div className="mb-6">
-          <Button 
-            variant="ghost" 
-            onClick={handleBack}
-            className="mb-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
           <h1 className="text-3xl font-bold mb-2 text-white">Buy Tokens</h1>
           <p className="text-gray-400">
             Purchase tokens to continue chatting with AI characters. Each message costs 1 token.

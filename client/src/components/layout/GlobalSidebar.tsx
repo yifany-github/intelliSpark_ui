@@ -1,3 +1,4 @@
+import React from 'react';
 import { 
   Home, 
   Heart, 
@@ -21,11 +22,49 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from 'wouter';
 import { useNavigation } from '@/contexts/NavigationContext';
+import { useQuery } from '@tanstack/react-query';
+
+const fetchTokenBalance = async () => {
+  const token = localStorage.getItem('auth_token');
+  if (!token) {
+    throw new Error('No authentication token found');
+  }
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+  const response = await fetch(`${API_BASE_URL}/api/payment/user/tokens`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch token balance: ${response.status}`);
+  }
+
+  return response.json();
+};
 
 export default function GlobalSidebar() {
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const [location, navigate] = useLocation();
   const { isCollapsed, toggleCollapsed } = useNavigation();
+
+  const { data: tokenBalance, isLoading: tokenLoading, error: tokenError, refetch } = useQuery({
+    queryKey: ['tokenBalance', isAuthenticated],
+    queryFn: fetchTokenBalance,
+    refetchInterval: isAuthenticated ? 30000 : false,
+    enabled: isAuthenticated && !!localStorage.getItem('auth_token'),
+    staleTime: 0,
+    retry: 1,
+  });
+
+  // Refetch when authentication status changes
+  React.useEffect(() => {
+    if (isAuthenticated && localStorage.getItem('auth_token')) {
+      refetch();
+    }
+  }, [isAuthenticated, refetch]);
 
   const menuItems = [
     { icon: Home, label: 'Home', path: '/', active: location === '/' || location === '/characters' },
@@ -70,16 +109,24 @@ export default function GlobalSidebar() {
         <div className={`flex items-center mb-6 ${isCollapsed ? 'justify-center' : 'space-x-3'}`}>
           <div 
             className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center hover:bg-gray-500 transition-colors cursor-pointer"
-            title={isCollapsed ? user?.email?.split('@')[0] || 'Guest' : undefined}
+            title={isCollapsed ? (isAuthenticated ? (user?.email?.split('@')[0] || 'User') : 'Guest') : undefined}
           >
-            <span className="text-sm text-white font-medium">{user?.email?.[0]?.toUpperCase() || 'U'}</span>
+            <span className="text-sm text-white font-medium">
+              {isAuthenticated ? (user?.email?.[0]?.toUpperCase() || 'U') : 'G'}
+            </span>
           </div>
           {!isCollapsed && (
             <div>
-              <div className="font-medium text-white">{user?.email?.split('@')[0] || 'Guest'}</div>
+              <div className="font-medium text-white">
+                {isAuthenticated ? (user?.email?.split('@')[0] || 'User') : 'Guest'}
+              </div>
               <div className="text-sm text-green-400 flex items-center">
                 <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
-                50 Tokens
+                {isAuthenticated ? (
+                  tokenLoading ? 'Loading...' : 
+                  tokenError ? 'Error loading' : 
+                  `${tokenBalance?.balance ?? '?'} Tokens`
+                ) : 'Not logged in'}
               </div>
             </div>
           )}

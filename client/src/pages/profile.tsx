@@ -1,25 +1,20 @@
 import { useState } from "react";
-import { useRolePlay } from "@/context/RolePlayContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Scene, Character } from "../types";
+import { Scene } from "../types";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import GlobalLayout from "@/components/layout/GlobalLayout";
 import { 
   Clock, 
   Users, 
-  Trash2, 
-  Download, 
-  Crown,
-  Globe,
+  Settings,
   LogOut,
-  User
+  User,
+  Activity,
+  Award
 } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Slider } from "@/components/ui/slider";
-import LanguageSelector from "@/components/settings/LanguageSelector";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,46 +27,18 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
-import { queryClient, apiRequest } from "@/lib/queryClient";
 import { TokenManagement } from "@/components/payment/TokenManagement";
 
 const ProfilePage = () => {
-  const { 
-    nsfwLevel, setNsfwLevel,
-    contextWindowLength, setContextWindowLength,
-    temperature, setTemperature,
-    memoryEnabled, setMemoryEnabled,
-    setCurrentChat
-  } = useRolePlay();
-  
   const { t } = useLanguage();
   const { user, logout } = useAuth();
   const { toast } = useToast();
   const [_, navigate] = useLocation();
   
-  // Fetch recent scenes
+  // Fetch recent scenes for activity display
   const { data: scenes = [] } = useQuery<Scene[]>({
     queryKey: ["/api/scenes?limit=5"],
   });
-  
-  // Simple clear chat history function
-  const handleClearChatHistory = async () => {
-    try {
-      await apiRequest('DELETE', '/api/chats');
-      setCurrentChat(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
-      toast({
-        title: "Success",
-        description: "Chat history cleared successfully",
-      });
-    } catch (error) {
-      toast({
-        title: "Error", 
-        description: "Failed to clear chat history",
-        variant: "destructive",
-      });
-    }
-  };
 
   // Logout function
   const handleLogout = () => {
@@ -83,218 +50,224 @@ const ProfilePage = () => {
     });
   };
   
-  // Format temperature for display (0.0 - 1.0)
-  const formattedTemperature = (temperature / 100).toFixed(1);
-  
-  // NSFW Level labels
-  const nsfwLevelLabels = ["None", "Mild", "Moderate", "Maximum"];
-  
   return (
     <GlobalLayout>
       <div className="px-2 sm:px-4 pt-2 sm:pt-4 pb-8 sm:pb-16 max-w-4xl mx-auto">
-      <h1 className="font-poppins font-bold text-2xl mb-4">{t('profile')}</h1>
-      
-      {/* User Info Section */}
-      <div className="bg-secondary rounded-2xl p-4 mb-6">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center">
-            <div className="bg-blue-100 p-3 rounded-full mr-3">
-              <User className="text-blue-600 h-6 w-6" />
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <div className="flex items-center space-x-2 mb-2">
+              <User className="w-6 h-6 text-blue-400" />
+              <h1 className="font-poppins font-bold text-2xl text-white">{t('profile')}</h1>
             </div>
-            <div>
-              <h3 className="font-semibold text-lg">{user?.username}</h3>
-              <p className="text-sm text-gray-500">Member since {new Date(user?.created_at || '').toLocaleDateString()}</p>
-            </div>
+            <p className="text-gray-400">Manage your account and view your activity</p>
           </div>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button className="bg-red-100 hover:bg-red-200 p-2 rounded-full transition-colors">
-                <LogOut className="text-red-600 h-5 w-5" />
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you sure you want to logout?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This will sign you out of your account and redirect you to the home page.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleLogout} className="bg-red-600 hover:bg-red-700">
-                  Logout
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </div>
-      
-      {/* Token Management Section */}
-      <div className="mb-6">
-        <TokenManagement />
-      </div>
-      
-      {/* Dashboard Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-6">
-        <div className="bg-secondary rounded-2xl p-4">
-          <h3 className="text-sm text-gray-400 mb-2">{t('todaysChatTime')}</h3>
-          <div className="flex items-center">
-            <Clock className="text-accent text-xl mr-2" />
-            <span className="text-xl font-poppins font-semibold">37 min</span>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => navigate('/settings')}
+              className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+              title="Settings"
+            >
+              <Settings className="w-5 h-5 text-gray-300" />
+            </button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="p-2 bg-red-600/20 hover:bg-red-600/30 border border-red-600/50 rounded-lg transition-colors">
+                  <LogOut className="text-red-400 h-5 w-5" />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-gray-800 border-gray-700">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white">Are you sure you want to logout?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-gray-400">
+                    This will sign you out of your account and redirect you to the home page.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-gray-700 text-white border-gray-600">Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleLogout} className="bg-red-600 hover:bg-red-700">
+                    Logout
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
         
-        <div className="bg-secondary rounded-2xl p-4">
-          <h3 className="text-sm text-gray-400 mb-2">{t('totalCharacters')}</h3>
+        {/* User Info Section */}
+        <div className="bg-gray-800 rounded-2xl p-6 mb-6">
           <div className="flex items-center">
-            <Users className="text-accent text-xl mr-2" />
-            <span className="text-xl font-poppins font-semibold">12</span>
+            <div className="bg-blue-600 p-4 rounded-full mr-4">
+              <User className="text-white h-8 w-8" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-xl text-white mb-1">
+                {user?.email?.split('@')[0] || user?.username || 'User'}
+              </h3>
+              <p className="text-sm text-gray-400">
+                {user?.email || 'No email provided'}
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+                Member since {new Date(user?.created_at || '').toLocaleDateString()}
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="flex items-center space-x-2 text-sm text-gray-400">
+                <Activity className="w-4 h-4" />
+                <span>Active</span>
+              </div>
+            </div>
           </div>
         </div>
         
-        <div className="bg-secondary rounded-2xl p-4 col-span-1 sm:col-span-2">
-          <h3 className="text-sm text-gray-400 mb-2">{t('activeScenes')}</h3>
-          <div className="flex overflow-x-auto py-2 hide-scrollbar">
+        {/* Token Management Section */}
+        <div className="mb-6">
+          <TokenManagement />
+        </div>
+      
+        {/* Activity Dashboard */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+          <div className="bg-gray-800 rounded-2xl p-6">
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="p-2 bg-blue-600/20 rounded-lg">
+                <Clock className="text-blue-400 w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm text-gray-400">{t('todaysChatTime')}</h3>
+                <span className="text-2xl font-bold text-white">37 min</span>
+              </div>
+            </div>
+            <div className="text-xs text-gray-500">+12 min from yesterday</div>
+          </div>
+          
+          <div className="bg-gray-800 rounded-2xl p-6">
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="p-2 bg-purple-600/20 rounded-lg">
+                <Users className="text-purple-400 w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm text-gray-400">{t('totalCharacters')}</h3>
+                <span className="text-2xl font-bold text-white">12</span>
+              </div>
+            </div>
+            <div className="text-xs text-gray-500">Across 8 different scenes</div>
+          </div>
+          
+          <div className="bg-gray-800 rounded-2xl p-6">
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="p-2 bg-green-600/20 rounded-lg">
+                <Award className="text-green-400 w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm text-gray-400">Achievement Level</h3>
+                <span className="text-2xl font-bold text-white">8</span>
+              </div>
+            </div>
+            <div className="text-xs text-gray-500">Conversation Expert</div>
+          </div>
+        </div>
+        
+        {/* Recent Activity */}
+        <div className="bg-gray-800 rounded-2xl p-6 mb-6">
+          <h3 className="font-semibold text-lg text-white mb-4 flex items-center">
+            <Activity className="w-5 h-5 text-indigo-400 mr-2" />
+            Recent Activity
+          </h3>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+                  <User className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm text-white">Started chat with Elara</p>
+                  <p className="text-xs text-gray-400">2 hours ago</p>
+                </div>
+              </div>
+              <span className="text-xs text-blue-400">Active</span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-purple-600 rounded-full flex items-center justify-center">
+                  <Award className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm text-white">Unlocked achievement: Conversationalist</p>
+                  <p className="text-xs text-gray-400">1 day ago</p>
+                </div>
+              </div>
+              <span className="text-xs text-green-400">+50 XP</span>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
+                  <Users className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <p className="text-sm text-white">Explored 3 new characters</p>
+                  <p className="text-xs text-gray-400">2 days ago</p>
+                </div>
+              </div>
+              <span className="text-xs text-gray-400">Completed</span>
+            </div>
+          </div>
+        </div>
+        
+        {/* Favorite Scenes */}
+        <div className="bg-gray-800 rounded-2xl p-6 mb-6">
+          <h3 className="font-semibold text-lg text-white mb-4">{t('activeScenes')}</h3>
+          <div className="flex overflow-x-auto py-2 hide-scrollbar space-x-4">
             {scenes.map(scene => (
-              <div key={scene.id} className="flex-shrink-0 mr-3 w-16 text-center">
+              <div key={scene.id} className="flex-shrink-0 text-center">
                 <ImageWithFallback
                   src={scene.imageUrl}
                   alt={scene.name}
                   fallbackText={scene.name}
                   size="lg"
                   showSpinner={true}
-                  className="w-14 h-14 mx-auto mb-1"
+                  className="w-20 h-20 mx-auto mb-2 rounded-xl hover:scale-105 transition-transform cursor-pointer"
                 />
-                <span className="text-xs">{scene.name}</span>
+                <span className="text-sm text-gray-300 font-medium">{scene.name}</span>
+                <p className="text-xs text-gray-500 mt-1">Recently used</p>
               </div>
             ))}
           </div>
         </div>
-      </div>
       
-      {/* Settings */}
-      <div className="space-y-6">
-        <div className="bg-secondary rounded-2xl p-4">
-          <h3 className="font-poppins font-semibold text-lg mb-4">{t('settings')}</h3>
-          
-          <div className="mb-4 space-y-4">
-            <LanguageSelector type="interface" />
-            <LanguageSelector type="chat" />
-          </div>
-          
-          <div className="w-full h-px bg-gray-700 my-4"></div>
-          
-          <h4 className="font-poppins font-semibold text-md mb-4">AI {t('settings')}</h4>
-          
-          <div className="mb-4">
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-sm">{t('contextWindowLength')}</label>
-              <span className="text-sm text-accent">{contextWindowLength}k tokens</span>
+        {/* Quick Actions */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <button 
+            onClick={() => navigate('/settings')}
+            className="bg-gray-800 hover:bg-gray-700 rounded-2xl p-6 text-left transition-colors group"
+          >
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="p-2 bg-blue-600/20 rounded-lg group-hover:bg-blue-600/30 transition-colors">
+                <Settings className="w-5 h-5 text-blue-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-white">Settings</h3>
+                <p className="text-sm text-gray-400">Customize your experience</p>
+              </div>
             </div>
-            <Slider
-              value={[contextWindowLength]}
-              min={1}
-              max={15}
-              step={1}
-              onValueChange={(value) => setContextWindowLength(value[0])}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
-              <span>{t('short')}</span>
-              <span>{t('long')}</span>
-            </div>
-          </div>
-          
-          <div className="mb-4">
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-sm">{t('temperatureLevel')}</label>
-              <span className="text-sm text-accent">{formattedTemperature}</span>
-            </div>
-            <Slider
-              value={[temperature]}
-              min={0}
-              max={100}
-              step={10}
-              onValueChange={(value) => setTemperature(value[0])}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
-              <span>{t('precise')}</span>
-              <span>{t('creative')}</span>
-            </div>
-          </div>
-          
-          <div className="flex items-center justify-between">
-            <label className="text-sm">{t('memoryEnabled')}</label>
-            <Switch 
-              checked={memoryEnabled}
-              onCheckedChange={setMemoryEnabled}
-            />
-          </div>
-        </div>
-        
-        <div className="bg-secondary rounded-2xl p-4">
-          <h3 className="font-poppins font-semibold text-lg mb-4">{t('settings')}</h3>
-          
-          <div className="mb-4">
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-sm">{t('nsfwLevel')}</label>
-              <span className="text-sm text-accent">{nsfwLevelLabels[nsfwLevel]} ({nsfwLevel})</span>
-            </div>
-            <Slider
-              value={[nsfwLevel]}
-              min={0}
-              max={3}
-              step={1}
-              onValueChange={(value) => setNsfwLevel(value[0])}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
-              <span>{t('none')}</span>
-              <span>{t('strict')}</span>
-            </div>
-          </div>
-        </div>
-        
-        <div className="space-y-3">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <button 
-                className="w-full bg-secondary hover:bg-secondary/80 rounded-2xl px-4 py-3 text-white font-medium transition-colors flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <Trash2 className="mr-2 h-5 w-5" /> 
-                {t('clearChatHistory')}
-              </button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Clear Chat History</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to clear all your chat history? This action cannot be undone and will permanently delete all your conversations.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction 
-                  onClick={handleClearChatHistory}
-                  className="bg-red-600 hover:bg-red-700"
-                >
-                  Clear History
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          
-          <button className="w-full bg-secondary hover:bg-secondary/80 rounded-2xl px-4 py-3 text-white font-medium transition-colors flex items-center justify-center">
-            <Download className="mr-2 h-5 w-5" /> {t('exportScripts')}
+            <p className="text-xs text-gray-500">Manage AI settings, preferences, and privacy</p>
           </button>
           
-          <button className="w-full bg-blue-600 hover:bg-blue-700 rounded-2xl px-4 py-3 text-white font-medium transition-colors flex items-center justify-center">
-            <Crown className="mr-2 h-5 w-5" /> {t('subscribe')}
+          <button 
+            onClick={() => navigate('/payment')}
+            className="bg-gray-800 hover:bg-gray-700 rounded-2xl p-6 text-left transition-colors group"
+          >
+            <div className="flex items-center space-x-3 mb-3">
+              <div className="p-2 bg-green-600/20 rounded-lg group-hover:bg-green-600/30 transition-colors">
+                <Award className="w-5 h-5 text-green-400" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-white">Get More Tokens</h3>
+                <p className="text-sm text-gray-400">Continue conversations</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">Purchase token packages for unlimited chats</p>
           </button>
         </div>
-      </div>
       </div>
     </GlobalLayout>
   );

@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Star, Eye, Filter, Grid, List, SortAsc, SortDesc, Heart, Search } from 'lucide-react';
 import { Character } from '@/types';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import { useRolePlay } from '@/context/RolePlayContext';
 import { useLocation } from 'wouter';
+import { apiRequest } from '@/lib/queryClient';
 import GlobalLayout from '@/components/layout/GlobalLayout';
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 
@@ -149,9 +150,34 @@ const FavoritesPage = () => {
 
   const categories = ['All', 'Fantasy', 'Sci-Fi', 'Romance', 'Adventure', 'Mystery'];
 
+  // Mutation for creating a new chat
+  const { mutate: createChat, isPending: isCreatingChat } = useMutation({
+    mutationFn: async ({ characterId, sceneId = 1 }: { characterId: number; sceneId?: number }) => {
+      const response = await apiRequest(
+        "POST",
+        "/api/chats",
+        {
+          characterId,
+          sceneId,
+          title: `Chat with ${characters.find(c => c.id === characterId)?.name || 'Character'}`
+        }
+      );
+      return response.json();
+    },
+    onSuccess: (chat) => {
+      // Navigate to the new chat
+      navigate(`/chat/${chat.id}`);
+      handlePreviewClose();
+    },
+    onError: (error) => {
+      console.error('Failed to create chat:', error);
+    }
+  });
+
   const handleCharacterClick = (character: Character) => {
     setSelectedCharacter(character);
-    navigate('/chat');
+    // Create a new chat with this character and default scene
+    createChat({ characterId: character.id });
   };
 
   const handleFavoriteToggle = (characterId: number) => {
@@ -170,14 +196,14 @@ const FavoritesPage = () => {
 
   const handleStartChat = (character: Character) => {
     setSelectedCharacter(character);
-    navigate('/chat');
-    handlePreviewClose();
+    // Create a new chat with this character and default scene
+    createChat({ characterId: character.id });
   };
 
   const CharacterCard = ({ character }: { character: Character }) => (
     <div 
-      className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-all duration-200 cursor-pointer group hover:scale-105 hover:shadow-lg"
-      onClick={() => handleCharacterClick(character)}
+      className={`bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-all duration-200 cursor-pointer group hover:scale-105 hover:shadow-lg ${isCreatingChat ? 'opacity-50 pointer-events-none' : ''}`}
+      onClick={() => !isCreatingChat && handleCharacterClick(character)}
     >
       <div className="relative">
         <img
@@ -211,11 +237,14 @@ const FavoritesPage = () => {
             <button 
               onClick={(e) => {
                 e.stopPropagation();
-                handleStartChat(character);
+                if (!isCreatingChat) {
+                  handleStartChat(character);
+                }
               }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              disabled={isCreatingChat}
             >
-              Chat Now
+              {isCreatingChat ? 'Creating...' : 'Chat Now'}
             </button>
             <button 
               onClick={(e) => {
@@ -248,8 +277,8 @@ const FavoritesPage = () => {
 
   const CharacterListItem = ({ character }: { character: Character }) => (
     <div 
-      className="bg-gray-800 rounded-lg p-4 hover:bg-gray-750 transition-all duration-200 cursor-pointer group flex items-center space-x-4"
-      onClick={() => handleCharacterClick(character)}
+      className={`bg-gray-800 rounded-lg p-4 hover:bg-gray-750 transition-all duration-200 cursor-pointer group flex items-center space-x-4 ${isCreatingChat ? 'opacity-50 pointer-events-none' : ''}`}
+      onClick={() => !isCreatingChat && handleCharacterClick(character)}
     >
       <img
         src={character.image || character.avatarUrl || "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop"}

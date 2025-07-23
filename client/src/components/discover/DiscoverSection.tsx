@@ -1,10 +1,15 @@
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { Star, Eye, TrendingUp, Flame, Crown, Users, Calendar, Zap, Search } from 'lucide-react';
+import { useQuery, useMutation } from '@tanstack/react-query';
+import { 
+  Star, Eye, TrendingUp, Flame, Crown, Users, Calendar, Zap, Search, 
+  BookOpen, Gamepad2, Film, Music, Sparkles, Heart, Shield, Sword,
+  Globe, Brain, Bot, Palette, Coffee, Mountain, Compass, Filter, Grid
+} from 'lucide-react';
 import { Character } from '@/types';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import { useRolePlay } from '@/context/RolePlayContext';
 import { useLocation } from 'wouter';
+import { apiRequest } from '@/lib/queryClient';
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 import { createRecommendationEngine } from '@/lib/recommendationEngine';
 
@@ -96,9 +101,36 @@ const DiscoverSection = () => {
     gcTime: 10 * 60 * 1000,
   });
 
+  // State for category filtering and layout
+  const [selectedCategory, setSelectedCategory] = useState('All');
+  const [viewMode, setViewMode] = useState<'grid' | 'masonry'>('masonry');
+
+  // Mutation for creating a new chat
+  const { mutate: createChat, isPending: isCreatingChat } = useMutation({
+    mutationFn: async ({ characterId, sceneId = 1 }: { characterId: number; sceneId?: number }) => {
+      const response = await apiRequest(
+        "POST",
+        "/api/chats",
+        {
+          characterId,
+          sceneId,
+          title: `Chat with ${characters.find(c => c.id === characterId)?.name || 'Character'}`
+        }
+      );
+      return response.json();
+    },
+    onSuccess: (chat) => {
+      navigate(`/chat/${chat.id}`);
+      handlePreviewClose();
+    },
+    onError: (error) => {
+      console.error('Failed to create chat:', error);
+    }
+  });
+
   const handleCharacterClick = (character: Character) => {
     setSelectedCharacter(character);
-    navigate('/chat');
+    createChat({ characterId: character.id });
   };
 
   const handleFavoriteToggle = (characterId: number) => {
@@ -117,8 +149,7 @@ const DiscoverSection = () => {
 
   const handleStartChat = (character: Character) => {
     setSelectedCharacter(character);
-    navigate('/chat');
-    handlePreviewClose();
+    createChat({ characterId: character.id });
   };
 
   // Create recommendation engine and generate different sections
@@ -143,12 +174,54 @@ const DiscoverSection = () => {
   
   const featuredCharacters = useMemo(() => recommendationEngine.getFeatured(2), [recommendationEngine]);
 
+  // Define explore categories with icons and colors
+  const exploreCategories = [
+    { id: 'All', name: 'All Characters', icon: Globe, color: 'text-blue-400', bgColor: 'bg-blue-600' },
+    { id: 'Fantasy', name: 'Fantasy & Magic', icon: Sparkles, color: 'text-purple-400', bgColor: 'bg-purple-600' },
+    { id: 'Sci-Fi', name: 'Sci-Fi & Future', icon: Bot, color: 'text-cyan-400', bgColor: 'bg-cyan-600' },
+    { id: 'Adventure', name: 'Adventure & Action', icon: Sword, color: 'text-orange-400', bgColor: 'bg-orange-600' },
+    { id: 'Romance', name: 'Romance & Drama', icon: Heart, color: 'text-pink-400', bgColor: 'bg-pink-600' },
+    { id: 'Mystery', name: 'Mystery & Thriller', icon: Search, color: 'text-indigo-400', bgColor: 'bg-indigo-600' },
+    { id: 'Historical', name: 'Historical', icon: Crown, color: 'text-yellow-400', bgColor: 'bg-yellow-600' },
+    { id: 'Modern', name: 'Modern & Lifestyle', icon: Coffee, color: 'text-green-400', bgColor: 'bg-green-600' },
+    { id: 'Creative', name: 'Creative & Arts', icon: Palette, color: 'text-teal-400', bgColor: 'bg-teal-600' },
+    { id: 'Gaming', name: 'Gaming & Virtual', icon: Gamepad2, color: 'text-red-400', bgColor: 'bg-red-600' },
+    { id: 'Anime', name: 'Anime & Manga', icon: BookOpen, color: 'text-rose-400', bgColor: 'bg-rose-600' },
+    { id: 'Movies', name: 'Movies & TV', icon: Film, color: 'text-amber-400', bgColor: 'bg-amber-600' }
+  ];
+
+  // Filter characters by category
+  const filteredSections = useMemo(() => {
+    const filterCharacters = (chars: Character[]) => 
+      selectedCategory === 'All' 
+        ? chars 
+        : chars.filter(char => 
+            char.traits.some(trait => 
+              trait.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+              selectedCategory.toLowerCase() === 'sci-fi' && (trait.toLowerCase().includes('logical') || trait.toLowerCase().includes('analytical') || trait.toLowerCase().includes('curious')) ||
+              selectedCategory.toLowerCase() === 'adventure' && (trait.toLowerCase().includes('strong') || trait.toLowerCase().includes('warrior') || trait.toLowerCase().includes('honorable')) ||
+              selectedCategory.toLowerCase() === 'mystery' && (trait.toLowerCase().includes('cunning') || trait.toLowerCase().includes('mysterious')) ||
+              selectedCategory.toLowerCase() === 'romance' && (trait.toLowerCase().includes('charismatic') || trait.toLowerCase().includes('diplomatic')) ||
+              selectedCategory.toLowerCase() === 'historical' && (trait.toLowerCase().includes('wise') || trait.toLowerCase().includes('noble')) ||
+              selectedCategory.toLowerCase() === 'modern' && (trait.toLowerCase().includes('intelligent') || trait.toLowerCase().includes('peaceful'))
+            )
+          );
+    
+    return {
+      trending: filterCharacters(trendingCharacters),
+      new: filterCharacters(newCharacters),
+      popular: filterCharacters(popularCharacters),
+      recommended: filterCharacters(recommendedCharacters),
+      featured: filterCharacters(featuredCharacters)
+    };
+  }, [selectedCategory, trendingCharacters, newCharacters, popularCharacters, recommendedCharacters, featuredCharacters]);
+
   const CharacterCard = ({ character, size = 'normal' }: { character: Character, size?: 'normal' | 'large' }) => (
     <div 
       className={`bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-all duration-200 cursor-pointer group hover:scale-105 hover:shadow-lg ${
         size === 'large' ? 'col-span-2' : ''
-      }`}
-      onClick={() => handleCharacterClick(character)}
+      } ${isCreatingChat ? 'opacity-50 pointer-events-none' : ''}`}
+      onClick={() => !isCreatingChat && handleCharacterClick(character)}
     >
       <div className="relative">
         <img
@@ -186,11 +259,14 @@ const DiscoverSection = () => {
             <button 
               onClick={(e) => {
                 e.stopPropagation();
-                handleStartChat(character);
+                if (!isCreatingChat) {
+                  handleStartChat(character);
+                }
               }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              disabled={isCreatingChat}
             >
-              Chat Now
+              {isCreatingChat ? 'Creating...' : 'Chat Now'}
             </button>
             <button 
               onClick={(e) => {
@@ -227,84 +303,213 @@ const DiscoverSection = () => {
     <div className="w-full h-full p-3 sm:p-6 space-y-8">
       {/* Header */}
       <div className="mb-8">
-        <div className="flex items-center space-x-2 mb-2">
-          <Search className="w-6 h-6 text-blue-400" />
-          <h1 className="text-3xl font-bold text-white">Discover</h1>
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <div className="flex items-center space-x-2 mb-2">
+              <Compass className="w-6 h-6 text-blue-400" />
+              <h1 className="text-3xl font-bold text-white">Discover</h1>
+            </div>
+            <p className="text-gray-400">Explore trending characters, new arrivals, and personalized recommendations</p>
+          </div>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setViewMode(viewMode === 'grid' ? 'masonry' : 'grid')}
+              className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+              title={`Switch to ${viewMode === 'grid' ? 'masonry' : 'grid'} layout`}
+            >
+              <Filter className="w-4 h-4" />
+            </button>
+          </div>
         </div>
-        <p className="text-gray-400">Explore trending characters, new arrivals, and personalized recommendations</p>
+
+        {/* Explore Categories */}
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
+            <Mountain className="w-5 h-5 text-emerald-400 mr-2" />
+            Explore Types
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {exploreCategories.map((category) => {
+              const IconComponent = category.icon;
+              const isSelected = selectedCategory === category.id;
+              return (
+                <button
+                  key={category.id}
+                  onClick={() => setSelectedCategory(category.id)}
+                  className={`p-3 rounded-xl transition-all duration-200 transform hover:scale-105 ${
+                    isSelected 
+                      ? `${category.bgColor} text-white shadow-lg` 
+                      : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
+                  }`}
+                >
+                  <div className="flex flex-col items-center space-y-2">
+                    <IconComponent className={`w-6 h-6 ${
+                      isSelected ? 'text-white' : category.color
+                    }`} />
+                    <span className="text-xs font-medium text-center leading-tight">
+                      {category.name.split(' ')[0]}
+                      <br className="hidden sm:block" />
+                      <span className="hidden sm:inline">{category.name.split(' ').slice(1).join(' ')}</span>
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* Featured Characters */}
-      {featuredCharacters.length > 0 && (
+      {filteredSections.featured.length > 0 && (
         <section>
           <div className="flex items-center space-x-2 mb-4">
             <Crown className="w-5 h-5 text-yellow-400" />
             <h2 className="text-xl font-semibold text-white">Featured Characters</h2>
             <span className="text-sm text-gray-400">Handpicked selections</span>
+            {selectedCategory !== 'All' && (
+              <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
+                {selectedCategory}
+              </span>
+            )}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {featuredCharacters.map((character) => (
-              <CharacterCard key={character.id} character={character} size="large" />
+          <div className={viewMode === 'masonry' 
+            ? "columns-1 md:columns-2 gap-4 space-y-4" 
+            : "grid grid-cols-1 md:grid-cols-2 gap-4"
+          }>
+            {filteredSections.featured.map((character) => (
+              <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>
+                <CharacterCard character={character} size="large" />
+              </div>
             ))}
           </div>
         </section>
       )}
 
       {/* Trending This Week */}
-      <section>
-        <div className="flex items-center space-x-2 mb-4">
-          <TrendingUp className="w-5 h-5 text-pink-400" />
-          <h2 className="text-xl font-semibold text-white">Trending This Week</h2>
-          <span className="text-sm text-gray-400">Hot picks from the community</span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {trendingCharacters.map((character) => (
-            <CharacterCard key={character.id} character={character} />
-          ))}
-        </div>
-      </section>
+      {filteredSections.trending.length > 0 && (
+        <section>
+          <div className="flex items-center space-x-2 mb-4">
+            <TrendingUp className="w-5 h-5 text-pink-400" />
+            <h2 className="text-xl font-semibold text-white">Trending This Week</h2>
+            <span className="text-sm text-gray-400">Hot picks from the community</span>
+            {selectedCategory !== 'All' && (
+              <span className="px-2 py-1 bg-pink-600 text-white text-xs rounded-full">
+                {selectedCategory}
+              </span>
+            )}
+          </div>
+          <div className={viewMode === 'masonry' 
+            ? "columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4" 
+            : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+          }>
+            {filteredSections.trending.map((character) => (
+              <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>
+                <CharacterCard character={character} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* New Arrivals */}
-      <section>
-        <div className="flex items-center space-x-2 mb-4">
-          <Zap className="w-5 h-5 text-green-400" />
-          <h2 className="text-xl font-semibold text-white">New Arrivals</h2>
-          <span className="text-sm text-gray-400">Fresh characters added recently</span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {newCharacters.map((character) => (
-            <CharacterCard key={character.id} character={character} />
-          ))}
-        </div>
-      </section>
+      {filteredSections.new.length > 0 && (
+        <section>
+          <div className="flex items-center space-x-2 mb-4">
+            <Zap className="w-5 h-5 text-green-400" />
+            <h2 className="text-xl font-semibold text-white">New Arrivals</h2>
+            <span className="text-sm text-gray-400">Fresh characters added recently</span>
+            {selectedCategory !== 'All' && (
+              <span className="px-2 py-1 bg-green-600 text-white text-xs rounded-full">
+                {selectedCategory}
+              </span>
+            )}
+          </div>
+          <div className={viewMode === 'masonry' 
+            ? "columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4" 
+            : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+          }>
+            {filteredSections.new.map((character) => (
+              <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>
+                <CharacterCard character={character} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Popular Characters */}
-      <section>
-        <div className="flex items-center space-x-2 mb-4">
-          <Flame className="w-5 h-5 text-orange-400" />
-          <h2 className="text-xl font-semibold text-white">Most Popular</h2>
-          <span className="text-sm text-gray-400">Community favorites</span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {popularCharacters.map((character) => (
-            <CharacterCard key={character.id} character={character} />
-          ))}
-        </div>
-      </section>
+      {filteredSections.popular.length > 0 && (
+        <section>
+          <div className="flex items-center space-x-2 mb-4">
+            <Flame className="w-5 h-5 text-orange-400" />
+            <h2 className="text-xl font-semibold text-white">Most Popular</h2>
+            <span className="text-sm text-gray-400">Community favorites</span>
+            {selectedCategory !== 'All' && (
+              <span className="px-2 py-1 bg-orange-600 text-white text-xs rounded-full">
+                {selectedCategory}
+              </span>
+            )}
+          </div>
+          <div className={viewMode === 'masonry' 
+            ? "columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4" 
+            : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+          }>
+            {filteredSections.popular.map((character) => (
+              <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>
+                <CharacterCard character={character} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Recommended for You */}
-      <section>
-        <div className="flex items-center space-x-2 mb-4">
-          <Users className="w-5 h-5 text-blue-400" />
-          <h2 className="text-xl font-semibold text-white">Recommended for You</h2>
-          <span className="text-sm text-gray-400">Based on your preferences</span>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {recommendedCharacters.map((character) => (
-            <CharacterCard key={character.id} character={character} />
-          ))}
-        </div>
-      </section>
+      {filteredSections.recommended.length > 0 && (
+        <section>
+          <div className="flex items-center space-x-2 mb-4">
+            <Users className="w-5 h-5 text-blue-400" />
+            <h2 className="text-xl font-semibold text-white">Recommended for You</h2>
+            <span className="text-sm text-gray-400">Based on your preferences</span>
+            {selectedCategory !== 'All' && (
+              <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
+                {selectedCategory}
+              </span>
+            )}
+          </div>
+          <div className={viewMode === 'masonry' 
+            ? "columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4" 
+            : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+          }>
+            {filteredSections.recommended.map((character) => (
+              <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>
+                <CharacterCard character={character} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Empty State */}
+      {selectedCategory !== 'All' && 
+       filteredSections.featured.length === 0 && 
+       filteredSections.trending.length === 0 && 
+       filteredSections.new.length === 0 && 
+       filteredSections.popular.length === 0 && 
+       filteredSections.recommended.length === 0 && (
+        <section className="text-center py-16">
+          <div className="text-6xl mb-4">🔍</div>
+          <h3 className="text-xl font-semibold mb-2">No {selectedCategory} Characters Found</h3>
+          <p className="text-gray-400 mb-6">
+            Try exploring other categories or check back later for new additions.
+          </p>
+          <button
+            onClick={() => setSelectedCategory('All')}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+          >
+            View All Characters
+          </button>
+        </section>
+      )}
 
       {/* Character Preview Modal */}
       <CharacterPreviewModal

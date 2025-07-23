@@ -11,6 +11,7 @@ import DiscoverPage from "@/pages/discover";
 import CreateCharacterPage from "@/pages/create-character";
 import ChatsPage from "@/pages/chats";
 import ProfilePage from "@/pages/profile";
+import SettingsPage from "@/pages/settings";
 import OnboardingPage from "@/pages/onboarding";
 import AdminPage from "@/pages/admin";
 import LoginPage from "@/pages/auth/login";
@@ -134,7 +135,7 @@ function MainApp() {
               <Route path="/chats/:id">
                 {params => (
                   <ProtectedRoute>
-                    <ChatsPage chatId={params.id} />
+                    <ChatPage chatId={params.id} />
                   </ProtectedRoute>
                 )}
               </Route>
@@ -153,6 +154,11 @@ function MainApp() {
               <Route path="/profile">
                 <ProtectedRoute>
                   <ProfilePage />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/settings">
+                <ProtectedRoute>
+                  <SettingsPage />
                 </ProtectedRoute>
               </Route>
               <Route path="/payment">

@@ -3,6 +3,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { useLocation } from 'wouter';
 import { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { ImprovedTokenBalance } from '@/components/payment/ImprovedTokenBalance';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 
@@ -11,12 +12,49 @@ interface TopNavigationProps {
   onSearchChange?: (query: string) => void;
 }
 
+const fetchTokenBalance = async () => {
+  const token = localStorage.getItem('auth_token');
+  if (!token) {
+    throw new Error('No authentication token found');
+  }
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+  const response = await fetch(`${API_BASE_URL}/api/payment/user/tokens`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch token balance: ${response.status}`);
+  }
+
+  return response.json();
+};
+
 export default function TopNavigation({ searchQuery = '', onSearchChange }: TopNavigationProps) {
   const { user, isAuthenticated, logout } = useAuth();
   const { language, setLanguage } = useLanguage();
   const [_, navigate] = useLocation();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const { data: tokenBalance, isLoading: tokenLoading, error: tokenError, refetch } = useQuery({
+    queryKey: ['tokenBalance', isAuthenticated],
+    queryFn: fetchTokenBalance,
+    refetchInterval: isAuthenticated ? 30000 : false,
+    enabled: isAuthenticated && !!localStorage.getItem('auth_token'),
+    staleTime: 0,
+    retry: 1,
+  });
+
+  // Refetch when authentication status changes
+  useEffect(() => {
+    if (isAuthenticated && localStorage.getItem('auth_token')) {
+      refetch();
+    }
+  }, [isAuthenticated, refetch]);
 
   // Close user menu when clicking outside
   useEffect(() => {
@@ -178,14 +216,16 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
       </div>
 
       {/* Message limit indicator */}
-      <div className="px-4 pb-3">
-        <div className="flex items-center space-x-2 text-sm text-gray-400">
-          <span>💬 Chat with AI characters</span>
-          <div className="ml-auto flex items-center space-x-2">
-            <span>🎯 Tokens: 50</span>
+      {isAuthenticated && (
+        <div className="px-4 pb-3">
+          <div className="flex items-center space-x-2 text-sm text-gray-400">
+            <span>💬 Chat with AI characters</span>
+            <div className="ml-auto flex items-center space-x-2">
+              <span>🎯 Tokens: {tokenLoading ? '...' : (tokenBalance?.balance ?? '?')}</span>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

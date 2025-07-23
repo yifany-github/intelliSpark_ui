@@ -261,9 +261,18 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
               <h2 className="text-lg font-semibold">Chats</h2>
               <div className="flex items-center space-x-2">
                 <button 
-                  onClick={() => navigate('/')}
+                  onClick={() => {
+                    // Smart navigation: go back to previous page or default to characters
+                    if (document.referrer.includes('/chats')) {
+                      navigate('/chats');
+                    } else if (document.referrer.includes('/favorites')) {
+                      navigate('/favorites');
+                    } else {
+                      navigate('/');
+                    }
+                  }}
                   className="hidden lg:block p-1 hover:bg-gray-700 rounded transition-colors"
-                  title="Back to Characters"
+                  title="Back to previous page"
                 >
                   <ArrowLeft className="w-4 h-4" />
                 </button>
@@ -341,6 +350,24 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
           <div className="bg-gray-800 border-b border-gray-700 p-2 sm:p-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
+                {/* Back button for mobile */}
+                <button 
+                  onClick={() => {
+                    // Smart navigation: go back to previous page or default to characters
+                    if (document.referrer.includes('/chats')) {
+                      navigate('/chats');
+                    } else if (document.referrer.includes('/favorites')) {
+                      navigate('/favorites');
+                    } else {
+                      navigate('/');
+                    }
+                  }}
+                  className="lg:hidden p-1 hover:bg-gray-700 rounded transition-colors"
+                  title="Back to previous page"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                </button>
+                
                 {/* Mobile menu button */}
                 <button 
                   onClick={() => setShowChatList(!showChatList)}

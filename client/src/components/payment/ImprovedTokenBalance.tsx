@@ -76,6 +76,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
     queryKey: ['tokenBalance'],
     queryFn: fetchTokenBalance,
     refetchInterval: 30000, // Refetch every 30 seconds
+    enabled: !!localStorage.getItem('auth_token'), // Only fetch when authenticated
   });
 
   const handleBuyTokens = () => {
