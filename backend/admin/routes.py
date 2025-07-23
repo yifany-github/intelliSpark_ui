@@ -12,10 +12,10 @@ import glob
 from pathlib import Path
 
 from database import get_db
-from models import Scene, Character, Chat, ChatMessage, User
+from models import Character, Chat, ChatMessage, User
 from schemas import (
-    Scene as SceneSchema, Character as CharacterSchema, 
-    MessageResponse, SceneCreate, CharacterCreate
+    Character as CharacterSchema, 
+    MessageResponse, CharacterCreate
 )
 
 # Login request schema
@@ -61,101 +61,8 @@ async def admin_login(request: LoginRequest):
         "message": "Admin login successful"
     }
 
-# ===== ADMIN SCENES ROUTES =====
-
-@router.get("/scenes", response_model=List[SceneSchema])
-async def get_admin_scenes(
-    db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
-):
-    """Get all scenes for admin"""
-    try:
-        scenes = db.query(Scene).all()
-        return scenes
-    except Exception as e:
-        logger.error(f"Error fetching scenes for admin: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch scenes")
-
-@router.post("/scenes", response_model=SceneSchema)
-async def create_admin_scene(
-    scene_data: SceneCreate,
-    db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
-):
-    """Create a new scene"""
-    try:
-        scene = Scene(
-            name=scene_data.name,
-            description=scene_data.description,
-            image_url=scene_data.imageUrl,
-            location=scene_data.location,
-            mood=scene_data.mood,
-            rating=scene_data.rating
-        )
-        
-        db.add(scene)
-        db.commit()
-        db.refresh(scene)
-        
-        return scene
-    except Exception as e:
-        logger.error(f"Error creating scene: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to create scene")
-
-@router.put("/scenes/{scene_id}", response_model=SceneSchema)
-async def update_admin_scene(
-    scene_id: int,
-    scene_data: SceneCreate,
-    db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
-):
-    """Update an existing scene"""
-    try:
-        scene = db.query(Scene).filter(Scene.id == scene_id).first()
-        if not scene:
-            raise HTTPException(status_code=404, detail="Scene not found")
-        
-        scene.name = scene_data.name
-        scene.description = scene_data.description
-        scene.image_url = scene_data.imageUrl
-        scene.location = scene_data.location
-        scene.mood = scene_data.mood
-        scene.rating = scene_data.rating
-        
-        db.commit()
-        db.refresh(scene)
-        
-        return scene
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating scene {scene_id}: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to update scene")
-
-@router.delete("/scenes/{scene_id}", response_model=MessageResponse)
-async def delete_admin_scene(
-    scene_id: int,
-    db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
-):
-    """Delete a scene"""
-    try:
-        scene = db.query(Scene).filter(Scene.id == scene_id).first()
-        if not scene:
-            raise HTTPException(status_code=404, detail="Scene not found")
-        
-        db.delete(scene)
-        db.commit()
-        
-        return MessageResponse(message="Scene deleted successfully")
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error deleting scene {scene_id}: {e}")
-        db.rollback()
-        raise HTTPException(status_code=500, detail="Failed to delete scene")
+# ===== ADMIN SCENES ROUTES (REMOVED) =====
+# Scene functionality has been removed as per issue #23
 
 # ===== ADMIN CHARACTERS ROUTES =====
 
@@ -292,7 +199,6 @@ async def get_admin_stats(
     try:
         # Get basic counts
         total_users = db.query(User).count()
-        total_scenes = db.query(Scene).count()
         total_characters = db.query(Character).count()
         total_chats = db.query(Chat).count()
         total_messages = db.query(ChatMessage).count()
@@ -303,14 +209,7 @@ async def get_admin_stats(
             Chat.created_at >= thirty_days_ago
         ).count()
         
-        # Get most popular scenes and characters
-        popular_scenes = db.query(
-            Scene.name,
-            func.count(Chat.id).label('chat_count')
-        ).join(Chat).group_by(Scene.id, Scene.name).order_by(
-            func.count(Chat.id).desc()
-        ).limit(5).all()
-        
+        # Get most popular characters
         popular_characters = db.query(
             Character.name,
             func.count(Chat.id).label('chat_count')
@@ -318,10 +217,14 @@ async def get_admin_stats(
             func.count(Chat.id).desc()
         ).limit(5).all()
         
+        # Get user engagement statistics
+        avg_messages_per_chat = db.query(
+            func.avg(func.count(ChatMessage.id))
+        ).join(Chat).group_by(Chat.id).scalar() or 0
+        
         return {
             "totals": {
                 "users": total_users,
-                "scenes": total_scenes,
                 "characters": total_characters,
                 "chats": total_chats,
                 "messages": total_messages
@@ -330,8 +233,10 @@ async def get_admin_stats(
                 "chats_last_30_days": recent_chats
             },
             "popular_content": {
-                "scenes": [{"name": scene.name, "chat_count": scene.chat_count} for scene in popular_scenes],
                 "characters": [{"name": char.name, "chat_count": char.chat_count} for char in popular_characters]
+            },
+            "engagement": {
+                "avg_messages_per_chat": round(avg_messages_per_chat, 2) if avg_messages_per_chat else 0
             }
         }
     except Exception as e:
@@ -372,7 +277,7 @@ async def get_admin_payments(
 
 @router.get("/assets/images")
 async def get_asset_images(
-    asset_type: str = "characters",  # "characters" or "scenes"
+    asset_type: str = "characters",  # Only "characters" now supported
     _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
 ):
     """Get available images from attached_assets directory"""
@@ -383,10 +288,8 @@ async def get_asset_images(
         
         if asset_type == "characters":
             image_dir = assets_dir / "characters_img"
-        elif asset_type == "scenes":
-            image_dir = assets_dir / "scenes_img"
         else:
-            raise HTTPException(status_code=400, detail="Invalid asset type. Use 'characters' or 'scenes'")
+            raise HTTPException(status_code=400, detail="Invalid asset type. Only 'characters' is supported")
         
         if not image_dir.exists():
             # Create directory if it doesn't exist
@@ -431,7 +334,7 @@ async def upload_asset_image(
         # This is a placeholder for file upload functionality
         # You would typically use FastAPI's File and UploadFile here
         return {
-            "message": "File upload functionality not yet implemented. Please manually place images in /attached_assets/characters_img/ or /attached_assets/scenes_img/ directories."
+            "message": "File upload functionality not yet implemented. Please manually place images in /attached_assets/characters_img/ directory."
         }
     except Exception as e:
         logger.error(f"Error uploading image: {e}")

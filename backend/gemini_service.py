@@ -1,6 +1,6 @@
 import google.generativeai as genai
 from config import settings
-from models import Character, Scene, ChatMessage
+from models import Character, ChatMessage
 from typing import List, Optional
 import logging
 
@@ -28,19 +28,17 @@ class GeminiService:
     async def generate_response(
         self,
         character: Character,
-        scene: Scene,
         messages: List[ChatMessage],
         user_preferences: Optional[dict] = None
     ) -> str:
         """Generate AI response using Gemini"""
         
         if not self.model:
-            return self._simulate_response(character, scene, messages)
+            return self._simulate_response(character, messages)
         
         try:
-            # Load character and scene prompts directly
+            # Load character prompts directly
             character_prompt = {}
-            scene_prompt = {}
             
             # Load character prompt
             if character and character.name == "艾莉丝":
@@ -49,16 +47,9 @@ class GeminiService:
                     "persona_prompt": f"{PERSONA_PROMPT}\n\n{FEW_SHOT_EXAMPLES}"
                 }
             
-            # Load scene prompt  
-            if scene and "royal_court" in scene.name.lower():
-                from prompts.scenes.royal_court import SCENE_PROMPT
-                scene_prompt = {
-                    "scene_prompt": SCENE_PROMPT
-                }
-            
             # Build conversation context
             context = self._build_conversation_context(
-                character_prompt, scene_prompt, messages, user_preferences
+                character_prompt, messages, user_preferences
             )
             
             # Generate response
@@ -68,16 +59,15 @@ class GeminiService:
                 return response.text.strip(), {"tokens_used": 1}
             else:
                 logger.warning("Empty response from Gemini, using fallback")
-                return self._simulate_response(character, scene, messages), {"tokens_used": 1}
+                return self._simulate_response(character, messages), {"tokens_used": 1}
                 
         except Exception as e:
             logger.error(f"Error generating Gemini response: {e}")
-            return self._simulate_response(character, scene, messages), {"tokens_used": 1}
+            return self._simulate_response(character, messages), {"tokens_used": 1}
     
     def _build_conversation_context(
         self,
         character_prompt: dict,
-        scene_prompt: dict,
         messages: List[ChatMessage],
         user_preferences: Optional[dict] = None
     ) -> str:
@@ -85,10 +75,6 @@ class GeminiService:
         
         # System instruction
         system_instruction = []
-        
-        # Add scene context
-        if scene_prompt.get("scene_prompt"):
-            system_instruction.append(f"Scene: {scene_prompt['scene_prompt']}")
         
         # Add character persona
         if character_prompt.get("persona_prompt"):
@@ -118,7 +104,6 @@ class GeminiService:
     def _simulate_response(
         self,
         character: Character,
-        scene: Scene,
         messages: List[ChatMessage]
     ) -> str:
         """Simulate AI response when Gemini is not available"""
@@ -169,8 +154,9 @@ class GeminiService:
         import random
         selected_response = random.choice(character_responses)
         
-        # Replace scene/mood placeholders if any
-        selected_response = selected_response.replace("${scene.name}", scene.name)
-        selected_response = selected_response.replace("${scene.mood}", scene.mood)
-        
         return selected_response
+    
+    async def generate_opening_line(self, character: Character) -> str:
+        """Generate an opening line for a character"""
+        # For now, use a simple template. Could be enhanced with AI generation later
+        return f"Hello! I'm {character.name}. {character.backstory[:100]}... How can I help you today?"

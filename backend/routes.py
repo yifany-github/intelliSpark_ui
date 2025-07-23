@@ -4,9 +4,9 @@ from typing import List
 import logging
 
 from database import get_db
-from models import Scene, Character, Chat, ChatMessage, User
+from models import Character, Chat, ChatMessage, User
 from schemas import (
-    Scene as SceneSchema, Character as CharacterSchema, CharacterCreate,
+    Character as CharacterSchema, CharacterCreate,
     Chat as ChatSchema, ChatMessage as ChatMessageSchema,
     EnrichedChat, ChatCreate, ChatMessageCreate, MessageResponse
 )
@@ -22,55 +22,6 @@ router = APIRouter()
 # Initialize Gemini service
 gemini_service = GeminiService()
 
-# ===== SCENES ROUTES =====
-
-@router.get("/scenes")
-async def get_scenes(db: Session = Depends(get_db)):
-    """Get all scenes"""
-    try:
-        scenes = db.query(Scene).all()
-        # Convert to frontend-compatible format
-        result = []
-        for scene in scenes:
-            result.append({
-                "id": scene.id,
-                "name": scene.name,
-                "description": scene.description,
-                "imageUrl": scene.image_url,  # Convert snake_case to camelCase
-                "location": scene.location,
-                "mood": scene.mood,
-                "rating": scene.rating,
-                "createdAt": scene.created_at.isoformat() + "Z"  # Match Node.js format
-            })
-        return result
-    except Exception as e:
-        logger.error(f"Error fetching scenes: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch scenes")
-
-@router.get("/scenes/{scene_id}")
-async def get_scene(scene_id: int, db: Session = Depends(get_db)):
-    """Get a single scene by ID"""
-    try:
-        scene = db.query(Scene).filter(Scene.id == scene_id).first()
-        if not scene:
-            raise HTTPException(status_code=404, detail="Scene not found")
-        
-        # Convert to frontend-compatible format
-        return {
-            "id": scene.id,
-            "name": scene.name,
-            "description": scene.description,
-            "imageUrl": scene.image_url,  # Convert snake_case to camelCase
-            "location": scene.location,
-            "mood": scene.mood,
-            "rating": scene.rating,
-            "createdAt": scene.created_at.isoformat() + "Z"  # Match Node.js format
-        }
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error fetching scene {scene_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch scene")
 
 # ===== CHARACTERS ROUTES =====
 
@@ -208,20 +159,18 @@ async def create_character(
 
 @router.get("/chats", response_model=List[EnrichedChat])
 async def get_chats(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Get all chats with enriched character and scene data"""
+    """Get all chats with enriched character data"""
     try:
         chats = db.query(Chat).filter(Chat.user_id == current_user.id).all()
         
-        # Enrich chats with character and scene data
+        # Enrich chats with character data
         enriched_chats = []
         for chat in chats:
             character = db.query(Character).filter(Character.id == chat.character_id).first()
-            scene = db.query(Scene).filter(Scene.id == chat.scene_id).first()
             
             enriched_chat = EnrichedChat(
                 id=chat.id,
                 user_id=chat.user_id,
-                scene_id=chat.scene_id,
                 character_id=chat.character_id,
                 title=chat.title,
                 created_at=chat.created_at,
@@ -230,11 +179,7 @@ async def get_chats(db: Session = Depends(get_db), current_user: User = Depends(
                     "id": character.id,
                     "name": character.name,
                     "avatarUrl": character.avatar_url  # Frontend expects avatarUrl
-                } if character else None,
-                scene={
-                    "id": scene.id,
-                    "name": scene.name
-                } if scene else None
+                } if character else None
             )
             enriched_chats.append(enriched_chat)
         
@@ -255,7 +200,6 @@ async def get_chat(chat_id: int, db: Session = Depends(get_db), current_user: Us
         return {
             "id": chat.id,
             "userId": chat.user_id,
-            "sceneId": chat.scene_id,
             "characterId": chat.character_id,
             "title": chat.title,
             "createdAt": chat.created_at.isoformat() + "Z",
@@ -271,11 +215,6 @@ async def get_chat(chat_id: int, db: Session = Depends(get_db), current_user: Us
 async def create_chat(chat_data: ChatCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Create a new chat"""
     try:
-        # Validate scene exists
-        scene = db.query(Scene).filter(Scene.id == chat_data.sceneId).first()
-        if not scene:
-            raise HTTPException(status_code=404, detail="Scene not found")
-        
         # Validate character exists  
         character = db.query(Character).filter(Character.id == chat_data.characterId).first()
         if not character:
@@ -284,7 +223,6 @@ async def create_chat(chat_data: ChatCreate, db: Session = Depends(get_db), curr
         # Use authenticated user instead of hardcoded user_id
         chat = Chat(
             user_id=current_user.id,
-            scene_id=chat_data.sceneId,  # Use frontend field names
             character_id=chat_data.characterId,  # Use frontend field names
             title=chat_data.title
         )
@@ -293,11 +231,11 @@ async def create_chat(chat_data: ChatCreate, db: Session = Depends(get_db), curr
         db.commit()
         db.refresh(chat)
         
-        if scene and character:
+        if character:
             initial_message = ChatMessage(
                 chat_id=chat.id,
                 role="assistant",
-                content=f"Welcome to {scene.name}. I am {character.name}. How can I assist you today?"
+                content=f"Hello! I am {character.name}. How can I assist you today?"
             )
             db.add(initial_message)
             db.commit()
@@ -377,16 +315,15 @@ async def generate_ai_response(chat_id: int, db: Session = Depends(get_db), curr
                 detail="Insufficient tokens. Please purchase more tokens to continue."
             )
         
-        # Get recent messages, character, and scene
+        # Get recent messages and character
         messages = db.query(ChatMessage).filter(
             ChatMessage.chat_id == chat_id
         ).order_by(ChatMessage.id).all()
         
         character = db.query(Character).filter(Character.id == chat.character_id).first()
-        scene = db.query(Scene).filter(Scene.id == chat.scene_id).first()
         
-        if not character or not scene:
-            raise HTTPException(status_code=404, detail="Character or scene not found")
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
         
         # Get user preferences for AI generation
         user_preferences = {
@@ -397,7 +334,6 @@ async def generate_ai_response(chat_id: int, db: Session = Depends(get_db), curr
         # Generate response using Enhanced Gemini
         response_content, token_info = await gemini_service.generate_response(
             character=character,
-            scene=scene,
             messages=messages,
             user_preferences=user_preferences
         )
@@ -447,15 +383,14 @@ async def generate_opening_line(chat_id: int, db: Session = Depends(get_db), cur
         if not chat:
             raise HTTPException(status_code=404, detail="Chat not found")
         
-        # Get character and scene
+        # Get character
         character = db.query(Character).filter(Character.id == chat.character_id).first()
-        scene = db.query(Scene).filter(Scene.id == chat.scene_id).first()
         
-        if not character or not scene:
-            raise HTTPException(status_code=404, detail="Character or scene not found")
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
         
         # Generate opening line
-        opening_line = await gemini_service.generate_opening_line(character, scene)
+        opening_line = await gemini_service.generate_opening_line(character)
         
         # Save the opening line as the first assistant message
         opening_message = ChatMessage(

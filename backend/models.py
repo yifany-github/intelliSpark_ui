@@ -27,20 +27,6 @@ class User(Base):
     token_transactions = relationship("TokenTransaction", back_populates="user")
     notifications = relationship("Notification", back_populates="user")
 
-class Scene(Base):
-    __tablename__ = "scenes"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    name = Column(String(255), nullable=False)
-    description = Column(Text, nullable=False)
-    image_url = Column(String(500), nullable=False)
-    location = Column(String(255), nullable=False)
-    mood = Column(String(255), nullable=False)
-    rating = Column(String(50), nullable=False)
-    created_at = Column(DateTime, default=func.now())
-    
-    # Relationships
-    chats = relationship("Chat", back_populates="scene")
 
 class Character(Base):
     __tablename__ = "characters"
@@ -74,7 +60,6 @@ class Chat(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    scene_id = Column(Integer, ForeignKey("scenes.id"), nullable=False)
     character_id = Column(Integer, ForeignKey("characters.id"), nullable=False)
     title = Column(String(500), nullable=False)
     created_at = Column(DateTime, default=func.now())
@@ -82,7 +67,6 @@ class Chat(Base):
     
     # Relationships
     user = relationship("User", back_populates="chats")
-    scene = relationship("Scene", back_populates="chats")
     character = relationship("Character", back_populates="chats")
     messages = relationship("ChatMessage", back_populates="chat")
 
