@@ -32,36 +32,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Mount static files (attached_assets)
 # Get the parent directory to access attached_assets
 parent_dir = Path(__file__).parent.parent
-assets_path = parent_dir / "attached_assets"
-if assets_path.exists():
-    app.mount("/assets", StaticFiles(directory=str(assets_path)), name="assets")
 
-# Mount client build files (for production)
-client_dist_path = parent_dir / "dist"
-if client_dist_path.exists():
-    app.mount("/", StaticFiles(directory=str(client_dist_path), html=True), name="client")
-
-# Include API routes
+# Include API routes FIRST (highest priority for authentication)
 app.include_router(router, prefix="/api")
 app.include_router(admin_router, prefix="/api")
 app.include_router(auth_router, prefix="/api/auth", tags=["authentication"])
 app.include_router(payment_router)
 app.include_router(notifications_router)
 
+# Mount static files (attached_assets)
+assets_path = parent_dir / "attached_assets"
+if assets_path.exists():
+    app.mount("/assets", StaticFiles(directory=str(assets_path)), name="assets")
+
+# Mount client build files (for production) - LAST priority
+client_dist_path = parent_dir / "dist"
+if client_dist_path.exists():
+    app.mount("/", StaticFiles(directory=str(client_dist_path), html=True), name="client")
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize database on startup"""
     await init_db()
 
-@app.get("/")
-async def root():
-    """Health check endpoint"""
-    return {"message": "ProductInsightAI Backend is running!", "status": "healthy"}
-
-@app.get("/health")
+@app.get("/api/health")
 async def health():
     """Health check endpoint"""
     return {"status": "healthy"}

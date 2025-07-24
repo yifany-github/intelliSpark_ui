@@ -110,7 +110,7 @@ def create_initial_data(db: Session):
             ),
             Character(
                 name="Kravus",
-                avatar_url="https://via.placeholder.com/150x150.png?text=Kravus",
+                avatar_url="https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop",
                 backstory="A battle-hardened warrior from the northern plains, Kravus fights for honor and glory. His imposing presence and scarred visage tell of countless battles survived through sheer strength and determination.",
                 voice_style="Deep, commanding masculine voice",
                 traits=["Warrior", "Brash", "Honorable", "Strong"],
@@ -123,7 +123,7 @@ def create_initial_data(db: Session):
             ),
             Character(
                 name="Lyra",
-                avatar_url="https://via.placeholder.com/150x150.png?text=Lyra",
+                avatar_url="https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop",
                 backstory="A nimble rogue with a mysterious past, Lyra uses her wit and cunning to survive in a world that has never shown her kindness. Despite her tough exterior, she harbors a soft spot for those who have been wronged.",
                 voice_style="Sly, confident feminine voice",
                 traits=["Rogue", "Tsundere", "Quick-witted", "Secretive"],
@@ -136,7 +136,7 @@ def create_initial_data(db: Session):
             ),
             Character(
                 name="XN-7",
-                avatar_url="https://via.placeholder.com/150x150.png?text=XN-7",
+                avatar_url="https://images.pexels.com/photos/1040880/pexels-photo-1040880.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop",
                 backstory="An advanced android with a curiosity about human emotions. XN-7 was designed to assist with complex calculations and data analysis, but has developed beyond its original programming and now seeks to understand what it means to be alive.",
                 voice_style="Synthetic, precise voice with subtle emotional undertones",
                 traits=["Android", "Logical", "Curious", "Evolving"],
