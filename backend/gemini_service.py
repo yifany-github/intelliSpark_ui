@@ -3,6 +3,7 @@ from config import settings
 from models import Character, ChatMessage
 from typing import List, Optional
 import logging
+import json
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -43,8 +44,13 @@ class GeminiService:
             # Load character prompt
             if character and character.name == "艾莉丝":
                 from prompts.characters.艾莉丝 import PERSONA_PROMPT, FEW_SHOT_EXAMPLES
+                
+                # Handle JSON format few-shot examples
+                few_shot_formatted = self._format_few_shot_examples(FEW_SHOT_EXAMPLES)
+                
                 character_prompt = {
-                    "persona_prompt": f"{PERSONA_PROMPT}\n\n{FEW_SHOT_EXAMPLES}"
+                    "persona_prompt": PERSONA_PROMPT,
+                    "few_shot_prompt": few_shot_formatted
                 }
             
             # Build conversation context
@@ -100,6 +106,30 @@ class GeminiService:
         full_context += "\nAssistant:"
         
         return full_context
+    
+    def _format_few_shot_examples(self, few_shot_raw):
+        """Format few-shot examples from JSON or string format to string format for AI service"""
+        if isinstance(few_shot_raw, str):
+            # Check if it's JSON format (starts with '[' or '{')
+            if few_shot_raw.strip().startswith('['):
+                try:
+                    # Parse JSON format
+                    few_shot_data = json.loads(few_shot_raw)
+                    # Convert to string format for AI service
+                    few_shot_formatted = "\n\n".join([
+                        f"User: {example['user']}\nAssistant: {example['assistant']}"
+                        for example in few_shot_data
+                    ])
+                    return few_shot_formatted
+                except json.JSONDecodeError:
+                    logger.warning("Failed to parse JSON few-shot examples, using as-is")
+                    return few_shot_raw
+            else:
+                # Already in string format
+                return few_shot_raw
+        else:
+            # Assume it's already formatted
+            return str(few_shot_raw)
     
     def _simulate_response(
         self,
