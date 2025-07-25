@@ -11,3 +11,4 @@ passlib[bcrypt]==1.7.4
 firebase-admin==6.4.0
 requests==2.31.0
 stripe==7.10.0
+pandas==2.1.4
