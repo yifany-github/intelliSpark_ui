@@ -260,7 +260,6 @@ export type TranslationKey =
   | 'explored'
   | 'newCharacters'
   | 'memberSince'
-  | 'quickActions'
   | 'customizeExperience'
   | 'manageAISettings'
   | 'privacyPreferences'
@@ -310,13 +309,9 @@ export type TranslationKey =
   | 'signOut'
   | 'redirectHome'
   | 'logout'
-  | 'hoursAgo'
   | 'dayAgo'
-  | 'daysAgo'
   | 'fromYesterday'
   | 'acrossScenes'
-  | 'completed'
-  | 'getMoreTokens'
   | 'loading'
   | 'currentlyChatting'
   | 'recentConversations'
@@ -507,18 +502,7 @@ export type TranslationKey =
   | 'securityNotice'
   | 'purchaseMoreTokens'
   | 'viewTransactionHistory'
-  | 'critical'
-  | 'good'
-  | 'active'
   | 'lowBalance'
-  | 'buyMoreTokens'
-  | 'viewHistory'
-  | 'securePayment'
-  | 'whyChooseTokens'
-  | 'neverExpire'
-  | 'instantActivation'
-  | 'premiumAI'
-  | 'support24x7'
   | 'chatWithAICharacters'
   | 'tokensLabel'
   | 'searchCharacters'
@@ -586,7 +570,6 @@ export type TranslationKey =
   | 'natural'
   | 'chats'
   | 'removeFromFavorites'
-  | 'addToFavorites'
   | 'noDescriptionAvailable'
   | 'myFavorites'
   | 'charactersCount'
@@ -601,18 +584,8 @@ export type TranslationKey =
   | 'noMatchingFavorites'
   | 'tryAdjustingFilters'
   | 'exploreCharacters'
-  | 'creating'
   | 'adventure'
   | 'mystery'
-  | 'discoverPage'
-  | 'exploreTrendingCharacters'
-  | 'switchToMasonryLayout'
-  | 'switchToGridLayout'
-  | 'exploreTypes'
-  | 'allCharacters'
-  | 'fantasyMagic'
-  | 'sciFiFuture'
-  | 'adventureAction'
   | 'romanceDrama'
   | 'mysteryThriller'
   | 'historical'
@@ -944,7 +917,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     explored: 'Explored',
     newCharacters: 'new characters',
     memberSince: 'Member since',
-    quickActions: 'Quick Actions',
     customizeExperience: 'Customize your experience',
     manageAISettings: 'Manage AI settings, preferences, and privacy',
     privacyPreferences: 'and privacy',
@@ -992,9 +964,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     wantLogout: 'logout?',
     signOut: 'This will sign you out of your account',
     redirectHome: 'and redirect you to the home page',
-    hoursAgo: 'hours ago',
     dayAgo: '1 day ago',
-    daysAgo: 'days ago',
     fromYesterday: 'from yesterday',
     acrossScenes: 'Across different scenes',
     getMoreTokens: 'Get More Tokens',
@@ -1002,7 +972,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     currentlyChatting: 'Currently chatting',
     recentConversations: 'Recent Conversations',
     characterInfo: 'Character Info',
-    startNewChat: 'Start New Chat',
     chatSettings: 'Chat Settings',
     commands: 'Commands',
     tone: 'Tone',
@@ -1030,7 +999,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     briefDescription: 'Brief description of your character (1-2 sentences)',
     detailedBackstory: 'Detailed backstory and background information',
     category: 'Category',
-    personalityTraits: 'Personality Traits',
     selectTraits: 'Select traits that define your character\'s personality',
     characterTraits: 'Character Traits',
     personalityDimensions: 'Personality Dimensions',
@@ -1071,7 +1039,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     authenticationRequired: 'Authentication required',
     characterCreatedSuccessfully: 'Character created successfully!',
     pleaseLoginToCreate: 'Please log in to create characters',
-    tokenBalance: 'Token Balance',
     failedToLoadBalance: 'Failed to load balance',
     // Payment form localization
     paymentDetails: 'Payment Details',
@@ -1105,7 +1072,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     and: 'and',
     privacyPolicy: 'Privacy Policy',
     receivePromotional: 'I would like to receive promotional emails about new features and special offers',
-    processing: 'Processing',
     pay: 'Pay',
     paymentProcessingSecure: 'Payments are processed securely by Stripe. Your card information is never stored on our servers.',
     paymentSuccessful: 'Payment Successful!',
@@ -1149,11 +1115,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     overview: 'Overview',
     history: 'History',
     language: 'Language',
-    tokens: 'tokens',
     runningLowTokens: 'You\'re running low on tokens. Each AI message costs 1 token.',
     lastUpdated: 'Last updated',
-    clearFilters: 'Clear Filters',
-    total: 'Total',
     discoverPage: 'Discover',
     exploreTrendingCharacters: 'Explore trending characters, new arrivals, and personalized recommendations',
     switchToMasonryLayout: 'Switch to masonry layout',
@@ -1184,8 +1147,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     noCharactersFound: 'No {category} Characters Found',
     tryExploringOther: 'Try exploring other categories or check back later for new additions.',
     viewAllCharacters: 'View All Characters',
-    chatNow: 'Chat Now',
-    creating: 'Creating...',
     friendly: 'Friendly',
     mysterious: 'Mysterious',
     intelligent: 'Intelligent',
@@ -1262,18 +1223,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     securityNotice: 'Security Notice',
     purchaseMoreTokens: 'Purchase More Tokens',
     viewTransactionHistory: 'View Transaction History',
-    critical: 'Critical',
-    good: 'Good',
-    active: 'Active',
-    lowBalance: 'Low',
-    buyMoreTokens: 'Buy More Tokens',
-    viewHistory: 'View History',
-    securePayment: 'Secure payment processing by Stripe',
-    whyChooseTokens: 'Why Choose Our Tokens?',
-    neverExpire: 'Never Expire',
-    instantActivation: 'Instant Activation',
-    premiumAI: 'Premium AI Responses',
-    support24x7: '24/7 Support',
     chatWithAICharacters: 'Chat with AI characters',
     tokensLabel: 'Tokens',
     searchCharacters: 'Search characters...',
@@ -1909,18 +1858,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     securityNotice: '安全提示',
     purchaseMoreTokens: '购买更多代币',
     viewTransactionHistory: '查看交易历史',
-    critical: '紧急',
-    good: '良好',
-    active: '活跃',
-    lowBalance: '余额偏低',
-    buyMoreTokens: '购买更多代币',
-    viewHistory: '查看历史',
-    securePayment: '由Stripe提供的安全支付处理',
-    whyChooseTokens: '为什么选择我们的代币？',
-    neverExpire: '永不过期',
-    instantActivation: '即时激活',
-    premiumAI: '高级AI响应',
-    support24x7: '24/7支持',
     chatWithAICharacters: '与AI角色聊天',
     tokensLabel: '代币',
     searchCharacters: '搜索角色...',

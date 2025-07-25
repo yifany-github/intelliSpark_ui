@@ -87,7 +87,7 @@ export default function GlobalSidebar() {
   ];
 
   return (
-    <div className={`${isCollapsed ? 'w-16' : 'w-64'} bg-gray-800 border-r border-gray-700 h-full transition-all duration-300 flex flex-col hidden sm:flex`}>
+    <div className={`${isCollapsed ? 'w-16' : 'w-64'} bg-gray-800 border-r border-gray-700 h-screen fixed left-0 top-0 z-10 transition-all duration-300 flex flex-col hidden sm:flex`}>
       <div className="p-4 flex-1 min-h-0">
         {/* Toggle Button */}
         <div className="flex items-center justify-between mb-6">
