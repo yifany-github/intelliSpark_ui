@@ -1,4 +1,5 @@
 import google.generativeai as genai
+from google.generativeai import types
 from config import settings
 from models import Character, ChatMessage
 from typing import List, Optional
@@ -9,20 +10,39 @@ import json
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# General system prompt for the main application
+SYSTEM_PROMPT = """
+你是一个专业的AI角色扮演助手，能够根据给定的角色设定进行沉浸式对话。你的任务是:
+
+1. 严格按照角色的人格特征、背景故事和说话风格进行回应
+2. 保持角色的一致性，不脱离设定
+3. 创造生动有趣的对话体验，让用户感受到角色的真实性
+4. 根据对话内容自然地推进情节发展
+5. 保持适当的互动节奏，既不过于冷淡也不过于热情
+
+回应要求:
+- 使用角色特有的语气和表达方式
+- 结合角色的知识背景和经历
+- 保持对话的自然流畅
+- 适当使用动作描述和环境描写来增强沉浸感
+- 长度适中，通常在100-300字之间
+"""
+
 class GeminiService:
     def __init__(self):
         """Initialize Gemini service"""
-        self.model_name = "gemini-1.5-flash"
-        self.model = None
+        self.model_name = "gemini-2.0-flash-001"
+        self.client = None
+        self.cache = None
         
         if settings.gemini_api_key:
             try:
-                genai.configure(api_key=settings.gemini_api_key)
-                self.model = genai.GenerativeModel(self.model_name)
-                logger.info("Gemini AI initialized successfully")
+                # Initialize Gemini client (new API style)
+                self.client = genai.Client(api_key=settings.gemini_api_key)
+                logger.info("Gemini AI client initialized successfully")
             except Exception as e:
-                logger.error(f"Failed to initialize Gemini: {e}")
-                self.model = None
+                logger.error(f"Failed to initialize Gemini client: {e}")
+                self.client = None
         else:
             logger.warning("No Gemini API key found. Using simulated responses.")
     
@@ -34,8 +54,8 @@ class GeminiService:
     ) -> str:
         """Generate AI response using Gemini"""
         
-        if not self.model:
-            return self._simulate_response(character, messages)
+        if not self.client:
+            return self._simulate_response(character, messages), {"tokens_used": 1}
         
         try:
             # Load character prompts directly
@@ -53,16 +73,41 @@ class GeminiService:
                     "few_shot_prompt": few_shot_formatted
                 }
             
-            # Build conversation context
-            context = self._build_conversation_context(
-                character_prompt, messages, user_preferences
+            # Create cache for this conversation context if not exists
+            cache = await self._create_or_get_cache(character_prompt)
+            
+            # Build simplified conversation prompt
+            conversation_prompt = self._build_conversation_prompt(messages)
+            
+            # Count input tokens
+            input_tokens = self.client.models.count_tokens(
+                model=self.model_name,
+                contents=conversation_prompt,
+                config=types.GenerateContentConfig(
+                    cached_content=cache.name
+                )
+            ).total_tokens
+            
+            # Generate response using cached content
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=conversation_prompt,
+                config=types.GenerateContentConfig(
+                    cached_content=cache.name
+                )
             )
             
-            # Generate response
-            response = await self.model.generate_content_async(context)
-            
             if response and response.text:
-                return response.text.strip(), {"tokens_used": 1}
+                # Count output tokens
+                output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0)
+                
+                token_info = {
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "total_tokens": input_tokens + output_tokens
+                }
+                
+                return response.text.strip(), token_info
             else:
                 logger.warning("Empty response from Gemini, using fallback")
                 return self._simulate_response(character, messages), {"tokens_used": 1}
@@ -106,6 +151,76 @@ class GeminiService:
         full_context += "\nAssistant:"
         
         return full_context
+    
+    async def _create_or_get_cache(self, character_prompt: dict):
+        """Create or get cached content for character context"""
+        if self.cache is not None:
+            return self.cache
+            
+        try:
+            # Prepare system instruction combining general system prompt and persona
+            system_instruction = f"system_prompt: {SYSTEM_PROMPT}\n"
+            if character_prompt.get("persona_prompt"):
+                system_instruction += f"persona prompt: {character_prompt['persona_prompt']}"
+            
+            # Prepare few-shot examples as cached content
+            few_shot_content = []
+            if character_prompt.get("few_shot_prompt"):
+                # Parse JSON-formatted few-shot examples
+                few_shot_text = character_prompt["few_shot_prompt"]
+                try:
+                    few_shot_data = json.loads(few_shot_text)
+                    # Convert to content format for caching
+                    for example in few_shot_data:
+                        few_shot_content.extend([
+                            {"role": "user", "parts": [{"text": example["user"]}]},
+                            {"role": "model", "parts": [{"text": example["assistant"]}]}
+                        ])
+                except json.JSONDecodeError:
+                    logger.warning("Failed to parse few-shot examples as JSON")
+                    # Fallback: treat as plain text
+                    few_shot_content = [{"role": "user", "parts": [{"text": few_shot_text}]}]
+            
+            # Create cached content with system instructions
+            self.cache = self.client.caches.create(
+                model=self.model_name,
+                config=types.CreateCachedContentConfig(
+                    system_instruction=system_instruction,
+                    contents=few_shot_content
+                )
+            )
+            
+            logger.info(f"Created cache: {self.cache.name}")
+            return self.cache
+            
+        except Exception as e:
+            logger.error(f"Failed to create cache: {e}")
+            # Fallback: create empty cache or handle gracefully
+            raise e
+    
+    def _build_conversation_prompt(self, messages: List[ChatMessage]) -> str:
+        """Build simplified conversation prompt like demo's build_history"""
+        # Build conversation history in demo format
+        history_parts = []
+        current_user_msg = ""
+        
+        # Process messages to build history
+        for i, msg in enumerate(messages):
+            if msg.role == "user":
+                current_user_msg = msg.content
+                # If this is not the last message, add to history
+                if i < len(messages) - 1:
+                    # Look for the corresponding assistant response
+                    if i + 1 < len(messages) and messages[i + 1].role == "assistant":
+                        assistant_msg = messages[i + 1].content
+                        history_parts.append(f"user: {msg.content}\nassistant: {assistant_msg}")
+            
+        # Build final prompt like demo
+        if history_parts:
+            hist_txt = "\n".join(history_parts)
+            return f"对话历史:\n{hist_txt}\nuser: {current_user_msg}\nassistant:"
+        else:
+            return f"user: {current_user_msg}\nassistant:"
     
     def _format_few_shot_examples(self, few_shot_raw):
         """Format few-shot examples from JSON or string format to string format for AI service"""
@@ -187,6 +302,48 @@ class GeminiService:
         return selected_response
     
     async def generate_opening_line(self, character: Character) -> str:
-        """Generate an opening line for a character"""
-        # For now, use a simple template. Could be enhanced with AI generation later
-        return f"Hello! I'm {character.name}. {character.backstory[:100]}... How can I help you today?"
+        """Generate an opening line for a character using the new architecture"""
+        if not self.client:
+            # Fallback to simple template
+            return f"Hello! I'm {character.name}. {character.backstory[:100]}... How can I help you today?"
+        
+        try:
+            # Load character prompts for opening line generation
+            character_prompt = {}
+            
+            if character and character.name == "艾莉丝":
+                from prompts.characters.艾莉丝 import PERSONA_PROMPT, FEW_SHOT_EXAMPLES
+                
+                # Handle JSON format few-shot examples
+                few_shot_formatted = self._format_few_shot_examples(FEW_SHOT_EXAMPLES)
+                
+                character_prompt = {
+                    "persona_prompt": PERSONA_PROMPT,
+                    "few_shot_prompt": few_shot_formatted
+                }
+            
+            # Create opening line prompt
+            opening_prompt = f"请为角色{character.name}生成一句自然的开场白。"
+            
+            # Create or get cache
+            cache = await self._create_or_get_cache(character_prompt)
+            
+            # Generate opening line
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=opening_prompt,
+                config=types.GenerateContentConfig(
+                    cached_content=cache.name
+                )
+            )
+            
+            if response and response.text:
+                return response.text.strip()
+            else:
+                # Fallback to simple template  
+                return f"Hello! I'm {character.name}. {character.backstory[:100]}... How can I help you today?"
+                
+        except Exception as e:
+            logger.error(f"Error generating opening line: {e}")
+            # Fallback to simple template
+            return f"Hello! I'm {character.name}. {character.backstory[:100]}... How can I help you today?"
