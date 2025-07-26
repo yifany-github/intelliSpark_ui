@@ -2,6 +2,12 @@
 
 import json
 
+# Sampling configuration
+SAMPLE_SIZE = 150
+CHARACTER_NAME = "艾莉丝"
+INPUT_CSV = "../global_dataset.csv"
+OUTPUT_DIR = "prompts/characters"
+
 # Archetype weights for sampling dialogue examples
 ARCHETYPE_WEIGHTS = {
     "娇羞敏感者": 0.7,  # Primary archetype - shy/sensitive
@@ -40,6 +46,18 @@ def _load_sampled_examples():
     current_dir = Path(__file__).parent
     json_file = current_dir / "sampled_few_shots_艾莉丝.json"
     
+    # Auto-generate samples if JSON doesn't exist
+    if not json_file.exists():
+        try:
+            import sys
+            sys.path.append(str(current_dir.parent.parent))
+            from scripts.sample_few_shots import generate_samples_for_character
+            
+            # Use the declared variables - single function call
+            generate_samples_for_character(CHARACTER_NAME, ARCHETYPE_WEIGHTS, SAMPLE_SIZE)
+        except Exception as e:
+            print(f"Warning: Could not auto-generate samples: {e}")
+    
     if json_file.exists():
         try:
             with open(json_file, 'r', encoding='utf-8') as f:
@@ -62,3 +80,4 @@ def _load_sampled_examples():
         ]
 
 FEW_SHOT_EXAMPLES = json.dumps(_load_sampled_examples(), ensure_ascii=False, indent=2)
+

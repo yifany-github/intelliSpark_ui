@@ -96,6 +96,54 @@ def sample_by_archetype(df, archetype_weights, total_samples=150):
     
     return sampled_dialogues, archetype_stats
 
+def generate_samples_for_character(character_name, archetype_weights, sample_size=150):
+    """Generate and save samples for a character - complete workflow"""
+    from pathlib import Path
+    
+    # Get paths
+    script_dir = Path(__file__).parent
+    input_path = script_dir.parent.parent / "global_dataset.csv"
+    output_dir = script_dir.parent / "prompts" / "characters"
+    output_file = output_dir / f"sampled_few_shots_{character_name}.json"
+    
+    # Load CSV
+    if not input_path.exists():
+        return False
+        
+    try:
+        df = pd.read_csv(input_path)
+    except Exception:
+        return False
+    
+    # Sample dialogues
+    sampled_dialogues, stats = sample_by_archetype(df, archetype_weights, sample_size)
+    
+    if not sampled_dialogues:
+        return False
+    
+    # Prepare output (reuse existing structure)
+    output_data = {
+        "character": character_name,
+        "total_samples": len(sampled_dialogues),
+        "archetype_weights": archetype_weights,
+        "sampling_stats": stats,
+        "dialogues": [
+            {
+                "user": dialogue["user"],
+                "assistant": dialogue["assistant"]
+            } for dialogue in sampled_dialogues
+        ]
+    }
+    
+    # Save to JSON file
+    output_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(output_file, "w", encoding='utf-8') as f:
+            json.dump(output_data, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception:
+        return False
+
 def main():
     parser = argparse.ArgumentParser(description='Sample few-shot dialogues based on archetype weights')
     parser.add_argument('--character', default='艾莉丝', help='Character name (default: 艾莉丝)')
