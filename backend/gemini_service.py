@@ -1,10 +1,11 @@
-import google.generativeai as genai
-from google.generativeai import types
+from google import genai
+from google.genai import types
 from config import settings
 from models import Character, ChatMessage
 from typing import List, Optional
 import logging
 import json
+import os
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -37,8 +38,10 @@ class GeminiService:
         
         if settings.gemini_api_key:
             try:
+                # Set environment variable for the new SDK
+                os.environ['GEMINI_API_KEY'] = settings.gemini_api_key
                 # Initialize Gemini client (new API style)
-                self.client = genai.Client(api_key=settings.gemini_api_key)
+                self.client = genai.Client()
                 logger.info("Gemini AI client initialized successfully")
             except Exception as e:
                 logger.error(f"Failed to initialize Gemini client: {e}")
@@ -65,12 +68,13 @@ class GeminiService:
             if character and character.name == "艾莉丝":
                 from prompts.characters.艾莉丝 import PERSONA_PROMPT, FEW_SHOT_EXAMPLES
                 
-                # Handle JSON format few-shot examples
-                few_shot_formatted = self._format_few_shot_examples(FEW_SHOT_EXAMPLES)
+                # Use the pre-loaded Gemini format examples
+                few_shot_contents = FEW_SHOT_EXAMPLES
+                logger.info(f"🎭 Loading character: {character.name} with {len(few_shot_contents)} few-shot examples")
                 
                 character_prompt = {
                     "persona_prompt": PERSONA_PROMPT,
-                    "few_shot_prompt": few_shot_formatted
+                    "few_shot_contents": few_shot_contents  # Pass the Gemini format directly
                 }
             
             # Create cache for this conversation context if not exists
@@ -88,7 +92,7 @@ class GeminiService:
                 )
             ).total_tokens
             
-            # Generate response using cached content
+            # Generate response using cached content (new API)
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=conversation_prompt,
@@ -116,81 +120,31 @@ class GeminiService:
             logger.error(f"Error generating Gemini response: {e}")
             return self._simulate_response(character, messages), {"tokens_used": 1}
     
-    def _build_conversation_context(
-        self,
-        character_prompt: dict,
-        messages: List[ChatMessage],
-        user_preferences: Optional[dict] = None
-    ) -> str:
-        """Build the full conversation context for Gemini"""
-        
-        # System instruction
-        system_instruction = []
-        
-        # Add character persona
-        if character_prompt.get("persona_prompt"):
-            system_instruction.append(f"Character: {character_prompt['persona_prompt']}")
-        
-        # Add few-shot examples if available
-        few_shot = ""
-        if character_prompt.get("few_shot_prompt"):
-            few_shot = f"\n\nExamples of how you should respond:\n{character_prompt['few_shot_prompt']}"
-        
-        # Build conversation history (last 10 messages)
-        conversation_history = []
-        recent_messages = messages[-10:] if len(messages) > 10 else messages
-        
-        for msg in recent_messages:
-            role = "Human" if msg.role == "user" else "Assistant"
-            conversation_history.append(f"{role}: {msg.content}")
-        
-        # Combine everything
-        full_context = "\n\n".join(system_instruction)
-        full_context += few_shot
-        full_context += "\n\nConversation:\n" + "\n".join(conversation_history)
-        full_context += "\nAssistant:"
-        
-        return full_context
-    
     async def _create_or_get_cache(self, character_prompt: dict):
         """Create or get cached content for character context"""
-        if self.cache is not None:
-            return self.cache
-            
         try:
             # Prepare system instruction combining general system prompt and persona
             system_instruction = f"system_prompt: {SYSTEM_PROMPT}\n"
             if character_prompt.get("persona_prompt"):
                 system_instruction += f"persona prompt: {character_prompt['persona_prompt']}"
             
-            # Prepare few-shot examples as cached content
-            few_shot_content = []
-            if character_prompt.get("few_shot_prompt"):
-                # Parse JSON-formatted few-shot examples
-                few_shot_text = character_prompt["few_shot_prompt"]
-                try:
-                    few_shot_data = json.loads(few_shot_text)
-                    # Convert to content format for caching
-                    for example in few_shot_data:
-                        few_shot_content.extend([
-                            {"role": "user", "parts": [{"text": example["user"]}]},
-                            {"role": "model", "parts": [{"text": example["assistant"]}]}
-                        ])
-                except json.JSONDecodeError:
-                    logger.warning("Failed to parse few-shot examples as JSON")
-                    # Fallback: treat as plain text
-                    few_shot_content = [{"role": "user", "parts": [{"text": few_shot_text}]}]
+            # Use few-shot examples in proper Gemini API format
+            few_shot_contents = character_prompt.get("few_shot_contents", [])
             
-            # Create cached content with system instructions
+            if few_shot_contents:
+                logger.info(f"✅ Cache creation: {len(few_shot_contents)} few-shot examples")
+            else:
+                logger.warning("⚠️ Cache creation: No few-shot contents available")
+            
             self.cache = self.client.caches.create(
                 model=self.model_name,
                 config=types.CreateCachedContentConfig(
                     system_instruction=system_instruction,
-                    contents=few_shot_content
+                    contents=few_shot_contents  # Use proper role/parts format
                 )
             )
             
-            logger.info(f"Created cache: {self.cache.name}")
+            logger.info(f"🎯 Cache created successfully: {self.cache.name}")
             return self.cache
             
         except Exception as e:
@@ -222,29 +176,6 @@ class GeminiService:
         else:
             return f"user: {current_user_msg}\nassistant:"
     
-    def _format_few_shot_examples(self, few_shot_raw):
-        """Format few-shot examples from JSON or string format to string format for AI service"""
-        if isinstance(few_shot_raw, str):
-            # Check if it's JSON format (starts with '[' or '{')
-            if few_shot_raw.strip().startswith('['):
-                try:
-                    # Parse JSON format
-                    few_shot_data = json.loads(few_shot_raw)
-                    # Convert to string format for AI service
-                    few_shot_formatted = "\n\n".join([
-                        f"User: {example['user']}\nAssistant: {example['assistant']}"
-                        for example in few_shot_data
-                    ])
-                    return few_shot_formatted
-                except json.JSONDecodeError:
-                    logger.warning("Failed to parse JSON few-shot examples, using as-is")
-                    return few_shot_raw
-            else:
-                # Already in string format
-                return few_shot_raw
-        else:
-            # Assume it's already formatted
-            return str(few_shot_raw)
     
     def _simulate_response(
         self,
@@ -303,8 +234,10 @@ class GeminiService:
     
     async def generate_opening_line(self, character: Character) -> str:
         """Generate an opening line for a character using the new architecture"""
+        logger.info(f"🚀 Generating opening line for character: {character.name}")
+        
         if not self.client:
-            # Fallback to simple template
+            logger.warning("⚠️ No Gemini client available, using fallback opening line")
             return f"Hello! I'm {character.name}. {character.backstory[:100]}... How can I help you today?"
         
         try:
@@ -314,21 +247,22 @@ class GeminiService:
             if character and character.name == "艾莉丝":
                 from prompts.characters.艾莉丝 import PERSONA_PROMPT, FEW_SHOT_EXAMPLES
                 
-                # Handle JSON format few-shot examples
-                few_shot_formatted = self._format_few_shot_examples(FEW_SHOT_EXAMPLES)
+                # Use the same format as main conversation
+                few_shot_contents = FEW_SHOT_EXAMPLES
                 
                 character_prompt = {
                     "persona_prompt": PERSONA_PROMPT,
-                    "few_shot_prompt": few_shot_formatted
+                    "few_shot_contents": few_shot_contents
                 }
             
-            # Create opening line prompt
-            opening_prompt = f"请为角色{character.name}生成一句自然的开场白。"
+            # Create opening line prompt in Chinese to match character
+            opening_prompt = f"作为{character.name}，用你的语气和风格说一句自然的开场白来问候用户。不要解释，直接说开场白。"
             
             # Create or get cache
             cache = await self._create_or_get_cache(character_prompt)
             
-            # Generate opening line
+            # Generate opening line using new API
+            
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=opening_prompt,
@@ -340,7 +274,7 @@ class GeminiService:
             if response and response.text:
                 return response.text.strip()
             else:
-                # Fallback to simple template  
+                logger.warning("⚠️ Empty response from Gemini for opening line, using fallback")
                 return f"Hello! I'm {character.name}. {character.backstory[:100]}... How can I help you today?"
                 
         except Exception as e:

@@ -121,19 +121,51 @@ def generate_samples_for_character(character_name, archetype_weights, sample_siz
     if not sampled_dialogues:
         return False
     
-    # Prepare output (reuse existing structure)
+    # Prepare output in Gemini API format (role/parts structure)
+    gemini_format_contents = []
+    for dialogue in sampled_dialogues:
+        gemini_format_contents.extend([
+            {"role": "user", "parts": [{"text": dialogue["user"]}]},
+            {"role": "model", "parts": [{"text": dialogue["assistant"]}]}
+        ])
+    
     output_data = {
         "character": character_name,
         "total_samples": len(sampled_dialogues),
         "archetype_weights": archetype_weights,
         "sampling_stats": stats,
-        "dialogues": [
+        "gemini_contents": gemini_format_contents,  # Proper Gemini API format
+        "dialogues": [  # Keep legacy format for reference
             {
                 "user": dialogue["user"],
                 "assistant": dialogue["assistant"]
             } for dialogue in sampled_dialogues
         ]
     }
+    
+    # Clean the data before saving to avoid JSON control character issues
+    def clean_text(text):
+        """Clean text to remove invalid control characters for JSON"""
+        if not isinstance(text, str):
+            return text
+        # Replace common problematic control characters
+        text = text.replace('\t', ' ')  # Replace tabs with spaces
+        text = text.replace('\r', ' ')  # Replace carriage returns
+        text = text.replace('\n', ' ')  # Replace newlines with spaces
+        # Remove other control characters (except normal space)
+        import re
+        text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
+        return text.strip()
+    
+    # Clean all dialogue text
+    for dialogue in output_data["dialogues"]:
+        dialogue["user"] = clean_text(dialogue["user"])
+        dialogue["assistant"] = clean_text(dialogue["assistant"])
+    
+    # Clean Gemini format contents as well
+    for content in output_data["gemini_contents"]:
+        if "parts" in content and len(content["parts"]) > 0:
+            content["parts"][0]["text"] = clean_text(content["parts"][0]["text"])
     
     # Save to JSON file
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -199,13 +231,21 @@ def main():
         print("Error: No dialogues were sampled")
         return 1
     
-    # Prepare output
+    # Prepare output in Gemini API format (role/parts structure)
+    gemini_format_contents = []
+    for dialogue in sampled_dialogues:
+        gemini_format_contents.extend([
+            {"role": "user", "parts": [{"text": dialogue["user"]}]},
+            {"role": "model", "parts": [{"text": dialogue["assistant"]}]}
+        ])
+    
     output_data = {
         "character": args.character,
         "total_samples": len(sampled_dialogues),
         "archetype_weights": archetype_weights,
         "sampling_stats": stats,
-        "dialogues": [
+        "gemini_contents": gemini_format_contents,  # Proper Gemini API format
+        "dialogues": [  # Keep legacy format for reference
             {
                 "user": dialogue["user"],
                 "assistant": dialogue["assistant"]
@@ -216,6 +256,30 @@ def main():
     # Save to JSON file
     output_file = output_dir / f"sampled_few_shots_{args.character}.json"
     output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Clean the data before saving to avoid JSON control character issues
+    def clean_text(text):
+        """Clean text to remove invalid control characters for JSON"""
+        if not isinstance(text, str):
+            return text
+        # Replace common problematic control characters
+        text = text.replace('\t', ' ')  # Replace tabs with spaces
+        text = text.replace('\r', ' ')  # Replace carriage returns
+        text = text.replace('\n', ' ')  # Replace newlines with spaces
+        # Remove other control characters (except normal space)
+        import re
+        text = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', text)
+        return text.strip()
+    
+    # Clean all dialogue text
+    for dialogue in output_data["dialogues"]:
+        dialogue["user"] = clean_text(dialogue["user"])
+        dialogue["assistant"] = clean_text(dialogue["assistant"])
+    
+    # Clean Gemini format contents as well
+    for content in output_data["gemini_contents"]:
+        if "parts" in content and len(content["parts"]) > 0:
+            content["parts"][0]["text"] = clean_text(content["parts"][0]["text"])
     
     try:
         with open(output_file, "w", encoding='utf-8') as f:

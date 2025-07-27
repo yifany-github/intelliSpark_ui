@@ -232,10 +232,13 @@ async def create_chat(chat_data: ChatCreate, db: Session = Depends(get_db), curr
         db.refresh(chat)
         
         if character:
+            # Generate character-specific opening line using AI
+            opening_line = await gemini_service.generate_opening_line(character)
+            
             initial_message = ChatMessage(
                 chat_id=chat.id,
                 role="assistant",
-                content=f"Hello! I am {character.name}. How can I assist you today?"
+                content=opening_line
             )
             db.add(initial_message)
             db.commit()
