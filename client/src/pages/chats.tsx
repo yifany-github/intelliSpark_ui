@@ -159,7 +159,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
             {chats.map((chat: EnrichedChat) => (
               <Link 
                 key={chat.id} 
-                href={`/chats/${chat.id}`}
+                href={`/chat/${chat.id}`}
                 className="block bg-secondary hover:bg-secondary/80 rounded-2xl p-4 transition-colors"
               >
                 <div className="flex items-center justify-between">

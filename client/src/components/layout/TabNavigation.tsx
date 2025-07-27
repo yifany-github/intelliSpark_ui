@@ -27,12 +27,12 @@ const TabNavigation = () => {
   const tabs = isAuthenticated ? [
     { id: "characters", icon: "user", label: t("characters"), path: "/characters", enabled: true },
     { id: "chats", icon: "message", label: t("chats"), path: "/chats", enabled: true },
-    { id: "payment", icon: "coins", label: "Tokens", path: "/payment", enabled: true },
+    { id: "payment", icon: "coins", label: t("tokens"), path: "/payment", enabled: true },
     { id: "profile", icon: "user-gear", label: t("profile"), path: "/profile", enabled: true },
   ] : [
     { id: "characters", icon: "user", label: t("characters"), path: "/characters", enabled: true },
-    { id: "chats", icon: "message", label: "Chats", path: "/login", enabled: false },
-    { id: "login", icon: "sign-in-alt", label: "Login", path: "/login", enabled: true },
+    { id: "chats", icon: "message", label: t("chats"), path: "/login", enabled: false },
+    { id: "login", icon: "sign-in-alt", label: t("login"), path: "/login", enabled: true },
   ];
 
   return (

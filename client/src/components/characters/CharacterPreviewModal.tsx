@@ -1,5 +1,6 @@
 import { X, Star, MessageCircle, Heart } from 'lucide-react';
 import { Character } from '@/types';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface CharacterPreviewModalProps {
   character: Character | null;
@@ -18,6 +19,8 @@ export default function CharacterPreviewModal({
   onToggleFavorite,
   isFavorite
 }: CharacterPreviewModalProps) {
+  const { t } = useLanguage();
+  
   if (!isOpen || !character) return null;
 
   return (
@@ -50,14 +53,14 @@ export default function CharacterPreviewModal({
               {/* Character Details */}
               <div className="flex-1">
                 <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-white mb-2">About</h3>
+                  <h3 className="text-lg font-semibold text-white mb-2">{t('about')}</h3>
                   <p className="text-gray-300 leading-relaxed">
-                    {character.description || character.backstory || 'No description available.'}
+                    {character.description || character.backstory || t('noDescriptionAvailable')}
                   </p>
                 </div>
 
                 <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-white mb-2">Traits</h3>
+                  <h3 className="text-lg font-semibold text-white mb-2">{t('traits')}</h3>
                   <div className="flex flex-wrap gap-2">
                     {character.traits.map((trait, index) => (
                       <span 
@@ -71,8 +74,8 @@ export default function CharacterPreviewModal({
                 </div>
 
                 <div className="mb-4">
-                  <h3 className="text-lg font-semibold text-white mb-2">Voice Style</h3>
-                  <p className="text-gray-300">{character.voiceStyle || 'Natural'}</p>
+                  <h3 className="text-lg font-semibold text-white mb-2">{t('voiceStyle')}</h3>
+                  <p className="text-gray-300">{character.voiceStyle || t('natural')}</p>
                 </div>
 
                 <div className="flex items-center space-x-4 text-sm text-gray-400">
@@ -82,11 +85,11 @@ export default function CharacterPreviewModal({
                   </div>
                   <div className="flex items-center space-x-1">
                     <MessageCircle className="w-4 h-4" />
-                    <span>1.2K chats</span>
+                    <span>1.2K {t('chats')}</span>
                   </div>
                   <div className="flex items-center space-x-1">
                     <Heart className="w-4 h-4" />
-                    <span>856 favorites</span>
+                    <span>856 {t('favorites')}</span>
                   </div>
                 </div>
               </div>
@@ -104,7 +107,7 @@ export default function CharacterPreviewModal({
               }`}
             >
               <Star className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} />
-              <span>{isFavorite ? 'Remove from Favorites' : 'Add to Favorites'}</span>
+              <span>{isFavorite ? t('removeFromFavorites') : t('addToFavorites')}</span>
             </button>
 
             <button
@@ -112,7 +115,7 @@ export default function CharacterPreviewModal({
               className="flex items-center space-x-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
             >
               <MessageCircle className="w-4 h-4" />
-              <span>Start Chat</span>
+              <span>{t('startChat')}</span>
             </button>
           </div>
         </div>

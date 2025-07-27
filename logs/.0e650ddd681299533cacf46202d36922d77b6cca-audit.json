@@ -6,6 +6,7 @@
     "auditLog": "/Users/yongboyu/Desktop/intelliSpark_ui/logs/.0e650ddd681299533cacf46202d36922d77b6cca-audit.json",
     "files": [
         {
+<<<<<<< HEAD
             "date": 1752691787559,
             "name": "/Users/yongboyu/Desktop/intelliSpark_ui/logs/mcp-puppeteer-2025-07-16.log",
             "hash": "da52050f3b8f4355903338e504745a1c3ace1ff2e7253ac6198d103f68e532b5"
@@ -29,6 +30,16 @@
             "date": 1753486568603,
             "name": "/Users/yongboyu/Desktop/intelliSpark_ui/logs/mcp-puppeteer-2025-07-25.log",
             "hash": "e6e2c5e5292bfd82ef1a5911308ba2816b7a01fa4a723b2e7140b87f25c13786"
+=======
+            "date": 1753309950876,
+            "name": "/Users/yongboyu/Desktop/intelliSpark_ui/logs/mcp-puppeteer-2025-07-23.log",
+            "hash": "35f58f6a45a092718ba352ec4f76450bebbd52b17a2dcb2df063e487480b86ad"
+        },
+        {
+            "date": 1753329604552,
+            "name": "/Users/yongboyu/Desktop/intelliSpark_ui/logs/mcp-puppeteer-2025-07-24.log",
+            "hash": "6b66ce4c98912262d9c2f5667196acdae069ec3083f4447d7f5e765d21a9772a"
+>>>>>>> ui-improvements-stable
         }
     ],
     "hashType": "sha256"

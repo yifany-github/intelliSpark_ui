@@ -11,6 +11,7 @@ import DiscoverPage from "@/pages/discover";
 import CreateCharacterPage from "@/pages/create-character";
 import ChatsPage from "@/pages/chats";
 import ProfilePage from "@/pages/profile";
+import SettingsPage from "@/pages/settings";
 import OnboardingPage from "@/pages/onboarding";
 import AdminPage from "@/pages/admin";
 import LoginPage from "@/pages/auth/login";
@@ -20,6 +21,7 @@ import ChatPage from "@/pages/chat";
 import PaymentPage from "@/pages/payment";
 import NotificationsPage from "@/pages/notifications";
 import AuthModal from "@/components/auth/AuthModal";
+import TabNavigation from "@/components/layout/TabNavigation";
 import { RolePlayProvider, useRolePlay } from "@/context/RolePlayContext";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -134,7 +136,7 @@ function MainApp() {
               <Route path="/chats/:id">
                 {params => (
                   <ProtectedRoute>
-                    <ChatsPage chatId={params.id} />
+                    <ChatPage chatId={params.id} />
                   </ProtectedRoute>
                 )}
               </Route>
@@ -155,6 +157,11 @@ function MainApp() {
                   <ProfilePage />
                 </ProtectedRoute>
               </Route>
+              <Route path="/settings">
+                <ProtectedRoute>
+                  <SettingsPage />
+                </ProtectedRoute>
+              </Route>
               <Route path="/payment">
                 <ProtectedRoute>
                   <PaymentPage />
@@ -169,6 +176,12 @@ function MainApp() {
               <Route component={NotFound} />
             </Switch>
           </div>
+          {/* Show TabNavigation on mobile only, and not on certain pages */}
+          {!location.startsWith('/chat/') && !location.startsWith('/admin') && !location.startsWith('/login') && !location.startsWith('/register') && (
+            <div className="sm:hidden">
+              <TabNavigation />
+            </div>
+          )}
         </div>
       </RolePlayProvider>
     </ErrorBoundary>

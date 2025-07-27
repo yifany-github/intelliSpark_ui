@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
 import { useLocation } from 'wouter';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface TokenBalance {
   user_id: number;
@@ -44,6 +45,7 @@ export const TokenBalance: React.FC<TokenBalanceProps> = ({
   compact = false 
 }) => {
   const [, setLocation] = useLocation();
+  const { t } = useLanguage();
   
   const { 
     data: tokenBalance, 
@@ -65,7 +67,7 @@ export const TokenBalance: React.FC<TokenBalanceProps> = ({
       <Card className={compact ? "p-2" : ""}>
         {showTitle && !compact && (
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Token Balance</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('tokenBalance')}</CardTitle>
           </CardHeader>
         )}
         <CardContent className={compact ? "p-2" : "pt-2"}>
@@ -80,18 +82,18 @@ export const TokenBalance: React.FC<TokenBalanceProps> = ({
       <Card className={compact ? "p-2" : ""}>
         {showTitle && !compact && (
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Token Balance</CardTitle>
+            <CardTitle className="text-sm font-medium">{t('tokenBalance')}</CardTitle>
           </CardHeader>
         )}
         <CardContent className={compact ? "p-2" : "pt-2"}>
-          <div className="text-sm text-red-500">Failed to load balance</div>
+          <div className="text-sm text-red-500">{t('failedToLoadBalance')}</div>
           <Button 
             size="sm" 
             variant="outline" 
             onClick={() => refetch()}
             className="mt-2"
           >
-            Retry
+            {t('retry')}
           </Button>
         </CardContent>
       </Card>
@@ -118,7 +120,7 @@ export const TokenBalance: React.FC<TokenBalanceProps> = ({
             className="h-6 text-xs px-2"
           >
             <Plus className="h-3 w-3 mr-1" />
-            Buy
+            {t('buy')}
           </Button>
         )}
       </div>
@@ -141,10 +143,10 @@ export const TokenBalance: React.FC<TokenBalanceProps> = ({
             <span className={`text-2xl font-bold ${isLowBalance ? 'text-red-500' : 'text-gray-900'}`}>
               {balance}
             </span>
-            <span className="text-sm text-gray-500">tokens</span>
+            <span className="text-sm text-gray-500">{t('tokens')}</span>
             {isLowBalance && (
               <Badge variant="destructive" className="text-xs">
-                Low
+                {t('low')}
               </Badge>
             )}
           </div>
@@ -154,20 +156,20 @@ export const TokenBalance: React.FC<TokenBalanceProps> = ({
             className="flex items-center gap-1"
           >
             <Plus className="h-4 w-4" />
-            Buy Tokens
+            {t('buyTokens')}
           </Button>
         </div>
         
         {isLowBalance && (
           <div className="mt-2 p-2 bg-red-50 rounded-md">
             <p className="text-xs text-red-600">
-              You're running low on tokens. Each AI message costs 1 token.
+              {t('runningLowTokens')}
             </p>
           </div>
         )}
         
         <div className="mt-2 text-xs text-gray-500">
-          Last updated: {new Date(tokenBalance?.updated_at || '').toLocaleString()}
+          {t('lastUpdated')}: {new Date(tokenBalance?.updated_at || '').toLocaleString()}
         </div>
       </CardContent>
     </Card>
