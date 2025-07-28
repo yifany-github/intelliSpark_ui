@@ -22,82 +22,13 @@ const DiscoverSection = () => {
   const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // Mock data for demonstration - in real app this would come from API
-  const mockCharacters: Character[] = [
-    {
-      id: 1,
-      name: "艾莉丝",
-      avatarUrl: "/assets/characters_img/Elara.jpeg",
-      backstory: "Elara is the last of an ancient line of arcane practitioners who once advised kings and queens throughout the realm.",
-      voiceStyle: "Mystical",
-      traits: ["Wise", "Mysterious", "Powerful"],
-      personalityTraits: {},
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 2,
-      name: "Kravus",
-      avatarUrl: "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop",
-      backstory: "A battle-hardened warrior from the northern plains, Kravus fights for honor and glory.",
-      voiceStyle: "Gruff",
-      traits: ["Strong", "Honorable", "Warrior"],
-      personalityTraits: {},
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 3,
-      name: "Lyra",
-      avatarUrl: "https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop",
-      backstory: "A nimble rogue with a mysterious past, Lyra uses her wit and cunning to survive.",
-      voiceStyle: "Sarcastic",
-      traits: ["Cunning", "Agile", "Mysterious"],
-      personalityTraits: {},
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 4,
-      name: "XN-7",
-      avatarUrl: "https://images.pexels.com/photos/1040880/pexels-photo-1040880.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop",
-      backstory: "An advanced android with a curiosity about human emotions and consciousness.",
-      voiceStyle: "Robotic",
-      traits: ["Logical", "Curious", "Analytical"],
-      personalityTraits: {},
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 5,
-      name: "Zara",
-      avatarUrl: "https://images.pexels.com/photos/1542085/pexels-photo-1542085.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop",
-      backstory: "A skilled diplomat and negotiator from the eastern kingdoms.",
-      voiceStyle: "Diplomatic",
-      traits: ["Charismatic", "Intelligent", "Peaceful"],
-      personalityTraits: {},
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 6,
-      name: "Marcus",
-      avatarUrl: "https://images.pexels.com/photos/1130626/pexels-photo-1130626.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop",
-      backstory: "A former royal guard who turned to adventure after losing his lord.",
-      voiceStyle: "Noble",
-      traits: ["Loyal", "Protective", "Honorable"],
-      personalityTraits: {},
-      createdAt: new Date().toISOString()
-    }
-  ];
 
-  const { data: characters = mockCharacters } = useQuery<Character[]>({
+  const { data: characters = [], isLoading, error } = useQuery<Character[]>({
     queryKey: ["/api/characters"],
     queryFn: async () => {
-      try {
-        const response = await fetch('/api/characters');
-        if (response.ok) {
-          return await response.json();
-        }
-      } catch (e) {
-        console.log('API unavailable, using mock data');
-      }
-      return mockCharacters;
+      const response = await fetch('/api/characters');
+      if (!response.ok) throw new Error('Failed to fetch characters');
+      return response.json();
     },
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
@@ -491,26 +422,35 @@ const DiscoverSection = () => {
         </section>
       )}
 
-      {/* Empty State */}
-      {selectedCategory !== 'All' && 
-       filteredSections.featured.length === 0 && 
-       filteredSections.trending.length === 0 && 
-       filteredSections.new.length === 0 && 
-       filteredSections.popular.length === 0 && 
-       filteredSections.recommended.length === 0 && (
+      {/* Error State */}
+      {error ? (
         <section className="text-center py-16">
-          <div className="text-6xl mb-4">🔍</div>
-          <h3 className="text-xl font-semibold mb-2">{t('noCharactersFound').replace('{category}', selectedCategory)}</h3>
-          <p className="text-gray-400 mb-6">
-            {t('tryExploringOther')}
-          </p>
-          <button
-            onClick={() => setSelectedCategory('All')}
-            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-          >
-            {t('viewAllCharacters')}
-          </button>
+          <div className="text-6xl mb-4">⚠️</div>
+          <h3 className="text-xl font-semibold mb-2">Unable to load characters</h3>
+          <p className="text-gray-400">Please check your connection and try again</p>
         </section>
+      ) : (
+        /* Empty State */
+        selectedCategory !== 'All' && 
+        filteredSections.featured.length === 0 && 
+        filteredSections.trending.length === 0 && 
+        filteredSections.new.length === 0 && 
+        filteredSections.popular.length === 0 && 
+        filteredSections.recommended.length === 0 && (
+          <section className="text-center py-16">
+            <div className="text-6xl mb-4">🔍</div>
+            <h3 className="text-xl font-semibold mb-2">{t('noCharactersFound').replace('{category}', selectedCategory)}</h3>
+            <p className="text-gray-400 mb-6">
+              {t('tryExploringOther')}
+            </p>
+            <button
+              onClick={() => setSelectedCategory('All')}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+            >
+              {t('viewAllCharacters')}
+            </button>
+          </section>
+        )
       )}
 
       {/* Character Preview Modal */}
