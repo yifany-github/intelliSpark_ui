@@ -11,7 +11,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { queryClient } from "@/lib/queryClient";
 import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft } from "lucide-react";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
-import { TokenBalance } from "@/components/payment/TokenBalance";
+import { ImprovedTokenBalance } from "@/components/payment/ImprovedTokenBalance";
 import GlobalLayout from "@/components/layout/GlobalLayout";
 
 interface ChatPageProps {
@@ -393,7 +393,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                   <div className="flex items-center text-xs text-gray-400">
                     <span>{isLoadingScene ? t('loading') : scene?.name}</span>
                     <i className="fas fa-circle text-[6px] mx-2"></i>
-                    <TokenBalance compact={true} showTitle={false} />
+                    <ImprovedTokenBalance compact={true} showTitle={false} />
                   </div>
                 </div>
               </div>

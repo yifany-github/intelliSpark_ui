@@ -11,7 +11,7 @@ import { useLanguage } from "@/context/LanguageContext";
 import { queryClient } from "@/lib/queryClient";
 import { ChevronLeft, MoreVertical } from "lucide-react";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
-import { TokenBalance } from "@/components/payment/TokenBalance";
+import { ImprovedTokenBalance } from "@/components/payment/ImprovedTokenBalance";
 import GlobalLayout from "@/components/layout/GlobalLayout";
 
 interface ChatsPageProps {
@@ -223,7 +223,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
                   {isLoadingCharacter ? "Loading..." : character?.name}
                 </h2>
                 <div className="flex items-center text-xs text-gray-400">
-                  <TokenBalance compact={true} showTitle={false} />
+                  <ImprovedTokenBalance compact={true} showTitle={false} />
                 </div>
               </div>
             </div>
