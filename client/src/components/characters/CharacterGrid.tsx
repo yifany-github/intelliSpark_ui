@@ -39,7 +39,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
         "/api/chats",
         {
           characterId,
-          title: `Chat with ${mockCharacters.find(c => c.id === characterId)?.name || 'Character'}`
+          title: `Chat with Character`
         }
       );
       return response.json();
@@ -56,84 +56,13 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     }
   });
   
-  // Mock data for demonstration
-  const mockCharacters: Character[] = [
-    {
-      id: 1,
-      name: "艾莉丝",
-      avatarUrl: "/assets/characters_img/Elara.jpeg",
-      backstory: "Elara is the last of an ancient line of arcane practitioners who once advised kings and queens throughout the realm. After centuries of extending her life through magical means, she has accumulated vast knowledge but has grown somewhat detached from humanity.",
-      voiceStyle: "Mystical",
-      traits: ["Wise", "Mysterious", "Powerful"],
-      personalityTraits: {},
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 2,
-      name: "Kravus",
-      avatarUrl: "https://images.pexels.com/photos/1239291/pexels-photo-1239291.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop",
-      backstory: "A battle-hardened warrior from the northern plains, Kravus fights for honor and glory. His imposing presence and scarred visage tell of countless battles survived through sheer strength and determination.",
-      voiceStyle: "Gruff",
-      traits: ["Strong", "Honorable", "Warrior"],
-      personalityTraits: {},
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 3,
-      name: "Lyra",
-      avatarUrl: "https://images.pexels.com/photos/1181686/pexels-photo-1181686.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop",
-      backstory: "A nimble rogue with a mysterious past, Lyra uses her wit and cunning to survive in a world that has never shown her kindness. Despite her tough exterior, she harbors a soft spot for those who have been wronged.",
-      voiceStyle: "Sarcastic",
-      traits: ["Cunning", "Agile", "Mysterious"],
-      personalityTraits: {},
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 4,
-      name: "XN-7",
-      avatarUrl: "https://images.pexels.com/photos/1040880/pexels-photo-1040880.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop",
-      backstory: "An advanced android with a curiosity about human emotions. XN-7 was designed to assist with complex calculations and data analysis, but has developed beyond its original programming and now seeks to understand what it means to be alive.",
-      voiceStyle: "Robotic",
-      traits: ["Logical", "Curious", "Analytical"],
-      personalityTraits: {},
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 5,
-      name: "Zara",
-      avatarUrl: "https://images.pexels.com/photos/1542085/pexels-photo-1542085.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop",
-      backstory: "A skilled diplomat and negotiator from the eastern kingdoms, Zara believes in solving conflicts through words rather than weapons. Her charm and intelligence have prevented many wars.",
-      voiceStyle: "Diplomatic",
-      traits: ["Charismatic", "Intelligent", "Peaceful"],
-      personalityTraits: {},
-      createdAt: new Date().toISOString()
-    },
-    {
-      id: 6,
-      name: "Marcus",
-      avatarUrl: "https://images.pexels.com/photos/1130626/pexels-photo-1130626.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop",
-      backstory: "A former royal guard who turned to adventure after losing his lord in a terrible battle. Marcus seeks redemption and purpose in helping others achieve their goals.",
-      voiceStyle: "Noble",
-      traits: ["Loyal", "Protective", "Honorable"],
-      personalityTraits: {},
-      createdAt: new Date().toISOString()
-    }
-  ];
 
-  const { data: characters = mockCharacters, isLoading, error } = useQuery<Character[]>({
+  const { data: characters = [], isLoading, error } = useQuery<Character[]>({
     queryKey: ["/api/characters"],
-    // Use mock data as fallback when API fails
     queryFn: async () => {
-      // Try to fetch from API, but return mock data if it fails
-      try {
-        const response = await fetch('/api/characters');
-        if (response.ok) {
-          return await response.json();
-        }
-      } catch (e) {
-        console.log('API unavailable, using mock data');
-      }
-      return mockCharacters;
+      const response = await fetch('/api/characters');
+      if (!response.ok) throw new Error('Failed to fetch characters');
+      return response.json();
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
@@ -351,8 +280,10 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
           ))}
         </div>
       ) : error ? (
-        <div className="text-center py-8">
-          <p className="text-red-500">{t('errorLoadingCharacters')}</p>
+        <div className="text-center py-16">
+          <div className="text-6xl mb-4">⚠️</div>
+          <h3 className="text-xl font-semibold mb-2">Unable to load characters</h3>
+          <p className="text-gray-400">Please check your connection and try again</p>
         </div>
       ) : sortedCharacters.length === 0 ? (
         <div className="text-center py-16">
