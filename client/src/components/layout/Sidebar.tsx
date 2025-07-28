@@ -20,27 +20,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
-
-const fetchTokenBalance = async () => {
-  const token = localStorage.getItem('auth_token');
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
-
-  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-  const response = await fetch(`${API_BASE_URL}/api/payment/user/tokens`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch token balance: ${response.status}`);
-  }
-
-  return response.json();
-};
+import { fetchTokenBalance } from '@/services/tokenService';
 
 export default function Sidebar() {
   const { user, isAuthenticated } = useAuth();

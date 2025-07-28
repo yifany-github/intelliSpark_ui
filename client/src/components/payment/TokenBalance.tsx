@@ -7,33 +7,7 @@ import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
 import { useLocation } from 'wouter';
 import { useLanguage } from '@/context/LanguageContext';
-
-interface TokenBalance {
-  user_id: number;
-  balance: number;
-  created_at: string;
-  updated_at: string;
-}
-
-const fetchTokenBalance = async (): Promise<TokenBalance> => {
-  const token = localStorage.getItem('auth_token');
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
-
-  const response = await fetch('http://localhost:8000/api/payment/user/tokens', {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch token balance');
-  }
-
-  return response.json();
-};
+import { fetchTokenBalance, type TokenBalance } from '@/services/tokenService';
 
 interface TokenBalanceProps {
   showTitle?: boolean;
