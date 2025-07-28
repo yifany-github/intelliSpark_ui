@@ -35,16 +35,16 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
   
   // Tone presets
   const tonePresets = [
-    { name: 'Gentle', description: 'Kind and supportive responses' },
-    { name: 'Playful', description: 'Fun and light-hearted tone' },
-    { name: 'Dark', description: 'Serious and dramatic' },
+    { name: 'Gentle', description: t('kindSupportive') },
+    { name: 'Playful', description: t('funLighthearted') },
+    { name: 'Dark', description: t('seriousDramatic') },
   ];
   
   // Slash commands
   const slashCommands = [
-    { command: '/think', description: 'Character thinks to themselves' },
-    { command: '/whisper', description: 'Character whispers quietly' },
-    { command: '/action', description: 'Character performs an action' },
+    { command: '/think', description: t('characterThinks') },
+    { command: '/whisper', description: t('characterWhispers') },
+    { command: '/action', description: t('characterPerforms') },
   ];
   
   const handleToneSelect = (tone: string) => {
@@ -111,7 +111,7 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
           <Popover>
             <PopoverTrigger asChild>
               <button className="mr-3 flex items-center">
-                <Slash className="h-4 w-4 mr-1" /> Commands
+                <Slash className="h-4 w-4 mr-1" /> {t('commands')}
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-64">
@@ -133,7 +133,7 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
           <Popover>
             <PopoverTrigger asChild>
               <button className="flex items-center">
-                <Palette className="h-4 w-4 mr-1" /> Tone
+                <Palette className="h-4 w-4 mr-1" /> {t('tone')}
               </button>
             </PopoverTrigger>
             <PopoverContent className="w-64">
@@ -153,7 +153,7 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
           </Popover>
         </div>
         
-        <div>Markdown supported</div>
+        <div>{t('markdownSupported')}</div>
       </div>
     </div>
   );

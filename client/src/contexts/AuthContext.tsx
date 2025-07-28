@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, ReactNode, useEffect } from
 import { User } from '../types';
 import { useFirebaseAuth } from '../firebase/useFirebaseAuth';
 import { User as FirebaseUser } from 'firebase/auth';
+import { useQueryClient } from '@tanstack/react-query';
 
 // Authentication context type
 interface AuthContextType {
@@ -201,11 +202,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const queryClient = useQueryClient();
+
   // Logout function
   const logout = (): void => {
     localStorage.removeItem('auth_token');
     setToken(null);
     setUser(null);
+    // Clear all cached queries
+    queryClient.clear();
     // Also sign out from Firebase
     firebaseAuth.logout().catch(console.error);
   };

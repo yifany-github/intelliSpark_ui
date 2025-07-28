@@ -16,6 +16,7 @@ import { Separator } from '../../components/ui/separator';
 import { useLocation } from 'wouter';
 import { ImprovedTokenBalance } from '../../components/payment/ImprovedTokenBalance';
 import GlobalLayout from '../../components/layout/GlobalLayout';
+import { useLanguage } from '../../context/LanguageContext';
 
 // Initialize Stripe (you'll need to set your publishable key in environment variables)
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_key_here');
@@ -67,6 +68,7 @@ const PaymentForm: React.FC<{
 }> = ({ selectedTier, tierData, onSuccess }) => {
   const stripe = useStripe();
   const elements = useElements();
+  const { t } = useLanguage();
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [billingDetails, setBillingDetails] = useState({
@@ -156,7 +158,7 @@ const PaymentForm: React.FC<{
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
           <CreditCard className="h-5 w-5 text-blue-400" />
-          Payment Details
+          {t('paymentDetails')}
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -173,36 +175,36 @@ const PaymentForm: React.FC<{
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Billing Information */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white">Billing Information</h3>
+            <h3 className="text-lg font-semibold text-white">{t('billingInformation')}</h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Full Name *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">{t('fullName')} *</label>
                 <input
                   type="text"
                   required
                   value={billingDetails.name}
                   onChange={(e) => setBillingDetails(prev => ({ ...prev, name: e.target.value }))}
                   className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="John Doe"
+                  placeholder={t('fullName')}
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">Email Address *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">{t('emailAddress')} *</label>
                 <input
                   type="email"
                   required
                   value={billingDetails.email}
                   onChange={(e) => setBillingDetails(prev => ({ ...prev, email: e.target.value }))}
                   className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="john@example.com"
+                  placeholder={t('emailAddress')}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Address Line 1 *</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{t('addressLine1')} *</label>
               <input
                 type="text"
                 required
@@ -212,12 +214,12 @@ const PaymentForm: React.FC<{
                   address: { ...prev.address, line1: e.target.value }
                 }))}
                 className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                placeholder="123 Main Street"
+                placeholder={t('addressLine1')}
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Address Line 2</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{t('addressLine2')}</label>
               <input
                 type="text"
                 value={billingDetails.address.line2}
@@ -226,13 +228,13 @@ const PaymentForm: React.FC<{
                   address: { ...prev.address, line2: e.target.value }
                 }))}
                 className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                placeholder="Apartment, suite, etc. (optional)"
+                placeholder={`${t('addressLine2')} (${t('optional')})`}
               />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">City *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">{t('city')} *</label>
                 <input
                   type="text"
                   required
@@ -242,12 +244,12 @@ const PaymentForm: React.FC<{
                     address: { ...prev.address, city: e.target.value }
                   }))}
                   className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="New York"
+                  placeholder={t('city')}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">State *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">{t('state')} *</label>
                 <input
                   type="text"
                   required
@@ -257,12 +259,12 @@ const PaymentForm: React.FC<{
                     address: { ...prev.address, state: e.target.value }
                   }))}
                   className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="NY"
+                  placeholder={t('state')}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">ZIP Code *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-2">{t('zipCode')} *</label>
                 <input
                   type="text"
                   required
@@ -272,13 +274,13 @@ const PaymentForm: React.FC<{
                     address: { ...prev.address, postal_code: e.target.value }
                   }))}
                   className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
-                  placeholder="10001"
+                  placeholder={t('zipCode')}
                 />
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">Country *</label>
+              <label className="block text-sm font-medium text-gray-300 mb-2">{t('country')} *</label>
               <select
                 required
                 value={billingDetails.address.country}
@@ -288,23 +290,23 @@ const PaymentForm: React.FC<{
                 }))}
                 className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
               >
-                <option value="US">United States</option>
-                <option value="CA">Canada</option>
-                <option value="GB">United Kingdom</option>
-                <option value="AU">Australia</option>
-                <option value="DE">Germany</option>
-                <option value="FR">France</option>
-                <option value="JP">Japan</option>
-                <option value="KR">South Korea</option>
-                <option value="SG">Singapore</option>
-                <option value="CN">China</option>
+                <option value="US">{t('unitedStates')}</option>
+                <option value="CA">{t('canada')}</option>
+                <option value="GB">{t('unitedKingdom')}</option>
+                <option value="AU">{t('australia')}</option>
+                <option value="DE">{t('germany')}</option>
+                <option value="FR">{t('france')}</option>
+                <option value="JP">{t('japan')}</option>
+                <option value="KR">{t('southKorea')}</option>
+                <option value="SG">{t('singapore')}</option>
+                <option value="CN">{t('china')}</option>
               </select>
             </div>
           </div>
 
           {/* Payment Method */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white">Payment Method</h3>
+            <h3 className="text-lg font-semibold text-white">{t('paymentMethod')}</h3>
             <div className="p-3 border border-gray-600 rounded-lg bg-gray-700">
               <CardElement options={cardElementOptions} />
             </div>
@@ -312,20 +314,20 @@ const PaymentForm: React.FC<{
 
           {/* Order Summary */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white">Order Summary</h3>
+            <h3 className="text-lg font-semibold text-white">{t('orderSummary')}</h3>
             <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-300">{tierData.description}</span>
                 <span className="text-white font-semibold">${(tierData.price / 100).toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center text-sm text-gray-400 mb-2">
-                <span>{tierData.tokens} tokens</span>
-                <span>${((tierData.price / 100) / tierData.tokens).toFixed(3)} per token</span>
+                <span>{tierData.tokens} {t('tokensPlural')}</span>
+                <span>${((tierData.price / 100) / tierData.tokens).toFixed(3)} {t('perToken')}</span>
               </div>
               <div className="border-t border-gray-600 pt-2 mt-2">
                 <div className="flex justify-between items-center font-semibold">
-                  <span className="text-white">Total</span>
-                  <span className="text-green-400 text-lg">${(tierData.price / 100).toFixed(2)} USD</span>
+                  <span className="text-white">{t('total')}</span>
+                  <span className="text-green-400 text-lg">${(tierData.price / 100).toFixed(2)} {t('usd')}</span>
                 </div>
               </div>
             </div>
@@ -340,13 +342,13 @@ const PaymentForm: React.FC<{
                 className="mt-1 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500 focus:ring-2"
               />
               <span className="text-sm text-gray-300">
-                I agree to the{' '}
+                {t('agreeToTerms')}{' '}
                 <a href="#" className="text-blue-400 hover:text-blue-300 underline">
-                  Terms of Service
+                  {t('termsOfService')}
                 </a>{' '}
-                and{' '}
+                {t('and')}{' '}
                 <a href="#" className="text-blue-400 hover:text-blue-300 underline">
-                  Privacy Policy
+                  {t('privacyPolicy')}
                 </a>
               </span>
             </label>
@@ -356,7 +358,7 @@ const PaymentForm: React.FC<{
                 className="mt-1 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500 focus:ring-2"
               />
               <span className="text-sm text-gray-300">
-                I would like to receive promotional emails about new features and special offers
+                {t('receivePromotional')}
               </span>
             </label>
           </div>
@@ -374,14 +376,14 @@ const PaymentForm: React.FC<{
             size="lg"
           >
             {isProcessing ? (
-              'Processing...'
+              `${t('processing')}...`
             ) : (
-              `Pay $${(tierData.price / 100).toFixed(2)}`
+              `${t('pay')} $${(tierData.price / 100).toFixed(2)}`
             )}
           </Button>
 
           <div className="text-xs text-gray-400 text-center">
-            Payments are processed securely by Stripe. Your card information is never stored on our servers.
+            {t('paymentProcessingSecure')}
           </div>
         </form>
       </CardContent>
@@ -391,6 +393,7 @@ const PaymentForm: React.FC<{
 
 const PaymentPage: React.FC = () => {
   const [, setLocation] = useLocation();
+  const { t } = useLanguage();
   const [selectedTier, setSelectedTier] = useState<string>('standard');
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
@@ -411,7 +414,8 @@ const PaymentPage: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ['tokenBalance'] });
   };
 
-  const handleBack = () => {
+  // Back function for sub-pages only
+  const handleBackToProfile = () => {
     setLocation('/profile');
   };
 
@@ -424,19 +428,19 @@ const PaymentPage: React.FC = () => {
               <div className="mx-auto w-16 h-16 bg-green-900 rounded-full flex items-center justify-center mb-4">
                 <Check className="h-8 w-8 text-green-400" />
               </div>
-              <h2 className="text-2xl font-bold text-green-400 mb-2">Payment Successful!</h2>
+              <h2 className="text-2xl font-bold text-green-400 mb-2">{t('paymentSuccessful')}</h2>
               <p className="text-gray-400 mb-6">
-                Your tokens have been added to your account. You can now continue chatting with AI characters.
+                {t('tokensAddedToAccount')}
               </p>
               <div className="mb-6">
                 <ImprovedTokenBalance showTitle={false} compact={false} showStats={false} />
               </div>
               <div className="flex gap-3 justify-center">
                 <Button onClick={() => setLocation('/chats')} size="lg" className="bg-blue-600 hover:bg-blue-700 rounded-2xl">
-                  Start Chatting
+                  {t('startChatting')}
                 </Button>
-                <Button onClick={handleBack} variant="outline" size="lg" className="bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl">
-                  Back to Profile
+                <Button onClick={handleBackToProfile} variant="outline" size="lg" className="bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl">
+                  {t('backToProfile')}
                 </Button>
               </div>
             </CardContent>
@@ -457,9 +461,9 @@ const PaymentPage: React.FC = () => {
               className="mb-4"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Pricing
+              {t('backToPricing')}
             </Button>
-            <h1 className="text-3xl font-bold text-white">Complete Purchase</h1>
+            <h1 className="text-3xl font-bold text-white">{t('completePurchase')}</h1>
           </div>
 
           <Elements stripe={stripePromise}>
@@ -478,17 +482,9 @@ const PaymentPage: React.FC = () => {
     <GlobalLayout>
       <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-4xl">
         <div className="mb-6">
-          <Button 
-            variant="ghost" 
-            onClick={handleBack}
-            className="mb-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Button>
-          <h1 className="text-3xl font-bold mb-2 text-white">Buy Tokens</h1>
+          <h1 className="text-3xl font-bold mb-2 text-white">{t('buyTokens')}</h1>
           <p className="text-gray-400">
-            Purchase tokens to continue chatting with AI characters. Each message costs 1 token.
+            {t('purchaseTokensToContinue')}
           </p>
         </div>
 
@@ -499,7 +495,7 @@ const PaymentPage: React.FC = () => {
         <Separator className="my-6" />
 
         <div className="mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-white">Choose a Token Package</h2>
+          <h2 className="text-xl font-semibold mb-4 text-white">{t('chooseTokenPackage')}</h2>
           
           {tiersLoading ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -531,7 +527,7 @@ const PaymentPage: React.FC = () => {
                       <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                         <Badge className="bg-blue-500 text-white flex items-center gap-1">
                           <Star className="h-3 w-3" />
-                          Most Popular
+                          {t('mostPopular')}
                         </Badge>
                       </div>
                     )}
@@ -539,32 +535,32 @@ const PaymentPage: React.FC = () => {
                     <CardContent className="p-6">
                       <div className="text-center">
                         <h3 className="font-bold text-lg capitalize mb-2 text-white">
-                          {tierKey} Pack
+                          {tierKey} {t('pack')}
                         </h3>
                         <div className="mb-4">
                           <div className="flex items-center justify-center gap-1 mb-1">
                             <Coins className="h-5 w-5 text-yellow-400" />
                             <span className="text-2xl font-bold text-white">{tier.tokens}</span>
-                            <span className="text-gray-400">tokens</span>
+                            <span className="text-gray-400">{t('tokensPlural')}</span>
                           </div>
                           <div className="text-3xl font-bold text-blue-400">
                             ${(tier.price / 100).toFixed(2)}
                           </div>
                           <div className="text-xs text-gray-400">
-                            ${valuePerToken.toFixed(3)} per token
+                            ${valuePerToken.toFixed(3)} {t('perToken')}
                           </div>
                         </div>
                         
                         {tierKey !== 'starter' && (
                           <div className="mb-4">
                             <Badge variant="secondary" className="text-xs">
-                              {tierKey === 'standard' ? '25% bonus' : '50% bonus'}
+                              {tierKey === 'standard' ? t('bonusPercent25') : t('bonusPercent50')}
                             </Badge>
                           </div>
                         )}
                         
                         <div className="text-sm text-gray-400 mb-4">
-                          ≈ {tier.tokens} AI conversations
+                          ≈ {tier.tokens} {t('aiConversations')}
                         </div>
                       </div>
                     </CardContent>
@@ -582,17 +578,17 @@ const PaymentPage: React.FC = () => {
             disabled={!selectedTier || tiersLoading}
             className="bg-blue-600 hover:bg-blue-700 rounded-2xl"
           >
-            Continue to Payment
+            {t('continueToPayment')}
           </Button>
         </div>
 
         <div className="mt-8 p-4 bg-gray-800 rounded-lg border border-gray-700">
-          <h3 className="font-semibold mb-2 text-white">Token Usage</h3>
+          <h3 className="font-semibold mb-2 text-white">{t('tokenUsage')}</h3>
           <ul className="text-sm text-gray-400 space-y-1">
-            <li>• Each AI message generation costs 1 token</li>
-            <li>• Tokens never expire</li>
-            <li>• Secure payments processed by Stripe</li>
-            <li>• Instant delivery to your account</li>
+            <li>• {t('eachAIMessage')}</li>
+            <li>• {t('tokensNeverExpireItem')}</li>
+            <li>• {t('securePaymentsStripe')}</li>
+            <li>• {t('instantDelivery')}</li>
           </ul>
         </div>
       </div>
