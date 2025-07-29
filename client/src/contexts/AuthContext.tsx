@@ -161,10 +161,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const loginWithGoogle = async (): Promise<void> => {
     try {
       // Authenticate with Google via Firebase
-      const firebaseUser = await firebaseAuth.signInWithGoogle();
+      await firebaseAuth.signInWithGoogle();
       
-      // Firebase auth success handler will exchange token with backend
-      await handleFirebaseAuthSuccess(firebaseUser);
+      // Let useEffect handle the backend exchange automatically
     } catch (error) {
       console.error('Google login error:', error);
       throw error;
