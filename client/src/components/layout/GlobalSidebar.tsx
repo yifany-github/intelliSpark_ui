@@ -23,7 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLocation } from 'wouter';
 import { useNavigation } from '@/contexts/NavigationContext';
 import { useQuery } from '@tanstack/react-query';
-import { useLanguage } from '@/context/LanguageContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { fetchTokenBalance } from '@/services/tokenService';
 
 export default function GlobalSidebar() {

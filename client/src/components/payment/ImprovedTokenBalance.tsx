@@ -16,7 +16,7 @@ import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
 import { useLocation } from 'wouter';
 import { cn } from '@/lib/utils';
-import { useLanguage } from '@/context/LanguageContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { fetchTokenBalance, type TokenBalance } from '@/services/tokenService';
 
 interface ImprovedTokenBalanceProps {

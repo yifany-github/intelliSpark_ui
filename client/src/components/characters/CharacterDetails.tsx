@@ -1,5 +1,5 @@
 import { Character } from "../../types";
-import { useRolePlay } from "@/context/RolePlayContext";
+import { useRolePlay } from "@/contexts/RolePlayContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLocation } from "wouter";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";

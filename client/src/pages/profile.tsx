@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { useLanguage } from "@/context/LanguageContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Scene } from "../types";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import GlobalLayout from "@/components/layout/GlobalLayout";
 import { 
@@ -35,10 +34,6 @@ const ProfilePage = () => {
   const { toast } = useToast();
   const [_, navigate] = useLocation();
   
-  // Fetch recent scenes for activity display
-  const { data: scenes = [] } = useQuery<Scene[]>({
-    queryKey: ["/api/scenes?limit=5"],
-  });
 
   // Logout function
   const handleLogout = () => {
@@ -213,26 +208,6 @@ const ProfilePage = () => {
           </div>
         </div>
         
-        {/* Favorite Scenes */}
-        <div className="bg-gray-800 rounded-2xl p-6 mb-6">
-          <h3 className="font-semibold text-lg text-white mb-4">{t('activeScenes')}</h3>
-          <div className="flex overflow-x-auto py-2 hide-scrollbar space-x-4">
-            {scenes.map(scene => (
-              <div key={scene.id} className="flex-shrink-0 text-center">
-                <ImageWithFallback
-                  src={scene.imageUrl}
-                  alt={scene.name}
-                  fallbackText={scene.name}
-                  size="lg"
-                  showSpinner={true}
-                  className="w-20 h-20 mx-auto mb-2 rounded-xl hover:scale-105 transition-transform cursor-pointer"
-                />
-                <span className="text-sm text-gray-300 font-medium">{scene.name}</span>
-                <p className="text-xs text-gray-500 mt-1">{t('recentlyUsedSettings')}</p>
-              </div>
-            ))}
-          </div>
-        </div>
       
         {/* Quick Actions */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

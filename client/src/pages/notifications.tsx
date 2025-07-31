@@ -1,6 +1,6 @@
 import React from 'react';
 import { Bell } from 'lucide-react';
-import { useLanguage } from '../context/LanguageContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { NotificationList } from '../components/notifications/NotificationList';
 import GlobalLayout from '../components/layout/GlobalLayout';
 

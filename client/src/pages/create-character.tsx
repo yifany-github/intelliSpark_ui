@@ -3,12 +3,18 @@ import { useLocation } from 'wouter';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Character } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRolePlay } from '@/context/RolePlayContext';
+import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import GlobalLayout from '@/components/layout/GlobalLayout';
 import CharacterTemplates from '@/components/character-creation/CharacterTemplates';
 import CharacterCreationSuccess from '@/components/character-creation/CharacterCreationSuccess';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { X } from 'lucide-react';
 
 enum CreationStep {
   TEMPLATE_SELECTION = 'template',
@@ -225,15 +231,19 @@ const ImprovedCreateCharacterPage = () => {
         );
       
       case CreationStep.FORM:
-        // Import and use the original form component
-        const CreateCharacterForm = require('./create-character').default;
         return (
-          <CreateCharacterForm
-            initialData={formData}
-            onSubmit={handleCreateCharacter}
-            onCancel={() => setCurrentStep(CreationStep.TEMPLATE_SELECTION)}
-            isLoading={saveCharacterMutation.isPending}
-          />
+          <div className="max-w-2xl mx-auto">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold mb-2">Create Your Character</h2>
+              <p className="text-muted-foreground">Fill in the details to bring your character to life</p>
+            </div>
+            <CharacterCreationForm
+              initialData={formData}
+              onSubmit={handleCreateCharacter}
+              onCancel={() => setCurrentStep(CreationStep.TEMPLATE_SELECTION)}
+              isLoading={saveCharacterMutation.isPending}
+            />
+          </div>
         );
       
       case CreationStep.SUCCESS:
@@ -260,6 +270,166 @@ const ImprovedCreateCharacterPage = () => {
         </div>
       </div>
     </GlobalLayout>
+  );
+};
+
+// Character Creation Form Component
+const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
+  initialData: CharacterFormData;
+  onSubmit: (data: CharacterFormData) => void;
+  onCancel: () => void;
+  isLoading: boolean;
+}) => {
+  const [formData, setFormData] = useState<CharacterFormData>(initialData);
+  const [newTrait, setNewTrait] = useState("");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSubmit(formData);
+  };
+
+  const addTrait = () => {
+    if (newTrait.trim()) {
+      setFormData({
+        ...formData,
+        traits: [...formData.traits, newTrait.trim()],
+      });
+      setNewTrait("");
+    }
+  };
+
+  const removeTrait = (index: number) => {
+    setFormData({
+      ...formData,
+      traits: formData.traits.filter((_, i) => i !== index),
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name" className="text-sm font-medium">Character Name</Label>
+            <Input
+              id="name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Enter character name"
+              required
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="description" className="text-sm font-medium">Description</Label>
+            <Textarea
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Brief description of your character..."
+              rows={3}
+              required
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="backstory" className="text-sm font-medium">Backstory</Label>
+          <Textarea
+            id="backstory"
+            value={formData.backstory}
+            onChange={(e) => setFormData({ ...formData, backstory: e.target.value })}
+            placeholder="Describe the character's background, history, and motivations..."
+            rows={4}
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="voiceStyle" className="text-sm font-medium">Voice Style</Label>
+          <Textarea
+            id="voiceStyle"
+            value={formData.voiceStyle}
+            onChange={(e) => setFormData({ ...formData, voiceStyle: e.target.value })}
+            placeholder="Describe how the character speaks and their communication style..."
+            rows={3}
+            required
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Character Traits</Label>
+          <div className="flex gap-2">
+            <Input
+              value={newTrait}
+              onChange={(e) => setNewTrait(e.target.value)}
+              placeholder="Add a trait..."
+              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTrait())}
+            />
+            <Button type="button" onClick={addTrait}>Add</Button>
+          </div>
+          <div className="flex flex-wrap gap-2 mt-2">
+            {formData.traits.map((trait, index) => (
+              <Badge key={index} variant="secondary" className="gap-1">
+                {trait}
+                <X
+                  className="w-3 h-3 cursor-pointer"
+                  onClick={() => removeTrait(index)}
+                />
+              </Badge>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="gender" className="text-sm font-medium">Gender</Label>
+            <Input
+              id="gender"
+              value={formData.gender}
+              onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+              placeholder="e.g., Male, Female, Non-binary"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="age" className="text-sm font-medium">Age</Label>
+            <Input
+              id="age"
+              value={formData.age}
+              onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+              placeholder="e.g., 25, Young Adult"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="occupation" className="text-sm font-medium">Occupation</Label>
+          <Input
+            id="occupation"
+            value={formData.occupation}
+            onChange={(e) => setFormData({ ...formData, occupation: e.target.value })}
+            placeholder="What does your character do?"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label htmlFor="catchphrase" className="text-sm font-medium">Catchphrase</Label>
+          <Input
+            id="catchphrase"
+            value={formData.catchphrase}
+            onChange={(e) => setFormData({ ...formData, catchphrase: e.target.value })}
+            placeholder="A memorable phrase your character might say"
+          />
+        </div>
+
+        <div className="flex justify-between pt-4">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            Back
+          </Button>
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? 'Creating...' : 'Create Character'}
+          </Button>
+        </div>
+    </form>
   );
 };
 

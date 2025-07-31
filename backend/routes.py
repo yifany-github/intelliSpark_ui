@@ -12,6 +12,7 @@ from schemas import (
 )
 from gemini_service import GeminiService
 from auth.routes import get_current_user
+from utils.character_utils import transform_character_to_response, transform_character_list_to_response
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -30,31 +31,7 @@ async def get_characters(db: Session = Depends(get_db)):
     """Get all characters"""
     try:
         characters = db.query(Character).all()
-        # Convert to frontend-compatible format
-        result = []
-        for char in characters:
-            result.append({
-                "id": char.id,
-                "name": char.name,
-                "description": char.description,
-                "avatarUrl": char.avatar_url,  # Convert snake_case to camelCase
-                "backstory": char.backstory,
-                "voiceStyle": char.voice_style,  # Convert snake_case to camelCase
-                "traits": char.traits,
-                "personalityTraits": char.personality_traits,  # Convert snake_case to camelCase
-                "category": char.category,
-                "gender": char.gender,
-                "age": char.age,
-                "occupation": char.occupation,
-                "hobbies": char.hobbies,
-                "catchphrase": char.catchphrase,
-                "conversationStyle": char.conversation_style,
-                "isPublic": char.is_public,
-                "nsfwLevel": char.nsfw_level,
-                "createdBy": char.created_by,
-                "createdAt": char.created_at.isoformat() + "Z"  # Match Node.js format
-            })
-        return result
+        return transform_character_list_to_response(characters)
     except Exception as e:
         logger.error(f"Error fetching characters: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch characters")
@@ -67,28 +44,7 @@ async def get_character(character_id: int, db: Session = Depends(get_db)):
         if not character:
             raise HTTPException(status_code=404, detail="Character not found")
         
-        # Convert to frontend-compatible format
-        return {
-            "id": character.id,
-            "name": character.name,
-            "description": character.description,
-            "avatarUrl": character.avatar_url,  # Convert snake_case to camelCase
-            "backstory": character.backstory,
-            "voiceStyle": character.voice_style,  # Convert snake_case to camelCase
-            "traits": character.traits,
-            "personalityTraits": character.personality_traits,  # Convert snake_case to camelCase
-            "category": character.category,
-            "gender": character.gender,
-            "age": character.age,
-            "occupation": character.occupation,
-            "hobbies": character.hobbies,
-            "catchphrase": character.catchphrase,
-            "conversationStyle": character.conversation_style,
-            "isPublic": character.is_public,
-            "nsfwLevel": character.nsfw_level,
-            "createdBy": character.created_by,
-            "createdAt": character.created_at.isoformat() + "Z"  # Match Node.js format
-        }
+        return transform_character_to_response(character)
     except HTTPException:
         raise
     except Exception as e:
@@ -129,27 +85,7 @@ async def create_character(
         db.refresh(character)
         
         # Return in frontend-compatible format
-        return {
-            "id": character.id,
-            "name": character.name,
-            "description": character.description,
-            "avatarUrl": character.avatar_url,
-            "backstory": character.backstory,
-            "voiceStyle": character.voice_style,
-            "traits": character.traits,
-            "personalityTraits": character.personality_traits,
-            "category": character.category,
-            "gender": character.gender,
-            "age": character.age,
-            "occupation": character.occupation,
-            "hobbies": character.hobbies,
-            "catchphrase": character.catchphrase,
-            "conversationStyle": character.conversation_style,
-            "isPublic": character.is_public,
-            "nsfwLevel": character.nsfw_level,
-            "createdBy": character.created_by,
-            "createdAt": character.created_at.isoformat() + "Z"
-        }
+        return transform_character_to_response(character)
     except Exception as e:
         logger.error(f"Error creating character: {e}")
         db.rollback()

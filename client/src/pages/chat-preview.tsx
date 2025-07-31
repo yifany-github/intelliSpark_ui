@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useRolePlay } from '../context/RolePlayContext';
+import { useRolePlay } from '../contexts/RolePlayContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useLocation } from 'wouter';
 import { Button } from '../components/ui/button';

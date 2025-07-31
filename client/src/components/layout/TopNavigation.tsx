@@ -1,6 +1,6 @@
 import { Search, ChevronDown, MessageCircle, User, Settings, LogOut, LogIn, Bell } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useLanguage } from '@/context/LanguageContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { useLocation } from 'wouter';
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';

@@ -2,13 +2,13 @@ import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Star, Eye, Crown, Flame, TrendingUp, Users } from 'lucide-react';
 import { Character } from '@/types';
-import { useRolePlay } from '@/context/RolePlayContext';
+import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import CharacterPreviewModal from './CharacterPreviewModal';
 import { useLocation } from 'wouter';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
-import { useLanguage } from '@/context/LanguageContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const filterKeys = ['popular', 'recent', 'trending', 'new', 'following', 'editorChoice'] as const;
 const categoryKeys = ['all', 'anime', 'game', 'movie', 'book', 'original', 'fantasy', 'sciFi', 'romance', 'action'] as const;

@@ -29,7 +29,7 @@ import {
 import { Input } from '../ui/input';
 import { Skeleton } from '../ui/skeleton';
 import { cn } from '@/lib/utils';
-import { useLanguage } from '@/context/LanguageContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface TokenTransaction {
   id: number;

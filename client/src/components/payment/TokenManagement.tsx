@@ -23,7 +23,7 @@ import { ImprovedTokenBalance } from './ImprovedTokenBalance';
 import { TokenTransactionHistory } from './TokenTransactionHistory';
 import { TokenUsageStats } from './TokenUsageStats';
 import { cn } from '@/lib/utils';
-import { useLanguage } from '@/context/LanguageContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface TokenManagementProps {
   className?: string;

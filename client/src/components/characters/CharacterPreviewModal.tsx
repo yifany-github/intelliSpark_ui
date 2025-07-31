@@ -1,6 +1,6 @@
 import { X, Star, MessageCircle, Heart } from 'lucide-react';
 import { Character } from '@/types';
-import { useLanguage } from '@/context/LanguageContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface CharacterPreviewModalProps {
   character: Character | null;

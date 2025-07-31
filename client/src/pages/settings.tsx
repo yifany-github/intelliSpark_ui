@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { useRolePlay } from "@/context/RolePlayContext";
-import { useLanguage } from "@/context/LanguageContext";
+import { useRolePlay } from "@/contexts/RolePlayContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Scene, Character } from "../types";
-import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import GlobalLayout from "@/components/layout/GlobalLayout";
 import { 
   Clock, 
@@ -18,7 +16,6 @@ import {
   Settings as SettingsIcon,
   Sliders,
   Shield,
-  Palette,
   Bell,
   Database,
   Zap
@@ -54,10 +51,6 @@ const SettingsPage = () => {
   const { toast } = useToast();
   const [_, navigate] = useLocation();
   
-  // Fetch recent scenes for display in active scenes setting
-  const { data: scenes = [] } = useQuery<Scene[]>({
-    queryKey: ["/api/scenes?limit=5"],
-  });
   
   // Simple clear chat history function
   const handleClearChatHistory = async () => {
@@ -212,29 +205,6 @@ const SettingsPage = () => {
           </div>
         </div>
 
-        {/* Scene Preferences */}
-        <div className="bg-gray-800 rounded-2xl p-6 mb-6">
-          <div className="flex items-center space-x-2 mb-4">
-            <Palette className="w-5 h-5 text-cyan-400" />
-            <h3 className="font-semibold text-lg text-white">{t('activeScenes')}</h3>
-          </div>
-          <p className="text-sm text-gray-400 mb-4">{t('yourRecentlyUsed')} {t('conversationSettings')}</p>
-          <div className="flex overflow-x-auto py-2 hide-scrollbar">
-            {scenes.map(scene => (
-              <div key={scene.id} className="flex-shrink-0 mr-3 w-20 text-center">
-                <ImageWithFallback
-                  src={scene.imageUrl}
-                  alt={scene.name}
-                  fallbackText={scene.name}
-                  size="lg"
-                  showSpinner={true}
-                  className="w-16 h-16 mx-auto mb-2 rounded-lg"
-                />
-                <span className="text-xs text-gray-300">{scene.name}</span>
-              </div>
-            ))}
-          </div>
-        </div>
         
         {/* Data & Privacy */}
         <div className="bg-gray-800 rounded-2xl p-6 mb-6">

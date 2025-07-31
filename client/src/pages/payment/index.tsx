@@ -16,7 +16,7 @@ import { Separator } from '../../components/ui/separator';
 import { useLocation } from 'wouter';
 import { ImprovedTokenBalance } from '../../components/payment/ImprovedTokenBalance';
 import GlobalLayout from '../../components/layout/GlobalLayout';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 // Initialize Stripe (you'll need to set your publishable key in environment variables)
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_key_here');
