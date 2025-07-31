@@ -1,1 +1,1 @@
-# Prompts package for character and scene-specific prompts
+# Prompts package for character-specific prompts

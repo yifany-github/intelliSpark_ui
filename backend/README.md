@@ -42,16 +42,12 @@ FastAPI automatically generates interactive API documentation:
 
 ## 🔧 API Endpoints
 
-### Scenes
-- `GET /api/scenes` - List all scenes
-- `GET /api/scenes/{id}` - Get specific scene
-
 ### Characters  
 - `GET /api/characters` - List all characters
 - `GET /api/characters/{id}` - Get specific character
 
 ### Chats
-- `GET /api/chats` - List all chats (with character/scene data)
+- `GET /api/chats` - List all chats (with character data)
 - `POST /api/chats` - Create new chat
 - `GET /api/chats/{id}` - Get specific chat
 - `GET /api/chats/{id}/messages` - Get chat messages
@@ -71,9 +67,8 @@ backend/
 ├── routes.py            # API route definitions
 ├── gemini_service.py    # Gemini AI integration
 ├── prompt_service.py    # Dynamic prompt loading
-├── prompts/             # Character and scene prompts
-│   ├── characters/      # Character-specific prompts
-│   └── scenes/          # Scene-specific prompts
+├── prompts/             # Character prompts
+│   └── characters/      # Character-specific prompts
 ├── requirements.txt     # Python dependencies
 └── README.md           # This file
 ```
@@ -92,19 +87,6 @@ PERSONA_PROMPT = """You are My Character, a brave knight...
 
 FEW_SHOT_EXAMPLES = """User: Hello
 My Character: *bows respectfully* Greetings, good traveler!"""
-```
-
-## 🌍 Adding New Scenes
-
-1. Create a new file in `prompts/scenes/` named `{scene_name}.py`
-2. Define `SCENE_PROMPT` with the scene description
-3. Add the scene to the database (or use the API)
-
-Example scene prompt:
-```python
-# prompts/scenes/my_scene.py
-SCENE_PROMPT = """You are in My Scene, a mystical forest...
-[Scene description and atmosphere]"""
 ```
 
 ## 🔑 Environment Variables
@@ -133,9 +115,6 @@ curl http://localhost:8000/health
 
 To test the API:
 ```bash
-# Get all scenes
-curl http://localhost:8000/api/scenes
-
 # Get all characters  
 curl http://localhost:8000/api/characters
 ```
