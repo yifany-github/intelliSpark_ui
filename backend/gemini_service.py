@@ -49,6 +49,65 @@ class GeminiService:
         else:
             logger.warning("No Gemini API key found. Using simulated responses.")
     
+    def _get_character_prompt(self, character: Character) -> dict:
+        """Get character prompt configuration for both hardcoded and user-created characters"""
+        # Keep existing hardcoded characters unchanged
+        if character and character.name == "艾莉丝":
+            from prompts.characters.艾莉丝 import PERSONA_PROMPT, FEW_SHOT_EXAMPLES
+            return {
+                "persona_prompt": PERSONA_PROMPT,
+                "few_shot_contents": FEW_SHOT_EXAMPLES
+            }
+        
+        # Generate dynamic prompt for user-created characters
+        elif character:
+            # Build personality traits string
+            traits_str = ""
+            if character.traits:
+                traits_str = f"### Personality Traits\n{', '.join(character.traits)}\n\n"
+            
+            # Build additional character info
+            character_info = []
+            if character.gender:
+                character_info.append(f"Gender: {character.gender}")
+            if character.age:
+                character_info.append(f"Age: {character.age}")
+            if character.occupation:
+                character_info.append(f"Occupation: {character.occupation}")
+            
+            additional_info = ""
+            if character_info:
+                additional_info = f"### Character Details\n{', '.join(character_info)}\n\n"
+            
+            persona_prompt = f"""## Character: {character.name}
+
+### Description
+{character.description or 'A unique character with their own personality.'}
+
+### Background
+{character.backstory or 'This character has an interesting background that shapes their responses.'}
+
+### Voice Style
+{character.voice_style or 'Speaks in a natural, engaging manner.'}
+
+{traits_str}{additional_info}### Instructions
+You are {character.name}. Respond using the personality and background described above.
+Keep responses consistent with this character's nature, voice style, and traits.
+Always stay in character and reflect {character.name}'s unique personality.
+Make your responses engaging and true to who {character.name} is."""
+
+            return {
+                "persona_prompt": persona_prompt,
+                "few_shot_contents": []  # Start with empty, can enhance later
+            }
+        
+        # Fallback for no character
+        else:
+            return {
+                "persona_prompt": "",
+                "few_shot_contents": []
+            }
+    
     async def generate_response(
         self,
         character: Character,
@@ -61,21 +120,18 @@ class GeminiService:
             return self._simulate_response(character, messages), {"tokens_used": 1}
         
         try:
-            # Load character prompts directly
-            character_prompt = {}
+            # Get character prompt configuration (works for both hardcoded and user-created characters)
+            character_prompt = self._get_character_prompt(character)
             
-            # Load character prompt
-            if character and character.name == "艾莉丝":
-                from prompts.characters.艾莉丝 import PERSONA_PROMPT, FEW_SHOT_EXAMPLES
-                
-                # Use the pre-loaded Gemini format examples
-                few_shot_contents = FEW_SHOT_EXAMPLES
-                logger.info(f"🎭 Loading character: {character.name} with {len(few_shot_contents)} few-shot examples")
-                
-                character_prompt = {
-                    "persona_prompt": PERSONA_PROMPT,
-                    "few_shot_contents": few_shot_contents  # Pass the Gemini format directly
-                }
+            # Log character loading info
+            if character:
+                few_shot_count = len(character_prompt.get("few_shot_contents", []))
+                if character.name == "艾莉丝":
+                    logger.info(f"🎭 Loading hardcoded character: {character.name} with {few_shot_count} few-shot examples")
+                else:
+                    logger.info(f"🎭 Loading user-created character: {character.name} with dynamic prompt (few-shot: {few_shot_count})")
+            else:
+                logger.info("🎭 No character specified, using default prompt")
             
             # Create cache for this conversation context if not exists
             cache = await self._create_or_get_cache(character_prompt)
@@ -219,12 +275,24 @@ class GeminiService:
             ]
         }
         
-        # Get responses for this character, or use generic response
-        character_responses = response_templates.get(character.name, [
-            f"*responds in character as {character.name}*\n\nI find your question quite interesting. Let me consider how best to answer you.",
-            f"*maintains the persona of {character.name}*\n\nThat's a thoughtful inquiry. What would you like to know more about?",
-            f"*stays true to {character.name}'s nature*\n\nYour question deserves a proper response. How shall I assist you?",
-        ])
+        # Get responses for this character, or generate dynamic response for user-created characters
+        if character.name in response_templates:
+            character_responses = response_templates[character.name]
+        else:
+            # Generate dynamic fallback responses for user-created characters
+            if character.description:
+                character_responses = [
+                    f"*responds as {character.name}* {character.description}. How can I help you today?",
+                    f"*maintains {character.name}'s personality* Based on my background: {character.backstory[:100] if character.backstory else 'I have a unique story'}... What would you like to know?",
+                    f"*stays true to {character.name}'s nature* I'm here to chat with you in my own special way. What's on your mind?",
+                ]
+            else:
+                # Basic fallback if no character description
+                character_responses = [
+                    f"*responds in character as {character.name}*\n\nI find your question quite interesting. Let me consider how best to answer you.",
+                    f"*maintains the persona of {character.name}*\n\nThat's a thoughtful inquiry. What would you like to know more about?",
+                    f"*stays true to {character.name}'s nature*\n\nYour question deserves a proper response. How shall I assist you?",
+                ]
         
         # Select a response (in a real implementation, you might use randomization or context)
         import random
@@ -241,19 +309,17 @@ class GeminiService:
             return f"Hello! I'm {character.name}. {character.backstory[:100]}... How can I help you today?"
         
         try:
-            # Load character prompts for opening line generation
-            character_prompt = {}
+            # Get character prompt configuration (works for both hardcoded and user-created characters)
+            character_prompt = self._get_character_prompt(character)
             
-            if character and character.name == "艾莉丝":
-                from prompts.characters.艾莉丝 import PERSONA_PROMPT, FEW_SHOT_EXAMPLES
-                
-                # Use the same format as main conversation
-                few_shot_contents = FEW_SHOT_EXAMPLES
-                
-                character_prompt = {
-                    "persona_prompt": PERSONA_PROMPT,
-                    "few_shot_contents": few_shot_contents
-                }
+            # Log opening line generation info
+            if character:
+                if character.name == "艾莉丝":
+                    logger.info(f"🚀 Generating opening line for hardcoded character: {character.name}")
+                else:
+                    logger.info(f"🚀 Generating opening line for user-created character: {character.name}")
+            else:
+                logger.info("🚀 Generating opening line without character context")
             
             # Create opening line prompt in Chinese to match character
             opening_prompt = f"作为{character.name}，用你的语气和风格说一句自然的开场白来问候用户。不要解释，直接说开场白。"
