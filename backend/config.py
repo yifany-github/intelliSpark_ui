@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     stripe_secret_key: Optional[str] = None
     stripe_webhook_secret: Optional[str] = None
     
+    # Voice/Audio settings
+    eleven_lab_api: Optional[str] = None
+    
     # App settings
     app_name: str = "ProductInsightAI Backend"
     debug: bool = True
