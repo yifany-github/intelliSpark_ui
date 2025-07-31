@@ -299,7 +299,7 @@ export const NotificationList: React.FC<NotificationListProps> = ({
             </Badge>
             {Object.entries(stats.by_type).map(([type, count]) => (
               <Badge key={type} variant="outline" className="text-gray-400">
-                {t(type)}: {count}
+                {t(type as any)}: {count as number}
               </Badge>
             ))}
           </div>
@@ -380,7 +380,7 @@ export const NotificationList: React.FC<NotificationListProps> = ({
             </div>
           ) : (
             <>
-              {notifications.map((notification) => (
+              {notifications.map((notification: Notification) => (
                 <NotificationItem
                   key={notification.id}
                   notification={notification}
