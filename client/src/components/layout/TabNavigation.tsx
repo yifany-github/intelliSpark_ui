@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation, useRoute, Link } from "wouter";
-import { useLanguage } from "@/context/LanguageContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 
 const TabNavigation = () => {

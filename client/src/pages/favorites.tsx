@@ -3,12 +3,12 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { Star, Eye, Filter, Grid, List, SortAsc, SortDesc, Heart, Search } from 'lucide-react';
 import { Character } from '@/types';
 import { useFavorites } from '@/contexts/FavoritesContext';
-import { useRolePlay } from '@/context/RolePlayContext';
+import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useLocation } from 'wouter';
 import { apiRequest } from '@/lib/queryClient';
 import GlobalLayout from '@/components/layout/GlobalLayout';
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
-import { useLanguage } from '@/context/LanguageContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const FavoritesPage = () => {
   const [_, navigate] = useLocation();

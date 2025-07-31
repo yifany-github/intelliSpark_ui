@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useLanguage } from "@/context/LanguageContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";

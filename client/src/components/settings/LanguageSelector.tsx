@@ -7,7 +7,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Language, LANGUAGES, useLanguage } from '@/context/LanguageContext';
+import { Language, LANGUAGES, useLanguage } from '@/contexts/LanguageContext';
 
 interface LanguageSelectorProps {
   type: 'interface' | 'chat';

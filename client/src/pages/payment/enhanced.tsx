@@ -9,7 +9,7 @@ import { EnhancedTokenPurchase } from '../../components/payment/EnhancedTokenPur
 import { TokenTransactionHistory } from '../../components/payment/TokenTransactionHistory';
 import { TokenUsageStats } from '../../components/payment/TokenUsageStats';
 import GlobalLayout from '../../components/layout/GlobalLayout';
-import { useLanguage } from '../../context/LanguageContext';
+import { useLanguage } from '../../contexts/LanguageContext';
 import { cn } from '../../lib/utils';
 
 type Tab = 'overview' | 'purchase' | 'history' | 'stats';

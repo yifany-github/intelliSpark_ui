@@ -2,6 +2,8 @@ from google import genai
 from google.genai import types
 from config import settings
 from models import Character, ChatMessage
+from prompts.system import SYSTEM_PROMPT
+from prompts.character_templates import DYNAMIC_CHARACTER_TEMPLATE, OPENING_LINE_TEMPLATE
 from typing import List, Optional
 import logging
 import json
@@ -10,24 +12,6 @@ import os
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# General system prompt for the main application
-SYSTEM_PROMPT = """
-你是一个专业的AI角色扮演助手，能够根据给定的角色设定进行沉浸式对话。你的任务是:
-
-1. 严格按照角色的人格特征、背景故事和说话风格进行回应
-2. 保持角色的一致性，不脱离设定
-3. 创造生动有趣的对话体验，让用户感受到角色的真实性
-4. 根据对话内容自然地推进情节发展
-5. 保持适当的互动节奏，既不过于冷淡也不过于热情
-
-回应要求:
-- 使用角色特有的语气和表达方式
-- 结合角色的知识背景和经历
-- 保持对话的自然流畅
-- 适当使用动作描述和环境描写来增强沉浸感
-- 长度适中，通常在100-300字之间
-"""
 
 class GeminiService:
     def __init__(self):
@@ -62,9 +46,9 @@ class GeminiService:
         # Generate dynamic prompt for user-created characters
         elif character:
             # Build personality traits string
-            traits_str = ""
+            traits_section = ""
             if character.traits:
-                traits_str = f"### Personality Traits\n{', '.join(character.traits)}\n\n"
+                traits_section = f"### Personality Traits\n{', '.join(character.traits)}\n\n"
             
             # Build additional character info
             character_info = []
@@ -75,26 +59,19 @@ class GeminiService:
             if character.occupation:
                 character_info.append(f"Occupation: {character.occupation}")
             
-            additional_info = ""
+            character_details_section = ""
             if character_info:
-                additional_info = f"### Character Details\n{', '.join(character_info)}\n\n"
+                character_details_section = f"### Character Details\n{', '.join(character_info)}\n\n"
             
-            persona_prompt = f"""## Character: {character.name}
-
-### Description
-{character.description or 'A unique character with their own personality.'}
-
-### Background
-{character.backstory or 'This character has an interesting background that shapes their responses.'}
-
-### Voice Style
-{character.voice_style or 'Speaks in a natural, engaging manner.'}
-
-{traits_str}{additional_info}### Instructions
-You are {character.name}. Respond using the personality and background described above.
-Keep responses consistent with this character's nature, voice style, and traits.
-Always stay in character and reflect {character.name}'s unique personality.
-Make your responses engaging and true to who {character.name} is."""
+            # Use the template from prompts/system.py
+            persona_prompt = DYNAMIC_CHARACTER_TEMPLATE.format(
+                name=character.name,
+                description=character.description or 'A unique character with their own personality.',
+                backstory=character.backstory or 'This character has an interesting background that shapes their responses.',
+                voice_style=character.voice_style or 'Speaks in a natural, engaging manner.',
+                traits_section=traits_section,
+                character_details_section=character_details_section
+            )
 
             return {
                 "persona_prompt": persona_prompt,
@@ -321,8 +298,8 @@ Make your responses engaging and true to who {character.name} is."""
             else:
                 logger.info("🚀 Generating opening line without character context")
             
-            # Create opening line prompt in Chinese to match character
-            opening_prompt = f"作为{character.name}，用你的语气和风格说一句自然的开场白来问候用户。不要解释，直接说开场白。"
+            # Create opening line prompt using template
+            opening_prompt = OPENING_LINE_TEMPLATE.format(character_name=character.name)
             
             # Create or get cache
             cache = await self._create_or_get_cache(character_prompt)
