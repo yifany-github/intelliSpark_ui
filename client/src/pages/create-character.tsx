@@ -5,6 +5,7 @@ import { Character } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRolePlay } from '@/context/RolePlayContext';
 import { useToast } from '@/hooks/use-toast';
+import { apiRequest } from '@/lib/queryClient';
 import GlobalLayout from '@/components/layout/GlobalLayout';
 import CharacterTemplates from '@/components/character-creation/CharacterTemplates';
 import CharacterCreationSuccess from '@/components/character-creation/CharacterCreationSuccess';
@@ -103,23 +104,30 @@ const ImprovedCreateCharacterPage = () => {
         throw new Error('Authentication required');
       }
 
-      // Create mock character for demo
-      const mockCharacter: Character = {
-        id: Date.now(),
+      const response = await apiRequest("POST", "/api/characters", {
         name: characterData.name,
         description: characterData.description,
+        avatarUrl: characterData.avatar,
         backstory: characterData.backstory,
         voiceStyle: characterData.voiceStyle,
         traits: characterData.traits,
         personalityTraits: characterData.personalityTraits,
-        avatarUrl: characterData.avatar || 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop',
-        createdAt: new Date().toISOString()
-      };
-
-      // In real app, this would call the API
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
-
-      return mockCharacter;
+        category: characterData.category,
+        gender: characterData.gender,
+        age: characterData.age,
+        occupation: characterData.occupation,
+        hobbies: characterData.hobbies,
+        catchphrase: characterData.catchphrase,
+        conversationStyle: characterData.conversationStyle,
+        isPublic: characterData.isPublic,
+        nsfwLevel: characterData.nsfwLevel
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to create character: ${response.statusText}`);
+      }
+      
+      return response.json();
     },
     onSuccess: (character) => {
       setCreatedCharacter(character);
@@ -127,7 +135,7 @@ const ImprovedCreateCharacterPage = () => {
       
       toast({
         title: 'Character created successfully!',
-        description: `${character.name} has been created and is ready for conversations.`
+        description: `${character.name} has been saved and is now available to all users.`
       });
       
       // Invalidate queries to refresh character lists
@@ -139,6 +147,9 @@ const ImprovedCreateCharacterPage = () => {
         description: error.message,
         variant: 'destructive'
       });
+      
+      // Log error for debugging
+      console.error('Character creation error:', error);
     }
   });
 
@@ -150,6 +161,7 @@ const ImprovedCreateCharacterPage = () => {
         description: 'Please log in to create a character',
         variant: 'destructive'
       });
+      navigate('/login'); // Redirect to login if needed
       return;
     }
 
