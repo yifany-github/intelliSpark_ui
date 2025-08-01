@@ -10,15 +10,17 @@ def ensure_avatar_url(character: Character) -> str:
     Backend ensures every character has valid avatar URL - no frontend fallbacks needed.
     Centralizes image logic to prevent external dependencies in frontend.
     """
-    if character.avatar_url and character.avatar_url.startswith('/assets'):
-        # Local asset URL - return as-is
-        return character.avatar_url
-    elif character.avatar_url and character.avatar_url.startswith('http'):
-        # External URL (legacy) - still return, but these will be migrated
-        return character.avatar_url
-    else:
-        # No avatar set - return existing local image as placeholder
-        return "/assets/characters_img/Elara.jpeg"
+    # Check if avatar_url exists and is not None/empty
+    if character.avatar_url and isinstance(character.avatar_url, str) and character.avatar_url.strip():
+        if character.avatar_url.startswith('/assets'):
+            # Local asset URL - return as-is
+            return character.avatar_url
+        elif character.avatar_url.startswith('http'):
+            # External URL (legacy) - still return, but these will be migrated
+            return character.avatar_url
+    
+    # No avatar set, None, empty string, or invalid - return local placeholder
+    return "/assets/characters_img/Elara.jpeg"
 
 
 def transform_character_to_response(character: Character) -> Dict[str, Any]:
