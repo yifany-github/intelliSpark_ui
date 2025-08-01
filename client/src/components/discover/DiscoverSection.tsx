@@ -158,7 +158,7 @@ const DiscoverSection = () => {
     >
       <div className="relative">
         <img
-          src={character.image || character.avatarUrl || "https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop"}
+          src={character.avatarUrl}
           alt={character.name}
           className={`w-full object-cover group-hover:brightness-110 transition-all duration-200 ${
             size === 'large' ? 'h-64' : 'h-48'
