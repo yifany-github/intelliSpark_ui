@@ -8,6 +8,7 @@ import TypingIndicator from "@/components/ui/TypingIndicator";
 import { apiRequest } from "@/lib/queryClient";
 import { useRolePlay } from "@/contexts/RolePlayContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { invalidateTokenBalance } from "@/services/tokenService";
 import { queryClient } from "@/lib/queryClient";
 import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft } from "lucide-react";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
@@ -119,6 +120,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
       setIsTyping(false);
+      
+      // Invalidate token balance after AI response generation
+      invalidateTokenBalance();
     },
     onError: (error: any) => {
       console.error("AI response generation failed:", error);
