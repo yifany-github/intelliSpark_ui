@@ -21,7 +21,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const { data: tokenBalance, isLoading: tokenLoading, error: tokenError, refetch } = useQuery({
-    queryKey: ['tokenBalance', isAuthenticated],
+    queryKey: ['tokenBalance'],
     queryFn: fetchTokenBalance,
     refetchInterval: isAuthenticated ? 30000 : false,
     enabled: isAuthenticated && !!localStorage.getItem('auth_token'),
