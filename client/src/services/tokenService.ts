@@ -3,6 +3,8 @@
  * Consolidates duplicate fetchTokenBalance functions across components
  */
 
+import { queryClient } from '@/lib/queryClient';
+
 export interface TokenBalance {
   user_id: number;
   balance: number;
@@ -34,4 +36,25 @@ export const fetchTokenBalance = async (): Promise<TokenBalance> => {
   }
 
   return response.json();
+};
+
+/**
+ * Invalidate token balance queries across all components
+ * Call this after any operation that changes token balance
+ */
+export const invalidateTokenBalance = (): void => {
+  queryClient.invalidateQueries({ queryKey: ['tokenBalance'] });
+};
+
+/**
+ * Optimistically update token balance (for immediate UI feedback)
+ * @param newBalance - The new token balance to display
+ */
+export const updateTokenBalanceOptimistically = (newBalance: number): void => {
+  queryClient.setQueryData(['tokenBalance'], (oldData: any) => {
+    if (oldData?.balance !== undefined) {
+      return { ...oldData, balance: newBalance };
+    }
+    return oldData;
+  });
 };
