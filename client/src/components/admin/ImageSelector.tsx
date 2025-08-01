@@ -20,7 +20,7 @@ interface ImageAsset {
 interface ImageSelectorProps {
   value: string;
   onChange: (url: string) => void;
-  assetType?: 'characters' | 'scenes';
+  assetType?: 'characters';
   label?: string;
   required?: boolean;
 }

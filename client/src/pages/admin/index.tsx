@@ -959,7 +959,7 @@ const AdminPage = () => {
                       onClick={() => {
                         setNotificationForm({
                           title: "Welcome to ProductInsightAI",
-                          content: "Thank you for joining our AI role-playing community. Start exploring scenes and characters to begin your journey!",
+                          content: "Thank you for joining our AI role-playing community. Start exploring characters to begin your journey!",
                           type: "admin",
                           priority: "normal",
                           target: "all",
