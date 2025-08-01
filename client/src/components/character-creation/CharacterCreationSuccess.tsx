@@ -36,7 +36,7 @@ export default function CharacterCreationSuccess({
           <div className="bg-gray-800 rounded-lg p-4">
             <div className="flex items-center space-x-4">
               <img
-                src={character.avatarUrl || 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop'}
+                src={character.avatarUrl}
                 alt={character.name}
                 className="w-16 h-16 rounded-full object-cover"
               />

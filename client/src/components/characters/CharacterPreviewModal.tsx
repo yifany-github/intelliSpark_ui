@@ -44,7 +44,7 @@ export default function CharacterPreviewModal({
               {/* Character Image */}
               <div className="flex-shrink-0">
                 <img
-                  src={character.image || character.avatarUrl || 'https://images.pexels.com/photos/774909/pexels-photo-774909.jpeg?auto=compress&cs=tinysrgb&w=300&h=400&fit=crop'}
+                  src={character.avatarUrl}
                   alt={character.name}
                   className="w-64 h-80 object-cover rounded-lg"
                 />

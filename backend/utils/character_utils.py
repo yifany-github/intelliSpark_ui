@@ -5,6 +5,22 @@ from models import Character
 from typing import Dict, Any, Optional
 
 
+def ensure_avatar_url(character: Character) -> str:
+    """
+    Backend ensures every character has valid avatar URL - no frontend fallbacks needed.
+    Centralizes image logic to prevent external dependencies in frontend.
+    """
+    if character.avatar_url and character.avatar_url.startswith('/assets'):
+        # Local asset URL - return as-is
+        return character.avatar_url
+    elif character.avatar_url and character.avatar_url.startswith('http'):
+        # External URL (legacy) - still return, but these will be migrated
+        return character.avatar_url
+    else:
+        # No avatar set - return existing local image as placeholder
+        return "/assets/characters_img/Elara.jpeg"
+
+
 def transform_character_to_response(character: Character) -> Dict[str, Any]:
     """
     Transform a database Character model to frontend-compatible response format.
@@ -14,7 +30,7 @@ def transform_character_to_response(character: Character) -> Dict[str, Any]:
         "id": character.id,
         "name": character.name,
         "description": character.description,
-        "avatarUrl": character.avatar_url,  # snake_case to camelCase
+        "avatarUrl": ensure_avatar_url(character),  # Always guaranteed valid URL
         "backstory": character.backstory,
         "voiceStyle": character.voice_style,  # snake_case to camelCase
         "traits": character.traits,
