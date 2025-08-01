@@ -9,6 +9,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useRolePlay } from "@/contexts/RolePlayContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { queryClient } from "@/lib/queryClient";
+import { invalidateTokenBalance } from "@/services/tokenService";
 import { ChevronLeft, MoreVertical } from "lucide-react";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import { ImprovedTokenBalance } from "@/components/payment/ImprovedTokenBalance";
@@ -99,6 +100,9 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
       setIsTyping(false);
+      
+      // Invalidate token balance after AI response generation
+      invalidateTokenBalance();
     },
     onError: () => {
       setIsTyping(false);
