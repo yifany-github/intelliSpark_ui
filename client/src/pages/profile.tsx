@@ -145,7 +145,7 @@ const ProfilePage = () => {
                 <span className="text-2xl font-bold text-white">12</span>
               </div>
             </div>
-            <div className="text-xs text-gray-500">{t('acrossScenes')}</div>
+            <div className="text-xs text-gray-500">Available for chat</div>
           </div>
           
           <div className="bg-gray-800 rounded-2xl p-6">

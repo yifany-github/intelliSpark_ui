@@ -48,7 +48,6 @@ import {
 interface AdminStats {
   totals: {
     users: number;
-    scenes: number;
     characters: number;
     chats: number;
     messages: number;
@@ -57,21 +56,10 @@ interface AdminStats {
     chats_last_30_days: number;
   };
   popular_content: {
-    scenes: { name: string; chat_count: number }[];
     characters: { name: string; chat_count: number }[];
   };
 }
 
-interface Scene {
-  id: number;
-  name: string;
-  description: string;
-  imageUrl: string;
-  location: string;
-  mood: string;
-  rating: string;
-  createdAt: string;
-}
 
 interface Character {
   id: number;
@@ -99,9 +87,7 @@ const AdminPage = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginPassword, setLoginPassword] = useState("");
   const [authToken, setAuthToken] = useState<string | null>(null);
-  const [editingScene, setEditingScene] = useState<Scene | null>(null);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
-  const [showSceneDialog, setShowSceneDialog] = useState(false);
   const [showCharacterDialog, setShowCharacterDialog] = useState(false);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -191,17 +177,6 @@ const AdminPage = () => {
     refetchInterval: 30000, // Auto-refresh every 30 seconds
   });
 
-  const { data: scenes = [], refetch: refetchScenes } = useQuery<Scene[]>({
-    queryKey: ["admin-scenes"],
-    queryFn: async () => {
-      const response = await fetch("/api/admin/scenes", {
-        headers: authHeaders,
-      });
-      if (!response.ok) throw new Error("Failed to fetch scenes");
-      return response.json();
-    },
-    enabled: isAuthenticated,
-  });
 
   const { data: characters = [], refetch: refetchCharacters } = useQuery<Character[]>({
     queryKey: ["admin-characters"],
@@ -227,72 +202,8 @@ const AdminPage = () => {
     enabled: isAuthenticated,
   });
 
-  const sceneCreateMutation = useMutation({
-    mutationFn: async (sceneData: Omit<Scene, "id" | "createdAt">) => {
-      const response = await fetch("/api/admin/scenes", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
-        body: JSON.stringify(sceneData),
-      });
-      if (!response.ok) throw new Error("Failed to create scene");
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-scenes"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
-      toast({ 
-        title: "✅ Scene created successfully",
-        className: "border-green-200 bg-green-50"
-      });
-      setShowSceneDialog(false);
-    },
-  });
 
-  const sceneUpdateMutation = useMutation({
-    mutationFn: async ({ id, ...sceneData }: Scene) => {
-      const response = await fetch(`/api/admin/scenes/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders,
-        },
-        body: JSON.stringify(sceneData),
-      });
-      if (!response.ok) throw new Error("Failed to update scene");
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-scenes"] });
-      toast({ 
-        title: "✅ Scene updated successfully",
-        className: "border-green-200 bg-green-50"
-      });
-      setEditingScene(null);
-      setShowSceneDialog(false);
-    },
-  });
 
-  const sceneDeleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const response = await fetch(`/api/admin/scenes/${id}`, {
-        method: "DELETE",
-        headers: authHeaders,
-      });
-      if (!response.ok) throw new Error("Failed to delete scene");
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["admin-scenes"] });
-      queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
-      toast({ 
-        title: "✅ Scene deleted successfully",
-        className: "border-green-200 bg-green-50"
-      });
-    },
-  });
 
   const characterCreateMutation = useMutation({
     mutationFn: async (characterData: Omit<Character, "id" | "createdAt">) => {
@@ -372,10 +283,6 @@ const AdminPage = () => {
     },
   });
 
-  const filteredScenes = scenes.filter(scene =>
-    scene.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    scene.description.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const filteredCharacters = characters.filter(character =>
     character.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -515,7 +422,6 @@ const AdminPage = () => {
               <Button
                 onClick={() => {
                   refetchStats();
-                  refetchScenes();
                   refetchCharacters();
                   refetchUsers();
                 }}
@@ -537,14 +443,10 @@ const AdminPage = () => {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7 bg-white p-1 rounded-lg shadow-sm border border-slate-200">
+          <TabsList className="grid w-full grid-cols-6 bg-white p-1 rounded-lg shadow-sm border border-slate-200">
             <TabsTrigger value="overview" className="text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-blue-600 data-[state=active]:text-white">
               <BarChart3 className="w-4 h-4 mr-2" />
               Overview
-            </TabsTrigger>
-            <TabsTrigger value="scenes" className="text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-blue-600 data-[state=active]:text-white">
-              <FileText className="w-4 h-4 mr-2" />
-              Scenes
             </TabsTrigger>
             <TabsTrigger value="characters" className="text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-blue-600 data-[state=active]:text-white">
               <Users className="w-4 h-4 mr-2" />
@@ -570,7 +472,7 @@ const AdminPage = () => {
 
           <TabsContent value="overview" className="space-y-6">
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white border-0 shadow-lg">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium text-blue-100">Total Users</CardTitle>
@@ -582,16 +484,6 @@ const AdminPage = () => {
                 </CardContent>
               </Card>
               
-              <Card className="bg-gradient-to-br from-purple-500 to-purple-600 text-white border-0 shadow-lg">
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-purple-100">Total Scenes</CardTitle>
-                  <FileText className="w-5 h-5 text-purple-200" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold">{stats?.totals.scenes || 0}</div>
-                  <p className="text-xs text-purple-200 mt-1">Available scenarios</p>
-                </CardContent>
-              </Card>
               
               <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white border-0 shadow-lg">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -627,37 +519,8 @@ const AdminPage = () => {
               </Card>
             </div>
 
-            {/* Activity and Popular Content */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card className="shadow-sm border-slate-200">
-                <CardHeader>
-                  <CardTitle className="flex items-center text-slate-900">
-                    <TrendingUp className="w-5 h-5 mr-2 text-green-600" />
-                    Popular Scenes
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {stats?.popular_content.scenes.map((scene, index) => (
-                      <div key={index} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg">
-                        <div className="flex items-center">
-                          <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center mr-3">
-                            <span className="text-sm font-bold text-purple-600">#{index + 1}</span>
-                          </div>
-                          <span className="font-medium text-slate-700">{scene.name}</span>
-                        </div>
-                        <Badge variant="outline" className="bg-green-100 text-green-700 border-green-300">
-                          {scene.chat_count} chats
-                        </Badge>
-                      </div>
-                    ))}
-                    {(!stats?.popular_content.scenes.length) && (
-                      <p className="text-gray-500 text-center py-4">No data available yet</p>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-              
+            {/* Popular Content */}
+            <div className="grid grid-cols-1 gap-6">
               <Card className="shadow-sm border-slate-200">
                 <CardHeader>
                   <CardTitle className="flex items-center text-slate-900">
@@ -697,137 +560,6 @@ const AdminPage = () => {
             </Alert>
           </TabsContent>
 
-          <TabsContent value="scenes" className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900">Scene Management</h2>
-                <p className="text-slate-600">Manage roleplay scenarios and environments</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                  <Input
-                    placeholder="Search scenes..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10 w-64 bg-white border-slate-300 text-slate-900"
-                  />
-                </div>
-                <Dialog open={showSceneDialog} onOpenChange={setShowSceneDialog}>
-                  <DialogTrigger asChild>
-                    <Button onClick={() => setEditingScene(null)} className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Add Scene
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle className="text-xl text-slate-900">
-                        {editingScene ? "Edit Scene" : "Create New Scene"}
-                      </DialogTitle>
-                    </DialogHeader>
-                    <SceneForm
-                      scene={editingScene}
-                      onSubmit={(data) => {
-                        if (editingScene) {
-                          sceneUpdateMutation.mutate({ ...data, id: editingScene.id, createdAt: editingScene.createdAt });
-                        } else {
-                          sceneCreateMutation.mutate(data);
-                        }
-                      }}
-                      onCancel={() => {
-                        setShowSceneDialog(false);
-                        setEditingScene(null);
-                      }}
-                    />
-                  </DialogContent>
-                </Dialog>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredScenes.map((scene) => (
-                <Card key={scene.id} className="shadow-sm border-slate-200 hover:shadow-md transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-lg text-slate-900 mb-2">{scene.name}</CardTitle>
-                        {scene.imageUrl && (
-                          <div className="w-full h-24 bg-slate-100 rounded-lg overflow-hidden mb-2">
-                            <img
-                              src={scene.imageUrl}
-                              alt={scene.name}
-                              className="w-full h-full object-cover"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                target.nextElementSibling?.classList.remove('hidden');
-                              }}
-                            />
-                            <div className="hidden w-full h-full flex items-center justify-center bg-slate-200">
-                              <FileText className="w-8 h-8 text-slate-400" />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex gap-1 ml-2">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            setEditingScene(scene);
-                            setShowSceneDialog(true);
-                          }}
-                          className="h-8 w-8 p-0 hover:bg-blue-100"
-                        >
-                          <Edit className="w-4 h-4 text-blue-600" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => sceneDeleteMutation.mutate(scene.id)}
-                          className="h-8 w-8 p-0 hover:bg-red-100"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-600" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-slate-600 mb-4 line-clamp-3">
-                      {scene.description}
-                    </p>
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">{scene.location}</Badge>
-                      <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-300">{scene.mood}</Badge>
-                      <Badge variant="outline" className="text-xs bg-orange-50 text-orange-700 border-orange-300">{scene.rating}</Badge>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      Created: {new Date(scene.createdAt).toLocaleDateString()}
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            
-            {filteredScenes.length === 0 && (
-              <Card className="shadow-sm border-slate-200">
-                <CardContent className="flex flex-col items-center justify-center py-16">
-                  <FileText className="w-16 h-16 text-slate-300 mb-4" />
-                  <h3 className="text-lg font-semibold text-slate-700 mb-2">No scenes found</h3>
-                  <p className="text-gray-500 text-center mb-4">
-                    {searchTerm ? "No scenes match your search criteria." : "Get started by creating your first scene."}
-                  </p>
-                  {!searchTerm && (
-                    <Button onClick={() => setShowSceneDialog(true)} className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white">
-                      <Plus className="w-4 h-4 mr-2" />
-                      Create Scene
-                    </Button>
-                  )}
-                </CardContent>
-              </Card>
-            )}
-          </TabsContent>
 
           <TabsContent value="characters" className="space-y-6">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -1071,17 +803,6 @@ const AdminPage = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="p-4 bg-green-50 rounded-lg">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-sm font-medium text-green-800">Average Chats per Scene</span>
-                        <span className="text-lg font-bold text-green-600">
-                          {stats?.totals?.scenes && stats.totals.scenes > 0 ? Math.round((stats?.totals?.chats || 0) / stats.totals.scenes) : 0}
-                        </span>
-                      </div>
-                      <div className="w-full bg-green-200 rounded-full h-2">
-                        <div className="bg-green-600 h-2 rounded-full" style={{ width: '75%' }}></div>
-                      </div>
-                    </div>
                     
                     <div className="p-4 bg-blue-50 rounded-lg">
                       <div className="flex justify-between items-center mb-2">
@@ -1346,10 +1067,6 @@ const AdminPage = () => {
                   <div className="space-y-4">
                     <Button variant="outline" className="w-full justify-start text-slate-700 border-slate-300 bg-white hover:bg-slate-50">
                       <Upload className="w-4 h-4 mr-2" />
-                      Import Scenes from JSON
-                    </Button>
-                    <Button variant="outline" className="w-full justify-start text-slate-700 border-slate-300 bg-white hover:bg-slate-50">
-                      <Upload className="w-4 h-4 mr-2" />
                       Import Characters from JSON
                     </Button>
                     <Separator />
@@ -1400,121 +1117,6 @@ const AdminPage = () => {
   );
 };
 
-const SceneForm = ({ scene, onSubmit, onCancel }: {
-  scene: Scene | null;
-  onSubmit: (data: Omit<Scene, "id" | "createdAt">) => void;
-  onCancel: () => void;
-}) => {
-  const [formData, setFormData] = useState({
-    name: scene?.name || "",
-    description: scene?.description || "",
-    imageUrl: scene?.imageUrl || "",
-    location: scene?.location || "",
-    mood: scene?.mood || "",
-    rating: scene?.rating || "",
-  });
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    onSubmit(formData);
-  };
-
-  return (
-    <ScrollArea className="max-h-[70vh]">
-      <form onSubmit={handleSubmit} className="space-y-6 p-1">
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="name" className="text-sm font-medium text-slate-900">Scene Name</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Enter scene name"
-              className="bg-white border-slate-300 text-slate-900"
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="location" className="text-sm font-medium text-slate-900">Location</Label>
-            <Input
-              id="location"
-              value={formData.location}
-              onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-              placeholder="e.g., Royal Palace, Modern Office"
-              className="bg-white border-slate-300 text-slate-900"
-              required
-            />
-          </div>
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="description" className="text-sm font-medium text-slate-900">Description</Label>
-          <Textarea
-            id="description"
-            value={formData.description}
-            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            placeholder="Describe the scene setting, atmosphere, and context..."
-            className="bg-white border-slate-300 text-slate-900"
-            rows={4}
-            required
-          />
-        </div>
-
-        <ImageSelector
-          value={formData.imageUrl}
-          onChange={(url) => setFormData({ ...formData, imageUrl: url })}
-          assetType="scenes"
-          label="Scene Image"
-          required
-        />
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="mood" className="text-sm font-medium text-slate-900">Mood</Label>
-            <Select value={formData.mood} onValueChange={(value) => setFormData({ ...formData, mood: value })}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select mood" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Romantic">Romantic</SelectItem>
-                <SelectItem value="Mysterious">Mysterious</SelectItem>
-                <SelectItem value="Adventure">Adventure</SelectItem>
-                <SelectItem value="Dramatic">Dramatic</SelectItem>
-                <SelectItem value="Comedy">Comedy</SelectItem>
-                <SelectItem value="Serious">Serious</SelectItem>
-                <SelectItem value="Fantasy">Fantasy</SelectItem>
-                <SelectItem value="Sci-Fi">Sci-Fi</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="rating" className="text-sm font-medium text-slate-900">Content Rating</Label>
-            <Select value={formData.rating} onValueChange={(value) => setFormData({ ...formData, rating: value })}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select rating" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PG">PG - General Audiences</SelectItem>
-                <SelectItem value="PG-13">PG-13 - Teen Appropriate</SelectItem>
-                <SelectItem value="R">R - Mature Content</SelectItem>
-                <SelectItem value="NC-17">NC-17 - Adults Only</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="flex justify-end gap-3 pt-4">
-          <Button type="button" variant="outline" onClick={onCancel} className="text-slate-700 border-slate-300 bg-white hover:bg-slate-50">
-            Cancel
-          </Button>
-          <Button type="submit" className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white">
-            {scene ? "Update Scene" : "Create Scene"}
-          </Button>
-        </div>
-      </form>
-    </ScrollArea>
-  );
-};
 
 const CharacterForm = ({ character, onSubmit, onCancel }: {
   character: Character | null;

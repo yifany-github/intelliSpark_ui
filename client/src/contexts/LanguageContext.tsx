@@ -30,11 +30,9 @@ export const LANGUAGES: Record<Language, LanguageConfig> = {
 
 // Type for translations
 export type TranslationKey = 
-  | 'scenes'
   | 'characters'
   | 'chats'
   | 'profile'
-  | 'selectScene'
   | 'selectCharacter'
   | 'chooseCharacter'
   | 'startChat'
@@ -52,12 +50,10 @@ export type TranslationKey =
   | 'memoryEnabled'
   | 'save'
   | 'cancel'
-  | 'searchScenes'
   | 'searchCharacters'
   | 'typeMessage'
   | 'noChatsYet'
   | 'startChatWith'
-  | 'viewAllScenes'
   | 'viewAllCharacters'
   | 'clearChatHistory'
   | 'exportScripts'
@@ -68,7 +64,6 @@ export type TranslationKey =
   | 'startNewChat'
   | 'todaysChatTime'
   | 'totalCharacters'
-  | 'activeScenes'
   | 'short'
   | 'long'
   | 'precise'
@@ -311,7 +306,6 @@ export type TranslationKey =
   | 'logout'
   | 'dayAgo'
   | 'fromYesterday'
-  | 'acrossScenes'
   | 'loading'
   | 'currentlyChatting'
   | 'recentConversations'
@@ -687,9 +681,7 @@ export type TranslationKey =
 // Define translations for each language
 const translations: Record<Language, Record<TranslationKey, string>> = {
   en: {
-    scenes: 'Scenes',
     characters: 'Characters',
-    selectScene: 'Select a Scene',
     selectCharacter: 'Select a Character',
     chooseCharacter: 'Choose a character from the list to view details',
     startChat: 'Start Chat',
@@ -706,11 +698,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     memoryEnabled: 'Memory Enabled',
     save: 'Save',
     cancel: 'Cancel',
-    searchScenes: 'Search scenes...',
     typeMessage: 'Type a message...',
     noChatsYet: 'No chats yet',
     startChatWith: 'Start Chat with',
-    viewAllScenes: 'View All Scenes',
     clearChatHistory: 'Clear Chat History',
     exportScripts: 'Export Scripts',
     subscribe: 'Subscribe / Buy Tokens',
@@ -719,7 +709,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     startNewChat: 'Start a new chat',
     todaysChatTime: 'Today\'s Chat Time',
     totalCharacters: 'Total Characters',
-    activeScenes: 'Active Scenes',
     short: 'Short',
     long: 'Long',
     precise: 'Precise',
@@ -949,7 +938,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     redirectHome: 'and redirect you to the home page',
     dayAgo: '1 day ago',
     fromYesterday: 'from yesterday',
-    acrossScenes: 'Across different scenes',
     getMoreTokens: 'Get More Tokens',
     loading: 'Loading...',
     currentlyChatting: 'Currently chatting',
@@ -1283,9 +1271,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     mystery: 'Mystery',
   },
   zh: {
-    scenes: '场景',
     characters: '角色',
-    selectScene: '选择场景',
     selectCharacter: '选择角色',
     chooseCharacter: '从列表中选择一个角色查看详情',
     startChat: '开始聊天',
@@ -1301,11 +1287,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     memoryEnabled: '启用记忆',
     save: '保存',
     cancel: '取消',
-    searchScenes: '搜索场景...',
     typeMessage: '输入消息...',
     noChatsYet: '还没有聊天',
     startChatWith: '与以下角色开始聊天',
-    viewAllScenes: '查看所有场景',
     clearChatHistory: '清除聊天历史',
     exportScripts: '导出对话脚本',
     subscribe: '订阅/购买代币',
@@ -1379,7 +1363,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     noMessagesYet: '还没有消息。开始对话吧！',
     todaysChatTime: '今日聊天时间',
     totalCharacters: '角色总数',
-    activeScenes: '活跃场景',
     short: '短',
     long: '长',
     precise: '精确',
@@ -1611,7 +1594,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     dayAgo: '1天前',
     daysAgo: '天前',
     fromYesterday: '比昨天',
-    acrossScenes: '跨不同场景',
     getMoreTokens: '获取更多代币',
     loading: '加载中...',
     currentlyChatting: '正在聊天',
