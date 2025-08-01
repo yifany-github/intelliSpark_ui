@@ -36,9 +36,13 @@ export default function CharacterCreationSuccess({
           <div className="bg-gray-800 rounded-lg p-4">
             <div className="flex items-center space-x-4">
               <img
-                src={character.avatarUrl}
+                src={character.avatarUrl || '/assets/characters_img/Elara.jpeg'}
                 alt={character.name}
                 className="w-16 h-16 rounded-full object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/assets/characters_img/Elara.jpeg';
+                }}
               />
               <div className="flex-1 text-left">
                 <h3 className="font-semibold text-white">{character.name}</h3>
