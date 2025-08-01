@@ -40,13 +40,12 @@ const DiscoverSection = () => {
 
   // Mutation for creating a new chat
   const { mutate: createChat, isPending: isCreatingChat } = useMutation({
-    mutationFn: async ({ characterId, sceneId = 1 }: { characterId: number; sceneId?: number }) => {
+    mutationFn: async ({ characterId }: { characterId: number }) => {
       const response = await apiRequest(
         "POST",
         "/api/chats",
         {
           characterId,
-          sceneId,
           title: `Chat with ${characters.find(c => c.id === characterId)?.name || 'Character'}`
         }
       );
