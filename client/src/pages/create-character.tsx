@@ -71,7 +71,7 @@ const ImprovedCreateCharacterPage = () => {
       empathy: 50,
       creativity: 50,
     },
-    avatar: null,
+    avatar: '/assets/characters_img/Elara.jpeg',
     category: 'Original',
     isPublic: true,
     nsfwLevel: 0,
@@ -203,7 +203,7 @@ const ImprovedCreateCharacterPage = () => {
         empathy: 50,
         creativity: 50,
       },
-      avatar: null,
+      avatar: '/assets/characters_img/Elara.jpeg',
       category: 'Original',
       isPublic: true,
       nsfwLevel: 0,
@@ -329,6 +329,53 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
               rows={3}
               required
             />
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Character Avatar</Label>
+          <div className="flex items-center gap-4">
+            <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+              <img
+                src={formData.avatar || '/assets/characters_img/Elara.jpeg'}
+                alt="Character avatar"
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  target.src = '/assets/characters_img/Elara.jpeg';
+                }}
+              />
+            </div>
+            <div className="flex-1 space-y-2">
+              <Input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      setFormData({ ...formData, avatar: event.target?.result as string });
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+                className="cursor-pointer"
+              />
+              <p className="text-xs text-muted-foreground">
+                Upload an image or use the default avatar. Supported formats: JPG, PNG, GIF
+              </p>
+              {formData.avatar && formData.avatar !== '/assets/characters_img/Elara.jpeg' && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setFormData({ ...formData, avatar: '/assets/characters_img/Elara.jpeg' })}
+                >
+                  Reset to Default
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
