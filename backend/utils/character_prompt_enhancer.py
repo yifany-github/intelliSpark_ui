@@ -15,10 +15,10 @@ class CharacterPromptEnhancer:
                 self.generic_data = json.load(f)
         except FileNotFoundError:
             print(f"Warning: Few-shot examples file not found at {self.few_shots_path}")
-            self.generic_data = {"personality_archetypes": {}, "default_examples": []}
+            self.generic_data = []
         except json.JSONDecodeError as e:
             print(f"Warning: Invalid JSON in few-shot examples file: {e}")
-            self.generic_data = {"personality_archetypes": {}, "default_examples": []}
+            self.generic_data = []
     
     def analyze_personality_archetype(self, character: Character) -> str:
         """Determine personality archetype from character traits and description"""
@@ -81,17 +81,13 @@ class CharacterPromptEnhancer:
         return max(archetype_scores, key=archetype_scores.get)
     
     def generate_few_shot_examples(self, character: Character, count: int = 6) -> List[Dict]:
-        """Generate contextual conversation examples based on character archetype"""
-        archetype = self.analyze_personality_archetype(character)
-        
-        # Get examples for this archetype, fallback to default
-        examples = self.generic_data["personality_archetypes"].get(
-            archetype, 
-            self.generic_data.get("default_examples", [])
-        )
-        
-        # Take the first 'count' examples, or all if fewer available
-        return examples[:count] if examples else []
+        """Generate contextual conversation examples from the simple array"""
+        # Load all examples and take the first 'count' items
+        if isinstance(self.generic_data, list):
+            return self.generic_data[:count] if self.generic_data else []
+        else:
+            # Fallback for old format
+            return self._generate_simple_examples(character)[:count]
     
     def enhance_dynamic_prompt(self, character: Character) -> Dict[str, Any]:
         """Generate enhanced prompt with personality analysis and few-shot examples"""
@@ -125,14 +121,27 @@ class CharacterPromptEnhancer:
             character_details_section=character_details_section
         )
         
-        # Generate few-shot examples based on personality archetype
-        few_shot_examples = self.generate_few_shot_examples(character)
-        
-        # Log enhancement info
-        archetype = self.analyze_personality_archetype(character)
-        print(f"🎭 Enhanced character '{character.name}' with archetype '{archetype}' and {len(few_shot_examples)} few-shot examples")
+        # Generate simple few-shot examples
+        few_shot_examples = self._generate_simple_examples(character)
         
         return {
             "persona_prompt": persona_prompt,
             "few_shot_contents": few_shot_examples
         }
+    
+    def _generate_simple_examples(self, character: Character) -> List[Dict]:
+        """Load the 150 few-shot examples from JSON file"""
+        if isinstance(self.generic_data, list):
+            return self.generic_data
+        else:
+            # Fallback to basic examples
+            return [
+                {
+                    "role": "user",
+                    "content": "你好"
+                },
+                {
+                    "role": "assistant", 
+                    "content": f"*温暖地微笑* 你好！我是{character.name}。"
+                }
+            ]

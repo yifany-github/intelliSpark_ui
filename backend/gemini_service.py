@@ -4,7 +4,7 @@ from config import settings
 from models import Character, ChatMessage
 from prompts.system import SYSTEM_PROMPT
 from prompts.character_templates import DYNAMIC_CHARACTER_TEMPLATE, OPENING_LINE_TEMPLATE
-from typing import List, Optional
+from typing import List, Optional, Dict
 import logging
 import json
 import os
@@ -132,8 +132,21 @@ class GeminiService:
             if character_prompt.get("persona_prompt"):
                 system_instruction += f"persona prompt: {character_prompt['persona_prompt']}"
             
-            # Use few-shot examples in proper Gemini API format
-            few_shot_contents = character_prompt.get("few_shot_contents", [])
+            # Get few-shot examples - they should already be in proper Gemini API format
+            few_shot_examples = character_prompt.get("few_shot_contents", [])
+            
+            # Check if examples are already in Gemini format or need conversion
+            few_shot_contents = []
+            for example in few_shot_examples:
+                if "parts" in example:
+                    # Already in Gemini format (like 艾莉丝)
+                    few_shot_contents.append(example)
+                else:
+                    # Need conversion (like user-created characters)
+                    few_shot_contents.append({
+                        "role": example.get("role", "user"),
+                        "parts": [{"text": example.get("content", "")}]
+                    })
             
             if few_shot_contents:
                 logger.info(f"✅ Cache creation: {len(few_shot_contents)} few-shot examples")
@@ -144,7 +157,7 @@ class GeminiService:
                 model=self.model_name,
                 config=types.CreateCachedContentConfig(
                     system_instruction=system_instruction,
-                    contents=few_shot_contents  # Use proper role/parts format
+                    contents=few_shot_contents
                 )
             )
             
@@ -152,33 +165,24 @@ class GeminiService:
             return self.cache
             
         except Exception as e:
-            logger.error(f"Failed to create cache: {e}")
-            # Fallback: create empty cache or handle gracefully
-            raise e
+            logger.warning(f"⚠️ Cache creation failed (likely due to minimum token requirement): {e}")
+            # Return None to indicate no cache should be used
+            return None
     
-    def _build_conversation_prompt(self, messages: List[ChatMessage]) -> str:
-        """Build simplified conversation prompt like demo's build_history"""
-        # Build conversation history in demo format
-        history_parts = []
-        current_user_msg = ""
-        
-        # Process messages to build history
-        for i, msg in enumerate(messages):
+    def _build_conversation_prompt(self, messages: List[ChatMessage]) -> List[Dict]:
+        """Build conversation prompt in proper Gemini API format"""
+        # Get the last user message
+        last_user_message = ""
+        for msg in reversed(messages):
             if msg.role == "user":
-                current_user_msg = msg.content
-                # If this is not the last message, add to history
-                if i < len(messages) - 1:
-                    # Look for the corresponding assistant response
-                    if i + 1 < len(messages) and messages[i + 1].role == "assistant":
-                        assistant_msg = messages[i + 1].content
-                        history_parts.append(f"user: {msg.content}\nassistant: {assistant_msg}")
-            
-        # Build final prompt like demo
-        if history_parts:
-            hist_txt = "\n".join(history_parts)
-            return f"对话历史:\n{hist_txt}\nuser: {current_user_msg}\nassistant:"
-        else:
-            return f"user: {current_user_msg}\nassistant:"
+                last_user_message = msg.content
+                break
+        
+        # Return in Gemini API format
+        return [{
+            "role": "user",
+            "parts": [{"text": last_user_message}]
+        }]
     
     
     def _simulate_response(
