@@ -43,40 +43,11 @@ class GeminiService:
                 "few_shot_contents": FEW_SHOT_EXAMPLES
             }
         
-        # Generate dynamic prompt for user-created characters
+        # Generate enhanced prompt for user-created characters
         elif character:
-            # Build personality traits string
-            traits_section = ""
-            if character.traits:
-                traits_section = f"### Personality Traits\n{', '.join(character.traits)}\n\n"
-            
-            # Build additional character info
-            character_info = []
-            if character.gender:
-                character_info.append(f"Gender: {character.gender}")
-            if character.age:
-                character_info.append(f"Age: {character.age}")
-            if character.occupation:
-                character_info.append(f"Occupation: {character.occupation}")
-            
-            character_details_section = ""
-            if character_info:
-                character_details_section = f"### Character Details\n{', '.join(character_info)}\n\n"
-            
-            # Use the template from prompts/system.py
-            persona_prompt = DYNAMIC_CHARACTER_TEMPLATE.format(
-                name=character.name,
-                description=character.description or 'A unique character with their own personality.',
-                backstory=character.backstory or 'This character has an interesting background that shapes their responses.',
-                voice_style=character.voice_style or 'Speaks in a natural, engaging manner.',
-                traits_section=traits_section,
-                character_details_section=character_details_section
-            )
-
-            return {
-                "persona_prompt": persona_prompt,
-                "few_shot_contents": []  # Start with empty, can enhance later
-            }
+            from utils.character_prompt_enhancer import CharacterPromptEnhancer
+            enhancer = CharacterPromptEnhancer()
+            return enhancer.enhance_dynamic_prompt(character)
         
         # Fallback for no character
         else:
