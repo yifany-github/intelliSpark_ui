@@ -87,23 +87,40 @@ class GeminiService:
             # Build simplified conversation prompt
             conversation_prompt = self._build_conversation_prompt(messages)
             
-            # Count input tokens
-            input_tokens = self.client.models.count_tokens(
-                model=self.model_name,
-                contents=conversation_prompt,
-                config=types.GenerateContentConfig(
-                    cached_content=cache.name
+            # If cache creation failed, fall back to direct API call without cache
+            if cache is None:
+                logger.warning("⚠️ No cache available, using direct API call with system prompt")
+                # Create system prompt for direct call
+                system_instruction = f"system_prompt: {SYSTEM_PROMPT}\n"
+                if character_prompt.get("persona_prompt"):
+                    system_instruction += f"persona prompt: {character_prompt['persona_prompt']}"
+                
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=conversation_prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=system_instruction
+                    )
                 )
-            ).total_tokens
-            
-            # Generate response using cached content (new API)
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=conversation_prompt,
-                config=types.GenerateContentConfig(
-                    cached_content=cache.name
+                input_tokens = 0  # Simplified token counting
+            else:
+                # Count input tokens with cache
+                input_tokens = self.client.models.count_tokens(
+                    model=self.model_name,
+                    contents=conversation_prompt,
+                    config=types.GenerateContentConfig(
+                        cached_content=cache.name
+                    )
+                ).total_tokens
+                
+                # Generate response using cached content (new API)
+                response = self.client.models.generate_content(
+                    model=self.model_name,
+                    contents=conversation_prompt,
+                    config=types.GenerateContentConfig(
+                        cached_content=cache.name
+                    )
                 )
-            )
             
             if response and response.text:
                 # Count output tokens
