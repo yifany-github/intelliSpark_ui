@@ -1,7 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List
 import logging
+import uuid
+import shutil
+from pathlib import Path
 
 from database import get_db
 from models import Character, Chat, ChatMessage, User
@@ -51,7 +54,7 @@ async def get_character(character_id: int, db: Session = Depends(get_db)):
         logger.error(f"Error fetching character {character_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch character")
 
-@router.post("/characters", response_model=CharacterSchema)
+@router.post("/characters")
 async def create_character(
     character_data: CharacterCreate, 
     db: Session = Depends(get_db), 
@@ -90,6 +93,126 @@ async def create_character(
         logger.error(f"Error creating character: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create character")
+
+@router.post("/characters/upload-avatar")
+async def upload_character_avatar(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a character avatar image and return the URL"""
+    try:
+        # Validate file type (MIME type can be spoofed, so check content too)
+        allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid file type '{file.content_type}'. Allowed types: {', '.join(allowed_types)}"
+            )
+        
+        # Additional validation: Check file magic numbers (first few bytes)
+        # This prevents uploading malicious files with fake MIME types
+        def validate_image_content(content: bytes) -> bool:
+            """Validate file content by checking magic numbers/file signatures"""
+            if not content:
+                return False
+            
+            # Check for common image file signatures
+            image_signatures = {
+                b'\xFF\xD8\xFF': 'jpeg',  # JPEG
+                b'\x89PNG\r\n\x1a\n': 'png',  # PNG  
+                b'RIFF': 'webp',  # WebP (followed by WEBP)
+                b'GIF87a': 'gif',  # GIF87a
+                b'GIF89a': 'gif',  # GIF89a
+            }
+            
+            for signature in image_signatures:
+                if content.startswith(signature):
+                    # For WebP, need additional check
+                    if signature == b'RIFF' and len(content) > 12:
+                        if content[8:12] == b'WEBP':
+                            return True
+                        else:
+                            continue
+                    return True
+            return False
+        
+        # Validate file size (5MB limit) - read content to get actual size
+        max_size = 5 * 1024 * 1024  # 5MB in bytes
+        
+        # Read file content to validate actual size (file.size can be None for FormData)
+        try:
+            file_content = await file.read()
+            actual_size = len(file_content)
+            
+            if actual_size > max_size:
+                raise HTTPException(
+                    status_code=413,  # Payload Too Large (proper HTTP status)
+                    detail=f"File too large ({actual_size} bytes). Maximum size is {max_size} bytes (5MB)"
+                )
+            
+            # Validate file content using magic numbers
+            if not validate_image_content(file_content):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Invalid image file. File content does not match expected image format."
+                )
+            
+            # Reset file pointer for later operations
+            await file.seek(0)
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=400, detail="Failed to read file content")
+        
+        # Secure filename handling - prevent path traversal and validate extension
+        import re
+        from pathlib import Path
+        
+        # Sanitize filename to prevent path traversal
+        safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '', file.filename or 'upload')
+        file_extension = Path(safe_filename).suffix.lower()
+        
+        # Validate file extension (whitelist approach)
+        allowed_extensions = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+        if not file_extension or file_extension not in allowed_extensions:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid file extension '{file_extension}'. Allowed: {', '.join(allowed_extensions)}"
+            )
+        
+        # Generate secure unique filename
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        
+        # Ensure upload directory exists
+        current_dir = Path(__file__).parent
+        upload_dir = current_dir.parent / "attached_assets" / "user_characters_img"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save file to disk
+        file_path = upload_dir / unique_filename
+        try:
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+        except Exception as e:
+            logger.error(f"Failed to save uploaded file: {e}")
+            raise HTTPException(status_code=500, detail="Failed to save file")
+        
+        # Return local URL
+        avatar_url = f"/assets/user_characters_img/{unique_filename}"
+        logger.info(f"Successfully uploaded avatar: {avatar_url}")
+        
+        return {
+            "avatarUrl": avatar_url,
+            "filename": unique_filename,
+            "message": "Avatar uploaded successfully"
+        }
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error during file upload: {e}")
+        raise HTTPException(status_code=500, detail="Failed to upload file")
 
 # ===== CHAT ROUTES =====
 

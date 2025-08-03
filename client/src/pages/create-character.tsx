@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useLocation } from 'wouter';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Character } from '@/types';
@@ -153,9 +153,6 @@ const ImprovedCreateCharacterPage = () => {
         description: error.message,
         variant: 'destructive'
       });
-      
-      // Log error for debugging
-      console.error('Character creation error:', error);
     }
   });
 
@@ -280,8 +277,65 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
   onCancel: () => void;
   isLoading: boolean;
 }) => {
+  const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<CharacterFormData>(initialData);
   const [newTrait, setNewTrait] = useState("");
+
+  // Handle image upload
+  const handleImageUpload = async (file: File) => {
+    if (!file) return;
+    
+    // Client-side validation
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      toast({
+        title: 'File too large',
+        description: 'Please choose an image under 5MB',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please choose a JPEG, PNG, WebP, or GIF image',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    try {
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+      
+      const response = await apiRequest('POST', '/api/characters/upload-avatar', uploadFormData);
+      const result = await response.json();
+      
+      setFormData(prev => ({ ...prev, avatar: result.avatarUrl }));
+      
+      toast({
+        title: 'Image uploaded successfully',
+        description: 'Your character image has been saved'
+      });
+    } catch (error) {
+      // Reset file input on error to prevent confusion
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
+      toast({
+        title: 'Upload failed',
+        description: 'Please try again with a different image',
+        variant: 'destructive'
+      });
+      
+      // Don't update avatar URL on error - keep the previous value
+      // This ensures character creation will use the last successful upload or default
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -347,23 +401,34 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
               />
             </div>
             <div className="flex-1 space-y-2">
-              <Input
+              <input
                 type="file"
                 accept="image/*"
+                ref={fileInputRef}
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                      setFormData({ ...formData, avatar: event.target?.result as string });
-                    };
-                    reader.readAsDataURL(file);
+                    handleImageUpload(file);
                   }
                 }}
-                className="cursor-pointer"
+                style={{ display: 'none' }}
               />
+              <Button
+                type="button"
+                variant="outline"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  if (fileInputRef.current) {
+                    fileInputRef.current.click();
+                  }
+                }}
+                className="w-full"
+              >
+                Choose Avatar Image
+              </Button>
               <p className="text-xs text-muted-foreground">
-                Upload an image or use the default avatar. Supported formats: JPG, PNG, GIF
+                Upload an image or use the default avatar. Supported formats: JPG, PNG, WebP, GIF
               </p>
               {formData.avatar && formData.avatar !== '/assets/characters_img/Elara.jpeg' && (
                 <Button
