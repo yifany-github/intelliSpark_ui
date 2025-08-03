@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation, useRoute, Link } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Chat, ChatMessage, Character, EnrichedChat } from "../types";
 import ChatBubble from "@/components/chats/ChatBubble";
 import ChatInput from "@/components/chats/ChatInput";
@@ -129,68 +129,50 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     },
   });
   
+  // Reusable delete mutation hook
+  const useDeleteMutation = (endpoint: string, successMessage: string, errorMessage: string, onSuccessExtra?: () => void) => {
+    return useMutation({
+      mutationFn: async (id?: number) => {
+        const url = id ? `${endpoint}/${id}` : endpoint;
+        const response = await apiRequest('DELETE', url);
+        if (!response.ok) {
+          throw new Error('Delete operation failed');
+        }
+        return response.json();
+      },
+      onSuccess: () => {
+        onSuccessExtra?.();
+        queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
+        toast({
+          title: t('success'),
+          description: successMessage,
+        });
+      },
+      onError: (error) => {
+        toast({
+          title: t('error'),
+          description: errorMessage,
+          variant: "destructive",
+        });
+        console.error('Delete operation error:', error);
+      },
+    });
+  };
+
   // Clear all chats mutation
-  const { mutate: clearAllChats, isPending: isClearingChats } = useMutation({
-    mutationFn: async () => {
-      const response = await apiRequest('DELETE', '/api/chats');
-      if (!response.ok) {
-        throw new Error('Failed to clear chat history');
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      setCurrentChat(null);
-      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
-      toast({
-        title: t('success'),
-        description: t('clearChatHistory') + ' ' + t('cleared'),
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: t('error'),
-        description: t('failedToDeleteChat'),
-        variant: "destructive",
-      });
-      console.error('Clear chats error:', error);
-    },
-  });
+  const { mutate: clearAllChats, isPending: isClearingChats } = useDeleteMutation(
+    '/api/chats',
+    t('chatHistoryCleared'),
+    t('failedToClearAllChats'),
+    () => setCurrentChat(null) // Extra action for clear all
+  );
 
-  // Delete single chat mutation
-  const { mutate: deleteSingleChat, isPending: isDeletingChat } = useMutation({
-    mutationFn: async (chatIdToDelete: number) => {
-      const response = await apiRequest('DELETE', `/api/chats/${chatIdToDelete}`);
-      if (!response.ok) {
-        throw new Error('Failed to delete chat');
-      }
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
-      toast({
-        title: t('success'),
-        description: t('chatDeleted'),
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: t('error'),
-        description: t('failedToDeleteChat'),
-        variant: "destructive",
-      });
-      console.error('Delete chat error:', error);
-    },
-  });
-
-  // Handle clear all chats
-  const handleClearAllChats = () => {
-    clearAllChats();
-  };
-
-  // Handle delete single chat
-  const handleDeleteSingleChat = (chatIdToDelete: number) => {
-    deleteSingleChat(chatIdToDelete);
-  };
+  // Delete single chat mutation  
+  const { mutate: deleteSingleChat, isPending: isDeletingChat } = useDeleteMutation(
+    '/api/chats',
+    t('chatDeleted'),
+    t('failedToDeleteChat')
+  );
   
   // Regenerate the last AI message
   const regenerateLastMessage = () => {
@@ -247,7 +229,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
                       {t('cancel')}
                     </AlertDialogCancel>
                     <AlertDialogAction 
-                      onClick={handleClearAllChats}
+                      onClick={() => clearAllChats(undefined)}
                       className="bg-red-600 hover:bg-red-700"
                       disabled={isClearingChats}
                     >
@@ -335,7 +317,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            handleDeleteSingleChat(chat.id);
+                            deleteSingleChat(chat.id);
                           }}
                           className="text-red-400 hover:text-red-300 hover:bg-red-900/20 cursor-pointer"
                         >

@@ -310,6 +310,8 @@ export type TranslationKey =
   | 'success'
   | 'error'
   | 'cleared'
+  | 'chatHistoryCleared'
+  | 'failedToClearAllChats'
   | 'clearHistory'
   | 'areYouSure'
   | 'wantLogout'
@@ -956,6 +958,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     success: 'Success',
     error: 'Error',
     cleared: 'cleared successfully',
+    chatHistoryCleared: 'Chat history cleared successfully',
+    failedToClearAllChats: 'Failed to clear all chats',
     areYouSure: 'Are you sure you want to',
     wantLogout: 'logout?',
     signOut: 'This will sign you out of your account',
@@ -1622,6 +1626,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     success: '成功',
     error: '错误',
     cleared: '清除成功',
+    chatHistoryCleared: '聊天历史清除成功',
+    failedToClearAllChats: '清除所有聊天失败',
     areYouSure: '您确定要',
     wantLogout: '退出登录吗？',
     signOut: '这将使您退出账户',
