@@ -37,7 +37,7 @@ parent_dir = Path(__file__).parent.parent
 
 # Include API routes FIRST (highest priority for authentication)
 app.include_router(router, prefix="/api")
-app.include_router(admin_router, prefix="/api")
+app.include_router(admin_router, prefix="/api/admin")
 app.include_router(auth_router, prefix="/api/auth", tags=["authentication"])
 app.include_router(payment_router)
 app.include_router(notifications_router)

@@ -54,7 +54,7 @@ async def get_character(character_id: int, db: Session = Depends(get_db)):
         logger.error(f"Error fetching character {character_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch character")
 
-@router.post("/characters", response_model=CharacterSchema)
+@router.post("/characters")
 async def create_character(
     character_data: CharacterCreate, 
     db: Session = Depends(get_db), 
