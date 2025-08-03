@@ -298,6 +298,18 @@ export type TranslationKey =
   | 'cannotUndone'
   | 'permanentlyDelete'
   | 'allConversations'
+  | 'clearAll'
+  | 'clearAllChats'
+  | 'thisActionCannotBeUndone'
+  | 'allConversationsWillBeDeleted'
+  | 'clearing'
+  | 'deleteChat'
+  | 'deleteChatConfirm'
+  | 'chatDeleted'
+  | 'failedToDeleteChat'
+  | 'success'
+  | 'error'
+  | 'cleared'
   | 'clearHistory'
   | 'areYouSure'
   | 'wantLogout'
@@ -932,6 +944,18 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     cannotUndone: 'cannot be undone',
     permanentlyDelete: 'and will permanently delete',
     allConversations: 'all your conversations',
+    clearAll: 'Clear All',
+    clearAllChats: 'Clear All Chats',
+    thisActionCannotBeUndone: 'This action cannot be undone',
+    allConversationsWillBeDeleted: 'All your conversations will be permanently deleted',
+    clearing: 'Clearing...',
+    deleteChat: 'Delete Chat',
+    deleteChatConfirm: 'Are you sure you want to delete this chat?',
+    chatDeleted: 'Chat deleted successfully',
+    failedToDeleteChat: 'Failed to delete chat',
+    success: 'Success',
+    error: 'Error',
+    cleared: 'cleared successfully',
     areYouSure: 'Are you sure you want to',
     wantLogout: 'logout?',
     signOut: 'This will sign you out of your account',
@@ -1586,6 +1610,18 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     cannotUndone: '无法撤销',
     permanentlyDelete: '并将永久删除',
     allConversations: '您的所有对话',
+    clearAll: '全部清除',
+    clearAllChats: '清除所有聊天',
+    thisActionCannotBeUndone: '此操作无法撤销',
+    allConversationsWillBeDeleted: '您的所有对话将被永久删除',
+    clearing: '清除中...',
+    deleteChat: '删除聊天',
+    deleteChatConfirm: '您确定要删除此聊天吗？',
+    chatDeleted: '聊天删除成功',
+    failedToDeleteChat: '删除聊天失败',
+    success: '成功',
+    error: '错误',
+    cleared: '清除成功',
     areYouSure: '您确定要',
     wantLogout: '退出登录吗？',
     signOut: '这将使您退出账户',
