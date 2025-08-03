@@ -372,3 +372,30 @@ async def clear_all_chats(db: Session = Depends(get_db), current_user: User = De
         logger.error(f"Error clearing chat history: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to clear chat history")
+
+@router.delete("/chats/{chat_id}", response_model=MessageResponse)
+async def delete_single_chat(chat_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Delete a specific chat and all its messages"""
+    try:
+        # Check if chat exists and belongs to current user
+        chat = db.query(Chat).filter(Chat.id == chat_id, Chat.user_id == current_user.id).first()
+        
+        if not chat:
+            raise HTTPException(status_code=404, detail="Chat not found")
+        
+        # Delete all messages for this chat first (due to foreign key constraints)
+        db.query(ChatMessage).filter(ChatMessage.chat_id == chat_id).delete()
+        
+        # Delete the chat itself
+        db.query(Chat).filter(Chat.id == chat_id).delete()
+        
+        db.commit()
+        
+        return MessageResponse(message="Chat deleted successfully")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting chat {chat_id}: {e}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail="Failed to delete chat")

@@ -58,6 +58,14 @@ python -m pytest                     # Run backend tests
 - **Asset Management**: Static assets served from `attached_assets/` directory
 - **Authentication Flow**: Firebase frontend auth → JWT backend tokens → SQLAlchemy user management
 
+### Character Enhancement System
+- **Hardcoded Characters**: Pre-built prompts from `backend/prompts/characters/艾莉丝.py` (260+ examples, uses Gemini cache)
+- **User-Created Characters**: Dynamic prompts via `backend/utils/character_prompt_enhancer.py` (140 generic examples, direct API calls)
+- **Few-Shot Examples**: `backend/prompts/generic_few_shots.json` provides 140 conversation examples for user characters
+- **Cache Strategy**: Hardcoded characters use Gemini cache for performance; user characters fall back to direct API calls when cache creation fails
+- **Template System**: `backend/prompts/character_templates.py` provides Chinese-language templates for natural character responses
+- **Anti-Generic**: System prevents "How can I help?" responses through explicit instructions and personality-focused prompts
+
 ## API Endpoints
 
 ### Authentication
@@ -172,7 +180,9 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 
 ### AI Integration
 - Uses Gemini AI for character conversations
-- Character personalities are injected into AI prompts
+- **Character Prompt Enhancement**: User-created characters get enhanced prompts with personality traits, backstory, and few-shot examples
+- **Dual Cache Strategy**: Hardcoded characters (like 艾莉丝) use Gemini cache; user characters use direct API calls for flexibility
+- **Response Quality**: System achieves ~80% quality parity between hardcoded and user-created characters
 - Conversation history maintained for context continuity
 - Token-based usage: 1 token deducted per AI message generation
 
@@ -208,4 +218,7 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 - **Authentication**: Email-based with Firebase OAuth integration
 - **Environment**: Separate .env files for frontend (Vite) and backend (FastAPI)
 - **Schema Changes**: Delete `backend/roleplay_chat.db` to reset database schema
+- **Character Development**: User-created characters automatically get enhanced prompts via `CharacterPromptEnhancer`
+- **Few-Shot Examples**: Generic conversation examples in `backend/prompts/generic_few_shots.json` can be customized
+- **Cache Debugging**: Check logs for "Cache creation" messages to debug Gemini cache issues
 - **Error Handling**: Comprehensive error boundaries and user-friendly error messages

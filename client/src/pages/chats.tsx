@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation, useRoute, Link } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Chat, ChatMessage, Character, EnrichedChat } from "../types";
 import ChatBubble from "@/components/chats/ChatBubble";
 import ChatInput from "@/components/chats/ChatInput";
@@ -10,10 +10,29 @@ import { useRolePlay } from "@/contexts/RolePlayContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { queryClient } from "@/lib/queryClient";
 import { invalidateTokenBalance } from "@/services/tokenService";
-import { ChevronLeft, MoreVertical } from "lucide-react";
+import { ChevronLeft, MoreVertical, Trash2 } from "lucide-react";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import { ImprovedTokenBalance } from "@/components/payment/ImprovedTokenBalance";
 import GlobalLayout from "@/components/layout/GlobalLayout";
+import { useToast } from "@/hooks/use-toast";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Button } from "@/components/ui/button";
 
 interface ChatsPageProps {
   chatId?: string;
@@ -21,9 +40,10 @@ interface ChatsPageProps {
 
 const ChatsPage = ({ chatId }: ChatsPageProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { isTyping, setIsTyping } = useRolePlay();
+  const { isTyping, setIsTyping, setCurrentChat } = useRolePlay();
   const { t } = useLanguage();
   const [_, navigate] = useLocation();
+  const { toast } = useToast();
   
   // If no chatId is provided, show chat list
   const showChatList = !chatId;
@@ -109,6 +129,51 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     },
   });
   
+  // Reusable delete mutation hook
+  const useDeleteMutation = (endpoint: string, successMessage: string, errorMessage: string, onSuccessExtra?: () => void) => {
+    return useMutation({
+      mutationFn: async (id?: number) => {
+        const url = id ? `${endpoint}/${id}` : endpoint;
+        const response = await apiRequest('DELETE', url);
+        if (!response.ok) {
+          throw new Error('Delete operation failed');
+        }
+        return response.json();
+      },
+      onSuccess: () => {
+        onSuccessExtra?.();
+        queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
+        toast({
+          title: t('success'),
+          description: successMessage,
+        });
+      },
+      onError: (error) => {
+        toast({
+          title: t('error'),
+          description: errorMessage,
+          variant: "destructive",
+        });
+        console.error('Delete operation error:', error);
+      },
+    });
+  };
+
+  // Clear all chats mutation
+  const { mutate: clearAllChats, isPending: isClearingChats } = useDeleteMutation(
+    '/api/chats',
+    t('chatHistoryCleared'),
+    t('failedToClearAllChats'),
+    () => setCurrentChat(null) // Extra action for clear all
+  );
+
+  // Delete single chat mutation  
+  const { mutate: deleteSingleChat, isPending: isDeletingChat } = useDeleteMutation(
+    '/api/chats',
+    t('chatDeleted'),
+    t('failedToDeleteChat')
+  );
+  
   // Regenerate the last AI message
   const regenerateLastMessage = () => {
     setIsTyping(true);
@@ -132,7 +197,49 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     return (
       <GlobalLayout>
         <div className="px-4 pt-4 pb-16">
-          <h1 className="font-poppins font-bold text-2xl mb-4">{t('chats')}</h1>
+          {/* Header with Clear All Button */}
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="font-poppins font-bold text-2xl">{t('chats')}</h1>
+            
+            {/* Clear All Button - only show if there are chats */}
+            {chats.length > 0 && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    className="flex items-center space-x-2 text-red-500 border-red-500 hover:bg-red-500 hover:text-white"
+                    disabled={isClearingChats}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>{t('clearAll')}</span>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent className="bg-gray-800 border-gray-700">
+                  <AlertDialogHeader>
+                    <AlertDialogTitle className="text-white">
+                      {t('clearAllChats')}
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="text-gray-400">
+                      {t('thisActionCannotBeUndone')}. {t('allConversationsWillBeDeleted')}.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel className="bg-gray-700 text-white border-gray-600">
+                      {t('cancel')}
+                    </AlertDialogCancel>
+                    <AlertDialogAction 
+                      onClick={() => clearAllChats(undefined)}
+                      className="bg-red-600 hover:bg-red-700"
+                      disabled={isClearingChats}
+                    >
+                      {isClearingChats ? t('clearing') : t('clearAll')}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
+          </div>
         
         {isLoadingChats ? (
           <div className="space-y-4">
@@ -161,13 +268,15 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
         ) : (
           <div className="space-y-3">
             {chats.map((chat: EnrichedChat) => (
-              <Link 
+              <div 
                 key={chat.id} 
-                href={`/chat/${chat.id}`}
-                className="block bg-secondary hover:bg-secondary/80 rounded-2xl p-4 transition-colors"
+                className="bg-secondary hover:bg-secondary/80 rounded-2xl p-4 transition-colors"
               >
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center">
+                  <Link 
+                    href={`/chat/${chat.id}`}
+                    className="flex items-center flex-1 min-w-0"
+                  >
                     <ImageWithFallback
                       src={chat.character?.avatarUrl}
                       alt={chat.character?.name || "Character"}
@@ -175,8 +284,8 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
                       size="md"
                       showSpinner={true}
                     />
-                    <div className="ml-3">
-                      <h3 className="font-medium">{chat.title}</h3>
+                    <div className="ml-3 flex-1 min-w-0">
+                      <h3 className="font-medium truncate">{chat.title}</h3>
                       <p className="text-sm text-gray-400">
                         {chat.character?.name}
                       </p>
@@ -184,12 +293,42 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
                         {chat.updatedAt ? new Date(chat.updatedAt).toLocaleDateString() : ''}
                       </p>
                     </div>
+                  </Link>
+                  
+                  <div className="flex items-center space-x-2">
+                    <span className="text-xs text-gray-400">
+                      {chat.updatedAt ? new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                    </span>
+                    
+                    {/* Individual Chat Actions Dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 w-8 p-0 text-gray-400 hover:text-white"
+                          disabled={isDeletingChat}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-gray-800 border-gray-700">
+                        <DropdownMenuItem 
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            deleteSingleChat(chat.id);
+                          }}
+                          className="text-red-400 hover:text-red-300 hover:bg-red-900/20 cursor-pointer"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          {t('deleteChat')}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
-                  <span className="text-sm text-gray-400">
-                    {chat.updatedAt ? new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                  </span>
                 </div>
-              </Link>
+              </div>
             ))}
           </div>
         )}
