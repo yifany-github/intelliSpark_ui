@@ -153,9 +153,6 @@ const ImprovedCreateCharacterPage = () => {
         description: error.message,
         variant: 'destructive'
       });
-      
-      // Log error for debugging
-      console.error('Character creation error:', error);
     }
   });
 
@@ -324,12 +321,19 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
         description: 'Your character image has been saved'
       });
     } catch (error) {
-      console.error('Upload error:', error);
+      // Reset file input on error to prevent confusion
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      
       toast({
         title: 'Upload failed',
         description: 'Please try again with a different image',
         variant: 'destructive'
       });
+      
+      // Don't update avatar URL on error - keep the previous value
+      // This ensures character creation will use the last successful upload or default
     }
   };
 
