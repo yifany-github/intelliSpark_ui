@@ -1,7 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List
 import logging
+import uuid
+import shutil
+from pathlib import Path
 
 from database import get_db
 from models import Character, Chat, ChatMessage, User
@@ -90,6 +93,64 @@ async def create_character(
         logger.error(f"Error creating character: {e}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create character")
+
+@router.post("/characters/upload-avatar")
+async def upload_character_avatar(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user)
+):
+    """Upload a character avatar image and return the URL"""
+    try:
+        # Validate file type
+        allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
+        if file.content_type not in allowed_types:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid file type '{file.content_type}'. Allowed types: {', '.join(allowed_types)}"
+            )
+        
+        # Validate file size (5MB limit)
+        max_size = 5 * 1024 * 1024  # 5MB in bytes
+        if file.size and file.size > max_size:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"File too large ({file.size} bytes). Maximum size is {max_size} bytes (5MB)"
+            )
+        
+        # Generate unique filename
+        file_extension = file.filename.split('.')[-1].lower() if file.filename else 'jpg'
+        unique_filename = f"{uuid.uuid4()}.{file_extension}"
+        
+        # Ensure upload directory exists
+        current_dir = Path(__file__).parent
+        upload_dir = current_dir.parent / "attached_assets" / "user_characters_img"
+        upload_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Save file to disk
+        file_path = upload_dir / unique_filename
+        try:
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(file.file, buffer)
+        except Exception as e:
+            logger.error(f"Failed to save uploaded file: {e}")
+            raise HTTPException(status_code=500, detail="Failed to save file")
+        
+        # Return local URL
+        avatar_url = f"/assets/user_characters_img/{unique_filename}"
+        logger.info(f"Successfully uploaded avatar: {avatar_url}")
+        
+        return {
+            "avatarUrl": avatar_url,
+            "filename": unique_filename,
+            "message": "Avatar uploaded successfully"
+        }
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
+    except Exception as e:
+        logger.error(f"Unexpected error during file upload: {e}")
+        raise HTTPException(status_code=500, detail="Failed to upload file")
 
 # ===== CHAT ROUTES =====
 

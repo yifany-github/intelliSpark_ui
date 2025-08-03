@@ -55,6 +55,54 @@ const ImprovedCreateCharacterPage = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Handle image upload
+  const handleImageUpload = async (file: File) => {
+    if (!file) return;
+    
+    // Client-side validation
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      toast({
+        title: 'File too large',
+        description: 'Please choose an image under 5MB',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please choose a JPEG, PNG, WebP, or GIF image',
+        variant: 'destructive'
+      });
+      return;
+    }
+    
+    try {
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', file);
+      
+      const response = await apiRequest('POST', '/api/characters/upload-avatar', uploadFormData);
+      const result = await response.json();
+      
+      setFormData(prev => ({ ...prev, avatar: result.avatarUrl }));
+      
+      toast({
+        title: 'Image uploaded successfully',
+        description: 'Your character image has been saved'
+      });
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        title: 'Upload failed',
+        description: 'Please try again with a different image',
+        variant: 'destructive'
+      });
+    }
+  };
+
   const [currentStep, setCurrentStep] = useState<CreationStep>(CreationStep.TEMPLATE_SELECTION);
   const [createdCharacter, setCreatedCharacter] = useState<Character | null>(null);
   const [formData, setFormData] = useState<CharacterFormData>({
@@ -353,11 +401,7 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (event) => {
-                      setFormData({ ...formData, avatar: event.target?.result as string });
-                    };
-                    reader.readAsDataURL(file);
+                    handleImageUpload(file);
                   }
                 }}
                 className="cursor-pointer"
