@@ -20,6 +20,10 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
+  const navigateToHome = () => {
+    navigate('/');
+  };
+
   const { data: tokenBalance, isLoading: tokenLoading, error: tokenError, refetch } = useQuery({
     queryKey: ['tokenBalance'],
     queryFn: fetchTokenBalance,
@@ -55,13 +59,30 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
       <div className="flex items-center justify-between px-2 sm:px-4 py-3">
         {/* Left side */}
         <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 rounded-lg flex items-center justify-center">
+          <button 
+            onClick={navigateToHome}
+            className="flex items-center space-x-2 group transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-50 rounded-lg p-1 hover:bg-gray-700/50"
+            title="Go to Home"
+            aria-label="Navigate to home page - ProductInsightAI"
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                navigateToHome();
+              }
+            }}
+          >
+            <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
               <MessageCircle className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg sm:text-xl font-bold text-green-400 hidden sm:block">ProductInsightAI</span>
-            <span className="text-lg font-bold text-green-400 sm:hidden">AI</span>
-          </div>
+            <span className="text-lg sm:text-xl font-bold text-green-400 hidden sm:block group-hover:text-green-300 transition-colors">
+              ProductInsightAI
+            </span>
+            <span className="text-lg font-bold text-green-400 sm:hidden group-hover:text-green-300 transition-colors">
+              AI
+            </span>
+          </button>
           
           {/* Search Bar */}
           <div className="relative flex-1 max-w-md mx-2 sm:mx-4">
