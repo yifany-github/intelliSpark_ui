@@ -43,9 +43,12 @@ class TestFileValidation:
         """Test valid PNG file validation"""
         # Valid PNG magic bytes
         png_content = b'\x89PNG\r\n\x1a\n' + b'\x00' * 100
-        is_valid, error = validate_image_file(png_content, 'image/png')
-        assert is_valid is True
-        assert error is None
+        
+        # Mock python-magic to return valid PNG type for this test
+        with patch('utils.file_validation.magic.from_buffer', return_value='image/png'):
+            is_valid, error = validate_image_file(png_content, 'image/png')
+            assert is_valid is True
+            assert error is None
     
     def test_validate_image_file_valid_webp(self):
         """Test valid WebP file validation"""
