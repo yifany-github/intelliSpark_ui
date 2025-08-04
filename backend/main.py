@@ -1,6 +1,9 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 import os
 from pathlib import Path
 from dotenv import load_dotenv
@@ -23,6 +26,11 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 # Add CORS middleware to allow frontend requests
 app.add_middleware(
     CORSMiddleware,
@@ -31,6 +39,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Add security headers middleware for uploaded files
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    """Add security headers to prevent script execution from uploaded files"""
+    response = await call_next(request)
+    
+    # Apply security headers to user-uploaded images to prevent XSS
+    if request.url.path.startswith("/assets/user_characters_img/"):
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Content-Security-Policy"] = "default-src 'none'"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+    
+    return response
 
 # Get the parent directory to access attached_assets
 parent_dir = Path(__file__).parent.parent
