@@ -1,7 +1,7 @@
 import { Search, ChevronDown, MessageCircle, User, Settings, LogOut, LogIn, Bell } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
-import { useLocation } from 'wouter';
+import { useNavigation } from '@/contexts/NavigationContext';
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ImprovedTokenBalance } from '@/components/payment/ImprovedTokenBalance';
@@ -16,13 +16,17 @@ interface TopNavigationProps {
 export default function TopNavigation({ searchQuery = '', onSearchChange }: TopNavigationProps) {
   const { user, isAuthenticated, logout } = useAuth();
   const { language, setLanguage, t } = useLanguage();
-  const [_, navigate] = useLocation();
+  const { 
+    navigateToHome, 
+    navigateToPayment, 
+    navigateToLogin, 
+    navigateToPath,
+    getTopNavItems 
+  } = useNavigation();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  const navigateToHome = () => {
-    navigate('/');
-  };
+  const topNavItems = getTopNavItems();
 
   const { data: tokenBalance, isLoading: tokenLoading, error: tokenError, refetch } = useQuery({
     queryKey: ['tokenBalance'],
@@ -110,7 +114,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
           )}
           
           <button 
-            onClick={() => navigate('/payment')}
+            onClick={navigateToPayment}
             className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:from-blue-600 hover:to-blue-700 transition-colors"
           >
             <span className="hidden sm:inline">💎 {t('upgradePlan')}</span>
@@ -141,46 +145,19 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
                 
                 {showUserMenu && (
                   <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg border border-gray-700 py-1 z-50">
-                    <button 
-                      onClick={() => {
-                        navigate('/profile');
-                        setShowUserMenu(false);
-                      }}
-                      className="w-full px-4 py-2 text-left hover:bg-gray-700 text-sm flex items-center space-x-2"
-                    >
-                      <User className="w-4 h-4" />
-                      <span>{t('profile')}</span>
-                    </button>
-                    <button 
-                      onClick={() => {
-                        navigate('/chats');
-                        setShowUserMenu(false);
-                      }}
-                      className="w-full px-4 py-2 text-left hover:bg-gray-700 text-sm flex items-center space-x-2"
-                    >
-                      <MessageCircle className="w-4 h-4" />
-                      <span>{t('myChats')}</span>
-                    </button>
-                    <button 
-                      onClick={() => {
-                        navigate('/notifications');
-                        setShowUserMenu(false);
-                      }}
-                      className="w-full px-4 py-2 text-left hover:bg-gray-700 text-sm flex items-center space-x-2"
-                    >
-                      <Bell className="w-4 h-4" />
-                      <span>{t('notifications')}</span>
-                    </button>
-                    <button 
-                      onClick={() => {
-                        navigate('/payment');
-                        setShowUserMenu(false);
-                      }}
-                      className="w-full px-4 py-2 text-left hover:bg-gray-700 text-sm flex items-center space-x-2"
-                    >
-                      <Settings className="w-4 h-4" />
-                      <span>{t('tokensBilling')}</span>
-                    </button>
+                    {topNavItems.map((item) => (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          navigateToPath(item.path);
+                          setShowUserMenu(false);
+                        }}
+                        className="w-full px-4 py-2 text-left hover:bg-gray-700 text-sm flex items-center space-x-2"
+                      >
+                        <item.icon className="w-4 h-4" />
+                        <span>{t(item.label)}</span>
+                      </button>
+                    ))}
                     <hr className="border-gray-700 my-1" />
                     <button 
                       onClick={() => {
@@ -198,7 +175,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
             ) : (
               <div className="flex items-center space-x-2">
                 <button 
-                  onClick={() => navigate('/login')}
+                  onClick={navigateToLogin}
                   className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                 >
                   <LogIn className="w-4 h-4" />
