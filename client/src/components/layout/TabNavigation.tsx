@@ -32,7 +32,7 @@ const TabNavigation = () => {
     ...mobileTabItems,
     {
       id: "login",
-      label: "login",
+      label: "signIn" as any, // Cast to any to avoid type issues temporarily
       path: "/login",
       icon: () => <i className="fas fa-sign-in-alt text-lg"></i>, // Fallback for login
       requiresAuth: false,

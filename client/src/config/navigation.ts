@@ -1,12 +1,13 @@
 import { Home, MessageSquare, Heart, Search, Plus, Coins, User, Bell, Settings } from 'lucide-react';
+import { TranslationKey } from '@/contexts/LanguageContext';
 
 export interface NavigationItem {
   id: string;
-  label: string;
+  label: TranslationKey;
   path: string;
   icon: any;
   requiresAuth?: boolean;
-  badge?: string;
+  badge?: TranslationKey;
   showInSidebar?: boolean;
   showInTopNav?: boolean;
   showInMobileTab?: boolean;
@@ -76,7 +77,6 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     path: '/payment',
     icon: Coins,
     requiresAuth: true,
-    badge: 'updated',
     showInSidebar: true,
     showInTopNav: true,
     showInMobileTab: true
