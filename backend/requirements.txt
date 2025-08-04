@@ -12,3 +12,7 @@ firebase-admin==6.4.0
 requests==2.31.0
 stripe==7.10.0
 pandas==2.1.4
+python-magic==0.4.27
+Pillow==10.0.0
+slowapi==0.1.9
+aiofiles==23.2.1

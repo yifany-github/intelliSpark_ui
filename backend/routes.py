@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
 from sqlalchemy.orm import Session
 from typing import List
 import logging
 import uuid
 import shutil
 from pathlib import Path
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+import aiofiles
 
 from database import get_db
 from models import Character, Chat, ChatMessage, User
@@ -16,6 +19,7 @@ from schemas import (
 from gemini_service import GeminiService
 from auth.routes import get_current_user
 from utils.character_utils import transform_character_to_response, transform_character_list_to_response
+from utils.file_validation import comprehensive_image_validation
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -25,6 +29,9 @@ router = APIRouter()
 
 # Initialize Gemini service
 gemini_service = GeminiService()
+
+# Initialize rate limiter (will use the one from main app)
+limiter = Limiter(key_func=get_remote_address)
 
 
 # ===== CHARACTERS ROUTES =====
@@ -95,124 +102,123 @@ async def create_character(
         raise HTTPException(status_code=500, detail="Failed to create character")
 
 @router.post("/characters/upload-avatar")
+@limiter.limit("10/minute")  # Maximum 10 uploads per minute per IP
+@limiter.limit("100/hour")   # Maximum 100 uploads per hour per IP
 async def upload_character_avatar(
+    request: Request,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user)
 ):
-    """Upload a character avatar image and return the URL"""
+    """
+    Upload a character avatar image with comprehensive security validation.
+    
+    Security Features:
+    - File type validation (MIME + magic bytes)
+    - Size limits (5MB maximum)
+    - Image dimension validation (4096x4096 max)
+    - Auto-resize for optimization (>1024px)
+    - Rate limiting (10/min, 100/hour per IP)
+    - Secure filename generation
+    - Path traversal protection
+    """
+    
+    # Security logging
+    security_logger = logging.getLogger('security')
+    client_ip = get_remote_address(request)
+    
     try:
-        # Validate file type (MIME type can be spoofed, so check content too)
-        allowed_types = ["image/jpeg", "image/png", "image/webp", "image/gif"]
-        if file.content_type not in allowed_types:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Invalid file type '{file.content_type}'. Allowed types: {', '.join(allowed_types)}"
+        # Read file content for validation
+        file_content = await file.read()
+        
+        # Comprehensive security validation using our utility
+        validation_result = comprehensive_image_validation(
+            file_content=file_content,
+            declared_mime_type=file.content_type or 'application/octet-stream',
+            filename=file.filename or 'upload'
+        )
+        
+        # Check validation results
+        if not validation_result['is_valid']:
+            security_logger.warning(
+                f"File upload rejected: user={current_user.id}, ip={client_ip}, "
+                f"filename={file.filename}, size={len(file_content)}, "
+                f"errors={', '.join(validation_result['errors'])}"
             )
-        
-        # Additional validation: Check file magic numbers (first few bytes)
-        # This prevents uploading malicious files with fake MIME types
-        def validate_image_content(content: bytes) -> bool:
-            """Validate file content by checking magic numbers/file signatures"""
-            if not content:
-                return False
-            
-            # Check for common image file signatures
-            image_signatures = {
-                b'\xFF\xD8\xFF': 'jpeg',  # JPEG
-                b'\x89PNG\r\n\x1a\n': 'png',  # PNG  
-                b'RIFF': 'webp',  # WebP (followed by WEBP)
-                b'GIF87a': 'gif',  # GIF87a
-                b'GIF89a': 'gif',  # GIF89a
-            }
-            
-            for signature in image_signatures:
-                if content.startswith(signature):
-                    # For WebP, need additional check
-                    if signature == b'RIFF' and len(content) > 12:
-                        if content[8:12] == b'WEBP':
-                            return True
-                        else:
-                            continue
-                    return True
-            return False
-        
-        # Validate file size (5MB limit) - read content to get actual size
-        max_size = 5 * 1024 * 1024  # 5MB in bytes
-        
-        # Read file content to validate actual size (file.size can be None for FormData)
-        try:
-            file_content = await file.read()
-            actual_size = len(file_content)
-            
-            if actual_size > max_size:
-                raise HTTPException(
-                    status_code=413,  # Payload Too Large (proper HTTP status)
-                    detail=f"File too large ({actual_size} bytes). Maximum size is {max_size} bytes (5MB)"
-                )
-            
-            # Validate file content using magic numbers
-            if not validate_image_content(file_content):
-                raise HTTPException(
-                    status_code=400,
-                    detail="Invalid image file. File content does not match expected image format."
-                )
-            
-            # Reset file pointer for later operations
-            await file.seek(0)
-        except HTTPException:
-            raise
-        except Exception as e:
-            raise HTTPException(status_code=400, detail="Failed to read file content")
-        
-        # Secure filename handling - prevent path traversal and validate extension
-        import re
-        from pathlib import Path
-        
-        # Sanitize filename to prevent path traversal
-        safe_filename = re.sub(r'[^a-zA-Z0-9._-]', '', file.filename or 'upload')
-        file_extension = Path(safe_filename).suffix.lower()
-        
-        # Validate file extension (whitelist approach)
-        allowed_extensions = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
-        if not file_extension or file_extension not in allowed_extensions:
             raise HTTPException(
                 status_code=400,
-                detail=f"Invalid file extension '{file_extension}'. Allowed: {', '.join(allowed_extensions)}"
+                detail=f"File validation failed: {'; '.join(validation_result['errors'])}"
             )
         
-        # Generate secure unique filename
-        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        # Use processed content (may be resized)
+        processed_content = validation_result['processed_content']
+        secure_filename = validation_result['secure_filename']
+        dimensions = validation_result['dimensions']
+        was_resized = validation_result['was_resized']
         
-        # Ensure upload directory exists
+        # Ensure upload directory exists with proper permissions
         current_dir = Path(__file__).parent
         upload_dir = current_dir.parent / "attached_assets" / "user_characters_img"
         upload_dir.mkdir(parents=True, exist_ok=True)
         
-        # Save file to disk
-        file_path = upload_dir / unique_filename
+        # Verify upload directory is within expected bounds (security check)
+        upload_path = upload_dir.resolve()
+        expected_path = (current_dir.parent / "attached_assets" / "user_characters_img").resolve()
+        
+        if not str(upload_path).startswith(str(expected_path)):
+            security_logger.error(f"Directory traversal attempt detected: {upload_path}")
+            raise HTTPException(status_code=500, detail="Invalid upload directory")
+        
+        # Save file securely using async I/O
+        file_path = upload_dir / secure_filename
         try:
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(file.file, buffer)
+            async with aiofiles.open(file_path, 'wb') as f:
+                await f.write(processed_content)
         except Exception as e:
             logger.error(f"Failed to save uploaded file: {e}")
             raise HTTPException(status_code=500, detail="Failed to save file")
         
-        # Return local URL
-        avatar_url = f"/assets/user_characters_img/{unique_filename}"
-        logger.info(f"Successfully uploaded avatar: {avatar_url}")
+        # Verify file was written correctly
+        if not file_path.exists() or file_path.stat().st_size == 0:
+            security_logger.error(f"File upload verification failed: {file_path}")
+            raise HTTPException(status_code=500, detail="File upload verification failed")
         
-        return {
+        # Generate response
+        avatar_url = f"/assets/user_characters_img/{secure_filename}"
+        
+        # Success logging
+        security_logger.info(
+            f"File upload successful: user={current_user.id}, ip={client_ip}, "
+            f"filename={secure_filename}, original_size={len(file_content)}, "
+            f"final_size={len(processed_content)}, dimensions={dimensions[0]}x{dimensions[1]}, "
+            f"resized={was_resized}"
+        )
+        
+        # Prepare response with additional metadata
+        response_data = {
             "avatarUrl": avatar_url,
-            "filename": unique_filename,
+            "filename": secure_filename,
+            "size": len(processed_content),
+            "dimensions": f"{dimensions[0]}x{dimensions[1]}",
             "message": "Avatar uploaded successfully"
         }
+        
+        # Add optimization info if image was resized
+        if was_resized and validation_result['warnings']:
+            response_data["optimized"] = True
+            response_data["optimization_info"] = validation_result['warnings'][0]
+        
+        return response_data
         
     except HTTPException:
         # Re-raise HTTP exceptions as-is
         raise
     except Exception as e:
+        security_logger.error(
+            f"Unexpected error during file upload: user={current_user.id}, "
+            f"ip={client_ip}, error={str(e)}"
+        )
         logger.error(f"Unexpected error during file upload: {e}")
-        raise HTTPException(status_code=500, detail="Failed to upload file")
+        raise HTTPException(status_code=500, detail="Internal server error during file upload")
 
 # ===== CHAT ROUTES =====
 
