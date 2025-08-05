@@ -11,9 +11,10 @@ import { fetchTokenBalance } from '@/services/tokenService';
 interface TopNavigationProps {
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
+  withSidebar?: boolean;
 }
 
-export default function TopNavigation({ searchQuery = '', onSearchChange }: TopNavigationProps) {
+export default function TopNavigation({ searchQuery = '', onSearchChange, withSidebar = true }: TopNavigationProps) {
   const { user, isAuthenticated, logout } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const { 
@@ -60,7 +61,9 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
   }, []);
 
   return (
-    <div className={`bg-gray-800 border-b border-gray-700 w-full sticky top-0 z-30 ${isCollapsed ? 'sm:ml-16' : 'sm:ml-64'}`}>
+    <div className={`bg-gray-800 border-b border-gray-700 w-full sticky top-0 z-30 ${
+      withSidebar ? (isCollapsed ? 'sm:ml-16' : 'sm:ml-64') : ''
+    }`}>
       <div className="flex items-center justify-between px-2 sm:px-4 py-3">
         {/* Left side */}
         <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
