@@ -242,7 +242,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   // If we're showing a specific chat
   return (
     <GlobalLayout showSidebar={false}>
-      <div className="h-full bg-gray-900 text-white flex relative">
+      <div className="h-screen bg-gray-900 text-white flex relative">
         {/* Mobile overlay */}
         {showChatList && (
           <div 
