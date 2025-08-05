@@ -25,7 +25,8 @@ export default function GlobalLayout({
       {showTopNav && (
         <TopNavigation 
           searchQuery={searchQuery} 
-          onSearchChange={onSearchChange} 
+          onSearchChange={onSearchChange}
+          withSidebar={showSidebar}
         />
       )}
       {showSidebar && <GlobalSidebar />}
