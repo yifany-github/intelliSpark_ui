@@ -5,7 +5,7 @@ import { Character } from '@/types';
 import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import CharacterPreviewModal from './CharacterPreviewModal';
-import { useLocation } from 'wouter';
+import { useNavigation } from '@/contexts/NavigationContext';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -25,7 +25,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const [nsfwEnabled, setNsfwEnabled] = useState(false);
   const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [_, navigate] = useLocation();
+  const { navigateToPath, navigateToLogin } = useNavigation();
   
   const { setSelectedCharacter } = useRolePlay();
   const { isAuthenticated } = useAuth();
@@ -46,13 +46,13 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     },
     onSuccess: (chat) => {
       // Navigate to the new chat
-      navigate(`/chat/${chat.id}`);
+      navigateToPath(`/chat/${chat.id}`);
       handlePreviewClose();
     },
     onError: (error) => {
       console.error('Failed to create chat:', error);
       // Fallback to generic chat page
-      navigate('/chat');
+      navigateToPath('/chat');
     }
   });
   
@@ -156,7 +156,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const handleStartChat = (character: Character) => {
     if (!isAuthenticated) {
       // Redirect to login if not authenticated
-      navigate('/login');
+      navigateToLogin();
       return;
     }
     

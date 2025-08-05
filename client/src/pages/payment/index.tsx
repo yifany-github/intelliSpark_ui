@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Badge } from '../../components/ui/badge';
 import { Alert, AlertDescription } from '../../components/ui/alert';
 import { Separator } from '../../components/ui/separator';
-import { useLocation } from 'wouter';
+import { useNavigation } from '../../contexts/NavigationContext';
 import { ImprovedTokenBalance } from '../../components/payment/ImprovedTokenBalance';
 import GlobalLayout from '../../components/layout/GlobalLayout';
 import { useLanguage } from '../../contexts/LanguageContext';
@@ -392,7 +392,7 @@ const PaymentForm: React.FC<{
 };
 
 const PaymentPage: React.FC = () => {
-  const [, setLocation] = useLocation();
+  const { navigateToPath } = useNavigation();
   const { t } = useLanguage();
   const [selectedTier, setSelectedTier] = useState<string>('standard');
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -416,7 +416,7 @@ const PaymentPage: React.FC = () => {
 
   // Back function for sub-pages only
   const handleBackToProfile = () => {
-    setLocation('/profile');
+    navigateToPath('/profile');
   };
 
   if (paymentSuccess) {
@@ -436,7 +436,7 @@ const PaymentPage: React.FC = () => {
                 <ImprovedTokenBalance showTitle={false} compact={false} showStats={false} />
               </div>
               <div className="flex gap-3 justify-center">
-                <Button onClick={() => setLocation('/chats')} size="lg" className="bg-blue-600 hover:bg-blue-700 rounded-2xl">
+                <Button onClick={() => navigateToPath('/chats')} size="lg" className="bg-blue-600 hover:bg-blue-700 rounded-2xl">
                   {t('startChatting')}
                 </Button>
                 <Button onClick={handleBackToProfile} variant="outline" size="lg" className="bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl">

@@ -4,7 +4,6 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import GlobalLayout from "@/components/layout/GlobalLayout";
 import { 
   Clock, 

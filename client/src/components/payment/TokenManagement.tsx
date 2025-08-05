@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useLocation } from 'wouter';
+import { useNavigation } from '@/contexts/NavigationContext';
 import { 
   Coins, 
   Plus, 
@@ -35,12 +35,12 @@ export const TokenManagement: React.FC<TokenManagementProps> = ({
   defaultTab = 'overview'
 }) => {
   const [activeTab, setActiveTab] = useState(defaultTab);
-  const [, setLocation] = useLocation();
+  const { navigateToPath } = useNavigation();
   const { user, isAuthenticated } = useAuth();
   const { t } = useLanguage();
 
   const handleBuyTokens = () => {
-    setLocation('/payment');
+    navigateToPath('/payment');
   };
 
   const handleExportData = () => {
@@ -56,7 +56,7 @@ export const TokenManagement: React.FC<TokenManagementProps> = ({
             <Coins className="h-12 w-12 mx-auto mb-4 text-gray-600" />
             <h3 className="text-lg font-semibold text-white mb-2">{t('authenticationRequired')}</h3>
             <p className="text-gray-400 mb-4">{t('pleaseLoginToManageTokens')}</p>
-            <Button onClick={() => setLocation('/login')} className="bg-blue-600 hover:bg-blue-700 rounded-2xl">
+            <Button onClick={() => navigateToPath('/login')} className="bg-blue-600 hover:bg-blue-700 rounded-2xl">
               {t('login')}
             </Button>
           </div>
@@ -164,7 +164,7 @@ export const TokenManagement: React.FC<TokenManagementProps> = ({
                   </Button>
                   <Button 
                     variant="outline"
-                    onClick={() => setLocation('/chats')}
+                    onClick={() => navigateToPath('/chats')}
                     className="w-full bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl"
                   >
                     <CreditCard className="h-4 w-4 mr-2" />

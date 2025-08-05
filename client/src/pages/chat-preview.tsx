@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useRolePlay } from '../contexts/RolePlayContext';
 import { useAuth } from '../contexts/AuthContext';
-import { useLocation } from 'wouter';
+import { useNavigation } from '../contexts/NavigationContext';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Card } from '../components/ui/card';
@@ -15,12 +15,12 @@ const ChatPreviewPage = () => {
     startChat
   } = useRolePlay();
   const { isAuthenticated } = useAuth();
-  const [_, navigate] = useLocation();
+  const { navigateToHome, navigateToPath } = useNavigation();
   const [message, setMessage] = useState('');
 
   // If no character selected, redirect back
   if (!selectedCharacter) {
-    navigate('/');
+    navigateToHome();
     return null;
   }
 
@@ -31,7 +31,7 @@ const ChatPreviewPage = () => {
       // If authenticated, create real chat and send message
       try {
         const chatId = await startChat(selectedCharacter);
-        navigate(`/chats/${chatId}`);
+        navigateToPath(`/chats/${chatId}`);
         // The actual message sending will be handled by the chat page
       } catch (error) {
         console.error("Failed to start chat:", error);
@@ -57,7 +57,7 @@ const ChatPreviewPage = () => {
           <div className="flex items-center">
             <button 
               className="mr-3 text-gray-400"
-              onClick={() => navigate('/characters')}
+              onClick={() => navigateToPath('/characters')}
             >
               <ArrowLeft className="h-5 w-5" />
             </button>

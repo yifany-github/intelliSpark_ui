@@ -1,5 +1,4 @@
 import { useState, useRef } from 'react';
-import { useLocation } from 'wouter';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Character } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
@@ -50,7 +49,6 @@ interface CharacterFormData {
 }
 
 const ImprovedCreateCharacterPage = () => {
-  const [location] = useLocation();
   const { user, isAuthenticated } = useAuth();
   const { setSelectedCharacter } = useRolePlay();
   const { navigateToLogin, navigateToPath } = useNavigation();

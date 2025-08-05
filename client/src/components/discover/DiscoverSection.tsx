@@ -8,14 +8,14 @@ import {
 import { Character } from '@/types';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import { useRolePlay } from '@/contexts/RolePlayContext';
-import { useLocation } from 'wouter';
+import { useNavigation } from '@/contexts/NavigationContext';
 import { apiRequest } from '@/lib/queryClient';
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 import { createRecommendationEngine } from '@/lib/recommendationEngine';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 const DiscoverSection = () => {
-  const [_, navigate] = useLocation();
+  const { navigateToPath } = useNavigation();
   const { setSelectedCharacter, nsfwLevel, temperature } = useRolePlay();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const { t } = useLanguage();
@@ -52,7 +52,7 @@ const DiscoverSection = () => {
       return response.json();
     },
     onSuccess: (chat) => {
-      navigate(`/chat/${chat.id}`);
+      navigateToPath(`/chat/${chat.id}`);
       handlePreviewClose();
     },
     onError: (error) => {
