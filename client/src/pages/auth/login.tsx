@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useNavigation } from '../../contexts/NavigationContext';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../components/ui/card';
 import { Alert, AlertDescription } from '../../components/ui/alert';
 import { useToast } from '../../hooks/use-toast';
-import { Link, useLocation } from 'wouter';
+import { Link } from 'wouter';
 import { Eye, EyeOff, LogIn, Mail } from 'lucide-react';
 import LanguageSelector from '../../components/settings/LanguageSelector';
 
@@ -21,7 +22,7 @@ const LoginPage = () => {
   const { login, loginWithGoogle } = useAuth();
   const { t } = useLanguage();
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
+  const { navigateToHome } = useNavigation();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +36,7 @@ const LoginPage = () => {
         description: t('welcomeBack'),
       });
       // Explicitly redirect to main app
-      setLocation('/');
+      navigateToHome();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : t('loginFailed');
       setError(errorMessage);
@@ -60,7 +61,7 @@ const LoginPage = () => {
         description: t('welcomeBack'),
       });
       // Explicitly redirect to main app
-      setLocation('/');
+      navigateToHome();
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : t('googleLoginFailed');
       setError(errorMessage);

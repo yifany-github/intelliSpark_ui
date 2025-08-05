@@ -116,7 +116,7 @@ function MainApp() {
         <div className="min-h-screen">
           <Toaster />
           <AuthModalHandler />
-          <div className="max-w-full mx-auto">
+          <div className="max-w-full mx-auto pb-20 sm:pb-0">
             <Switch>
               <Route path="/" component={CharactersPage} />
               <Route path="/characters" component={CharactersPage} />

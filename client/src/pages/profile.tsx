@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
-import { useLocation } from "wouter";
+import { useNavigation } from "@/contexts/NavigationContext";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import GlobalLayout from "@/components/layout/GlobalLayout";
 import { 
@@ -32,13 +32,13 @@ const ProfilePage = () => {
   const { t } = useLanguage();
   const { user, logout } = useAuth();
   const { toast } = useToast();
-  const [_, navigate] = useLocation();
+  const { navigateToHome, navigateToPath } = useNavigation();
   
 
   // Logout function
   const handleLogout = () => {
     logout();
-    navigate("/");
+    navigateToHome();
     toast({
       title: "Logged out",
       description: "You have been successfully logged out",
@@ -59,7 +59,7 @@ const ProfilePage = () => {
           </div>
           <div className="flex items-center space-x-2">
             <button
-              onClick={() => navigate('/settings')}
+              onClick={() => navigateToPath('/settings')}
               className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
               title="Settings"
             >
@@ -212,7 +212,7 @@ const ProfilePage = () => {
         {/* Quick Actions */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <button 
-            onClick={() => navigate('/settings')}
+            onClick={() => navigateToPath('/settings')}
             className="bg-gray-800 hover:bg-gray-700 rounded-2xl p-6 text-left transition-colors group"
           >
             <div className="flex items-center space-x-3 mb-3">
@@ -228,7 +228,7 @@ const ProfilePage = () => {
           </button>
           
           <button 
-            onClick={() => navigate('/payment')}
+            onClick={() => navigateToPath('/payment')}
             className="bg-gray-800 hover:bg-gray-700 rounded-2xl p-6 text-left transition-colors group"
           >
             <div className="flex items-center space-x-3 mb-3">

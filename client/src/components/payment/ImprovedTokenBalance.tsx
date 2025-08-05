@@ -14,7 +14,7 @@ import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Skeleton } from '../ui/skeleton';
-import { useLocation } from 'wouter';
+import { useNavigation } from '@/contexts/NavigationContext';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { fetchTokenBalance, type TokenBalance } from '@/services/tokenService';
@@ -38,7 +38,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
   onPurchaseClick,
   onHistoryClick
 }) => {
-  const [, setLocation] = useLocation();
+  const { navigateToPath } = useNavigation();
   const { t } = useLanguage();
   
   const { 
@@ -57,7 +57,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
     if (onPurchaseClick) {
       onPurchaseClick();
     } else {
-      setLocation('/payment');
+      navigateToPath('/payment');
     }
   };
 
@@ -264,7 +264,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
             <Button 
               size="sm" 
               variant="outline"
-              onClick={onHistoryClick ? onHistoryClick : () => setLocation('/payment')}
+              onClick={onHistoryClick ? onHistoryClick : () => navigateToPath('/payment')}
               className="flex-1 bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl"
             >
               {onHistoryClick ? t('viewHistory') : t('viewPlans')}

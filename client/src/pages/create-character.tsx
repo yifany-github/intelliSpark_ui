@@ -1,9 +1,9 @@
 import { useState, useRef } from 'react';
-import { useLocation } from 'wouter';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Character } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRolePlay } from '@/contexts/RolePlayContext';
+import { useNavigation } from '@/contexts/NavigationContext';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import GlobalLayout from '@/components/layout/GlobalLayout';
@@ -49,9 +49,9 @@ interface CharacterFormData {
 }
 
 const ImprovedCreateCharacterPage = () => {
-  const [_, navigate] = useLocation();
   const { user, isAuthenticated } = useAuth();
   const { setSelectedCharacter } = useRolePlay();
+  const { navigateToLogin, navigateToPath } = useNavigation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -164,7 +164,7 @@ const ImprovedCreateCharacterPage = () => {
         description: 'Please log in to create a character',
         variant: 'destructive'
       });
-      navigate('/login'); // Redirect to login if needed
+      navigateToLogin(); // Redirect to login if needed
       return;
     }
 
@@ -175,12 +175,12 @@ const ImprovedCreateCharacterPage = () => {
   const handleStartChat = () => {
     if (createdCharacter) {
       setSelectedCharacter(createdCharacter);
-      navigate('/chat');
+      navigateToPath('/chat');
     }
   };
 
   const handleViewCharacter = () => {
-    navigate('/characters');
+    navigateToPath('/characters');
   };
 
   const handleCreateAnother = () => {
@@ -214,7 +214,7 @@ const ImprovedCreateCharacterPage = () => {
   };
 
   const handleGoToCharacters = () => {
-    navigate('/characters');
+    navigateToPath('/characters');
   };
 
   const renderCurrentStep = () => {

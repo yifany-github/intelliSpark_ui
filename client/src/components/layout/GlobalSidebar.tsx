@@ -1,16 +1,5 @@
 import React from 'react';
 import { 
-  Home, 
-  Heart, 
-  Coins, 
-  Trophy, 
-  MessageSquare, 
-  Plus, 
-  User, 
-  Bell, 
-  Star, 
-  Search,
-  Settings,
   HelpCircle,
   FileText,
   Smartphone,
@@ -20,7 +9,6 @@ import {
   ChevronLeft
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { useLocation } from 'wouter';
 import { useNavigation } from '@/contexts/NavigationContext';
 import { useQuery } from '@tanstack/react-query';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -28,8 +16,14 @@ import { fetchTokenBalance } from '@/services/tokenService';
 
 export default function GlobalSidebar() {
   const { user, isAuthenticated } = useAuth();
-  const [location, navigate] = useLocation();
-  const { isCollapsed, toggleCollapsed } = useNavigation();
+  const { 
+    isCollapsed, 
+    toggleCollapsed, 
+    getSidebarItems, 
+    navigateToHome, 
+    navigateToPath, 
+    isRouteActive 
+  } = useNavigation();
   const { t } = useLanguage();
 
   const { data: tokenBalance, isLoading: tokenLoading, error: tokenError, refetch } = useQuery({
@@ -48,17 +42,7 @@ export default function GlobalSidebar() {
     }
   }, [isAuthenticated, refetch]);
 
-  const menuItems = [
-    { icon: Home, label: t('home'), path: '/', active: location === '/' || location === '/characters' },
-    { icon: MessageSquare, label: t('recentChats'), path: '/chats', active: location === '/chats' || location.startsWith('/chats/') },
-    { icon: Heart, label: t('favorites'), path: '/favorites', active: location === '/favorites' },
-    { icon: Search, label: t('discover'), path: '/discover', active: location === '/discover' },
-    { icon: Plus, label: t('createCharacter'), path: '/create-character', active: location === '/create-character' },
-    { icon: Coins, label: t('tokens'), path: '/payment', badge: t('updated'), active: location === '/payment' },
-    { icon: User, label: t('profile'), path: '/profile', active: location === '/profile' },
-    { icon: Bell, label: t('notifications'), path: '/notifications', active: location === '/notifications' },
-    { icon: Settings, label: t('settings'), path: '/settings', active: location === '/settings' },
-  ];
+  const sidebarItems = getSidebarItems();
 
   const bottomLinks = [
     { icon: HelpCircle, label: t('aboutUs'), path: '/about' },
@@ -67,12 +51,18 @@ export default function GlobalSidebar() {
   ];
 
   return (
-    <div className={`${isCollapsed ? 'w-16' : 'w-64'} bg-gray-800 border-r border-gray-700 h-screen fixed left-0 top-0 z-10 transition-all duration-300 flex flex-col hidden sm:flex`}>
+    <div className={`${isCollapsed ? 'w-16' : 'w-64'} bg-gray-800 border-r border-gray-700 h-screen fixed left-0 top-0 z-40 transition-all duration-300 flex flex-col hidden sm:flex`}>
       <div className="p-4 flex-1 min-h-0">
-        {/* Toggle Button */}
+        {/* Header with Home Navigation */}
         <div className="flex items-center justify-between mb-6">
           {!isCollapsed && (
-            <span className="text-lg font-bold text-white">{t('navigation')}</span>
+            <button
+              onClick={navigateToHome}
+              className="text-lg font-bold text-white hover:text-green-400 transition-colors cursor-pointer"
+              title="Go to Home"
+            >
+              ProductInsightAI
+            </button>
           )}
           <button
             onClick={toggleCollapsed}
@@ -91,6 +81,7 @@ export default function GlobalSidebar() {
         <div className={`flex items-center mb-6 ${isCollapsed ? 'justify-center' : 'space-x-3'}`}>
           <div 
             className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center hover:bg-gray-500 transition-colors cursor-pointer"
+            onClick={navigateToHome}
             title={isCollapsed ? (isAuthenticated ? (user?.email?.split('@')[0] || t('user')) : t('guest')) : undefined}
           >
             <span className="text-sm text-white font-medium">
@@ -115,24 +106,28 @@ export default function GlobalSidebar() {
         </div>
 
         {/* Navigation Menu */}
-        <nav className="space-y-2">
-          {menuItems.map((item) => (
+        <nav className="space-y-1">
+          {sidebarItems.map((item) => (
             <button
-              key={item.path}
-              onClick={() => navigate(item.path)}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded-lg transition-colors ${
-                item.active 
-                  ? 'bg-pink-600 text-white' 
-                  : 'text-gray-300 hover:bg-gray-700'
+              key={item.id}
+              onClick={() => navigateToPath(item.path)}
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-3' : 'space-x-4 px-3'} py-2.5 rounded-xl transition-all duration-200 group ${
+                isRouteActive(item.path)
+                  ? 'bg-gray-100/10 text-white font-medium' 
+                  : 'text-gray-300 hover:bg-gray-100/5 hover:text-gray-100'
               }`}
-              title={isCollapsed ? item.label : undefined}
+              title={isCollapsed ? t(item.label) : undefined}
             >
-              <item.icon className="w-5 h-5" />
+              <item.icon className={`w-5 h-5 transition-colors ${
+                isRouteActive(item.path) 
+                  ? 'text-white' 
+                  : 'text-gray-400 group-hover:text-gray-200'
+              }`} />
               {!isCollapsed && (
                 <>
-                  <span className="flex-1 text-left">{item.label}</span>
+                  <span className="flex-1 text-left text-sm font-normal">{t(item.label)}</span>
                   {item.badge && (
-                    <span className="bg-red-500 text-xs px-2 py-1 rounded">{item.badge}</span>
+                    <span className="bg-red-500/80 text-xs px-2 py-0.5 rounded-full font-medium">{t(item.badge)}</span>
                   )}
                 </>
               )}
@@ -142,17 +137,17 @@ export default function GlobalSidebar() {
       </div>
       
       {/* Bottom Links */}
-      <div className="p-4 border-t border-gray-700 flex-shrink-0">
-        <div className="space-y-2 mb-4">
+      <div className="p-4 border-t border-gray-700/50 flex-shrink-0">
+        <div className="space-y-1 mb-4">
           {bottomLinks.map((link) => (
             <button
               key={link.path}
-              onClick={() => navigate(link.path)}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded-lg text-gray-400 hover:bg-gray-700 text-sm transition-colors`}
+              onClick={() => navigateToPath(link.path)}
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-3' : 'space-x-4 px-3'} py-2 rounded-xl text-gray-400 hover:bg-gray-100/5 hover:text-gray-200 text-sm transition-all duration-200 group`}
               title={isCollapsed ? link.label : undefined}
             >
-              <link.icon className="w-4 h-4" />
-              {!isCollapsed && <span>{link.label}</span>}
+              <link.icon className="w-4 h-4 group-hover:text-gray-200 transition-colors" />
+              {!isCollapsed && <span className="font-normal">{link.label}</span>}
             </button>
           ))}
         </div>

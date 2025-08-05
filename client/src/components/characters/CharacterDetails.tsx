@@ -1,7 +1,7 @@
 import { Character } from "../../types";
 import { useRolePlay } from "@/contexts/RolePlayContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { useLocation } from "wouter";
+import { useNavigation } from "@/contexts/NavigationContext";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 
 interface CharacterDetailsProps {
@@ -11,21 +11,21 @@ interface CharacterDetailsProps {
 const CharacterDetails = ({ character }: CharacterDetailsProps) => {
   const { startChat, startChatPreview } = useRolePlay();
   const { isAuthenticated } = useAuth();
-  const [_, navigate] = useLocation();
+  const { navigateToPath } = useNavigation();
 
   const handleStartChat = async () => {
     if (isAuthenticated) {
       // If already authenticated, create chat immediately
       try {
         const chatId = await startChat(character);
-        navigate(`/chats/${chatId}`);
+        navigateToPath(`/chats/${chatId}`);
       } catch (error) {
         console.error("Failed to start chat:", error);
       }
     } else {
       // Set up preview mode - user can see chat interface and start typing
       startChatPreview(character);
-      navigate(`/chat-preview`);
+      navigateToPath(`/chat-preview`);
     }
   };
 

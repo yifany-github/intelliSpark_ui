@@ -4,14 +4,14 @@ import { Star, Eye, Filter, Grid, List, SortAsc, SortDesc, Heart, Search } from 
 import { Character } from '@/types';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import { useRolePlay } from '@/contexts/RolePlayContext';
-import { useLocation } from 'wouter';
+import { useNavigation } from '@/contexts/NavigationContext';
 import { apiRequest } from '@/lib/queryClient';
 import GlobalLayout from '@/components/layout/GlobalLayout';
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 const FavoritesPage = () => {
-  const [_, navigate] = useLocation();
+  const { location, navigateToPath, navigateToHome } = useNavigation();
   const { setSelectedCharacter } = useRolePlay();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const { t } = useLanguage();
@@ -110,7 +110,7 @@ const FavoritesPage = () => {
     },
     onSuccess: (chat) => {
       // Navigate to the new chat
-      navigate(`/chat/${chat.id}`);
+      navigateToPath(`/chat/${chat.id}`);
       handlePreviewClose();
     },
     onError: (error) => {
@@ -344,7 +344,7 @@ const FavoritesPage = () => {
               }
             </p>
             <button
-              onClick={() => navigate('/')}
+              onClick={() => navigateToHome()}
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
             >
               {t('exploreCharacters')}

@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useRolePlay } from "@/contexts/RolePlayContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigation } from "@/contexts/NavigationContext";
 import { useMutation } from "@tanstack/react-query";
-import { useLocation } from "wouter";
 import GlobalLayout from "@/components/layout/GlobalLayout";
 import { 
   Clock, 
@@ -49,7 +49,7 @@ const SettingsPage = () => {
   const { t } = useLanguage();
   const { user, logout } = useAuth();
   const { toast } = useToast();
-  const [_, navigate] = useLocation();
+  const { navigateToHome, navigateToPayment } = useNavigation();
   
   
   // Simple clear chat history function
@@ -74,7 +74,7 @@ const SettingsPage = () => {
   // Logout function
   const handleLogout = () => {
     logout();
-    navigate("/");
+    navigateToHome();
     toast({
       title: "Logged out",
       description: "You have been successfully logged out",
@@ -258,7 +258,7 @@ const SettingsPage = () => {
           
           <div className="space-y-3">
             <button 
-              onClick={() => navigate('/payment')}
+              onClick={navigateToPayment}
               className="w-full bg-blue-600 hover:bg-blue-700 rounded-lg px-4 py-3 text-white font-medium transition-colors flex items-center justify-center"
             >
               <Crown className="mr-2 h-5 w-5" /> 

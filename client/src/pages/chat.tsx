@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation, useRoute, Link } from "wouter";
+import { useRoute, Link } from "wouter";
 import { Chat, ChatMessage, Character, EnrichedChat } from "../types";
 import ChatBubble from "@/components/chats/ChatBubble";
 import ChatInput from "@/components/chats/ChatInput";
@@ -8,6 +8,7 @@ import TypingIndicator from "@/components/ui/TypingIndicator";
 import { apiRequest } from "@/lib/queryClient";
 import { useRolePlay } from "@/contexts/RolePlayContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useNavigation } from "@/contexts/NavigationContext";
 import { invalidateTokenBalance } from "@/services/tokenService";
 import { queryClient } from "@/lib/queryClient";
 import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft } from "lucide-react";
@@ -23,7 +24,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { isTyping, setIsTyping } = useRolePlay();
   const { t } = useLanguage();
-  const [_, navigate] = useLocation();
+  const { navigateBack } = useNavigation();
   const [showChatList, setShowChatList] = useState(false);
   const [showCharacterInfo, setShowCharacterInfo] = useState(false);
   
@@ -241,7 +242,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   // If we're showing a specific chat
   return (
     <GlobalLayout showSidebar={false}>
-      <div className="h-full bg-gray-900 text-white flex relative">
+      <div className="h-screen bg-gray-900 text-white flex relative">
         {/* Mobile overlay */}
         {showChatList && (
           <div 
@@ -257,16 +258,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
               <h2 className="text-lg font-semibold">{t('chats')}</h2>
               <div className="flex items-center space-x-2">
                 <button 
-                  onClick={() => {
-                    // Smart navigation: go back to previous page or default to characters
-                    if (document.referrer.includes('/chats')) {
-                      navigate('/chats');
-                    } else if (document.referrer.includes('/favorites')) {
-                      navigate('/favorites');
-                    } else {
-                      navigate('/');
-                    }
-                  }}
+                  onClick={navigateBack}
                   className="hidden lg:block p-1 hover:bg-gray-700 rounded transition-colors"
                   title="Back to previous page"
                 >
@@ -348,16 +340,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
               <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
                 {/* Back button for mobile */}
                 <button 
-                  onClick={() => {
-                    // Smart navigation: go back to previous page or default to characters
-                    if (document.referrer.includes('/chats')) {
-                      navigate('/chats');
-                    } else if (document.referrer.includes('/favorites')) {
-                      navigate('/favorites');
-                    } else {
-                      navigate('/');
-                    }
-                  }}
+                  onClick={navigateBack}
                   className="lg:hidden p-1 hover:bg-gray-700 rounded transition-colors"
                   title="Back to previous page"
                 >

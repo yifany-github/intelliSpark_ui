@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useLocation, Link } from "wouter";
+import { Link } from "wouter";
 import { Chat, ChatMessage, Character, EnrichedChat } from "../types";
 import ChatBubble from "@/components/chats/ChatBubble";
 import ChatInput from "@/components/chats/ChatInput";
@@ -8,6 +8,7 @@ import TypingIndicator from "@/components/ui/TypingIndicator";
 import { apiRequest } from "@/lib/queryClient";
 import { useRolePlay } from "@/contexts/RolePlayContext";
 import { useLanguage } from "@/contexts/LanguageContext";
+import { useNavigation } from "@/contexts/NavigationContext";
 import { queryClient } from "@/lib/queryClient";
 import { invalidateTokenBalance } from "@/services/tokenService";
 import { ChevronLeft, MoreVertical, Trash2 } from "lucide-react";
@@ -42,7 +43,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { isTyping, setIsTyping, setCurrentChat } = useRolePlay();
   const { t } = useLanguage();
-  const [_, navigate] = useLocation();
+  const { location, navigateToPath } = useNavigation();
   const { toast } = useToast();
   
   // If no chatId is provided, show chat list
@@ -346,7 +347,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
           <div className="flex items-center">
             <button 
               className="mr-3 text-gray-400"
-              onClick={() => navigate("/chats")}
+              onClick={() => navigateToPath("/chats")}
             >
               <ChevronLeft className="h-5 w-5" />
             </button>

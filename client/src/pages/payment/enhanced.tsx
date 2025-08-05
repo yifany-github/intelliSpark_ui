@@ -3,7 +3,7 @@ import { ArrowLeft, BarChart3, History, Coins } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Separator } from '../../components/ui/separator';
-import { useLocation } from 'wouter';
+import { useNavigation } from '../../contexts/NavigationContext';
 import { ImprovedTokenBalance } from '../../components/payment/ImprovedTokenBalance';
 import { EnhancedTokenPurchase } from '../../components/payment/EnhancedTokenPurchase';
 import { TokenTransactionHistory } from '../../components/payment/TokenTransactionHistory';
@@ -15,12 +15,12 @@ import { cn } from '../../lib/utils';
 type Tab = 'overview' | 'purchase' | 'history' | 'stats';
 
 const EnhancedPaymentPage: React.FC = () => {
-  const [, setLocation] = useLocation();
+  const { navigateToPath } = useNavigation();
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<Tab>('overview');
 
   const handleBack = () => {
-    setLocation('/profile');
+    navigateToPath('/profile');
   };
 
   const handlePurchaseSuccess = () => {
