@@ -134,17 +134,17 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
               <>
                 <button 
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center space-x-2 bg-gray-700 rounded-lg px-3 py-2 hover:bg-gray-600 transition-colors"
+                  className="flex items-center space-x-3 bg-gray-100/5 rounded-xl px-3 py-2.5 hover:bg-gray-100/10 transition-all duration-200 group"
                 >
-                  <div className="w-6 h-6 bg-gray-600 rounded-full flex items-center justify-center">
-                    <span className="text-xs">{user?.email?.[0]?.toUpperCase() || 'U'}</span>
+                  <div className="w-7 h-7 bg-gray-600/80 rounded-full flex items-center justify-center group-hover:bg-gray-500/80 transition-colors">
+                    <span className="text-xs font-medium text-white">{user?.email?.[0]?.toUpperCase() || 'U'}</span>
                   </div>
-                  <span className="text-sm">{t('freePlan')}</span>
-                  <ChevronDown className="w-4 h-4" />
+                  <span className="text-sm font-normal text-gray-200">{t('freePlan')}</span>
+                  <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-200 transition-colors" />
                 </button>
                 
                 {showUserMenu && (
-                  <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-lg shadow-lg border border-gray-700 py-1 z-50">
+                  <div className="absolute right-0 mt-3 w-52 bg-gray-900/95 backdrop-blur-sm rounded-xl shadow-xl border border-gray-700/50 py-2 z-50">
                     {topNavItems.map((item) => (
                       <button
                         key={item.id}
@@ -152,40 +152,40 @@ export default function TopNavigation({ searchQuery = '', onSearchChange }: TopN
                           navigateToPath(item.path);
                           setShowUserMenu(false);
                         }}
-                        className="w-full px-4 py-2 text-left hover:bg-gray-700 text-sm flex items-center space-x-2"
+                        className="w-full px-4 py-2.5 text-left hover:bg-gray-100/5 text-sm flex items-center space-x-3 text-gray-300 hover:text-gray-100 transition-all duration-150 group"
                       >
-                        <item.icon className="w-4 h-4" />
-                        <span>{t(item.label)}</span>
+                        <item.icon className="w-4 h-4 text-gray-400 group-hover:text-gray-200 transition-colors" />
+                        <span className="font-normal">{t(item.label)}</span>
                       </button>
                     ))}
-                    <hr className="border-gray-700 my-1" />
+                    <div className="h-px bg-gray-700/50 my-2 mx-2"></div>
                     <button 
                       onClick={() => {
                         logout();
                         setShowUserMenu(false);
                       }}
-                      className="w-full px-4 py-2 text-left hover:bg-gray-700 text-sm flex items-center space-x-2 text-red-400"
+                      className="w-full px-4 py-2.5 text-left hover:bg-red-500/10 text-sm flex items-center space-x-3 text-red-400 hover:text-red-300 transition-all duration-150 group"
                     >
-                      <LogOut className="w-4 h-4" />
-                      <span>{t('logout')}</span>
+                      <LogOut className="w-4 h-4 group-hover:text-red-300 transition-colors" />
+                      <span className="font-normal">{t('logout')}</span>
                     </button>
                   </div>
                 )}
               </>
             ) : (
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-3">
                 <button 
                   onClick={navigateToLogin}
-                  className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                  className="flex items-center space-x-2 bg-blue-600/90 hover:bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 hover:shadow-lg hover:scale-105 active:scale-95"
                 >
                   <LogIn className="w-4 h-4" />
                   <span>{t('login')}</span>
                 </button>
-                <div className="flex items-center space-x-2 bg-gray-700 rounded-lg px-3 py-2">
-                  <div className="w-6 h-6 bg-gray-600 rounded-full flex items-center justify-center">
-                    <User className="w-4 h-4" />
+                <div className="flex items-center space-x-3 bg-gray-100/5 rounded-xl px-3 py-2.5">
+                  <div className="w-7 h-7 bg-gray-600/60 rounded-full flex items-center justify-center">
+                    <User className="w-4 h-4 text-gray-300" />
                   </div>
-                  <span className="text-sm">{t('guest')}</span>
+                  <span className="text-sm font-normal text-gray-300">{t('guest')}</span>
                 </div>
               </div>
             )}

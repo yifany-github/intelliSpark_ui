@@ -41,7 +41,7 @@ const TabNavigation = () => {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-secondary border-t border-border z-20">
+    <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-sm border-t border-gray-700/50 z-20">
       <div className="max-w-5xl mx-auto flex justify-around items-center">
         {tabs.map((tab) => (
           <button
@@ -54,23 +54,31 @@ const TabNavigation = () => {
               }
               setActiveTab(tab.id);
             }}
-            className={`flex flex-col items-center py-3 px-4 relative ${
-              activeTab === tab.id ? "text-white" : "text-gray-500"
+            className={`flex flex-col items-center py-4 px-3 relative transition-all duration-200 rounded-xl ${
+              activeTab === tab.id 
+                ? "text-white" 
+                : "text-gray-400 hover:text-gray-200 active:scale-95"
             }`}
           >
             {tab.icon && typeof tab.icon === 'function' ? (
-              <tab.icon className="w-5 h-5" />
+              <tab.icon className={`w-5 h-5 transition-colors ${
+                activeTab === tab.id ? "text-white" : "text-gray-400"
+              }`} />
             ) : tab.id === "login" ? (
-              <i className="fas fa-sign-in-alt text-lg"></i>
+              <i className={`fas fa-sign-in-alt text-lg transition-colors ${
+                activeTab === tab.id ? "text-white" : "text-gray-400"
+              }`}></i>
             ) : (
-              <i className="fas fa-user text-lg"></i>
+              <i className={`fas fa-user text-lg transition-colors ${
+                activeTab === tab.id ? "text-white" : "text-gray-400"
+              }`}></i>
             )}
-            <span className="text-xs mt-1">{t(tab.label)}</span>
-            <div
-              className={`tab-indicator w-6 left-1/2 -translate-x-1/2 ${
-                activeTab === tab.id ? "bg-primary" : "bg-transparent"
-              }`}
-            ></div>
+            <span className={`text-xs mt-1.5 font-medium transition-colors ${
+              activeTab === tab.id ? "text-white" : "text-gray-400"
+            }`}>{t(tab.label)}</span>
+            {activeTab === tab.id && (
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-blue-400 rounded-full"></div>
+            )}
           </button>
         ))}
       </div>

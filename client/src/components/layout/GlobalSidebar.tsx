@@ -106,24 +106,28 @@ export default function GlobalSidebar() {
         </div>
 
         {/* Navigation Menu */}
-        <nav className="space-y-2">
+        <nav className="space-y-1">
           {sidebarItems.map((item) => (
             <button
               key={item.id}
               onClick={() => navigateToPath(item.path)}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded-lg transition-colors ${
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-3' : 'space-x-4 px-3'} py-2.5 rounded-xl transition-all duration-200 group ${
                 isRouteActive(item.path)
-                  ? 'bg-pink-600 text-white' 
-                  : 'text-gray-300 hover:bg-gray-700'
+                  ? 'bg-gray-100/10 text-white font-medium' 
+                  : 'text-gray-300 hover:bg-gray-100/5 hover:text-gray-100'
               }`}
               title={isCollapsed ? t(item.label) : undefined}
             >
-              <item.icon className="w-5 h-5" />
+              <item.icon className={`w-5 h-5 transition-colors ${
+                isRouteActive(item.path) 
+                  ? 'text-white' 
+                  : 'text-gray-400 group-hover:text-gray-200'
+              }`} />
               {!isCollapsed && (
                 <>
-                  <span className="flex-1 text-left">{t(item.label)}</span>
+                  <span className="flex-1 text-left text-sm font-normal">{t(item.label)}</span>
                   {item.badge && (
-                    <span className="bg-red-500 text-xs px-2 py-1 rounded">{t(item.badge)}</span>
+                    <span className="bg-red-500/80 text-xs px-2 py-0.5 rounded-full font-medium">{t(item.badge)}</span>
                   )}
                 </>
               )}
@@ -133,17 +137,17 @@ export default function GlobalSidebar() {
       </div>
       
       {/* Bottom Links */}
-      <div className="p-4 border-t border-gray-700 flex-shrink-0">
-        <div className="space-y-2 mb-4">
+      <div className="p-4 border-t border-gray-700/50 flex-shrink-0">
+        <div className="space-y-1 mb-4">
           {bottomLinks.map((link) => (
             <button
               key={link.path}
               onClick={() => navigateToPath(link.path)}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2' : 'space-x-3 px-3'} py-2 rounded-lg text-gray-400 hover:bg-gray-700 text-sm transition-colors`}
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-3' : 'space-x-4 px-3'} py-2 rounded-xl text-gray-400 hover:bg-gray-100/5 hover:text-gray-200 text-sm transition-all duration-200 group`}
               title={isCollapsed ? link.label : undefined}
             >
-              <link.icon className="w-4 h-4" />
-              {!isCollapsed && <span>{link.label}</span>}
+              <link.icon className="w-4 h-4 group-hover:text-gray-200 transition-colors" />
+              {!isCollapsed && <span className="font-normal">{link.label}</span>}
             </button>
           ))}
         </div>
