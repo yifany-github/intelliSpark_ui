@@ -36,13 +36,8 @@ def transform_character_to_response(character: Character) -> Dict[str, Any]:
         "backstory": character.backstory,
         "voiceStyle": character.voice_style,  # snake_case to camelCase
         "traits": character.traits,
-        "personalityTraits": character.personality_traits,  # snake_case to camelCase
         "category": character.category,
         "gender": character.gender,
-        "age": character.age,
-        "occupation": character.occupation,
-        "hobbies": character.hobbies,
-        "catchphrase": character.catchphrase,
         "conversationStyle": character.conversation_style,  # snake_case to camelCase
         "isPublic": character.is_public,  # snake_case to camelCase
         "nsfwLevel": character.nsfw_level,  # snake_case to camelCase

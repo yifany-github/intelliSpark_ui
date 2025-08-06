@@ -89,11 +89,17 @@ async def create_admin_character(
     try:
         character = Character(
             name=character_data.name,
+            description=character_data.description,
             avatar_url=character_data.avatarUrl,
             backstory=character_data.backstory,
             voice_style=character_data.voiceStyle,
             traits=character_data.traits,
-            personality_traits=character_data.personalityTraits
+            personality_traits=character_data.personalityTraits or {},  # Default to empty dict if None
+            category=character_data.category,
+            gender=character_data.gender,
+            conversation_style=character_data.conversationStyle,
+            is_public=character_data.isPublic,
+            nsfw_level=character_data.nsfwLevel
         )
         
         db.add(character)
@@ -124,7 +130,7 @@ async def update_admin_character(
         character.backstory = character_data.backstory
         character.voice_style = character_data.voiceStyle
         character.traits = character_data.traits
-        character.personality_traits = character_data.personalityTraits
+        character.personality_traits = character_data.personalityTraits or {}
         
         db.commit()
         db.refresh(character)

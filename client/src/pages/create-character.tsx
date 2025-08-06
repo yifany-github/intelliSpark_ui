@@ -7,44 +7,32 @@ import { useNavigation } from '@/contexts/NavigationContext';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import GlobalLayout from '@/components/layout/GlobalLayout';
-import CharacterTemplates from '@/components/character-creation/CharacterTemplates';
 import CharacterCreationSuccess from '@/components/character-creation/CharacterCreationSuccess';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
 import { X } from 'lucide-react';
 
 enum CreationStep {
-  TEMPLATE_SELECTION = 'template',
   FORM = 'form',
   SUCCESS = 'success'
 }
 
 interface CharacterFormData {
   name: string;
-  description: string;
-  backstory: string;
+  backstory: string; // Single comprehensive description field
   voiceStyle: string;
   traits: string[];
-  personalityTraits: {
-    friendliness: number;
-    intelligence: number;
-    humor: number;
-    confidence: number;
-    empathy: number;
-    creativity: number;
-  };
   avatar: string | null;
   category: string;
   isPublic: boolean;
-  nsfwLevel: number;
+  isNsfw: boolean;
   gender: string;
-  age: string;
-  occupation: string;
-  hobbies: string[];
-  catchphrase: string;
   conversationStyle: string;
 }
 
@@ -55,53 +43,21 @@ const ImprovedCreateCharacterPage = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const [currentStep, setCurrentStep] = useState<CreationStep>(CreationStep.TEMPLATE_SELECTION);
+  const [currentStep, setCurrentStep] = useState<CreationStep>(CreationStep.FORM);
   const [createdCharacter, setCreatedCharacter] = useState<Character | null>(null);
   const [formData, setFormData] = useState<CharacterFormData>({
     name: '',
-    description: '',
     backstory: '',
-    voiceStyle: 'Casual',
+    voiceStyle: 'casual',
     traits: [],
-    personalityTraits: {
-      friendliness: 50,
-      intelligence: 50,
-      humor: 50,
-      confidence: 50,
-      empathy: 50,
-      creativity: 50,
-    },
     avatar: '/assets/characters_img/Elara.jpeg',
-    category: 'Original',
+    category: 'original',
     isPublic: true,
-    nsfwLevel: 0,
-    gender: '',
-    age: '',
-    occupation: '',
-    hobbies: [],
-    catchphrase: '',
-    conversationStyle: 'Detailed responses'
+    isNsfw: false,
+    gender: 'female',
+    conversationStyle: 'detailed'
   });
 
-  // Handle template selection
-  const handleTemplateSelect = (template: any) => {
-    setFormData(prev => ({
-      ...prev,
-      voiceStyle: template.data.voiceStyle,
-      traits: template.data.traits,
-      personalityTraits: template.data.personalityTraits,
-      backstory: template.data.backstory,
-      occupation: template.data.occupation,
-      conversationStyle: template.data.conversationStyle,
-      category: template.category
-    }));
-    setCurrentStep(CreationStep.FORM);
-  };
-
-  // Skip template selection
-  const handleSkipTemplate = () => {
-    setCurrentStep(CreationStep.FORM);
-  };
 
   // Save character mutation
   const saveCharacterMutation = useMutation({
@@ -112,21 +68,16 @@ const ImprovedCreateCharacterPage = () => {
 
       const response = await apiRequest("POST", "/api/characters", {
         name: characterData.name,
-        description: characterData.description,
+        description: characterData.backstory, // Use backstory as the single description
         avatarUrl: characterData.avatar,
         backstory: characterData.backstory,
         voiceStyle: characterData.voiceStyle,
         traits: characterData.traits,
-        personalityTraits: characterData.personalityTraits,
         category: characterData.category,
         gender: characterData.gender,
-        age: characterData.age,
-        occupation: characterData.occupation,
-        hobbies: characterData.hobbies,
-        catchphrase: characterData.catchphrase,
         conversationStyle: characterData.conversationStyle,
         isPublic: characterData.isPublic,
-        nsfwLevel: characterData.nsfwLevel
+        nsfwLevel: characterData.isNsfw ? 1 : 0
       });
       
       if (!response.ok) {
@@ -184,32 +135,19 @@ const ImprovedCreateCharacterPage = () => {
   };
 
   const handleCreateAnother = () => {
-    setCurrentStep(CreationStep.TEMPLATE_SELECTION);
+    setCurrentStep(CreationStep.FORM);
     setCreatedCharacter(null);
     setFormData({
       name: '',
-      description: '',
       backstory: '',
-      voiceStyle: 'Casual',
+      voiceStyle: 'casual',
       traits: [],
-      personalityTraits: {
-        friendliness: 50,
-        intelligence: 50,
-        humor: 50,
-        confidence: 50,
-        empathy: 50,
-        creativity: 50,
-      },
       avatar: '/assets/characters_img/Elara.jpeg',
-      category: 'Original',
+      category: 'original',
       isPublic: true,
-      nsfwLevel: 0,
-      gender: '',
-      age: '',
-      occupation: '',
-      hobbies: [],
-      catchphrase: '',
-      conversationStyle: 'Detailed responses'
+      isNsfw: false,
+      gender: 'female',
+      conversationStyle: 'detailed'
     });
   };
 
@@ -219,25 +157,17 @@ const ImprovedCreateCharacterPage = () => {
 
   const renderCurrentStep = () => {
     switch (currentStep) {
-      case CreationStep.TEMPLATE_SELECTION:
-        return (
-          <CharacterTemplates
-            onSelectTemplate={handleTemplateSelect}
-            onSkipTemplate={handleSkipTemplate}
-          />
-        );
-      
       case CreationStep.FORM:
         return (
-          <div className="max-w-2xl mx-auto">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold mb-2">Create Your Character</h2>
-              <p className="text-muted-foreground">Fill in the details to bring your character to life</p>
+          <div className="w-full">
+            <div className="mb-8">
+              <h1 className="text-3xl font-bold mb-3">Create Your Character</h1>
+              <p className="text-muted-foreground text-lg">Fill in the details to bring your character to life</p>
             </div>
             <CharacterCreationForm
               initialData={formData}
               onSubmit={handleCreateCharacter}
-              onCancel={() => setCurrentStep(CreationStep.TEMPLATE_SELECTION)}
+              onCancel={() => navigateToPath('/characters')}
               isLoading={saveCharacterMutation.isPending}
             />
           </div>
@@ -360,36 +290,63 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name" className="text-sm font-medium">Character Name</Label>
-            <Input
-              id="name"
-              value={formData.name}
-              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="Enter character name"
-              required
-            />
-          </div>
+    <div className="max-w-4xl mx-auto">
+      <form onSubmit={handleSubmit} className="space-y-8">
+        {/* Basic Information */}
+        <div className="bg-card/50 rounded-lg p-6 space-y-6">
+          <h3 className="text-xl font-semibold border-b border-border pb-3">Basic Information</h3>
           
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-sm font-medium">Character Name</Label>
+              <Input
+                id="name"
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Enter character name"
+                required
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Gender</Label>
+              <Select value={formData.gender} onValueChange={(value) => setFormData({ ...formData, gender: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="non-binary">Non-binary</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                  <SelectItem value="not-specified">Prefer not to say</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           <div className="space-y-2">
-            <Label htmlFor="description" className="text-sm font-medium">Description</Label>
+            <Label htmlFor="backstory" className="text-sm font-medium">Character Description</Label>
             <Textarea
-              id="description"
-              value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              placeholder="Brief description of your character..."
-              rows={3}
+              id="backstory"
+              value={formData.backstory}
+              onChange={(e) => setFormData({ ...formData, backstory: e.target.value })}
+              placeholder="Describe your character's personality, background, history, and what makes them unique. Include their motivations, traits, and how they interact with others..."
+              rows={5}
               required
             />
+            <p className="text-xs text-muted-foreground">
+              This comprehensive description will be used to generate your character's personality and responses.
+            </p>
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Character Avatar</Label>
-          <div className="flex items-center gap-4">
-            <div className="w-20 h-20 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
+        {/* Character Avatar */}
+        <div className="bg-card/50 rounded-lg p-6 space-y-6">
+          <h3 className="text-xl font-semibold border-b border-border pb-3">Character Avatar</h3>
+          
+          <div className="flex items-center gap-6">
+            <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
               <img
                 src={formData.avatar || '/assets/characters_img/Elara.jpeg'}
                 alt="Character avatar"
@@ -400,7 +357,7 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
                 }}
               />
             </div>
-            <div className="flex-1 space-y-2">
+            <div className="flex-1 space-y-3">
               <input
                 type="file"
                 accept="image/*"
@@ -413,135 +370,131 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
                 }}
                 style={{ display: 'none' }}
               />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  if (fileInputRef.current) {
-                    fileInputRef.current.click();
-                  }
-                }}
-                className="w-full"
-              >
-                Choose Avatar Image
-              </Button>
-              <p className="text-xs text-muted-foreground">
-                Upload an image or use the default avatar. Supported formats: JPG, PNG, WebP, GIF
-              </p>
-              {formData.avatar && formData.avatar !== '/assets/characters_img/Elara.jpeg' && (
+              <div className="flex gap-3">
                 <Button
                   type="button"
                   variant="outline"
-                  size="sm"
-                  onClick={() => setFormData({ ...formData, avatar: '/assets/characters_img/Elara.jpeg' })}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (fileInputRef.current) {
+                      fileInputRef.current.click();
+                    }
+                  }}
                 >
-                  Reset to Default
+                  Choose Avatar Image
                 </Button>
-              )}
+                {formData.avatar && formData.avatar !== '/assets/characters_img/Elara.jpeg' && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setFormData({ ...formData, avatar: '/assets/characters_img/Elara.jpeg' })}
+                  >
+                    Reset to Default
+                  </Button>
+                )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Upload an image or use the default avatar. Supported formats: JPG, PNG, WebP, GIF
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="backstory" className="text-sm font-medium">Backstory</Label>
-          <Textarea
-            id="backstory"
-            value={formData.backstory}
-            onChange={(e) => setFormData({ ...formData, backstory: e.target.value })}
-            placeholder="Describe the character's background, history, and motivations..."
-            rows={4}
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="voiceStyle" className="text-sm font-medium">Voice Style</Label>
-          <Textarea
-            id="voiceStyle"
-            value={formData.voiceStyle}
-            onChange={(e) => setFormData({ ...formData, voiceStyle: e.target.value })}
-            placeholder="Describe how the character speaks and their communication style..."
-            rows={3}
-            required
-          />
-        </div>
-
-        <div className="space-y-2">
-          <Label className="text-sm font-medium">Character Traits</Label>
-          <div className="flex gap-2">
-            <Input
-              value={newTrait}
-              onChange={(e) => setNewTrait(e.target.value)}
-              placeholder="Add a trait..."
-              onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTrait())}
-            />
-            <Button type="button" onClick={addTrait}>Add</Button>
-          </div>
-          <div className="flex flex-wrap gap-2 mt-2">
-            {formData.traits.map((trait, index) => (
-              <Badge key={index} variant="secondary" className="gap-1">
-                {trait}
-                <X
-                  className="w-3 h-3 cursor-pointer"
-                  onClick={() => removeTrait(index)}
-                />
-              </Badge>
-            ))}
+        {/* Character Traits */}
+        <div className="bg-card/50 rounded-lg p-6 space-y-6">
+          <h3 className="text-xl font-semibold border-b border-border pb-3">Character Traits</h3>
+          
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Add Character Traits</Label>
+            <div className="flex gap-2">
+              <Input
+                value={newTrait}
+                onChange={(e) => setNewTrait(e.target.value)}
+                placeholder="Add a trait (e.g., friendly, mysterious, confident)..."
+                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTrait())}
+              />
+              <Button type="button" onClick={addTrait}>Add</Button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {formData.traits.map((trait, index) => (
+                <Badge key={index} variant="secondary" className="gap-1">
+                  {trait}
+                  <X
+                    className="w-3 h-3 cursor-pointer"
+                    onClick={() => removeTrait(index)}
+                  />
+                </Badge>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Add personality traits that define your character (optional but recommended).
+            </p>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
+        {/* Character Settings */}
+        <div className="bg-card/50 rounded-lg p-6 space-y-6">
+          <h3 className="text-xl font-semibold border-b border-border pb-3">Character Settings</h3>
+          
           <div className="space-y-2">
-            <Label htmlFor="gender" className="text-sm font-medium">Gender</Label>
-            <Input
-              id="gender"
-              value={formData.gender}
-              onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-              placeholder="e.g., Male, Female, Non-binary"
-            />
+            <Label className="text-sm font-medium">Category</Label>
+            <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select category" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="original">Original</SelectItem>
+                <SelectItem value="anime">Anime</SelectItem>
+                <SelectItem value="game">Game</SelectItem>
+                <SelectItem value="movie">Movie</SelectItem>
+                <SelectItem value="book">Book</SelectItem>
+                <SelectItem value="fantasy">Fantasy</SelectItem>
+                <SelectItem value="sci-fi">Sci-Fi</SelectItem>
+                <SelectItem value="romance">Romance</SelectItem>
+                <SelectItem value="action">Action</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="age" className="text-sm font-medium">Age</Label>
-            <Input
-              id="age"
-              value={formData.age}
-              onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-              placeholder="e.g., 25, Young Adult"
-            />
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex items-center justify-between p-4 rounded-lg border">
+              <div>
+                <Label className="text-sm font-medium">Make Public</Label>
+                <p className="text-xs text-muted-foreground">Allow others to discover and chat with this character</p>
+              </div>
+              <Switch
+                checked={formData.isPublic}
+                onCheckedChange={(checked) => setFormData({ ...formData, isPublic: checked })}
+              />
+            </div>
+
+            <div className="flex items-center justify-between p-4 rounded-lg border">
+              <div>
+                <Label className="text-sm font-medium">NSFW Content</Label>
+                <p className="text-xs text-muted-foreground">Enable adult/mature content for this character</p>
+              </div>
+              <Switch
+                checked={formData.isNsfw}
+                onCheckedChange={(checked) => setFormData({ ...formData, isNsfw: checked })}
+              />
+            </div>
           </div>
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="occupation" className="text-sm font-medium">Occupation</Label>
-          <Input
-            id="occupation"
-            value={formData.occupation}
-            onChange={(e) => setFormData({ ...formData, occupation: e.target.value })}
-            placeholder="What does your character do?"
-          />
-        </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="catchphrase" className="text-sm font-medium">Catchphrase</Label>
-          <Input
-            id="catchphrase"
-            value={formData.catchphrase}
-            onChange={(e) => setFormData({ ...formData, catchphrase: e.target.value })}
-            placeholder="A memorable phrase your character might say"
-          />
-        </div>
 
-        <div className="flex justify-between pt-4">
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Back
+        {/* Form Actions */}
+        <div className="flex justify-between items-center pt-6 border-t border-border">
+          <Button type="button" variant="outline" onClick={onCancel} size="lg">
+            Cancel
           </Button>
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? 'Creating...' : 'Create Character'}
+          <Button type="submit" disabled={isLoading} size="lg" className="min-w-[200px]">
+            {isLoading ? 'Creating Character...' : 'Create Character'}
           </Button>
         </div>
-    </form>
+      </form>
+    </div>
   );
 };
 

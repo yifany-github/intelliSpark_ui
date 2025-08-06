@@ -62,13 +62,9 @@ class CharacterBase(BaseSchema):
     backstory: str
     voiceStyle: str = Field(alias="voice_style")  # Map database field to frontend field
     traits: List[str]
-    personalityTraits: Dict[str, int] = Field(alias="personality_traits")  # Map database field to frontend field
+    personalityTraits: Optional[Dict[str, int]] = Field(default=None, alias="personality_traits")  # Optional for backward compatibility
     category: Optional[str] = None
     gender: Optional[str] = None
-    age: Optional[str] = None
-    occupation: Optional[str] = None
-    hobbies: Optional[List[str]] = None
-    catchphrase: Optional[str] = None
     conversationStyle: Optional[str] = Field(default=None, alias="conversation_style")
     isPublic: bool = Field(default=True, alias="is_public")
     nsfwLevel: int = Field(default=0, alias="nsfw_level")

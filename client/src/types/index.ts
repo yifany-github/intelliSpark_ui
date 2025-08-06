@@ -21,7 +21,6 @@ export interface Character {
   description?: string;
   voiceStyle: string;
   traits: string[];
-  personalityTraits: Record<string, number>;
   createdAt: string;
 }
 

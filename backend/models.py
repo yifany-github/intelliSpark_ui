@@ -38,7 +38,7 @@ class Character(Base):
     backstory = Column(Text, nullable=False)
     voice_style = Column(String(500), nullable=False)
     traits = Column(JSON, nullable=False)  # List of strings
-    personality_traits = Column(JSON, nullable=False)  # Dict of trait: percentage
+    personality_traits = Column(JSON, nullable=True)  # Deprecated - keeping for backward compatibility
     category = Column(String(100), nullable=True)
     gender = Column(String(100), nullable=True)
     age = Column(String(100), nullable=True)
