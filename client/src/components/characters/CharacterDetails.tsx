@@ -29,13 +29,6 @@ const CharacterDetails = ({ character }: CharacterDetailsProps) => {
     }
   };
 
-  // Extract personality traits for display
-  const personalityTraits = character.personalityTraits || {
-    Warmth: 40,
-    Humor: 20,
-    Intelligence: 95,
-    Patience: 75
-  };
 
   return (
     <div className="p-4 overflow-y-auto">
@@ -81,23 +74,6 @@ const CharacterDetails = ({ character }: CharacterDetailsProps) => {
         </button>
       </div>
       
-      <h3 className="font-poppins font-semibold text-lg mb-2">Personality Traits</h3>
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        {Object.entries(personalityTraits).map(([trait, value]) => (
-          <div key={trait} className="bg-secondary rounded-2xl p-4">
-            <div className="flex justify-between items-center mb-1">
-              <span className="text-sm">{trait}</span>
-              <span className="text-sm text-accent">{value}%</span>
-            </div>
-            <div className="w-full bg-background rounded-full h-2">
-              <div 
-                className="bg-accent h-2 rounded-full" 
-                style={{ width: `${value}%` }}
-              ></div>
-            </div>
-          </div>
-        ))}
-      </div>
       
       <button 
         className="w-full bg-primary hover:bg-accent rounded-2xl px-4 py-3 text-white font-medium transition-colors"

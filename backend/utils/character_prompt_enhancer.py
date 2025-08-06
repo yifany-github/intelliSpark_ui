@@ -43,10 +43,6 @@ class CharacterPromptEnhancer:
         character_info = []
         if character.gender:
             character_info.append(f"性别: {character.gender}")
-        if character.age:
-            character_info.append(f"年龄: {character.age}")
-        if character.occupation:
-            character_info.append(f"职业: {character.occupation}")
         
         character_details_section = ""
         if character_info:

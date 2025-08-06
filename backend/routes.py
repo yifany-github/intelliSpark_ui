@@ -77,7 +77,7 @@ async def create_character(
             backstory=character_data.backstory,
             voice_style=character_data.voiceStyle,
             traits=character_data.traits,
-            personality_traits=character_data.personalityTraits,
+            personality_traits=character_data.personalityTraits or {},  # Default to empty dict if None
             category=character_data.category,
             gender=character_data.gender,
             conversation_style=character_data.conversationStyle,
