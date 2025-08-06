@@ -41,10 +41,6 @@ interface CharacterFormData {
   isPublic: boolean;
   nsfwLevel: number;
   gender: string;
-  age: string;
-  occupation: string;
-  hobbies: string[];
-  catchphrase: string;
   conversationStyle: string;
 }
 
@@ -76,10 +72,6 @@ const ImprovedCreateCharacterPage = () => {
     isPublic: true,
     nsfwLevel: 0,
     gender: '',
-    age: '',
-    occupation: '',
-    hobbies: [],
-    catchphrase: '',
     conversationStyle: 'Detailed responses'
   });
 
@@ -91,7 +83,6 @@ const ImprovedCreateCharacterPage = () => {
       traits: template.data.traits,
       personalityTraits: template.data.personalityTraits,
       backstory: template.data.backstory,
-      occupation: template.data.occupation,
       conversationStyle: template.data.conversationStyle,
       category: template.category
     }));
@@ -120,10 +111,6 @@ const ImprovedCreateCharacterPage = () => {
         personalityTraits: characterData.personalityTraits,
         category: characterData.category,
         gender: characterData.gender,
-        age: characterData.age,
-        occupation: characterData.occupation,
-        hobbies: characterData.hobbies,
-        catchphrase: characterData.catchphrase,
         conversationStyle: characterData.conversationStyle,
         isPublic: characterData.isPublic,
         nsfwLevel: characterData.nsfwLevel
@@ -205,10 +192,6 @@ const ImprovedCreateCharacterPage = () => {
       isPublic: true,
       nsfwLevel: 0,
       gender: '',
-      age: '',
-      occupation: '',
-      hobbies: [],
-      catchphrase: '',
       conversationStyle: 'Detailed responses'
     });
   };
@@ -492,46 +475,17 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label htmlFor="gender" className="text-sm font-medium">Gender</Label>
-            <Input
-              id="gender"
-              value={formData.gender}
-              onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-              placeholder="e.g., Male, Female, Non-binary"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="age" className="text-sm font-medium">Age</Label>
-            <Input
-              id="age"
-              value={formData.age}
-              onChange={(e) => setFormData({ ...formData, age: e.target.value })}
-              placeholder="e.g., 25, Young Adult"
-            />
-          </div>
-        </div>
-
         <div className="space-y-2">
-          <Label htmlFor="occupation" className="text-sm font-medium">Occupation</Label>
+          <Label htmlFor="gender" className="text-sm font-medium">Gender</Label>
           <Input
-            id="occupation"
-            value={formData.occupation}
-            onChange={(e) => setFormData({ ...formData, occupation: e.target.value })}
-            placeholder="What does your character do?"
+            id="gender"
+            value={formData.gender}
+            onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+            placeholder="e.g., Male, Female, Non-binary"
           />
         </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="catchphrase" className="text-sm font-medium">Catchphrase</Label>
-          <Input
-            id="catchphrase"
-            value={formData.catchphrase}
-            onChange={(e) => setFormData({ ...formData, catchphrase: e.target.value })}
-            placeholder="A memorable phrase your character might say"
-          />
-        </div>
+
 
         <div className="flex justify-between pt-4">
           <Button type="button" variant="outline" onClick={onCancel}>
