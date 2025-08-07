@@ -244,8 +244,11 @@ robots.txt
 # ===================================================
 # Development artifacts and temporary files
 # ===================================================
-# Scratchpad files
+# Scratchpad files and planning documents
+scratchpad_*.md
 scratchpad-*.md
+github_issue_*.md
+phase*_*.md
 
 # Documentation artifacts (except essential docs)
 *_DEBUG.md
@@ -261,13 +264,31 @@ scratchpad-*.md
 # Demo and test files in root
 *_demo.*
 test_*.py
+test_*.jpg
+test_*.png
 chat_demo.*
+*demo*.py
+add_tokens.py
 
 # Backend test and migration files
 backend/test_*.py
 backend/*_test.py
 backend/final_test.py
 backend/migrate_*.py
+backend/test.*
+backend/pkill
+
+# CSV data files and temporary content
+*.csv
+global_dataset.csv
+
+# Stop/log files in subdirectories
+*/logs/stop.json
+logs/stop.json
+
+# Database backup files with timestamps
+*.db.backup*
+backend/*.db.backup*
 
 # Temporary logs and demo directories
 web_demo/
