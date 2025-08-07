@@ -41,10 +41,6 @@ class Character(Base):
     personality_traits = Column(JSON, nullable=True)  # Deprecated - keeping for backward compatibility
     category = Column(String(100), nullable=True)
     gender = Column(String(100), nullable=True)
-    age = Column(String(100), nullable=True)
-    occupation = Column(String(255), nullable=True)
-    hobbies = Column(JSON, nullable=True)  # List of strings
-    catchphrase = Column(String(500), nullable=True)
     conversation_style = Column(String(255), nullable=True)
     is_public = Column(Boolean, default=True)
     nsfw_level = Column(Integer, default=0)
