@@ -24,16 +24,15 @@ enum CreationStep {
 }
 
 interface CharacterFormData {
-  name: string;
-  backstory: string; // Single comprehensive description field
-  voiceStyle: string;
-  traits: string[];
-  avatar: string | null;
-  category: string;
-  isPublic: boolean;
-  isNsfw: boolean;
-  gender: string;
-  conversationStyle: string;
+  name: string;              // ✅ Form field: Character Name input
+  backstory: string;         // ✅ Form field: Character Description textarea
+  traits: string[];          // ✅ Form field: Dynamic trait badges
+  avatar: string | null;     // ✅ Form field: Avatar upload
+  category: string;          // ✅ Form field: Category dropdown
+  gender: string;            // ✅ Form field: Gender dropdown
+  isPublic: boolean;         // ✅ Form field: Make Public switch
+  isNsfw: boolean;          // ✅ Form field: NSFW Content switch
+  // Note: voiceStyle and conversationStyle are not form fields, set as defaults in API call
 }
 
 const ImprovedCreateCharacterPage = () => {
@@ -48,14 +47,12 @@ const ImprovedCreateCharacterPage = () => {
   const [formData, setFormData] = useState<CharacterFormData>({
     name: '',
     backstory: '',
-    voiceStyle: 'casual',
     traits: [],
     avatar: '/assets/characters_img/Elara.jpeg',
     category: 'original',
-    isPublic: true,
-    isNsfw: false,
     gender: 'female',
-    conversationStyle: 'detailed'
+    isPublic: true,
+    isNsfw: false
   });
 
 
@@ -68,14 +65,14 @@ const ImprovedCreateCharacterPage = () => {
 
       const response = await apiRequest("POST", "/api/characters", {
         name: characterData.name,
-        description: characterData.backstory, // Use backstory as the single description
+        description: characterData.backstory, // Use backstory as description
         avatarUrl: characterData.avatar,
         backstory: characterData.backstory,
-        voiceStyle: characterData.voiceStyle,
+        voiceStyle: "casual", // Default voice style since not in form
         traits: characterData.traits,
         category: characterData.category,
         gender: characterData.gender,
-        conversationStyle: characterData.conversationStyle,
+        conversationStyle: "detailed", // Default conversation style since not in form
         isPublic: characterData.isPublic,
         nsfwLevel: characterData.isNsfw ? 1 : 0
       });
@@ -140,14 +137,12 @@ const ImprovedCreateCharacterPage = () => {
     setFormData({
       name: '',
       backstory: '',
-      voiceStyle: 'casual',
       traits: [],
       avatar: '/assets/characters_img/Elara.jpeg',
       category: 'original',
-      isPublic: true,
-      isNsfw: false,
       gender: 'female',
-      conversationStyle: 'detailed'
+      isPublic: true,
+      isNsfw: false
     });
   };
 
