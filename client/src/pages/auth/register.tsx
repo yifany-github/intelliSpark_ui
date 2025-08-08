@@ -105,8 +105,8 @@ const RegisterPage = () => {
         <Card className="w-full shadow-2xl border-0 bg-white/95 backdrop-blur-sm">
           <CardHeader className="space-y-1 pb-6">
             <div className="flex items-center justify-center mb-4">
-              <div className="p-3 bg-green-100 rounded-full">
-                <UserPlus className="h-8 w-8 text-green-600" />
+              <div className="p-3 bg-brand-secondary/20 rounded-full">
+                <UserPlus className="h-8 w-8 text-brand-secondary" />
               </div>
             </div>
             <CardTitle className="text-2xl text-center font-bold text-gray-800">{t('createAccount')}</CardTitle>
@@ -203,7 +203,7 @@ const RegisterPage = () => {
             
             <Button 
               type="submit" 
-              className="w-full bg-green-600 hover:bg-green-700 text-white font-medium py-2.5" 
+              className="w-full bg-brand-accent hover:bg-indigo-500 text-white font-medium py-2.5" 
               disabled={isLoading}
             >
               {isLoading ? t('creatingAccount') : t('createAccount')}
@@ -251,7 +251,7 @@ const RegisterPage = () => {
           
           <div className="mt-6 text-center">
             <Link href="/login">
-              <a className="text-sm text-green-600 hover:text-green-500 font-medium">
+              <a className="text-sm text-brand-secondary hover:text-amber-400 font-medium">
                 {t('alreadyHaveAccount')}
               </a>
             </Link>

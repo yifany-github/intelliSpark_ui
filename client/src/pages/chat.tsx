@@ -278,7 +278,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
           <div className="flex-1 overflow-y-auto">
             {/* Current Active Chat */}
             {character && (
-              <div className="p-3 bg-blue-600/20 border-l-4 border-blue-500">
+              <div className="p-3 bg-brand-accent/20 border-l-4 border-brand-accent">
                 <div className="flex items-center space-x-3">
                   <div className="relative">
                     <ImageWithFallback
@@ -295,7 +295,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                     <p className="font-medium text-blue-200 truncate">{character.name}</p>
                     <p className="text-sm text-blue-300 truncate">{t('currentlyChatting')}</p>
                   </div>
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                  <div className="w-2 h-2 bg-brand-accent rounded-full animate-pulse"></div>
                 </div>
               </div>
             )}
@@ -527,7 +527,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
               {/* Action Buttons */}
               <div className="space-y-3">
                 <Link href="/" className="block">
-                  <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg font-medium transition-colors">
+                  <button className="w-full bg-brand-accent hover:bg-indigo-500 text-white py-2 px-4 rounded-lg font-medium transition-colors shadow-surface">
                     {t('startNewChat')}
                   </button>
                 </Link>

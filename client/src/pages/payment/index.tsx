@@ -157,7 +157,7 @@ const PaymentForm: React.FC<{
     <Card className="bg-gray-800 border-gray-700">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
-          <CreditCard className="h-5 w-5 text-blue-400" />
+          <CreditCard className="h-5 w-5 text-brand-secondary" />
           {t('paymentDetails')}
         </CardTitle>
       </CardHeader>
@@ -165,7 +165,14 @@ const PaymentForm: React.FC<{
         <div className="mb-4 p-3 bg-gray-700 rounded-lg border border-gray-600">
           <div className="flex justify-between items-center">
             <span className="font-medium text-white">{tierData.description}</span>
-            <span className="font-bold text-lg text-green-400">${(tierData.price / 100).toFixed(2)}</span>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-brand-secondary mb-1">
+                ${(tierData.price / 100).toFixed(2)}
+              </div>
+              <div className="text-sm text-content-tertiary uppercase tracking-wide">
+                Premium Tokens
+              </div>
+            </div>
           </div>
           <div className="text-sm text-gray-400 mt-1">
             {tierData.tokens} tokens • ${((tierData.price / 100) / tierData.tokens).toFixed(3)} per token
@@ -185,7 +192,7 @@ const PaymentForm: React.FC<{
                   required
                   value={billingDetails.name}
                   onChange={(e) => setBillingDetails(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
                   placeholder={t('fullName')}
                 />
               </div>
@@ -197,7 +204,7 @@ const PaymentForm: React.FC<{
                   required
                   value={billingDetails.email}
                   onChange={(e) => setBillingDetails(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
                   placeholder={t('emailAddress')}
                 />
               </div>
@@ -213,7 +220,7 @@ const PaymentForm: React.FC<{
                   ...prev, 
                   address: { ...prev.address, line1: e.target.value }
                 }))}
-                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
                 placeholder={t('addressLine1')}
               />
             </div>
@@ -227,7 +234,7 @@ const PaymentForm: React.FC<{
                   ...prev, 
                   address: { ...prev.address, line2: e.target.value }
                 }))}
-                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
                 placeholder={`${t('addressLine2')} (${t('optional')})`}
               />
             </div>
@@ -243,7 +250,7 @@ const PaymentForm: React.FC<{
                     ...prev, 
                     address: { ...prev.address, city: e.target.value }
                   }))}
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
                   placeholder={t('city')}
                 />
               </div>
@@ -258,7 +265,7 @@ const PaymentForm: React.FC<{
                     ...prev, 
                     address: { ...prev.address, state: e.target.value }
                   }))}
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
                   placeholder={t('state')}
                 />
               </div>
@@ -273,7 +280,7 @@ const PaymentForm: React.FC<{
                     ...prev, 
                     address: { ...prev.address, postal_code: e.target.value }
                   }))}
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
                   placeholder={t('zipCode')}
                 />
               </div>
@@ -288,7 +295,7 @@ const PaymentForm: React.FC<{
                   ...prev, 
                   address: { ...prev.address, country: e.target.value }
                 }))}
-                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-brand-accent"
               >
                 <option value="US">{t('unitedStates')}</option>
                 <option value="CA">{t('canada')}</option>
@@ -327,7 +334,14 @@ const PaymentForm: React.FC<{
               <div className="border-t border-gray-600 pt-2 mt-2">
                 <div className="flex justify-between items-center font-semibold">
                   <span className="text-white">{t('total')}</span>
-                  <span className="text-green-400 text-lg">${(tierData.price / 100).toFixed(2)} {t('usd')}</span>
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-brand-secondary mb-1">
+                      ${(tierData.price / 100).toFixed(2)}
+                    </div>
+                    <div className="text-sm text-content-tertiary uppercase tracking-wide">
+                      {t('usd')} - Premium Tokens
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -339,15 +353,15 @@ const PaymentForm: React.FC<{
               <input
                 type="checkbox"
                 required
-                className="mt-1 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500 focus:ring-2"
+                className="mt-1 rounded border-gray-600 bg-gray-700 text-brand-accent focus:ring-brand-accent focus:ring-2"
               />
               <span className="text-sm text-gray-300">
                 {t('agreeToTerms')}{' '}
-                <a href="#" className="text-blue-400 hover:text-blue-300 underline">
+                <a href="#" className="text-brand-secondary hover:text-amber-300 underline">
                   {t('termsOfService')}
                 </a>{' '}
                 {t('and')}{' '}
-                <a href="#" className="text-blue-400 hover:text-blue-300 underline">
+                <a href="#" className="text-brand-secondary hover:text-amber-300 underline">
                   {t('privacyPolicy')}
                 </a>
               </span>
@@ -355,7 +369,7 @@ const PaymentForm: React.FC<{
             <label className="flex items-start space-x-2">
               <input
                 type="checkbox"
-                className="mt-1 rounded border-gray-600 bg-gray-700 text-blue-600 focus:ring-blue-500 focus:ring-2"
+                className="mt-1 rounded border-gray-600 bg-gray-700 text-brand-accent focus:ring-brand-accent focus:ring-2"
               />
               <span className="text-sm text-gray-300">
                 {t('receivePromotional')}
@@ -372,7 +386,7 @@ const PaymentForm: React.FC<{
           <Button 
             type="submit" 
             disabled={!stripe || isProcessing} 
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl"
+            className="w-full bg-gradient-premium text-zinc-900 rounded-2xl font-semibold tracking-wide shadow-premium hover:shadow-glow transition-all duration-200"
             size="lg"
           >
             {isProcessing ? (
@@ -425,10 +439,10 @@ const PaymentPage: React.FC = () => {
         <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-2xl">
           <Card className="text-center bg-gray-800 border-gray-700">
             <CardContent className="pt-6">
-              <div className="mx-auto w-16 h-16 bg-green-900 rounded-full flex items-center justify-center mb-4">
-                <Check className="h-8 w-8 text-green-400" />
+              <div className="mx-auto w-16 h-16 bg-brand-secondary/20 border-2 border-brand-secondary rounded-full flex items-center justify-center mb-4">
+                <Check className="h-8 w-8 text-brand-secondary" />
               </div>
-              <h2 className="text-2xl font-bold text-green-400 mb-2">{t('paymentSuccessful')}</h2>
+              <h2 className="text-2xl font-bold text-brand-secondary mb-2">{t('paymentSuccessful')}</h2>
               <p className="text-gray-400 mb-6">
                 {t('tokensAddedToAccount')}
               </p>
@@ -436,7 +450,7 @@ const PaymentPage: React.FC = () => {
                 <ImprovedTokenBalance showTitle={false} compact={false} showStats={false} />
               </div>
               <div className="flex gap-3 justify-center">
-                <Button onClick={() => navigateToPath('/chats')} size="lg" className="bg-blue-600 hover:bg-blue-700 rounded-2xl">
+                <Button onClick={() => navigateToPath('/chats')} size="lg" className="bg-brand-accent hover:bg-indigo-500 rounded-2xl shadow-surface">
                   {t('startChatting')}
                 </Button>
                 <Button onClick={handleBackToProfile} variant="outline" size="lg" className="bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl">
@@ -525,7 +539,7 @@ const PaymentPage: React.FC = () => {
                   >
                     {isPopular && (
                       <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                        <Badge className="bg-blue-500 text-white flex items-center gap-1">
+                        <Badge className="bg-brand-accent text-white flex items-center gap-1 shadow-surface">
                           <Star className="h-3 w-3" />
                           {t('mostPopular')}
                         </Badge>
@@ -543,7 +557,7 @@ const PaymentPage: React.FC = () => {
                             <span className="text-2xl font-bold text-white">{tier.tokens}</span>
                             <span className="text-gray-400">{t('tokensPlural')}</span>
                           </div>
-                          <div className="text-3xl font-bold text-blue-400">
+                          <div className="text-3xl font-bold text-brand-secondary">
                             ${(tier.price / 100).toFixed(2)}
                           </div>
                           <div className="text-xs text-gray-400">
@@ -576,7 +590,7 @@ const PaymentPage: React.FC = () => {
             size="lg" 
             onClick={() => setShowPaymentForm(true)}
             disabled={!selectedTier || tiersLoading}
-            className="bg-blue-600 hover:bg-blue-700 rounded-2xl"
+            className="bg-gradient-premium text-zinc-900 rounded-2xl font-semibold tracking-wide shadow-premium hover:shadow-glow transition-all duration-200"
           >
             {t('continueToPayment')}
           </Button>

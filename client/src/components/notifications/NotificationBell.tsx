@@ -119,7 +119,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
         onClick={handleBellClick}
         className={cn(
           "relative p-2 text-gray-400 hover:text-white transition-colors",
-          hasUnread && "text-blue-400"
+          hasUnread && "text-brand-accent"
         )}
       >
         <Bell className={cn(
@@ -142,10 +142,10 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
-                  <Bell className="h-4 w-4 text-blue-400" />
+                  <Bell className="h-4 w-4 text-brand-accent" />
                   {t('notifications')}
                   {hasUnread && (
-                    <Badge className="bg-blue-600 text-white">
+                    <Badge className="bg-brand-accent text-white">
                       {stats.unread}
                     </Badge>
                   )}

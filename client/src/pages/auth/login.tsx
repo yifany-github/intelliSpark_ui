@@ -85,7 +85,7 @@ const LoginPage = () => {
           <CardHeader className="space-y-1 pb-6">
             <div className="flex items-center justify-center mb-4">
               <div className="p-3 bg-blue-100 rounded-full">
-                <LogIn className="h-8 w-8 text-blue-600" />
+                <LogIn className="h-8 w-8 text-brand-accent" />
               </div>
             </div>
             <CardTitle className="text-2xl text-center font-bold text-gray-800">{t('welcomeBack')}</CardTitle>
@@ -118,7 +118,7 @@ const LoginPage = () => {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="password" className="text-gray-700 font-medium">{t('password')}</Label>
-                <button type="button" className="text-sm text-blue-600 hover:text-blue-500 font-medium">
+                <button type="button" className="text-sm text-brand-accent hover:text-indigo-500 font-medium">
                   {t('forgotPassword')}
                 </button>
               </div>
@@ -152,7 +152,7 @@ const LoginPage = () => {
             
             <Button 
               type="submit" 
-              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5" 
+              className="w-full bg-brand-accent hover:bg-indigo-500 text-white font-medium py-2.5 shadow-surface transition-all duration-200" 
               disabled={isLoading}
             >
               {isLoading ? t('signingIn') : t('signIn')}
@@ -200,7 +200,7 @@ const LoginPage = () => {
           
           <div className="mt-6 text-center">
             <Link href="/register">
-              <a className="text-sm text-blue-600 hover:text-blue-500 font-medium">
+              <a className="text-sm text-brand-accent hover:text-indigo-500 font-medium">
                 {t('dontHaveAccount')}
               </a>
             </Link>

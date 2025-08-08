@@ -109,13 +109,13 @@ export const TokenTransactionHistory: React.FC<TokenTransactionHistoryProps> = (
   const getTransactionIcon = (type: string) => {
     switch (type) {
       case 'purchase':
-        return <CreditCard className="h-4 w-4 text-green-400" />;
+        return <CreditCard className="h-4 w-4 text-brand-secondary" />;
       case 'usage':
-        return <MessageSquare className="h-4 w-4 text-blue-400" />;
+        return <MessageSquare className="h-4 w-4 text-brand-accent" />;
       case 'refund':
         return <TrendingUp className="h-4 w-4 text-orange-400" />;
       case 'bonus':
-        return <Plus className="h-4 w-4 text-blue-400" />;
+        return <Plus className="h-4 w-4 text-brand-accent" />;
       default:
         return <History className="h-4 w-4 text-gray-400" />;
     }
@@ -125,7 +125,7 @@ export const TokenTransactionHistory: React.FC<TokenTransactionHistoryProps> = (
     switch (status) {
       case 'completed':
         return (
-          <Badge className="bg-green-900 text-green-400 border-green-800">
+          <Badge className="bg-brand-secondary/20 text-brand-secondary border-brand-secondary/40">
             <CheckCircle className="h-3 w-3 mr-1" />
             {t('completed')}
           </Badge>
@@ -151,7 +151,7 @@ export const TokenTransactionHistory: React.FC<TokenTransactionHistoryProps> = (
 
   const getAmountDisplay = (transaction: TokenTransaction) => {
     const isPositive = transaction.type === 'purchase' || transaction.type === 'refund' || transaction.type === 'bonus';
-    const amountClass = isPositive ? 'text-green-400' : 'text-red-400';
+    const amountClass = isPositive ? 'text-brand-secondary' : 'text-red-400';
     const sign = isPositive ? '+' : '-';
     
     return (
@@ -172,7 +172,7 @@ export const TokenTransactionHistory: React.FC<TokenTransactionHistoryProps> = (
         {showTitle && (
           <CardHeader>
             <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
-              <History className="h-4 w-4 text-blue-400" />
+              <History className="h-4 w-4 text-brand-accent" />
 {t('transactionHistory')}
             </CardTitle>
           </CardHeader>
@@ -204,7 +204,7 @@ export const TokenTransactionHistory: React.FC<TokenTransactionHistoryProps> = (
         {showTitle && (
           <CardHeader>
             <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
-              <History className="h-4 w-4 text-blue-400" />
+              <History className="h-4 w-4 text-brand-accent" />
 {t('transactionHistory')}
             </CardTitle>
           </CardHeader>
@@ -233,7 +233,7 @@ export const TokenTransactionHistory: React.FC<TokenTransactionHistoryProps> = (
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
-              <History className="h-4 w-4 text-blue-400" />
+              <History className="h-4 w-4 text-brand-accent" />
 {t('transactionHistory')}
             </CardTitle>
             <Button 
@@ -299,7 +299,7 @@ export const TokenTransactionHistory: React.FC<TokenTransactionHistoryProps> = (
                       <Calendar className="h-3 w-3" />
                       {new Date(transaction.created_at).toLocaleString()}
                       {transaction.metadata?.character_name && (
-                        <span className="text-blue-400">
+                        <span className="text-brand-accent">
                           • {transaction.metadata.character_name}
                         </span>
                       )}

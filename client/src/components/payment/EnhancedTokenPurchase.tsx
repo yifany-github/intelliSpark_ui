@@ -127,8 +127,8 @@ export const EnhancedTokenPurchase: React.FC<EnhancedTokenPurchaseProps> = ({
 
   const getTierIcon = (tier: PricingTier) => {
     if (tier.popular) return <Crown className="h-5 w-5 text-yellow-400" />;
-    if (tier.bonus && tier.bonus > 0) return <Gift className="h-5 w-5 text-green-400" />;
-    return <Zap className="h-5 w-5 text-blue-400" />;
+    if (tier.bonus && tier.bonus > 0) return <Gift className="h-5 w-5 text-brand-secondary" />;
+    return <Zap className="h-5 w-5 text-brand-accent" />;
   };
 
   const getTierBadge = (tier: PricingTier) => {
@@ -142,7 +142,7 @@ export const EnhancedTokenPurchase: React.FC<EnhancedTokenPurchaseProps> = ({
     }
     if (tier.savings) {
       return (
-        <Badge className="bg-green-900 text-green-400 border-green-800 mb-2">
+        <Badge className="bg-brand-secondary/20 text-brand-secondary border-brand-secondary/40 mb-2">
           <TrendingUp className="h-3 w-3 mr-1" />
           {tier.savings}
         </Badge>
@@ -175,7 +175,7 @@ export const EnhancedTokenPurchase: React.FC<EnhancedTokenPurchaseProps> = ({
       <Card className={cn("bg-gray-800 border-gray-700", className)}>
         <CardHeader>
           <CardTitle className="text-white flex items-center gap-2">
-            <CreditCard className="h-5 w-5 text-blue-400" />
+            <CreditCard className="h-5 w-5 text-brand-accent" />
             {t('purchaseTokens')}
           </CardTitle>
         </CardHeader>
@@ -192,7 +192,7 @@ export const EnhancedTokenPurchase: React.FC<EnhancedTokenPurchaseProps> = ({
     <Card className={cn("bg-gray-800 border-gray-700", className)}>
       <CardHeader>
         <CardTitle className="text-white flex items-center gap-2">
-          <CreditCard className="h-5 w-5 text-blue-400" />
+          <CreditCard className="h-5 w-5 text-brand-accent" />
           {t('purchaseTokens')}
         </CardTitle>
         <p className="text-sm text-gray-400">
@@ -243,7 +243,7 @@ export const EnhancedTokenPurchase: React.FC<EnhancedTokenPurchaseProps> = ({
                   )}
                 </div>
                 {tier.bonus && tier.bonus > 0 && (
-                  <div className="flex items-center gap-1 text-sm text-green-400 mt-1">
+                  <div className="flex items-center gap-1 text-sm text-brand-secondary mt-1">
                     <Gift className="h-3 w-3" />
                     +{tier.bonus} {t('bonusTokens')}
                   </div>
@@ -254,7 +254,7 @@ export const EnhancedTokenPurchase: React.FC<EnhancedTokenPurchaseProps> = ({
                 <div className="mb-4 space-y-2">
                   {getTierFeatures(tier).map((feature, index) => (
                     <div key={index} className="flex items-center gap-2 text-sm text-gray-300">
-                      <CheckCircle className="h-3 w-3 text-green-400" />
+                      <CheckCircle className="h-3 w-3 text-brand-secondary" />
                       {feature}
                     </div>
                   ))}
@@ -268,7 +268,7 @@ export const EnhancedTokenPurchase: React.FC<EnhancedTokenPurchaseProps> = ({
                   "w-full transition-all duration-200",
                   tier.popular
                     ? "bg-yellow-600 hover:bg-yellow-700 text-black"
-                    : "bg-blue-600 hover:bg-blue-700 text-white"
+                    : "bg-brand-accent hover:bg-indigo-500 text-white"
                 )}
               >
                 {isProcessing && selectedTier === tier.id ? (
@@ -288,9 +288,9 @@ export const EnhancedTokenPurchase: React.FC<EnhancedTokenPurchaseProps> = ({
         </div>
 
         {/* Security Notice */}
-        <div className="flex items-center gap-2 p-3 bg-green-900/20 border border-green-800 rounded-lg mt-4">
-          <Shield className="h-4 w-4 text-green-400" />
-          <span className="text-green-400 text-sm">
+        <div className="flex items-center gap-2 p-3 bg-brand-secondary/20/20 border border-brand-secondary/40 rounded-lg mt-4">
+          <Shield className="h-4 w-4 text-brand-secondary" />
+          <span className="text-brand-secondary text-sm">
             {t('securePayment')}
           </span>
         </div>
@@ -299,24 +299,24 @@ export const EnhancedTokenPurchase: React.FC<EnhancedTokenPurchaseProps> = ({
         {!compact && (
           <div className="mt-6 p-4 bg-gray-700 rounded-lg">
             <h4 className="font-semibold text-white mb-3 flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-blue-400" />
+              <Sparkles className="h-4 w-4 text-brand-accent" />
               {t('whyChooseTokens')}
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-gray-300">
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-3 w-3 text-green-400" />
+                <CheckCircle className="h-3 w-3 text-brand-secondary" />
                 {t('neverExpire')}
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-3 w-3 text-green-400" />
+                <CheckCircle className="h-3 w-3 text-brand-secondary" />
                 {t('instantActivation')}
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-3 w-3 text-green-400" />
+                <CheckCircle className="h-3 w-3 text-brand-secondary" />
                 {t('premiumAI')}
               </div>
               <div className="flex items-center gap-2">
-                <CheckCircle className="h-3 w-3 text-green-400" />
+                <CheckCircle className="h-3 w-3 text-brand-secondary" />
                 {t('support24x7')}
               </div>
             </div>

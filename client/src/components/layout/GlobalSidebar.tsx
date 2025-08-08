@@ -58,7 +58,7 @@ export default function GlobalSidebar() {
           {!isCollapsed && (
             <button
               onClick={navigateToHome}
-              className="text-lg font-bold text-white hover:text-green-400 transition-colors cursor-pointer"
+              className="text-lg font-bold text-white hover:text-brand-primary transition-colors cursor-pointer"
               title="Go to Home"
             >
               ProductInsightAI
@@ -93,8 +93,8 @@ export default function GlobalSidebar() {
               <div className="font-medium text-white">
                 {isAuthenticated ? (user?.email?.split('@')[0] || t('user')) : t('guest')}
               </div>
-              <div className="text-sm text-green-400 flex items-center">
-                <span className="w-2 h-2 bg-green-400 rounded-full mr-2"></span>
+              <div className="text-sm text-brand-secondary flex items-center">
+                <span className="w-2 h-2 bg-brand-secondary rounded-full mr-2"></span>
                 {isAuthenticated ? (
                   tokenLoading ? t('loading') : 
                   tokenError ? t('errorLoading') : 

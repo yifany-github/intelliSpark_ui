@@ -83,15 +83,15 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
       description: t('considerPurchasingMore')
     };
     if (isGoodBalance) return { 
-      color: 'text-green-600', 
-      bgColor: 'bg-green-50 border-green-200', 
+      color: 'text-brand-secondary', 
+      bgColor: 'bg-brand-secondary/10 border-brand-secondary/30', 
       icon: TrendingUp, 
       label: t('good'),
       description: t('plentyTokensForChatting')
     };
     return { 
-      color: 'text-blue-600', 
-      bgColor: 'bg-blue-50 border-blue-200', 
+      color: 'text-brand-accent', 
+      bgColor: 'bg-brand-accent/10 border-brand-accent/30', 
       icon: Zap, 
       label: t('active'),
       description: t('readyForAIConversations')
@@ -158,7 +158,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
           <span className={cn("font-medium", 
             isCriticalBalance ? 'text-red-400' : 
             isLowBalance ? 'text-orange-400' : 
-            'text-green-400'
+            'text-brand-secondary'
           )}>
             {balance}
           </span>
@@ -168,7 +168,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
             size="sm" 
             variant="outline" 
             onClick={handleBuyTokens}
-            className="h-6 text-xs px-2 bg-blue-600 hover:bg-blue-700 border-blue-600 text-white rounded-full"
+            className="h-6 text-xs px-2 bg-brand-accent hover:bg-indigo-500 border-brand-accent text-white rounded-full"
           >
             <Plus className="h-3 w-3 mr-1" />
             {t('buy')}
@@ -214,7 +214,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
             <Button 
               size="sm" 
               onClick={handleBuyTokens}
-              className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 rounded-2xl"
+              className="flex items-center gap-1 bg-brand-accent hover:bg-indigo-500 rounded-2xl"
             >
               <Plus className="h-4 w-4" />
 {t('buyMoreTokens')}
@@ -256,7 +256,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
               size="sm" 
               variant="outline"
               onClick={handleBuyTokens}
-              className="flex-1 bg-blue-600 hover:bg-blue-700 border-blue-600 text-white rounded-2xl"
+              className="flex-1 bg-brand-accent hover:bg-indigo-500 border-brand-accent text-white rounded-2xl"
             >
               <Gift className="h-4 w-4 mr-2" />
               {t('quickBuy')}

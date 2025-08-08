@@ -82,7 +82,7 @@ export const TokenUsageStats: React.FC<TokenUsageStatsProps> = ({
   });
 
   const getEfficiencyColor = (score: number) => {
-    if (score >= 80) return 'text-green-400';
+    if (score >= 80) return 'text-brand-secondary';
     if (score >= 60) return 'text-yellow-400';
     return 'text-red-400';
   };
@@ -95,13 +95,13 @@ export const TokenUsageStats: React.FC<TokenUsageStatsProps> = ({
     if (usageRatio > 0.8) {
       return {
         message: t('youMakingGreatUse'),
-        color: "text-green-400",
+        color: "text-brand-secondary",
         icon: <TrendingUp className="h-4 w-4" />
       };
     } else if (usageRatio > 0.5) {
       return {
         message: t('goodTokenUtilization'),
-        color: "text-blue-400",
+        color: "text-brand-accent",
         icon: <Target className="h-4 w-4" />
       };
     } else {
@@ -119,7 +119,7 @@ export const TokenUsageStats: React.FC<TokenUsageStatsProps> = ({
         {showTitle && (
           <CardHeader>
             <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-blue-400" />
+              <BarChart3 className="h-4 w-4 text-brand-accent" />
 {t('usageStatistics')}
             </CardTitle>
           </CardHeader>
@@ -145,7 +145,7 @@ export const TokenUsageStats: React.FC<TokenUsageStatsProps> = ({
         {showTitle && (
           <CardHeader>
             <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-blue-400" />
+              <BarChart3 className="h-4 w-4 text-brand-accent" />
 {t('usageStatistics')}
             </CardTitle>
           </CardHeader>
@@ -180,7 +180,7 @@ export const TokenUsageStats: React.FC<TokenUsageStatsProps> = ({
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-blue-400" />
+              <BarChart3 className="h-4 w-4 text-brand-accent" />
 {t('usageStatistics')}
             </CardTitle>
             <Button 
@@ -203,11 +203,11 @@ export const TokenUsageStats: React.FC<TokenUsageStatsProps> = ({
             <div className="text-sm text-gray-400">{t('totalPurchased')}</div>
           </div>
           <div className="text-center p-3 bg-gray-700 rounded-lg">
-            <div className="text-2xl font-bold text-blue-400">{stats.total_used}</div>
+            <div className="text-2xl font-bold text-brand-accent">{stats.total_used}</div>
             <div className="text-sm text-gray-400">{t('totalUsed')}</div>
           </div>
           <div className="text-center p-3 bg-gray-700 rounded-lg">
-            <div className="text-2xl font-bold text-green-400">{stats.current_balance}</div>
+            <div className="text-2xl font-bold text-brand-secondary">{stats.current_balance}</div>
             <div className="text-sm text-gray-400">{t('currentBalance')}</div>
           </div>
           <div className="text-center p-3 bg-gray-700 rounded-lg">
@@ -219,21 +219,21 @@ export const TokenUsageStats: React.FC<TokenUsageStatsProps> = ({
         {/* Usage Period Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="flex items-center gap-3 p-3 bg-gray-700 rounded-lg">
-            <Calendar className="h-5 w-5 text-blue-400" />
+            <Calendar className="h-5 w-5 text-brand-accent" />
             <div>
               <div className="font-semibold text-white">{stats.weekly_usage}</div>
               <div className="text-sm text-gray-400">{t('thisWeek')}</div>
             </div>
           </div>
           <div className="flex items-center gap-3 p-3 bg-gray-700 rounded-lg">
-            <Clock className="h-5 w-5 text-green-400" />
+            <Clock className="h-5 w-5 text-brand-secondary" />
             <div>
               <div className="font-semibold text-white">{stats.monthly_usage}</div>
               <div className="text-sm text-gray-400">{t('thisMonth')}</div>
             </div>
           </div>
           <div className="flex items-center gap-3 p-3 bg-gray-700 rounded-lg">
-            <Activity className="h-5 w-5 text-blue-400" />
+            <Activity className="h-5 w-5 text-brand-accent" />
             <div>
               <div className="font-semibold text-white">{stats.streak_days}</div>
               <div className="text-sm text-gray-400">{t('dayStreak')}</div>
@@ -258,7 +258,7 @@ export const TokenUsageStats: React.FC<TokenUsageStatsProps> = ({
               variant="outline" 
               className={cn(
                 "mt-1",
-                stats.efficiency_score >= 80 ? "border-green-400 text-green-400" :
+                stats.efficiency_score >= 80 ? "border-brand-secondary text-brand-secondary" :
                 stats.efficiency_score >= 60 ? "border-yellow-400 text-yellow-400" :
                 "border-red-400 text-red-400"
               )}
@@ -284,7 +284,7 @@ export const TokenUsageStats: React.FC<TokenUsageStatsProps> = ({
                     <span className="text-sm text-white">{char.character_name}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="text-sm text-blue-400">{char.usage_count}</span>
+                    <span className="text-sm text-brand-accent">{char.usage_count}</span>
                     <MessageSquare className="h-3 w-3 text-gray-400" />
                   </div>
                 </div>
@@ -309,7 +309,7 @@ export const TokenUsageStats: React.FC<TokenUsageStatsProps> = ({
         {!compact && stats.usage_by_day.length > 0 && (
           <div className="space-y-3">
             <h4 className="font-semibold text-white flex items-center gap-2">
-              <BarChart3 className="h-4 w-4 text-blue-400" />
+              <BarChart3 className="h-4 w-4 text-brand-accent" />
               {t('dailyUsage')} ({t('lastSevenDays')})
             </h4>
             <div className="grid grid-cols-7 gap-1">
@@ -321,7 +321,7 @@ export const TokenUsageStats: React.FC<TokenUsageStatsProps> = ({
                   <div key={index} className="text-center">
                     <div className="h-16 flex items-end justify-center">
                       <div 
-                        className="w-4 bg-blue-400 rounded-t"
+                        className="w-4 bg-brand-accent rounded-t"
                         style={{ height: `${Math.max(height, 2)}%` }}
                         title={`${day.usage} ${t('tokensUsed')}`}
                       />

@@ -69,6 +69,39 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Professional Brand Identity System for Adult Content Platform
+        brand: {
+          primary: '#E2E8F0',      // slate-200 - Sophisticated main brand text
+          secondary: '#F59E0B',    // amber-500 - Premium accent color (VERY different from blue)
+          accent: '#7C3AED',       // violet-600 - DRAMATICALLY different from blue
+        },
+        // Surface Hierarchy for Dark Theme
+        surface: {
+          primary: '#18181B',      // zinc-900 - Main application background
+          secondary: '#27272A',    // zinc-800 - Cards, panels, elevated content
+          tertiary: '#3F3F46',     // zinc-700 - Buttons, inputs, interactive surfaces
+          border: '#52525B',       // zinc-600 - Subtle separations
+        },
+        // Content Typography Hierarchy
+        content: {
+          primary: '#F4F4F5',     // zinc-100 - Main content, headlines
+          secondary: '#D4D4D8',   // zinc-300 - Supporting text, descriptions
+          tertiary: '#A1A1AA',    // zinc-400 - Metadata, timestamps, hints
+          disabled: '#71717A',    // zinc-500 - Inactive elements
+        },
+      },
+      // Premium gradients for sophisticated UI elements
+      backgroundImage: {
+        'gradient-premium': 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)',
+        'gradient-surface': 'linear-gradient(135deg, #27272A 0%, #18181B 100%)',
+        'gradient-brand': 'linear-gradient(135deg, #3F3F46 0%, #27272A 50%, #18181B 100%)',
+      },
+      // Enhanced shadows for premium feel
+      boxShadow: {
+        'premium': '0 10px 25px -5px rgba(245, 158, 11, 0.1), 0 0 0 1px rgba(245, 158, 11, 0.05)',
+        'elevated': '0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1)',
+        'surface': '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1)',
+        'glow': '0 0 15px rgba(245, 158, 11, 0.15)',
       },
       keyframes: {
         "accordion-down": {

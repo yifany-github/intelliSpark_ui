@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Star, Eye, Crown, Flame, TrendingUp, Users } from 'lucide-react';
+import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield } from 'lucide-react';
 import { Character } from '@/types';
 import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
@@ -184,8 +184,8 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
               onClick={() => setActiveTab(tab.key)}
               className={`text-lg font-medium pb-2 border-b-2 transition-colors ${
                 activeTab === tab.key
-                  ? 'text-pink-400 border-pink-400'
-                  : 'text-gray-400 border-transparent hover:text-white'
+                  ? 'text-brand-secondary border-brand-secondary bg-brand-secondary/5'
+                  : 'text-content-tertiary border-transparent hover:text-content-secondary'
               }`}
             >
               {tab.label}
@@ -202,8 +202,8 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 onClick={() => setSelectedFilter(filterKey)}
                 className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm transition-colors flex items-center space-x-1 ${
                   selectedFilter === filterKey
-                    ? 'bg-pink-600 text-white'
-                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                    ? 'bg-brand-secondary text-zinc-900 shadow-surface'
+                    : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600'
                 }`}
               >
                 {filterKey === 'popular' && <Flame className="w-3 h-3" />}
@@ -231,17 +231,22 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
               </select>
             </div>
             
-            <div className="flex items-center space-x-2">
-              <span className="text-sm">NSFW</span>
+            <div className="flex items-center space-x-3 bg-surface-secondary p-3 rounded-lg border border-surface-border">
+              <Shield className="w-4 h-4 text-brand-secondary" />
+              <span className="text-sm font-medium text-content-primary">Mature Content</span>
               <button
                 onClick={() => setNsfwEnabled(!nsfwEnabled)}
-                className={`w-10 h-6 rounded-full transition-colors ${
-                  nsfwEnabled ? 'bg-pink-600' : 'bg-gray-600'
+                className={`relative w-12 h-6 rounded-full transition-all duration-300 ${
+                  nsfwEnabled 
+                    ? 'bg-brand-secondary shadow-glow' 
+                    : 'bg-surface-tertiary hover:bg-zinc-500'
                 }`}
               >
-                <div className={`w-4 h-4 bg-white rounded-full transition-transform ${
-                  nsfwEnabled ? 'translate-x-5' : 'translate-x-1'
-                }`} />
+                <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-all duration-300 flex items-center justify-center ${
+                  nsfwEnabled ? 'translate-x-6 shadow-md' : 'translate-x-0'
+                }`}>
+                  <Crown className="w-3 h-3 text-brand-secondary" />
+                </div>
               </button>
             </div>
           </div>
@@ -255,8 +260,8 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
               onClick={() => setSelectedCategory(categoryKey)}
               className={`px-3 py-1 rounded-full text-sm transition-colors ${
                 selectedCategory === categoryKey
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                  ? 'bg-brand-accent text-white shadow-surface'
+                  : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600'
               }`}
             >
               {t(categoryKey)}
@@ -330,7 +335,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 <div className="absolute bottom-2 left-2 right-2">
                   <div className="flex flex-wrap gap-1 mb-2">
                     {character.traits.slice(0, 3).map((trait: string) => (
-                      <span key={trait} className="bg-blue-600 text-white px-2 py-1 rounded text-xs backdrop-blur-sm">
+                      <span key={trait} className="bg-brand-accent text-white px-2 py-1 rounded text-xs backdrop-blur-sm shadow-surface">
                         {trait}
                       </span>
                     ))}
@@ -344,7 +349,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                         e.stopPropagation();
                         handleStartChat(character);
                       }}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+                      className="px-4 py-2 bg-brand-accent hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors shadow-surface"
                     >
                       {t('chatNow')}
                     </button>
@@ -361,7 +366,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 </div>
               </div>
               <div className="p-3">
-                <h3 className="font-semibold text-white mb-1 truncate group-hover:text-blue-400 transition-colors">{character.name}</h3>
+                <h3 className="font-semibold text-content-primary mb-1 truncate group-hover:text-brand-secondary transition-colors">{character.name}</h3>
                 <p className="text-xs text-gray-400 mb-2 line-clamp-2">{character.description || character.backstory}</p>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
