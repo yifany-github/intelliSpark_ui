@@ -60,9 +60,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
   const getTypeColor = () => {
     switch (notification.type) {
       case 'payment':
-        return 'text-green-400';
+        return 'text-brand-secondary';
       case 'admin':
-        return 'text-blue-400';
+        return 'text-brand-accent';
       case 'achievement':
         return 'text-yellow-400';
       case 'system':
@@ -92,7 +92,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
       case 'high':
         return <Info className="h-3 w-3 text-orange-400" />;
       case 'normal':
-        return <CheckCircle className="h-3 w-3 text-blue-400" />;
+        return <CheckCircle className="h-3 w-3 text-brand-accent" />;
       case 'low':
       default:
         return <CheckCircle className="h-3 w-3 text-gray-400" />;
@@ -205,7 +205,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                     size="sm"
                     variant="outline"
                     onClick={handleAction}
-                    className="h-6 px-2 text-xs bg-blue-600 hover:bg-blue-700 border-blue-600 text-white"
+                    className="h-6 px-2 text-xs bg-brand-accent hover:bg-indigo-500 border-brand-accent text-white"
                   >
                     {notification.action_type === 'redirect' ? (
                       <>

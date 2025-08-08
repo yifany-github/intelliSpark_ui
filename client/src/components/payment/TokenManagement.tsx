@@ -56,7 +56,7 @@ export const TokenManagement: React.FC<TokenManagementProps> = ({
             <Coins className="h-12 w-12 mx-auto mb-4 text-gray-600" />
             <h3 className="text-lg font-semibold text-white mb-2">{t('authenticationRequired')}</h3>
             <p className="text-gray-400 mb-4">{t('pleaseLoginToManageTokens')}</p>
-            <Button onClick={() => navigateToPath('/login')} className="bg-blue-600 hover:bg-blue-700 rounded-2xl">
+            <Button onClick={() => navigateToPath('/login')} className="bg-brand-accent hover:bg-indigo-500 rounded-2xl">
               {t('login')}
             </Button>
           </div>
@@ -91,7 +91,7 @@ export const TokenManagement: React.FC<TokenManagementProps> = ({
           <Button 
             size="sm"
             onClick={handleBuyTokens}
-            className="bg-blue-600 hover:bg-blue-700 rounded-2xl"
+            className="bg-brand-accent hover:bg-indigo-500 rounded-2xl"
           >
             <Plus className="h-4 w-4 mr-2" />
             {t('buyTokens')}
@@ -150,14 +150,14 @@ export const TokenManagement: React.FC<TokenManagementProps> = ({
               <Card className="bg-gray-800 border-gray-700">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-green-400" />
+                    <TrendingUp className="h-5 w-5 text-brand-secondary" />
                     {t('quickActions')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <Button 
                     onClick={handleBuyTokens}
-                    className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl"
+                    className="w-full bg-brand-accent hover:bg-indigo-500 text-white rounded-2xl"
                   >
                     <Plus className="h-4 w-4 mr-2" />
                     {t('purchaseMoreTokens')}
@@ -188,7 +188,7 @@ export const TokenManagement: React.FC<TokenManagementProps> = ({
               <Card className="bg-gray-800 border-gray-700">
                 <CardHeader>
                   <CardTitle className="text-white flex items-center gap-2">
-                    <AlertCircle className="h-5 w-5 text-blue-400" />
+                    <AlertCircle className="h-5 w-5 text-brand-accent" />
                     {t('tokenTips')}
                   </CardTitle>
                 </CardHeader>
@@ -239,7 +239,7 @@ export const TokenManagement: React.FC<TokenManagementProps> = ({
             <Card className="bg-gray-800 border-gray-700">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2">
-                  <Settings className="h-5 w-5 text-blue-400" />
+                  <Settings className="h-5 w-5 text-brand-accent" />
                   {t('tokenPreferences')}
                 </CardTitle>
               </CardHeader>
@@ -251,7 +251,7 @@ export const TokenManagement: React.FC<TokenManagementProps> = ({
                       {t('getNotifiedLowBalance')}
                     </div>
                   </div>
-                  <Badge className="bg-green-900 text-green-400">{t('enabled')}</Badge>
+                  <Badge className="bg-brand-secondary/20 text-brand-secondary">{t('enabled')}</Badge>
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
@@ -269,7 +269,7 @@ export const TokenManagement: React.FC<TokenManagementProps> = ({
                       {t('trackDetailedUsage')}
                     </div>
                   </div>
-                  <Badge className="bg-green-900 text-green-400">{t('enabled')}</Badge>
+                  <Badge className="bg-brand-secondary/20 text-brand-secondary">{t('enabled')}</Badge>
                 </div>
               </CardContent>
             </Card>
@@ -277,7 +277,7 @@ export const TokenManagement: React.FC<TokenManagementProps> = ({
             <Card className="bg-gray-800 border-gray-700">
               <CardHeader>
                 <CardTitle className="text-white flex items-center gap-2">
-                  <CreditCard className="h-5 w-5 text-green-400" />
+                  <CreditCard className="h-5 w-5 text-brand-secondary" />
                   {t('paymentSettings')}
                 </CardTitle>
               </CardHeader>
@@ -310,7 +310,7 @@ export const TokenManagement: React.FC<TokenManagementProps> = ({
           </div>
 
           <Alert className="bg-gray-800 border-gray-700">
-            <AlertCircle className="h-4 w-4 text-blue-400" />
+            <AlertCircle className="h-4 w-4 text-brand-accent" />
             <AlertDescription className="text-gray-400">
               <strong className="text-white">{t('securityNotice')}:</strong> {t('securityInfo')}
             </AlertDescription>
