@@ -72,8 +72,8 @@ export default {
         // Professional Brand Identity System for Adult Content Platform
         brand: {
           primary: '#E2E8F0',      // slate-200 - Sophisticated main brand text
-          secondary: '#F59E0B',    // amber-500 - Premium accent color
-          accent: '#4F46E5',       // indigo-600 - Professional interactive primary
+          secondary: '#F59E0B',    // amber-500 - Premium accent color (VERY different from blue)
+          accent: '#7C3AED',       // violet-600 - DRAMATICALLY different from blue
         },
         // Surface Hierarchy for Dark Theme
         surface: {
