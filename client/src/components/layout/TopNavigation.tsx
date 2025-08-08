@@ -1,4 +1,4 @@
-import { Search, ChevronDown, MessageCircle, User, Settings, LogOut, LogIn, Bell } from 'lucide-react';
+import { Search, ChevronDown, MessageCircle, User, Settings, LogOut, LogIn, Bell, Crown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useNavigation } from '@/contexts/NavigationContext';
@@ -69,7 +69,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange, withSi
         <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
           <button 
             onClick={navigateToHome}
-            className="flex items-center space-x-2 group transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-50 rounded-lg p-1 hover:bg-gray-700/50"
+            className="flex items-center space-x-2 group transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-opacity-50 rounded-lg p-1 hover:bg-gray-700/50"
             title="Go to Home"
             aria-label="Navigate to home page - ProductInsightAI"
             role="button"
@@ -81,13 +81,16 @@ export default function TopNavigation({ searchQuery = '', onSearchChange, withSi
               }
             }}
           >
-            <div className="w-8 h-8 bg-gradient-to-r from-green-400 to-blue-500 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
-              <MessageCircle className="w-5 h-5 text-white" />
+            <div className="w-8 h-8 bg-gradient-brand rounded-lg shadow-surface border border-surface-border flex items-center justify-center group-hover:scale-105 transition-transform">
+              <Crown className="w-5 h-5 text-amber-400" />
             </div>
-            <span className="text-lg sm:text-xl font-bold text-green-400 hidden sm:block group-hover:text-green-300 transition-colors">
+            <span className="text-lg sm:text-xl font-bold text-brand-primary hidden sm:block group-hover:text-slate-100 transition-colors tracking-wide">
               ProductInsightAI
             </span>
-            <span className="text-lg font-bold text-green-400 sm:hidden group-hover:text-green-300 transition-colors">
+            <span className="text-xs text-brand-secondary font-medium ml-2 uppercase tracking-wider hidden sm:inline">
+              Premium
+            </span>
+            <span className="text-lg font-bold text-brand-primary sm:hidden group-hover:text-slate-100 transition-colors">
               AI
             </span>
           </button>
@@ -119,7 +122,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange, withSi
           
           <button 
             onClick={navigateToPayment}
-            className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium hover:from-blue-600 hover:to-blue-700 transition-colors"
+            className="bg-gradient-premium text-zinc-900 px-2 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold tracking-wide shadow-premium hover:shadow-glow transition-all duration-200"
           >
             <span className="hidden sm:inline">💎 {t('upgradePlan')}</span>
             <span className="sm:hidden">💎</span>
@@ -180,7 +183,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange, withSi
               <div className="flex items-center space-x-3">
                 <button 
                   onClick={navigateToLogin}
-                  className="flex items-center space-x-2 bg-blue-600/90 hover:bg-blue-600 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 hover:shadow-lg hover:scale-105 active:scale-95"
+                  className="flex items-center space-x-2 bg-brand-accent hover:bg-indigo-500 text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 hover:shadow-lg hover:scale-105 active:scale-95"
                 >
                   <LogIn className="w-4 h-4" />
                   <span>{t('login')}</span>
