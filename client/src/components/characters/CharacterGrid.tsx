@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield } from 'lucide-react';
+import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield, Mic, Heart, Share, MessageCircle } from 'lucide-react';
 import { Character } from '@/types';
 import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
@@ -357,27 +357,47 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                     ))}
                   </div>
                 </div>
-                {/* Hover overlay for actions */}
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-                  <div className="flex space-x-2">
+                {/* Advanced hover overlay system */}
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                  {/* Primary overlay with gradient */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/90 via-zinc-800/50 to-transparent" />
+                  
+                  {/* Quick action buttons - top area */}
+                  <div className="absolute top-4 right-4 flex space-x-2">
                     <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleStartChat(character);
-                      }}
-                      className="px-4 py-2 bg-brand-accent hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors shadow-surface"
+                      onClick={(e) => { e.stopPropagation(); handleFavoriteToggle(character.id); }}
+                      className="p-2 bg-black/60 backdrop-blur-sm rounded-full hover:bg-brand-secondary/20 transition-all duration-200 group/btn"
                     >
-                      {t('chatNow')}
+                      <Heart className={`w-4 h-4 transition-colors ${isFavorite(character.id) ? 'text-brand-secondary fill-current' : 'text-white group-hover/btn:text-brand-secondary'}`} />
                     </button>
+                    <button className="p-2 bg-black/60 backdrop-blur-sm rounded-full hover:bg-brand-accent/20 transition-all duration-200 group/btn">
+                      <Share className="w-4 h-4 text-white group-hover/btn:text-brand-accent" />
+                    </button>
+                  </div>
+                  
+                  {/* Main action area - center */}
+                  <div className="absolute inset-x-4 bottom-4 space-y-2">
                     <button 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handlePreviewOpen(character);
-                      }}
-                      className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+                      onClick={(e) => { e.stopPropagation(); handleStartChat(character); }}
+                      className="w-full py-3 px-4 bg-gradient-premium hover:shadow-premium text-zinc-900 rounded-lg font-bold text-sm transition-all duration-200 hover:-translate-y-0.5"
                     >
-                      {t('preview')}
+                      <div className="flex items-center justify-center space-x-2">
+                        <MessageCircle className="w-4 h-4" />
+                        <span>Start Premium Chat</span>
+                      </div>
                     </button>
+                    
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); handlePreviewOpen(character); }}
+                        className="flex-1 py-2 px-3 bg-surface-secondary/90 backdrop-blur-sm hover:bg-surface-tertiary text-content-primary rounded-lg font-medium text-sm transition-all duration-200"
+                      >
+                        Preview
+                      </button>
+                      <button className="flex-1 py-2 px-3 bg-surface-secondary/90 backdrop-blur-sm hover:bg-surface-tertiary text-content-primary rounded-lg font-medium text-sm transition-all duration-200">
+                        Details
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
