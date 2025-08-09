@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield } from 'lucide-react';
+import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield, Mic, Heart, Share, MessageCircle } from 'lucide-react';
 import { Character } from '@/types';
 import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
@@ -272,14 +272,25 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
 
       {/* Character Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4" role="grid" aria-label="Character cards loading">
           {[...Array(10)].map((_, i) => (
-            <div key={i} className="bg-gray-800 rounded-lg overflow-hidden animate-pulse">
-              <div className="w-full h-64 bg-gray-700"></div>
-              <div className="p-3">
-                <div className="h-4 bg-gray-700 rounded w-3/4 mb-2"></div>
-                <div className="h-3 bg-gray-700 rounded w-full mb-2"></div>
-                <div className="h-3 bg-gray-700 rounded w-1/2"></div>
+            <div key={i} className="bg-gradient-surface border border-surface-border rounded-xl overflow-hidden shadow-elevated animate-pulse relative" role="gridcell" aria-label={`Loading character ${i + 1}`}>
+              {/* Shimmer effect */}
+              <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
+              <div className="w-full aspect-[3/4] bg-surface-tertiary relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-surface-tertiary to-zinc-600" />
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="h-5 bg-surface-tertiary rounded w-3/4 relative overflow-hidden" />
+                <div className="space-y-2">
+                  <div className="h-3 bg-surface-tertiary rounded w-full relative overflow-hidden" />
+                  <div className="h-3 bg-surface-tertiary rounded w-2/3 relative overflow-hidden" />
+                </div>
+                <div className="flex space-x-2">
+                  <div className="h-6 bg-surface-tertiary rounded-full w-16 relative overflow-hidden" />
+                  <div className="h-6 bg-surface-tertiary rounded-full w-20 relative overflow-hidden" />
+                  <div className="h-6 bg-surface-tertiary rounded-full w-12 relative overflow-hidden" />
+                </div>
               </div>
             </div>
           ))}
@@ -306,31 +317,65 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4" role="grid" aria-label="Character cards">
           {sortedCharacters.map(character => (
             <div 
               key={character.id} 
-              className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-all duration-200 cursor-pointer group hover:scale-105 hover:shadow-lg"
+              className="group relative bg-gradient-surface border border-surface-border rounded-xl overflow-hidden shadow-elevated hover:shadow-premium transition-all duration-300 hover:-translate-y-1 cursor-pointer focus-within:ring-2 focus-within:ring-brand-secondary focus-within:ring-offset-2 focus-within:ring-offset-zinc-900"
               onClick={() => handleCharacterClick(character)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleCharacterClick(character);
+                }
+              }}
+              tabIndex={0}
+              role="button"
+              aria-label={`Select character ${character.name}. ${character.description || character.backstory}`}
             >
-              <div className="relative">
+              <div className="relative w-full aspect-[3/4] overflow-hidden bg-surface-tertiary">
                 <img
                   src={character.avatarUrl}
-                  alt={character.name}
-                  className="w-full h-48 sm:h-56 md:h-64 object-cover group-hover:brightness-110 transition-all duration-200"
+                  alt={`${character.name} character avatar`}
+                  className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-105"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = '/assets/characters_img/defaults/placeholder.jpg';
+                    target.onerror = null; // Prevent infinite loop
+                  }}
+                  loading="lazy"
                 />
-                <div className="absolute top-2 right-2">
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                
+                {/* Premium quality indicator */}
+                <div className="absolute top-3 left-3">
+                  <div className="flex items-center space-x-1 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-full">
+                    <Crown className="w-3 h-3 text-brand-secondary" />
+                    <span className="text-xs text-brand-primary font-medium">HD</span>
+                  </div>
+                </div>
+                
+                {/* Top-right indicators and actions */}
+                <div className="absolute top-3 right-3 flex items-center space-x-2">
                   <button 
                     onClick={(e) => {
-                      e.stopPropagation();
-                      handleFavoriteToggle(character.id);
+                      try {
+                        e.stopPropagation();
+                        handleFavoriteToggle(character.id);
+                      } catch (error) {
+                        console.error('Failed to toggle favorite:', error);
+                      }
                     }}
-                    className={`p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors ${
-                      isFavorite(character.id) ? 'text-yellow-400' : 'text-white'
+                    aria-label={`${isFavorite(character.id) ? 'Remove' : 'Add'} ${character.name} to favorites`}
+                    className={`p-1.5 bg-black/60 backdrop-blur-sm rounded-full hover:bg-black/80 transition-all duration-200 ${
+                      isFavorite(character.id) ? 'text-brand-secondary' : 'text-white hover:text-brand-secondary'
                     }`}
                   >
                     <Star className={`w-4 h-4 ${isFavorite(character.id) ? 'fill-current' : ''}`} />
                   </button>
+                  <div className="bg-brand-secondary/90 backdrop-blur-sm px-2 py-1 rounded-full">
+                    <span className="text-xs text-zinc-900 font-semibold">18+</span>
+                  </div>
                 </div>
                 <div className="absolute bottom-2 left-2 right-2">
                   <div className="flex flex-wrap gap-1 mb-2">
@@ -341,45 +386,135 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                     ))}
                   </div>
                 </div>
-                {/* Hover overlay for actions */}
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-                  <div className="flex space-x-2">
+                {/* Advanced hover overlay system */}
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300" role="dialog" aria-label={`Actions for ${character.name}`}>
+                  {/* Primary overlay with gradient */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/90 via-zinc-800/50 to-transparent" />
+                  
+                  {/* Quick action buttons - top area */}
+                  <div className="absolute top-4 right-4 flex space-x-2">
                     <button 
                       onClick={(e) => {
-                        e.stopPropagation();
-                        handleStartChat(character);
+                        try {
+                          e.stopPropagation();
+                          handleFavoriteToggle(character.id);
+                        } catch (error) {
+                          console.error('Failed to toggle favorite:', error);
+                        }
                       }}
-                      className="px-4 py-2 bg-brand-accent hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors shadow-surface"
+                      aria-label={`${isFavorite(character.id) ? 'Remove' : 'Add'} ${character.name} to favorites`}
+                      className="p-2 bg-black/60 backdrop-blur-sm rounded-full hover:bg-brand-secondary/20 transition-all duration-200 group/btn"
                     >
-                      {t('chatNow')}
+                      <Heart className={`w-4 h-4 transition-colors ${isFavorite(character.id) ? 'text-brand-secondary fill-current' : 'text-white group-hover/btn:text-brand-secondary'}`} />
                     </button>
                     <button 
                       onClick={(e) => {
-                        e.stopPropagation();
-                        handlePreviewOpen(character);
+                        try {
+                          e.stopPropagation();
+                          // TODO: Implement share functionality
+                        } catch (error) {
+                          console.error('Failed to share character:', error);
+                        }
                       }}
-                      className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+                      aria-label={`Share ${character.name}`}
+                      className="p-2 bg-black/60 backdrop-blur-sm rounded-full hover:bg-brand-accent/20 transition-all duration-200 group/btn"
                     >
-                      {t('preview')}
+                      <Share className="w-4 h-4 text-white group-hover/btn:text-brand-accent" />
                     </button>
+                  </div>
+                  
+                  {/* Main action area - center */}
+                  <div className="absolute inset-x-4 bottom-4 space-y-2">
+                    <button 
+                      onClick={(e) => {
+                        try {
+                          e.stopPropagation();
+                          handleStartChat(character);
+                        } catch (error) {
+                          console.error('Failed to start chat:', error);
+                        }
+                      }}
+                      aria-label={`Start premium chat with ${character.name}`}
+                      className="w-full py-3 px-4 bg-gradient-premium hover:shadow-premium text-zinc-900 rounded-lg font-bold text-sm transition-all duration-200 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-zinc-900"
+                    >
+                      <div className="flex items-center justify-center space-x-2">
+                        <MessageCircle className="w-4 h-4" />
+                        <span>Start Premium Chat</span>
+                      </div>
+                    </button>
+                    
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={(e) => {
+                          try {
+                            e.stopPropagation();
+                            handlePreviewOpen(character);
+                          } catch (error) {
+                            console.error('Failed to open preview:', error);
+                          }
+                        }}
+                        aria-label={`Preview ${character.name}`}
+                        className="flex-1 py-2 px-3 bg-surface-secondary/90 backdrop-blur-sm hover:bg-surface-tertiary text-content-primary rounded-lg font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-zinc-900"
+                      >
+                        Preview
+                      </button>
+                      <button 
+                        aria-label={`View details for ${character.name}`}
+                        className="flex-1 py-2 px-3 bg-surface-secondary/90 backdrop-blur-sm hover:bg-surface-tertiary text-content-primary rounded-lg font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-zinc-900"
+                      >
+                        Details
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="p-3">
-                <h3 className="font-semibold text-content-primary mb-1 truncate group-hover:text-brand-secondary transition-colors">{character.name}</h3>
-                <p className="text-xs text-gray-400 mb-2 line-clamp-2">{character.description || character.backstory}</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs text-gray-400">⭐ 4.8</span>
-                    {isFavorite(character.id) && (
-                      <span className="text-xs text-yellow-400">❤️</span>
+              <div className="p-4 space-y-3">
+                {/* Character name */}
+                <h3 className="font-bold text-lg text-content-primary group-hover:text-brand-secondary transition-colors truncate">
+                  {character.name}
+                </h3>
+                
+                {/* Description/Backstory */}
+                <p className="text-xs text-content-tertiary line-clamp-2 leading-relaxed">
+                  {character.description || character.backstory}
+                </p>
+                
+                {/* Traits display with proper type safety */}
+                {character.traits?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5" role="list" aria-label={`Traits for ${character.name}`}>
+                    {character.traits.slice(0, 3).map((trait: string, index: number) => (
+                      <span 
+                        key={trait}
+                        role="listitem"
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors duration-200 ${
+                          index === 0 
+                            ? 'bg-brand-accent/20 text-brand-accent border-brand-accent/30 hover:bg-brand-accent/30'
+                            : index === 1
+                            ? 'bg-brand-secondary/20 text-brand-secondary border-brand-secondary/30 hover:bg-brand-secondary/30'
+                            : 'bg-surface-tertiary text-content-tertiary border-surface-border hover:bg-zinc-600'
+                        }`}
+                      >
+                        {trait}
+                      </span>
+                    ))}
+                    {character.traits.length > 3 && (
+                      <span 
+                        className="px-2.5 py-1 rounded-full text-xs font-medium bg-surface-tertiary text-content-tertiary border border-surface-border hover:bg-zinc-600 transition-colors duration-200"
+                        title={`${character.traits.length - 3} more traits: ${character.traits.slice(3).join(', ')}`}
+                      >
+                        +{character.traits.length - 3}
+                      </span>
                     )}
                   </div>
+                )}
+                
+                {/* Simple favorite indicator */}
+                {isFavorite(character.id) && (
                   <div className="flex items-center space-x-1">
-                    <Eye className="w-3 h-3 text-gray-400" />
-                    <span className="text-xs text-gray-400">1.2K</span>
+                    <Star className="w-3 h-3 text-brand-secondary fill-current" />
+                    <span className="text-xs text-content-secondary font-medium">Favorited</span>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           ))}
