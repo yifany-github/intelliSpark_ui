@@ -274,12 +274,19 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       {isLoading ? (
         <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4">
           {[...Array(10)].map((_, i) => (
-            <div key={i} className="bg-gray-800 rounded-lg overflow-hidden animate-pulse">
-              <div className="w-full h-64 bg-gray-700"></div>
-              <div className="p-3">
-                <div className="h-4 bg-gray-700 rounded w-3/4 mb-2"></div>
-                <div className="h-3 bg-gray-700 rounded w-full mb-2"></div>
-                <div className="h-3 bg-gray-700 rounded w-1/2"></div>
+            <div key={i} className="bg-gradient-surface border border-surface-border rounded-xl overflow-hidden shadow-elevated animate-pulse">
+              <div className="w-full aspect-[3/4] bg-surface-tertiary"></div>
+              <div className="p-4 space-y-3">
+                <div className="h-5 bg-surface-tertiary rounded w-3/4"></div>
+                <div className="space-y-2">
+                  <div className="h-3 bg-surface-tertiary rounded w-full"></div>
+                  <div className="h-3 bg-surface-tertiary rounded w-2/3"></div>
+                </div>
+                <div className="flex space-x-2">
+                  <div className="h-6 bg-surface-tertiary rounded-full w-16"></div>
+                  <div className="h-6 bg-surface-tertiary rounded-full w-20"></div>
+                  <div className="h-6 bg-surface-tertiary rounded-full w-12"></div>
+                </div>
               </div>
             </div>
           ))}
