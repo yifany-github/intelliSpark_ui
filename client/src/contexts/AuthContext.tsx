@@ -3,6 +3,7 @@ import { User } from '../types';
 import { useFirebaseAuth } from '../firebase/useFirebaseAuth';
 import { User as FirebaseUser } from 'firebase/auth';
 import { useQueryClient } from '@tanstack/react-query';
+import { isTokenValid } from '../utils/auth';
 
 // Authentication context type
 interface AuthContextType {
@@ -27,6 +28,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExchangingToken, setIsExchangingToken] = useState(false);
   
   const firebaseAuth = useFirebaseAuth();
 
@@ -40,8 +42,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (!firebaseAuth.loading) {
           const storedToken = localStorage.getItem('auth_token');
           if (storedToken) {
-            setToken(storedToken);
-            await getCurrentUser(storedToken);
+            // Check if token is valid before using it
+            if (isTokenValid(storedToken)) {
+              setToken(storedToken);
+              await getCurrentUser(storedToken);
+            } else {
+              // Token is expired, clear it
+              console.log('Stored token is expired, clearing...');
+              localStorage.removeItem('auth_token');
+              setToken(null);
+              setUser(null);
+            }
           }
           setIsLoading(false);
         }
@@ -58,16 +69,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Handle Firebase auth state changes
   useEffect(() => {
-    if (!firebaseAuth.loading && firebaseAuth.user && !token) {
+    if (!firebaseAuth.loading && firebaseAuth.user && !token && !isExchangingToken) {
       // Firebase user is authenticated but we don't have a backend token
       // This happens after successful Firebase authentication
-      handleFirebaseAuthSuccess(firebaseAuth.user);
+      setIsExchangingToken(true);
+      handleFirebaseAuthSuccess(firebaseAuth.user)
+        .finally(() => setIsExchangingToken(false));
     } else if (!firebaseAuth.loading && !firebaseAuth.user && token) {
       // Firebase user is logged out but we still have a backend token
       // This shouldn't normally happen, but clean up if it does
       logout();
     }
-  }, [firebaseAuth.user, firebaseAuth.loading, token]);
+  }, [firebaseAuth.user, firebaseAuth.loading, token, isExchangingToken]);
+
+  // Listen for token expiration events from API requests
+  useEffect(() => {
+    const handleTokenExpired = () => {
+      console.log('Token expired event received, logging out...');
+      setToken(null);
+      setUser(null);
+      // Note: localStorage is already cleared by apiRequest
+    };
+
+    window.addEventListener('auth-token-expired', handleTokenExpired);
+    return () => window.removeEventListener('auth-token-expired', handleTokenExpired);
+  }, []);
 
   // Handle successful Firebase authentication
   const handleFirebaseAuthSuccess = async (firebaseUser: FirebaseUser): Promise<void> => {
@@ -226,10 +252,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Import shared token validation utility
+  // (isTokenValid function moved to shared utils/auth.ts)
+
   const value = {
     user,
     token,
-    isAuthenticated: !!user && !!token,
+    isAuthenticated: !!user && !!token && isTokenValid(token),
     isLoading: isLoading || firebaseAuth.loading,
     login,
     register,
