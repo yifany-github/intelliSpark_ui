@@ -310,15 +310,31 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
           {sortedCharacters.map(character => (
             <div 
               key={character.id} 
-              className="bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-all duration-200 cursor-pointer group hover:scale-105 hover:shadow-lg"
+              className="group relative bg-gradient-surface border border-surface-border rounded-xl overflow-hidden shadow-elevated hover:shadow-premium transition-all duration-300 hover:-translate-y-1 cursor-pointer"
               onClick={() => handleCharacterClick(character)}
             >
-              <div className="relative">
+              <div className="relative w-full aspect-[3/4] overflow-hidden">
                 <img
                   src={character.avatarUrl}
                   alt={character.name}
-                  className="w-full h-48 sm:h-56 md:h-64 object-cover group-hover:brightness-110 transition-all duration-200"
+                  className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-105"
                 />
+                <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                
+                {/* Premium quality indicator */}
+                <div className="absolute top-3 left-3">
+                  <div className="flex items-center space-x-1 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-full">
+                    <Crown className="w-3 h-3 text-brand-secondary" />
+                    <span className="text-xs text-brand-primary font-medium">HD</span>
+                  </div>
+                </div>
+                
+                {/* NSFW Level Indicator */}
+                <div className="absolute top-3 right-3">
+                  <div className="bg-brand-secondary/90 backdrop-blur-sm px-2 py-1 rounded-full">
+                    <span className="text-xs text-zinc-900 font-semibold">18+</span>
+                  </div>
+                </div>
                 <div className="absolute top-2 right-2">
                   <button 
                     onClick={(e) => {
