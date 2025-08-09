@@ -275,27 +275,37 @@ async def get_chat(chat_id: int, db: Session = Depends(get_db), current_user: Us
 @router.post("/chats", response_model=ChatSchema)
 async def create_chat(chat_data: ChatCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """Create a new chat"""
+    logger.info(f"Creating chat for user {current_user.id} with character {chat_data.characterId}")
     try:
         # Validate character exists  
+        logger.info(f"Validating character exists: {chat_data.characterId}")
         character = db.query(Character).filter(Character.id == chat_data.characterId).first()
         if not character:
+            logger.error(f"Character {chat_data.characterId} not found")
             raise HTTPException(status_code=404, detail="Character not found")
+        logger.info(f"Character found: {character.name}")
         
         # Use authenticated user instead of hardcoded user_id
+        logger.info(f"Creating chat record: user_id={current_user.id}, character_id={chat_data.characterId}, title={chat_data.title}")
         chat = Chat(
             user_id=current_user.id,
             character_id=chat_data.characterId,  # Use frontend field names
             title=chat_data.title
         )
         
+        logger.info("Adding chat to database")
         db.add(chat)
         db.commit()
         db.refresh(chat)
+        logger.info(f"Chat created successfully with ID: {chat.id}")
         
         if character:
+            logger.info(f"Generating opening line for character: {character.name}")
             # Generate character-specific opening line using AI
             opening_line = await gemini_service.generate_opening_line(character)
+            logger.info(f"Opening line generated: {opening_line[:50]}...")
             
+            logger.info("Creating initial message")
             initial_message = ChatMessage(
                 chat_id=chat.id,
                 role="assistant",
@@ -303,10 +313,16 @@ async def create_chat(chat_data: ChatCreate, db: Session = Depends(get_db), curr
             )
             db.add(initial_message)
             db.commit()
+            logger.info("Initial message created successfully")
         
+        logger.info(f"Chat creation completed successfully: {chat.id}")
         return chat
+    except HTTPException:
+        logger.error("HTTPException raised, re-raising")
+        raise  # Re-raise HTTP exceptions as-is
     except Exception as e:
-        logger.error(f"Error creating chat: {e}")
+        logger.error(f"Error creating chat: {type(e).__name__}: {e}")
+        logger.error(f"Error details: {str(e)}")
         db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create chat")
 

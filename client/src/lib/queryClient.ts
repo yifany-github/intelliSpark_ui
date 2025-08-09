@@ -9,6 +9,33 @@ async function throwIfResNotOk(res: Response) {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
+// Helper function to check if JWT token is valid and not expired
+function isTokenValid(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    
+    const payload = JSON.parse(atob(parts[1]));
+    const now = Math.floor(Date.now() / 1000);
+    
+    // Check if token is expired (with 60 second buffer)
+    return payload.exp && payload.exp > (now + 60);
+  } catch (error) {
+    return false;
+  }
+}
+
+// Helper function to clear expired token and redirect
+function handleExpiredToken() {
+  console.log('Token expired, clearing and redirecting to login...');
+  localStorage.removeItem('auth_token');
+  
+  // Dispatch custom event to notify auth context
+  window.dispatchEvent(new CustomEvent('auth-token-expired'));
+  
+  // Don't redirect here - let the auth context handle it
+}
+
 export async function apiRequest(
   method: string,
   url: string,
@@ -18,6 +45,12 @@ export async function apiRequest(
   
   // Get auth token from localStorage
   const token = localStorage.getItem('auth_token');
+  
+  // Check if token is expired before making the request
+  if (token && !isTokenValid(token)) {
+    handleExpiredToken();
+    throw new Error('401: {"detail":"Token expired"}');
+  }
   
   const headers: Record<string, string> = {};
   
@@ -43,6 +76,11 @@ export async function apiRequest(
     body,
     credentials: "include",
   });
+
+  // Handle 401 responses by clearing expired token
+  if (res.status === 401) {
+    handleExpiredToken();
+  }
 
   await throwIfResNotOk(res);
   return res;

@@ -40,8 +40,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (!firebaseAuth.loading) {
           const storedToken = localStorage.getItem('auth_token');
           if (storedToken) {
-            setToken(storedToken);
-            await getCurrentUser(storedToken);
+            // Check if token is valid before using it
+            if (isTokenValid(storedToken)) {
+              setToken(storedToken);
+              await getCurrentUser(storedToken);
+            } else {
+              // Token is expired, clear it
+              console.log('Stored token is expired, clearing...');
+              localStorage.removeItem('auth_token');
+              setToken(null);
+              setUser(null);
+            }
           }
           setIsLoading(false);
         }
@@ -68,6 +77,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       logout();
     }
   }, [firebaseAuth.user, firebaseAuth.loading, token]);
+
+  // Listen for token expiration events from API requests
+  useEffect(() => {
+    const handleTokenExpired = () => {
+      console.log('Token expired event received, logging out...');
+      setToken(null);
+      setUser(null);
+      // Note: localStorage is already cleared by apiRequest
+    };
+
+    window.addEventListener('auth-token-expired', handleTokenExpired);
+    return () => window.removeEventListener('auth-token-expired', handleTokenExpired);
+  }, []);
 
   // Handle successful Firebase authentication
   const handleFirebaseAuthSuccess = async (firebaseUser: FirebaseUser): Promise<void> => {
@@ -226,10 +248,26 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Helper function to check if JWT token is valid and not expired
+  const isTokenValid = (token: string): boolean => {
+    try {
+      const parts = token.split('.');
+      if (parts.length !== 3) return false;
+      
+      const payload = JSON.parse(atob(parts[1]));
+      const now = Math.floor(Date.now() / 1000);
+      
+      // Check if token is expired (with 60 second buffer)
+      return payload.exp && payload.exp > (now + 60);
+    } catch (error) {
+      return false;
+    }
+  };
+
   const value = {
     user,
     token,
-    isAuthenticated: !!user && !!token,
+    isAuthenticated: !!user && !!token && isTokenValid(token),
     isLoading: isLoading || firebaseAuth.loading,
     login,
     register,
