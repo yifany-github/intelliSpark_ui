@@ -272,20 +272,24 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
 
       {/* Character Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4" role="grid" aria-label="Character cards loading">
           {[...Array(10)].map((_, i) => (
-            <div key={i} className="bg-gradient-surface border border-surface-border rounded-xl overflow-hidden shadow-elevated animate-pulse">
-              <div className="w-full aspect-[3/4] bg-surface-tertiary"></div>
+            <div key={i} className="bg-gradient-surface border border-surface-border rounded-xl overflow-hidden shadow-elevated animate-pulse relative" role="gridcell" aria-label={`Loading character ${i + 1}`}>
+              {/* Shimmer effect */}
+              <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
+              <div className="w-full aspect-[3/4] bg-surface-tertiary relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-br from-surface-tertiary to-zinc-600" />
+              </div>
               <div className="p-4 space-y-3">
-                <div className="h-5 bg-surface-tertiary rounded w-3/4"></div>
+                <div className="h-5 bg-surface-tertiary rounded w-3/4 relative overflow-hidden" />
                 <div className="space-y-2">
-                  <div className="h-3 bg-surface-tertiary rounded w-full"></div>
-                  <div className="h-3 bg-surface-tertiary rounded w-2/3"></div>
+                  <div className="h-3 bg-surface-tertiary rounded w-full relative overflow-hidden" />
+                  <div className="h-3 bg-surface-tertiary rounded w-2/3 relative overflow-hidden" />
                 </div>
                 <div className="flex space-x-2">
-                  <div className="h-6 bg-surface-tertiary rounded-full w-16"></div>
-                  <div className="h-6 bg-surface-tertiary rounded-full w-20"></div>
-                  <div className="h-6 bg-surface-tertiary rounded-full w-12"></div>
+                  <div className="h-6 bg-surface-tertiary rounded-full w-16 relative overflow-hidden" />
+                  <div className="h-6 bg-surface-tertiary rounded-full w-20 relative overflow-hidden" />
+                  <div className="h-6 bg-surface-tertiary rounded-full w-12 relative overflow-hidden" />
                 </div>
               </div>
             </div>
@@ -313,18 +317,33 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4" role="grid" aria-label="Character cards">
           {sortedCharacters.map(character => (
             <div 
               key={character.id} 
-              className="group relative bg-gradient-surface border border-surface-border rounded-xl overflow-hidden shadow-elevated hover:shadow-premium transition-all duration-300 hover:-translate-y-1 cursor-pointer"
+              className="group relative bg-gradient-surface border border-surface-border rounded-xl overflow-hidden shadow-elevated hover:shadow-premium transition-all duration-300 hover:-translate-y-1 cursor-pointer focus-within:ring-2 focus-within:ring-brand-secondary focus-within:ring-offset-2 focus-within:ring-offset-zinc-900"
               onClick={() => handleCharacterClick(character)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleCharacterClick(character);
+                }
+              }}
+              tabIndex={0}
+              role="button"
+              aria-label={`Select character ${character.name}. ${character.description || character.backstory}`}
             >
-              <div className="relative w-full aspect-[3/4] overflow-hidden">
+              <div className="relative w-full aspect-[3/4] overflow-hidden bg-surface-tertiary">
                 <img
                   src={character.avatarUrl}
-                  alt={character.name}
+                  alt={`${character.name} character avatar`}
                   className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-105"
+                  onError={(e) => {
+                    const target = e.target as HTMLImageElement;
+                    target.src = '/assets/characters_img/defaults/placeholder.jpg';
+                    target.onerror = null; // Prevent infinite loop
+                  }}
+                  loading="lazy"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 
@@ -336,24 +355,27 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   </div>
                 </div>
                 
-                {/* NSFW Level Indicator */}
-                <div className="absolute top-3 right-3">
-                  <div className="bg-brand-secondary/90 backdrop-blur-sm px-2 py-1 rounded-full">
-                    <span className="text-xs text-zinc-900 font-semibold">18+</span>
-                  </div>
-                </div>
-                <div className="absolute top-2 right-2">
+                {/* Top-right indicators and actions */}
+                <div className="absolute top-3 right-3 flex items-center space-x-2">
                   <button 
                     onClick={(e) => {
-                      e.stopPropagation();
-                      handleFavoriteToggle(character.id);
+                      try {
+                        e.stopPropagation();
+                        handleFavoriteToggle(character.id);
+                      } catch (error) {
+                        console.error('Failed to toggle favorite:', error);
+                      }
                     }}
-                    className={`p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors ${
-                      isFavorite(character.id) ? 'text-yellow-400' : 'text-white'
+                    aria-label={`${isFavorite(character.id) ? 'Remove' : 'Add'} ${character.name} to favorites`}
+                    className={`p-1.5 bg-black/60 backdrop-blur-sm rounded-full hover:bg-black/80 transition-all duration-200 ${
+                      isFavorite(character.id) ? 'text-brand-secondary' : 'text-white hover:text-brand-secondary'
                     }`}
                   >
                     <Star className={`w-4 h-4 ${isFavorite(character.id) ? 'fill-current' : ''}`} />
                   </button>
+                  <div className="bg-brand-secondary/90 backdrop-blur-sm px-2 py-1 rounded-full">
+                    <span className="text-xs text-zinc-900 font-semibold">18+</span>
+                  </div>
                 </div>
                 <div className="absolute bottom-2 left-2 right-2">
                   <div className="flex flex-wrap gap-1 mb-2">
@@ -365,19 +387,38 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   </div>
                 </div>
                 {/* Advanced hover overlay system */}
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300" role="dialog" aria-label={`Actions for ${character.name}`}>
                   {/* Primary overlay with gradient */}
                   <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/90 via-zinc-800/50 to-transparent" />
                   
                   {/* Quick action buttons - top area */}
                   <div className="absolute top-4 right-4 flex space-x-2">
                     <button 
-                      onClick={(e) => { e.stopPropagation(); handleFavoriteToggle(character.id); }}
+                      onClick={(e) => {
+                        try {
+                          e.stopPropagation();
+                          handleFavoriteToggle(character.id);
+                        } catch (error) {
+                          console.error('Failed to toggle favorite:', error);
+                        }
+                      }}
+                      aria-label={`${isFavorite(character.id) ? 'Remove' : 'Add'} ${character.name} to favorites`}
                       className="p-2 bg-black/60 backdrop-blur-sm rounded-full hover:bg-brand-secondary/20 transition-all duration-200 group/btn"
                     >
                       <Heart className={`w-4 h-4 transition-colors ${isFavorite(character.id) ? 'text-brand-secondary fill-current' : 'text-white group-hover/btn:text-brand-secondary'}`} />
                     </button>
-                    <button className="p-2 bg-black/60 backdrop-blur-sm rounded-full hover:bg-brand-accent/20 transition-all duration-200 group/btn">
+                    <button 
+                      onClick={(e) => {
+                        try {
+                          e.stopPropagation();
+                          // TODO: Implement share functionality
+                        } catch (error) {
+                          console.error('Failed to share character:', error);
+                        }
+                      }}
+                      aria-label={`Share ${character.name}`}
+                      className="p-2 bg-black/60 backdrop-blur-sm rounded-full hover:bg-brand-accent/20 transition-all duration-200 group/btn"
+                    >
                       <Share className="w-4 h-4 text-white group-hover/btn:text-brand-accent" />
                     </button>
                   </div>
@@ -385,8 +426,16 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   {/* Main action area - center */}
                   <div className="absolute inset-x-4 bottom-4 space-y-2">
                     <button 
-                      onClick={(e) => { e.stopPropagation(); handleStartChat(character); }}
-                      className="w-full py-3 px-4 bg-gradient-premium hover:shadow-premium text-zinc-900 rounded-lg font-bold text-sm transition-all duration-200 hover:-translate-y-0.5"
+                      onClick={(e) => {
+                        try {
+                          e.stopPropagation();
+                          handleStartChat(character);
+                        } catch (error) {
+                          console.error('Failed to start chat:', error);
+                        }
+                      }}
+                      aria-label={`Start premium chat with ${character.name}`}
+                      className="w-full py-3 px-4 bg-gradient-premium hover:shadow-premium text-zinc-900 rounded-lg font-bold text-sm transition-all duration-200 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-zinc-900"
                     >
                       <div className="flex items-center justify-center space-x-2">
                         <MessageCircle className="w-4 h-4" />
@@ -396,12 +445,23 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                     
                     <div className="flex space-x-2">
                       <button 
-                        onClick={(e) => { e.stopPropagation(); handlePreviewOpen(character); }}
-                        className="flex-1 py-2 px-3 bg-surface-secondary/90 backdrop-blur-sm hover:bg-surface-tertiary text-content-primary rounded-lg font-medium text-sm transition-all duration-200"
+                        onClick={(e) => {
+                          try {
+                            e.stopPropagation();
+                            handlePreviewOpen(character);
+                          } catch (error) {
+                            console.error('Failed to open preview:', error);
+                          }
+                        }}
+                        aria-label={`Preview ${character.name}`}
+                        className="flex-1 py-2 px-3 bg-surface-secondary/90 backdrop-blur-sm hover:bg-surface-tertiary text-content-primary rounded-lg font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-zinc-900"
                       >
                         Preview
                       </button>
-                      <button className="flex-1 py-2 px-3 bg-surface-secondary/90 backdrop-blur-sm hover:bg-surface-tertiary text-content-primary rounded-lg font-medium text-sm transition-all duration-200">
+                      <button 
+                        aria-label={`View details for ${character.name}`}
+                        className="flex-1 py-2 px-3 bg-surface-secondary/90 backdrop-blur-sm hover:bg-surface-tertiary text-content-primary rounded-lg font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-zinc-900"
+                      >
                         Details
                       </button>
                     </div>
@@ -419,25 +479,29 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   {character.description || character.backstory}
                 </p>
                 
-                {/* Traits display */}
-                {character.traits && character.traits.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {character.traits.slice(0, 3).map((trait, index) => (
+                {/* Traits display with proper type safety */}
+                {character.traits?.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5" role="list" aria-label={`Traits for ${character.name}`}>
+                    {character.traits.slice(0, 3).map((trait: string, index: number) => (
                       <span 
                         key={trait}
-                        className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+                        role="listitem"
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors duration-200 ${
                           index === 0 
-                            ? 'bg-brand-accent/20 text-brand-accent border-brand-accent/30'
+                            ? 'bg-brand-accent/20 text-brand-accent border-brand-accent/30 hover:bg-brand-accent/30'
                             : index === 1
-                            ? 'bg-brand-secondary/20 text-brand-secondary border-brand-secondary/30'
-                            : 'bg-surface-tertiary text-content-tertiary border-surface-border'
+                            ? 'bg-brand-secondary/20 text-brand-secondary border-brand-secondary/30 hover:bg-brand-secondary/30'
+                            : 'bg-surface-tertiary text-content-tertiary border-surface-border hover:bg-zinc-600'
                         }`}
                       >
                         {trait}
                       </span>
                     ))}
                     {character.traits.length > 3 && (
-                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-surface-tertiary text-content-tertiary border border-surface-border">
+                      <span 
+                        className="px-2.5 py-1 rounded-full text-xs font-medium bg-surface-tertiary text-content-tertiary border border-surface-border hover:bg-zinc-600 transition-colors duration-200"
+                        title={`${character.traits.length - 3} more traits: ${character.traits.slice(3).join(', ')}`}
+                      >
                         +{character.traits.length - 3}
                       </span>
                     )}
