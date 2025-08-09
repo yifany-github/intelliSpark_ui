@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { isTokenValid } from "../utils/auth";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -8,22 +9,6 @@ async function throwIfResNotOk(res: Response) {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-
-// Helper function to check if JWT token is valid and not expired
-function isTokenValid(token: string): boolean {
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return false;
-    
-    const payload = JSON.parse(atob(parts[1]));
-    const now = Math.floor(Date.now() / 1000);
-    
-    // Check if token is expired (with 60 second buffer)
-    return payload.exp && payload.exp > (now + 60);
-  } catch (error) {
-    return false;
-  }
-}
 
 // Helper function to clear expired token and redirect
 function handleExpiredToken() {
@@ -98,6 +83,15 @@ export const getQueryFn: <T>(options: {
     // Get auth token from localStorage
     const token = localStorage.getItem('auth_token');
     
+    // Check if token is expired before making request
+    if (token && !isTokenValid(token)) {
+      handleExpiredToken();
+      if (unauthorizedBehavior === "throw") {
+        throw new Error('401: {"detail":"Token expired"}');
+      }
+      return null;
+    }
+    
     const headers: Record<string, string> = {};
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
@@ -107,6 +101,11 @@ export const getQueryFn: <T>(options: {
       headers,
       credentials: "include",
     });
+
+    // Handle 401 responses by clearing expired token
+    if (res.status === 401) {
+      handleExpiredToken();
+    }
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;

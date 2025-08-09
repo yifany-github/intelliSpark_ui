@@ -3,6 +3,7 @@ import { User } from '../types';
 import { useFirebaseAuth } from '../firebase/useFirebaseAuth';
 import { User as FirebaseUser } from 'firebase/auth';
 import { useQueryClient } from '@tanstack/react-query';
+import { isTokenValid } from '../utils/auth';
 
 // Authentication context type
 interface AuthContextType {
@@ -27,6 +28,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isExchangingToken, setIsExchangingToken] = useState(false);
   
   const firebaseAuth = useFirebaseAuth();
 
@@ -67,16 +69,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Handle Firebase auth state changes
   useEffect(() => {
-    if (!firebaseAuth.loading && firebaseAuth.user && !token) {
+    if (!firebaseAuth.loading && firebaseAuth.user && !token && !isExchangingToken) {
       // Firebase user is authenticated but we don't have a backend token
       // This happens after successful Firebase authentication
-      handleFirebaseAuthSuccess(firebaseAuth.user);
+      setIsExchangingToken(true);
+      handleFirebaseAuthSuccess(firebaseAuth.user)
+        .finally(() => setIsExchangingToken(false));
     } else if (!firebaseAuth.loading && !firebaseAuth.user && token) {
       // Firebase user is logged out but we still have a backend token
       // This shouldn't normally happen, but clean up if it does
       logout();
     }
-  }, [firebaseAuth.user, firebaseAuth.loading, token]);
+  }, [firebaseAuth.user, firebaseAuth.loading, token, isExchangingToken]);
 
   // Listen for token expiration events from API requests
   useEffect(() => {
@@ -248,21 +252,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Helper function to check if JWT token is valid and not expired
-  const isTokenValid = (token: string): boolean => {
-    try {
-      const parts = token.split('.');
-      if (parts.length !== 3) return false;
-      
-      const payload = JSON.parse(atob(parts[1]));
-      const now = Math.floor(Date.now() / 1000);
-      
-      // Check if token is expired (with 60 second buffer)
-      return payload.exp && payload.exp > (now + 60);
-    } catch (error) {
-      return false;
-    }
-  };
+  // Import shared token validation utility
+  // (isTokenValid function moved to shared utils/auth.ts)
 
   const value = {
     user,
