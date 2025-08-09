@@ -381,21 +381,49 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   </div>
                 </div>
               </div>
-              <div className="p-3">
-                <h3 className="font-semibold text-content-primary mb-1 truncate group-hover:text-brand-secondary transition-colors">{character.name}</h3>
-                <p className="text-xs text-gray-400 mb-2 line-clamp-2">{character.description || character.backstory}</p>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs text-gray-400">⭐ 4.8</span>
-                    {isFavorite(character.id) && (
-                      <span className="text-xs text-yellow-400">❤️</span>
+              <div className="p-4 space-y-3">
+                {/* Character name */}
+                <h3 className="font-bold text-lg text-content-primary group-hover:text-brand-secondary transition-colors truncate">
+                  {character.name}
+                </h3>
+                
+                {/* Description/Backstory */}
+                <p className="text-xs text-content-tertiary line-clamp-2 leading-relaxed">
+                  {character.description || character.backstory}
+                </p>
+                
+                {/* Traits display */}
+                {character.traits && character.traits.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {character.traits.slice(0, 3).map((trait, index) => (
+                      <span 
+                        key={trait}
+                        className={`px-2.5 py-1 rounded-full text-xs font-medium border ${
+                          index === 0 
+                            ? 'bg-brand-accent/20 text-brand-accent border-brand-accent/30'
+                            : index === 1
+                            ? 'bg-brand-secondary/20 text-brand-secondary border-brand-secondary/30'
+                            : 'bg-surface-tertiary text-content-tertiary border-surface-border'
+                        }`}
+                      >
+                        {trait}
+                      </span>
+                    ))}
+                    {character.traits.length > 3 && (
+                      <span className="px-2.5 py-1 rounded-full text-xs font-medium bg-surface-tertiary text-content-tertiary border border-surface-border">
+                        +{character.traits.length - 3}
+                      </span>
                     )}
                   </div>
+                )}
+                
+                {/* Simple favorite indicator */}
+                {isFavorite(character.id) && (
                   <div className="flex items-center space-x-1">
-                    <Eye className="w-3 h-3 text-gray-400" />
-                    <span className="text-xs text-gray-400">1.2K</span>
+                    <Star className="w-3 h-3 text-brand-secondary fill-current" />
+                    <span className="text-xs text-content-secondary font-medium">Favorited</span>
                   </div>
-                </div>
+                )}
               </div>
             </div>
           ))}
