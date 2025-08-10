@@ -16,9 +16,14 @@ from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
 import logging
 
-from models import Chat, ChatMessage, Character, User
-from schemas import ChatCreate, EnrichedChat
-from services.ai_service import AIService
+try:
+    from ..models import Chat, ChatMessage, Character, User
+    from ..schemas import ChatCreate, EnrichedChat
+    from .ai_service import AIService
+except ImportError:
+    from models import Chat, ChatMessage, Character, User
+    from schemas import ChatCreate, EnrichedChat
+    from services.ai_service import AIService
 
 
 class ChatServiceError(Exception):

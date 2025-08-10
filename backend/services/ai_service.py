@@ -15,7 +15,10 @@ Features:
 from typing import Dict, Any, List, Optional
 import logging
 
-from gemini_service import GeminiService
+try:
+    from ..gemini_service import GeminiService
+except ImportError:
+    from gemini_service import GeminiService
 
 
 class AIServiceError(Exception):

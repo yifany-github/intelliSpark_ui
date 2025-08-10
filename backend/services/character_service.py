@@ -16,9 +16,16 @@ from typing import List, Optional, Tuple, Dict, Any
 from sqlalchemy.orm import Session
 import logging
 
-from models import Character
-from schemas import CharacterCreate
-from utils.character_utils import transform_character_to_response, transform_character_list_to_response
+try:
+    # Try relative imports first (when used as package)
+    from ..models import Character
+    from ..schemas import CharacterCreate
+    from ..utils.character_utils import transform_character_to_response, transform_character_list_to_response
+except ImportError:
+    # Fall back to absolute imports (when used directly)
+    from models import Character
+    from schemas import CharacterCreate
+    from utils.character_utils import transform_character_to_response, transform_character_list_to_response
 
 
 class CharacterServiceError(Exception):
