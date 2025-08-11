@@ -43,13 +43,18 @@ class ValidationResult:
 class CharacterService:
     """Service for handling character operations"""
     
-    def __init__(self, db: Session):
+    def __init__(self, db: Session, admin_context: bool = False):
         self.db = db
+        self.admin_context = admin_context
         self.logger = logging.getLogger(__name__)
     
-    async def get_all_characters(self) -> List[Dict[str, Any]]:
+    async def get_all_characters(self, include_private: bool = None) -> List[Dict[str, Any]]:
         """
         Get all characters with proper transformation
+        
+        Args:
+            include_private: Whether to include private characters. 
+                           If None, uses admin_context (admin sees all, users see public only)
         
         Returns:
             List of character dictionaries in API response format
@@ -58,7 +63,16 @@ class CharacterService:
             CharacterServiceError: If database operation fails
         """
         try:
-            characters = self.db.query(Character).all()
+            query = self.db.query(Character)
+            
+            # Determine if we should include private characters
+            if include_private is None:
+                include_private = self.admin_context  # Admin sees all, users see public only
+                
+            if not include_private:
+                query = query.filter(Character.is_public == True)
+                
+            characters = query.all()
             return transform_character_list_to_response(characters)
         except Exception as e:
             self.logger.error(f"Error fetching characters: {e}")
@@ -243,3 +257,129 @@ class CharacterService:
         """
         # TODO: Implement character deletion with ownership validation
         return False, "Character deletion not yet implemented"
+    
+    # Admin-specific operations
+    async def get_admin_character_stats(self) -> Dict[str, Any]:
+        """
+        Get character statistics for admin dashboard
+        
+        Returns:
+            Dictionary with character usage statistics
+            
+        Raises:
+            CharacterServiceError: If not admin context or database operation fails
+        """
+        if not self.admin_context:
+            raise CharacterServiceError("Admin access required for character statistics")
+        
+        try:
+            from sqlalchemy import func
+            from models import Chat
+            
+            # Get total counts
+            total_characters = self.db.query(Character).count()
+            public_characters = self.db.query(Character).filter(Character.is_public == True).count()
+            private_characters = total_characters - public_characters
+            
+            # Get most popular characters (by chat count)
+            popular_characters = self.db.query(
+                Character.name,
+                func.count(Chat.id).label('chat_count')
+            ).outerjoin(Chat).group_by(Character.id, Character.name).order_by(
+                func.count(Chat.id).desc()
+            ).limit(5).all()
+            
+            return {
+                "totals": {
+                    "total_characters": total_characters,
+                    "public_characters": public_characters,
+                    "private_characters": private_characters
+                },
+                "popular_characters": [
+                    {"name": char.name, "chat_count": char.chat_count} 
+                    for char in popular_characters
+                ]
+            }
+        except Exception as e:
+            self.logger.error(f"Error fetching admin character stats: {e}")
+            raise CharacterServiceError(f"Failed to fetch character statistics: {e}")
+    
+    async def admin_update_character(
+        self, 
+        character_id: int, 
+        character_data: CharacterCreate
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+        """
+        Admin-only character update (bypasses ownership checks)
+        
+        Args:
+            character_id: ID of character to update
+            character_data: Updated character data
+            
+        Returns:
+            (success, character_data, error_message)
+        """
+        if not self.admin_context:
+            raise CharacterServiceError("Admin access required for character updates")
+        
+        try:
+            character = self.db.query(Character).filter(Character.id == character_id).first()
+            if not character:
+                return False, {}, "Character not found"
+            
+            # Update character fields
+            character.name = character_data.name
+            character.description = character_data.description
+            character.avatar_url = character_data.avatarUrl
+            character.backstory = character_data.backstory
+            character.voice_style = character_data.voiceStyle
+            character.traits = character_data.traits
+            character.personality_traits = character_data.personalityTraits or {}
+            character.category = character_data.category
+            character.gender = character_data.gender
+            character.conversation_style = character_data.conversationStyle
+            character.is_public = character_data.isPublic
+            character.nsfw_level = character_data.nsfwLevel
+            
+            self.db.commit()
+            self.db.refresh(character)
+            
+            # Transform for API response
+            response_data = transform_character_to_response(character)
+            
+            self.logger.info(f"Admin updated character: {character.id}")
+            return True, response_data, None
+            
+        except Exception as e:
+            self.logger.error(f"Error updating character {character_id}: {e}")
+            self.db.rollback()
+            return False, {}, f"Character update failed: {e}"
+    
+    async def admin_delete_character(self, character_id: int) -> Tuple[bool, Optional[str]]:
+        """
+        Admin-only character deletion (bypasses ownership checks)
+        
+        Args:
+            character_id: ID of character to delete
+            
+        Returns:
+            (success, error_message)
+        """
+        if not self.admin_context:
+            raise CharacterServiceError("Admin access required for character deletion")
+        
+        try:
+            character = self.db.query(Character).filter(Character.id == character_id).first()
+            if not character:
+                return False, "Character not found"
+            
+            self.db.delete(character)
+            self.db.commit()
+            
+            self.logger.info(f"Admin deleted character: {character_id}")
+            return True, None
+            
+        except Exception as e:
+            self.logger.error(f"Error deleting character {character_id}: {e}")
+            self.db.rollback()
+            return False, f"Character deletion failed: {e}"

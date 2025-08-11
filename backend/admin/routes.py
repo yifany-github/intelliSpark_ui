@@ -17,6 +17,7 @@ from schemas import (
     Character as CharacterSchema, 
     MessageResponse, CharacterCreate
 )
+from services.character_service import CharacterService, CharacterServiceError
 
 # Login request schema
 class LoginRequest(BaseModel):
@@ -66,105 +67,119 @@ async def admin_login(request: LoginRequest):
 
 # ===== ADMIN CHARACTERS ROUTES =====
 
-@router.get("/characters", response_model=List[CharacterSchema])
+@router.get("/characters")
 async def get_admin_characters(
     db: Session = Depends(get_db),
     _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
 ):
-    """Get all characters for admin"""
+    """Get all characters for admin (includes private characters)"""
     try:
-        characters = db.query(Character).all()
-        return characters
+        service = CharacterService(db, admin_context=True)
+        return await service.get_all_characters(include_private=True)
+    except CharacterServiceError as e:
+        logger.error(f"Character service error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         logger.error(f"Error fetching characters for admin: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch characters")
 
-@router.post("/characters", response_model=CharacterSchema)
+@router.post("/characters")
 async def create_admin_character(
     character_data: CharacterCreate,
     db: Session = Depends(get_db),
     _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
 ):
-    """Create a new character"""
+    """Create a new character (admin context)"""
     try:
-        character = Character(
-            name=character_data.name,
-            description=character_data.description,
-            avatar_url=character_data.avatarUrl,
-            backstory=character_data.backstory,
-            voice_style=character_data.voiceStyle,
-            traits=character_data.traits,
-            personality_traits=character_data.personalityTraits or {},  # Default to empty dict if None
-            category=character_data.category,
-            gender=character_data.gender,
-            conversation_style=character_data.conversationStyle,
-            is_public=character_data.isPublic,
-            nsfw_level=character_data.nsfwLevel
-        )
+        # Admin creates character with user_id = 0 (system/admin created)
+        service = CharacterService(db, admin_context=True)
+        success, character, error = await service.create_character(character_data, user_id=0)
         
-        db.add(character)
-        db.commit()
-        db.refresh(character)
+        if not success:
+            raise HTTPException(status_code=400, detail=error)
         
         return character
+    except HTTPException:
+        raise
+    except CharacterServiceError as e:
+        logger.error(f"Character service error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         logger.error(f"Error creating character: {e}")
-        db.rollback()
         raise HTTPException(status_code=500, detail="Failed to create character")
 
-@router.put("/characters/{character_id}", response_model=CharacterSchema)
+@router.put("/characters/{character_id}")
 async def update_admin_character(
     character_id: int,
     character_data: CharacterCreate,
     db: Session = Depends(get_db),
     _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
 ):
-    """Update an existing character"""
+    """Update an existing character (admin context)"""
     try:
-        character = db.query(Character).filter(Character.id == character_id).first()
-        if not character:
-            raise HTTPException(status_code=404, detail="Character not found")
+        service = CharacterService(db, admin_context=True)
+        success, character, error = await service.admin_update_character(character_id, character_data)
         
-        character.name = character_data.name
-        character.avatar_url = character_data.avatarUrl
-        character.backstory = character_data.backstory
-        character.voice_style = character_data.voiceStyle
-        character.traits = character_data.traits
-        character.personality_traits = character_data.personalityTraits or {}
-        
-        db.commit()
-        db.refresh(character)
+        if not success:
+            if error == "Character not found":
+                raise HTTPException(status_code=404, detail=error)
+            else:
+                raise HTTPException(status_code=400, detail=error)
         
         return character
     except HTTPException:
         raise
+    except CharacterServiceError as e:
+        logger.error(f"Character service error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         logger.error(f"Error updating character {character_id}: {e}")
-        db.rollback()
         raise HTTPException(status_code=500, detail="Failed to update character")
 
-@router.delete("/characters/{character_id}", response_model=MessageResponse)
+@router.delete("/characters/{character_id}")
 async def delete_admin_character(
     character_id: int,
     db: Session = Depends(get_db),
     _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
 ):
-    """Delete a character"""
+    """Delete a character (admin context)"""
     try:
-        character = db.query(Character).filter(Character.id == character_id).first()
-        if not character:
-            raise HTTPException(status_code=404, detail="Character not found")
+        service = CharacterService(db, admin_context=True)
+        success, error = await service.admin_delete_character(character_id)
         
-        db.delete(character)
-        db.commit()
+        if not success:
+            if error == "Character not found":
+                raise HTTPException(status_code=404, detail=error)
+            else:
+                raise HTTPException(status_code=400, detail=error)
         
-        return MessageResponse(message="Character deleted successfully")
+        return {"message": "Character deleted successfully"}
     except HTTPException:
         raise
+    except CharacterServiceError as e:
+        logger.error(f"Character service error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting character {character_id}: {e}")
-        db.rollback()
         raise HTTPException(status_code=500, detail="Failed to delete character")
+
+# ===== ADMIN CHARACTER STATS =====
+
+@router.get("/characters/stats")
+async def get_admin_character_stats(
+    db: Session = Depends(get_db),
+    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+):
+    """Get character statistics for admin dashboard"""
+    try:
+        service = CharacterService(db, admin_context=True)
+        return await service.get_admin_character_stats()
+    except CharacterServiceError as e:
+        logger.error(f"Character service error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error fetching character stats: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch character statistics")
 
 # ===== ADMIN USERS & STATS ROUTES =====
 
