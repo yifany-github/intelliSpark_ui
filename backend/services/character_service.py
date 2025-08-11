@@ -373,10 +373,27 @@ class CharacterService:
             if not character:
                 return False, "Character not found"
             
+            # First, handle any dependent records (chats that reference this character)
+            from models import Chat, ChatMessage
+            
+            # Check if there are any chats using this character
+            dependent_chats = self.db.query(Chat).filter(Chat.character_id == character_id).all()
+            
+            if dependent_chats:
+                # Option 1: Delete the dependent chats and their messages
+                for chat in dependent_chats:
+                    # Delete chat messages first
+                    self.db.query(ChatMessage).filter(ChatMessage.chat_id == chat.id).delete()
+                    # Delete the chat
+                    self.db.delete(chat)
+                
+                self.logger.info(f"Deleted {len(dependent_chats)} dependent chats for character {character_id}")
+            
+            # Now safe to delete the character
             self.db.delete(character)
             self.db.commit()
             
-            self.logger.info(f"Admin deleted character: {character_id}")
+            self.logger.info(f"Admin deleted character: {character_id} and {len(dependent_chats)} associated chats")
             return True, None
             
         except Exception as e:

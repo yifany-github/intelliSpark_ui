@@ -26,8 +26,8 @@ class LoginRequest(BaseModel):
 # Set up logging
 logger = logging.getLogger(__name__)
 
-# Create router
-router = APIRouter(prefix="/admin", tags=["admin"])
+# Create router (no prefix - main.py handles /api/admin prefix)
+router = APIRouter(tags=["admin"])
 
 # Security
 security = HTTPBearer()
@@ -239,9 +239,14 @@ async def get_admin_stats(
         ).limit(5).all()
         
         # Get user engagement statistics
+        # Fix: Use subquery to calculate average messages per chat correctly
+        chat_message_counts = db.query(
+            func.count(ChatMessage.id).label('message_count')
+        ).join(Chat).group_by(Chat.id).subquery()
+        
         avg_messages_per_chat = db.query(
-            func.avg(func.count(ChatMessage.id))
-        ).join(Chat).group_by(Chat.id).scalar() or 0
+            func.avg(chat_message_counts.c.message_count)
+        ).scalar() or 0
         
         return {
             "totals": {
