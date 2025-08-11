@@ -233,7 +233,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
             
             <div className="flex items-center space-x-3 bg-surface-secondary p-3 rounded-lg border border-surface-border">
               <Shield className="w-4 h-4 text-brand-secondary" />
-              <span className="text-sm font-medium text-content-primary">Mature Content</span>
+              <span className="text-sm font-medium text-content-primary">Adult Content Control</span>
               <button
                 onClick={() => setNsfwEnabled(!nsfwEnabled)}
                 className={`relative w-12 h-6 rounded-full transition-all duration-300 ${
@@ -374,7 +374,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                     <Star className={`w-4 h-4 ${isFavorite(character.id) ? 'fill-current' : ''}`} />
                   </button>
                   <div className="bg-brand-secondary/90 backdrop-blur-sm px-2 py-1 rounded-full">
-                    <span className="text-xs text-zinc-900 font-semibold">18+</span>
+                    <span className="text-xs text-zinc-900 font-semibold">Adult</span>
                   </div>
                 </div>
                 <div className="absolute bottom-2 left-2 right-2">
@@ -387,7 +387,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   </div>
                 </div>
                 {/* Advanced hover overlay system */}
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300" role="dialog" aria-label={`Actions for ${character.name}`}>
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300" role="region" aria-label={`Quick actions for ${character.name}`}>
                   {/* Primary overlay with gradient */}
                   <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/90 via-zinc-800/50 to-transparent" />
                   
@@ -439,7 +439,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                     >
                       <div className="flex items-center justify-center space-x-2">
                         <MessageCircle className="w-4 h-4" />
-                        <span>Start Premium Chat</span>
+                        <span>Start Private Session</span>
                       </div>
                     </button>
                     
@@ -476,7 +476,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   </h3>
                   <div className="flex items-center space-x-1">
                     <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                    <span className="text-xs text-content-tertiary font-medium">Online</span>
+                    <span className="text-xs text-content-tertiary font-medium">Available</span>
                   </div>
                 </div>
                 
@@ -484,7 +484,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2">
                     <Mic className="w-3 h-3 text-brand-secondary" />
-                    <span className="text-xs text-content-secondary font-medium truncate">{character.voiceStyle}</span>
+                    <span className="text-xs text-content-secondary font-medium truncate">{character.voiceStyle || 'Default Voice'}</span>
                   </div>
                   <p className="text-xs text-content-tertiary line-clamp-2 leading-relaxed">
                     {character.description || character.backstory}
