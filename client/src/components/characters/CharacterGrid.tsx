@@ -374,7 +374,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                     <Star className={`w-4 h-4 ${isFavorite(character.id) ? 'fill-current' : ''}`} />
                   </button>
                   <div className="bg-brand-secondary/90 backdrop-blur-sm px-2 py-1 rounded-full">
-                    <span className="text-xs text-zinc-900 font-semibold">Adult</span>
+                    <span className="text-xs text-zinc-900 font-semibold">18+</span>
                   </div>
                 </div>
                 <div className="absolute bottom-2 left-2 right-2">
@@ -439,7 +439,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                     >
                       <div className="flex items-center justify-center space-x-2">
                         <MessageCircle className="w-4 h-4" />
-                        <span>Start Private Session</span>
+                        <span>Start Premium Chat</span>
                       </div>
                     </button>
                     
