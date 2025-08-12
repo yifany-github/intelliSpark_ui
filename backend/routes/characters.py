@@ -31,7 +31,7 @@ router = APIRouter(prefix="/characters", tags=["characters"])
 limiter = Limiter(key_func=get_remote_address)
 
 
-@router.get("/", response_model=List[CharacterSchema])
+@router.get("")
 async def get_characters(db: Session = Depends(get_db)):
     """Get all characters"""
     try:

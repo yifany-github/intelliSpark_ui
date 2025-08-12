@@ -57,9 +57,41 @@ class MessageService:
         Raises:
             MessageServiceError: If database operation fails
         """
-        # TODO: Implement message retrieval with pagination
-        # This will be implemented in Phase 2
-        return []
+        try:
+            # First check if chat belongs to current user
+            from models import Chat
+            chat = self.db.query(Chat).filter(Chat.id == chat_id, Chat.user_id == user_id).first()
+            if not chat:
+                raise MessageServiceError("Chat not found or access denied")
+            
+            # Get messages for the chat
+            query = self.db.query(ChatMessage).filter(ChatMessage.chat_id == chat_id).order_by(ChatMessage.id)
+            
+            if offset:
+                query = query.offset(offset)
+            if limit:
+                query = query.limit(limit)
+            
+            messages = query.all()
+            
+            # Convert to response format
+            message_list = []
+            for message in messages:
+                message_dict = {
+                    "id": message.id,
+                    "chat_id": message.chat_id,
+                    "role": message.role,
+                    "content": message.content,
+                    "timestamp": message.timestamp.isoformat() + "Z" if message.timestamp else None
+                }
+                message_list.append(message_dict)
+            
+            return message_list
+        except MessageServiceError:
+            raise
+        except Exception as e:
+            self.logger.error(f"Error fetching messages for chat {chat_id}: {e}")
+            raise MessageServiceError(f"Failed to fetch messages: {e}")
     
     async def create_message(
         self,
@@ -78,9 +110,40 @@ class MessageService:
         Returns:
             (success, message_data, error_message)
         """
-        # TODO: Implement message creation with validation
-        # This will be implemented in Phase 2
-        return False, {}, "Message creation not yet implemented"
+        try:
+            # Validate chat exists and user has access
+            from models import Chat
+            chat = self.db.query(Chat).filter(Chat.id == chat_id, Chat.user_id == user_id).first()
+            if not chat:
+                return False, {}, "Chat not found or access denied"
+            
+            # Create message
+            message = ChatMessage(
+                chat_id=chat_id,
+                role=message_data.role,
+                content=message_data.content
+            )
+            
+            self.db.add(message)
+            self.db.commit()
+            self.db.refresh(message)
+            
+            # Return message data
+            message_dict = {
+                "id": message.id,
+                "chat_id": message.chat_id,
+                "role": message.role,
+                "content": message.content,
+                "timestamp": message.timestamp.isoformat() + "Z" if message.timestamp else None
+            }
+            
+            self.logger.info(f"Message created successfully: {message.id} in chat {chat_id}")
+            return True, message_dict, None
+            
+        except Exception as e:
+            self.logger.error(f"Error creating message: {e}")
+            self.db.rollback()
+            return False, {}, f"Message creation failed: {e}"
     
     async def delete_message(
         self,

@@ -42,6 +42,14 @@ FastAPI automatically generates interactive API documentation:
 
 ## 🔧 API Endpoints
 
+### Authentication
+- `POST /api/auth/register` - Register with email/password
+- `POST /api/auth/login` - Login with email/password  
+- `POST /api/auth/login/firebase` - Login with Firebase OAuth token
+- `POST /api/auth/login/legacy` - Legacy username-based login
+- `GET /api/auth/me` - Get current authenticated user
+- `POST /api/auth/logout` - Logout
+
 ### Characters  
 - `GET /api/characters` - List all characters
 - `GET /api/characters/{id}` - Get specific character
@@ -52,8 +60,24 @@ FastAPI automatically generates interactive API documentation:
 - `GET /api/chats/{id}` - Get specific chat
 - `GET /api/chats/{id}/messages` - Get chat messages
 - `POST /api/chats/{id}/messages` - Add message to chat
-- `POST /api/chats/{id}/generate` - Generate AI response
+- `POST /api/chats/{id}/generate` - Generate AI response (requires 1 token)
 - `DELETE /api/chats` - Clear all chat history
+
+### Payment System
+- `POST /api/payment/create-payment-intent` - Create Stripe payment intent
+- `POST /api/payment/webhook` - Handle Stripe webhook events  
+- `GET /api/payment/user/tokens` - Get user's token balance
+- `GET /api/payment/pricing-tiers` - Get available token packages
+- `GET /api/payment/user/transactions` - Get payment history
+
+### Admin Panel
+- `POST /api/admin/login` - Admin authentication
+- `GET /api/admin/characters` - Get all characters (including private)
+- `POST /api/admin/characters` - Create new character
+- `PUT /api/admin/characters/{id}` - Update character
+- `DELETE /api/admin/characters/{id}` - Delete character
+- `GET /api/admin/users` - Get all users
+- `GET /api/admin/stats` - Get admin statistics
 
 ## 🏗️ Project Structure
 
@@ -64,11 +88,31 @@ backend/
 ├── database.py          # Database setup and connection
 ├── models.py            # SQLAlchemy database models
 ├── schemas.py           # Pydantic schemas for API
-├── routes.py            # API route definitions
 ├── gemini_service.py    # Gemini AI integration
-├── prompt_service.py    # Dynamic prompt loading
-├── prompts/             # Character prompts
-│   └── characters/      # Character-specific prompts
+├── admin/               # Admin panel routes and logic
+│   └── routes.py        # Admin API endpoints
+├── auth/                # Authentication system
+│   ├── auth_service.py  # Authentication business logic
+│   └── routes.py        # Auth API endpoints
+├── payment/             # Payment and token system
+│   ├── stripe_service.py # Stripe payment integration
+│   ├── token_service.py  # Token management
+│   └── routes.py        # Payment API endpoints
+├── routes/              # Main API routes (organized by feature)
+│   ├── characters.py    # Character endpoints
+│   └── chats.py         # Chat endpoints
+├── services/            # Business logic layer
+│   ├── character_service.py # Character operations
+│   ├── chat_service.py     # Chat operations
+│   ├── message_service.py  # Message operations
+│   └── ai_service.py       # AI integration
+├── prompts/             # Character prompts and templates
+│   ├── characters/      # Character-specific prompts
+│   ├── character_templates.py # Response templates
+│   └── generic_few_shots.json # Generic conversation examples
+├── utils/               # Utility functions
+│   ├── character_utils.py # Character data transformation
+│   └── character_prompt_enhancer.py # AI prompt enhancement
 ├── requirements.txt     # Python dependencies
 └── README.md           # This file
 ```
@@ -91,9 +135,34 @@ My Character: *bows respectfully* Greetings, good traveler!"""
 
 ## 🔑 Environment Variables
 
+### Required
 - `GEMINI_API_KEY` - Your Google Gemini API key (required)
-- `DATABASE_URL` - Database connection string (optional, defaults to SQLite)
-- `DEBUG` - Enable debug mode (optional, default: true)
+- `SECRET_KEY` - JWT secret key for authentication (required)
+- `STRIPE_SECRET_KEY` - Stripe secret key for payment processing (required)
+- `STRIPE_WEBHOOK_SECRET` - Stripe webhook secret for payment validation (required)
+
+### Optional
+- `DATABASE_URL` - Database connection string (defaults to SQLite)
+- `FIREBASE_API_KEY` - Firebase API key for OAuth integration
+- `ADMIN_PASSWORD` - Admin panel password (defaults to "admin123")
+- `DEBUG` - Enable debug mode (default: true)
+
+## 🏛️ Architecture Overview
+
+### Service Layer Pattern
+The backend implements a clean service layer architecture:
+
+- **Routes**: Handle HTTP requests/responses and authentication
+- **Services**: Contain business logic and data validation
+- **Models**: Define database schema using SQLAlchemy
+- **Schemas**: Pydantic models for API request/response validation
+
+### Key Services
+- **CharacterService**: Character CRUD operations with validation
+- **ChatService**: Chat creation, management, and AI response generation
+- **MessageService**: Message handling and storage
+- **AuthService**: User authentication and JWT token management
+- **TokenService**: Payment token management and transaction tracking
 
 ## 🗄️ Database
 
@@ -105,6 +174,14 @@ The backend uses SQLite by default for easy setup. To use PostgreSQL:
    ```
    DATABASE_URL=postgresql://user:password@localhost/dbname
    ```
+
+### Key Tables
+- `users` - User accounts and preferences
+- `characters` - AI characters with personality traits
+- `chats` - Chat sessions between users and characters
+- `chat_messages` - Individual messages within chats
+- `user_tokens` - Token balances for payment system
+- `token_transactions` - Payment and usage history
 
 ## 🧪 Testing
 

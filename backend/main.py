@@ -87,6 +87,19 @@ async def health():
     """Health check endpoint"""
     return {"status": "healthy"}
 
+@app.get("/api/debug/routes")
+async def debug_routes():
+    """Debug endpoint to see all registered routes"""
+    routes = []
+    for route in app.routes:
+        if hasattr(route, 'path') and hasattr(route, 'methods'):
+            routes.append({
+                "path": route.path,
+                "methods": list(route.methods) if route.methods else [],
+                "name": getattr(route, 'name', 'unknown')
+            })
+    return {"routes": routes}
+
 if __name__ == "__main__":
     import uvicorn
     # Use port 8000 for Python backend (port 5000 conflicts with AirPlay on macOS)

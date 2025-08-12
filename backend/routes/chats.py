@@ -38,7 +38,7 @@ from models import User
 router = APIRouter(prefix="/chats", tags=["chats"])
 
 
-@router.get("/", response_model=List[EnrichedChat])
+@router.get("", response_model=List[EnrichedChat])
 async def get_chats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -68,7 +68,7 @@ async def get_chat(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/", response_model=ChatSchema)
+@router.post("", response_model=ChatSchema)
 async def create_chat(
     chat_data: ChatCreate,
     db: Session = Depends(get_db),
@@ -147,12 +147,19 @@ async def generate_opening_line(
     current_user: User = Depends(get_current_user)
 ):
     """Generate opening line for chat"""
-    # TODO: Implement opening line generation in ChatService
-    # This is a temporary implementation maintaining the same API
-    raise HTTPException(status_code=501, detail="Opening line generation not yet implemented in service layer")
+    try:
+        service = ChatService(db)
+        success, message, error = await service.generate_opening_line(chat_id, current_user.id)
+        
+        if not success:
+            raise HTTPException(status_code=400, detail=error)
+        
+        return message
+    except ChatServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.delete("/", response_model=MessageResponse)
+@router.delete("", response_model=MessageResponse)
 async def delete_all_chats(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
