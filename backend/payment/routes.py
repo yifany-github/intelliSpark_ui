@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from sqlalchemy.orm import Session
 from database import get_db
 from auth.routes import get_current_user
@@ -146,11 +146,17 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
 
 @router.get("/user/tokens", response_model=UserTokenBalance)
 async def get_user_tokens(
+    response: Response,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Get current user's token balance"""
     try:
+        # Add no-cache headers to prevent stale data
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        
         token_service = TokenService(db)
         balance = token_service.get_user_balance(current_user.id)
         
@@ -159,10 +165,11 @@ async def get_user_tokens(
         user_token = db.query(UserToken).filter(UserToken.user_id == current_user.id).first()
         
         if not user_token:
-            # Create initial token balance
+            # This shouldn't happen after TokenService.get_user_balance, but just in case
             user_token = UserToken(user_id=current_user.id, balance=0)
             db.add(user_token)
             db.commit()
+            db.refresh(user_token)
         
         return UserTokenBalance(
             user_id=current_user.id,
