@@ -283,7 +283,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 <div className="flex items-center space-x-3">
                   <div className="relative">
                     <ImageWithFallback
-                      src={character.avatarUrl}
+                      src={character.avatar_url}
                       alt={character.name}
                       fallbackText={character.name}
                       size="md"
@@ -358,7 +358,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 
                 {character && (
                   <ImageWithFallback
-                    src={character.avatarUrl}
+                    src={character.avatar_url}
                     alt={character.name}
                     fallbackText={character.name}
                     size="md"
@@ -415,7 +415,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             {isTyping && (
               <div className="flex items-end mb-4">
                 <ImageWithFallback
-                  src={character?.avatarUrl}
+                  src={character?.avatar_url}
                   alt={character?.name || "Character"}
                   fallbackText={character?.name || "AI"}
                   size="sm"
@@ -453,7 +453,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
               <div className="p-4">
                 <div className="text-center mb-4">
                   <ImageWithFallback
-                    src={character.avatarUrl}
+                    src={character.avatar_url}
                     alt={character.name}
                     fallbackText={character.name}
                     size="lg"
@@ -484,7 +484,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             {/* Character Image */}
             <div className="relative">
               <ImageWithFallback
-                src={character.avatarUrl}
+                src={character.avatar_url}
                 alt={character.name}
                 fallbackText={character.name}
                 size="lg"
