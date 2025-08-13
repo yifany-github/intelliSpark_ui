@@ -102,7 +102,7 @@ def generate_samples_for_character(character_name, archetype_weights, sample_siz
     
     # Get paths
     script_dir = Path(__file__).parent
-    input_path = script_dir.parent.parent / "global_dataset.csv"
+    input_path = script_dir.parent.parent / "dataset-repo" / "global_dataset.csv"
     output_dir = script_dir.parent / "prompts" / "characters"
     output_file = output_dir / f"sampled_few_shots_{character_name}.json"
     
