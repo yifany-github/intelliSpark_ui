@@ -19,6 +19,9 @@ Routes:
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
+import logging
+
+logger = logging.getLogger(__name__)
 
 from database import get_db
 from auth.routes import get_current_user
@@ -129,11 +132,20 @@ async def generate_ai_response(
 ):
     """Generate AI response for chat"""
     try:
+        print(f"🚀 generate_ai_response called for chat_id={chat_id}, user_id={current_user.id}")
+        logger.warning(f"🚀 generate_ai_response called for chat_id={chat_id}, user_id={current_user.id}")
+        
         service = ChatService(db)
         success, response, error = await service.generate_ai_response(chat_id, current_user.id)
         
+        print(f"🚀 ChatService result: success={success}, error={error}")
+        logger.warning(f"🚀 ChatService result: success={success}, error={error}")
+        
         if not success:
-            raise HTTPException(status_code=400, detail=error)
+            if "Insufficient tokens" in error:
+                raise HTTPException(status_code=402, detail=error)
+            else:
+                raise HTTPException(status_code=400, detail=error)
         
         return response
     except ChatServiceError as e:
