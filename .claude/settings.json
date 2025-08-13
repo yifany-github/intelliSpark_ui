@@ -14,6 +14,9 @@
       "mcp__playwright__browser_tab_select",
       "mcp__playwright__browser_tab_close",
       "Bash(cp:*)",
+      "gh",
+      "Bash(gh:*)",
+      "Bash(gh issue comment:*)",
       "Bash(sqlite3:*)",
       "Bash(mkdir:*)",
       "Bash(uv:*)",
@@ -21,6 +24,7 @@
       "Bash(mv:*)",
       "Bash(grep:*)",
       "Bash(ls:*)",
+      "Bash(curl:*)",
       "Write",
       "Edit"
     ],

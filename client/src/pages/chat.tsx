@@ -41,6 +41,14 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: !!chatId,
   });
   
+  // Fetch all chats for the chat list
+  const {
+    data: chats = [],
+    isLoading: isLoadingChats
+  } = useQuery<EnrichedChat[]>({
+    queryKey: ["/api/chats"],
+  });
+  
   // Fetch chat messages if chatId is provided
   const {
     data: messages = [],
@@ -51,24 +59,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: !!chatId,
   });
   
-  // Fetch character details for the chat
-  const {
-    data: character,
-    isLoading: isLoadingCharacter
-  } = useQuery<Character>({
-    queryKey: [`/api/characters/${chat?.character_id}`],
-    enabled: !!chat?.character_id,
-  });
-  
-  
-  
-  // Fetch all chats for the chat list
-  const {
-    data: chats = [],
-    isLoading: isLoadingChats
-  } = useQuery<EnrichedChat[]>({
-    queryKey: ["/api/chats"],
-  });
+  // Get character data from the enriched chats list instead of separate API call
+  const character = chats.find(c => c.id === parseInt(chatId || '0'))?.character;
+  const isLoadingCharacter = isLoadingChats;
   
   // Mutation for sending messages
   const { mutate: sendMessage, isPending: isSending } = useMutation({
@@ -283,9 +276,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 <div className="flex items-center space-x-3">
                   <div className="relative">
                     <ImageWithFallback
-                      src={character.avatar_url}
-                      alt={character.name}
-                      fallbackText={character.name}
+                      src={character?.avatarUrl}
+                      alt={character?.name}
+                      fallbackText={character?.name}
                       size="md"
                       showSpinner={true}
                       className="w-10 h-10"
@@ -293,7 +286,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                     <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-gray-800 rounded-full"></div>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-blue-200 truncate">{character.name}</p>
+                    <p className="font-medium text-blue-200 truncate">{character?.name}</p>
                     <p className="text-sm text-blue-300 truncate">{t('currentlyChatting')}</p>
                   </div>
                   <div className="w-2 h-2 bg-brand-accent rounded-full animate-pulse"></div>
@@ -358,9 +351,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 
                 {character && (
                   <ImageWithFallback
-                    src={character.avatar_url}
-                    alt={character.name}
-                    fallbackText={character.name}
+                    src={character?.avatarUrl}
+                    alt={character?.name}
+                    fallbackText={character?.name}
                     size="md"
                     showSpinner={true}
                     className="w-8 h-8 sm:w-10 sm:h-10"
@@ -406,7 +399,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 <ChatBubble 
                   key={message.id} 
                   message={message} 
-                  avatarUrl={character?.avatar_url}
+                  avatarUrl={character?.avatarUrl}
                   onRegenerate={message.role === 'assistant' ? regenerateLastMessage : undefined}
                 />
               ))
@@ -415,7 +408,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             {isTyping && (
               <div className="flex items-end mb-4">
                 <ImageWithFallback
-                  src={character?.avatar_url}
+                  src={character?.avatarUrl}
                   alt={character?.name || "Character"}
                   fallbackText={character?.name || "AI"}
                   size="sm"
@@ -453,17 +446,17 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
               <div className="p-4">
                 <div className="text-center mb-4">
                   <ImageWithFallback
-                    src={character.avatar_url}
-                    alt={character.name}
-                    fallbackText={character.name}
+                    src={character?.avatarUrl}
+                    alt={character?.name}
+                    fallbackText={character?.name}
                     size="lg"
                     showSpinner={true}
                     className="w-32 h-48 mx-auto mb-3"
                   />
-                  <h4 className="font-semibold text-lg mb-2">{character.name}</h4>
-                  <p className="text-sm text-gray-300 mb-4">{character.backstory}</p>
+                  <h4 className="font-semibold text-lg mb-2">{character?.name}</h4>
+                  <p className="text-sm text-gray-300 mb-4">{character?.backstory}</p>
                   <div className="flex flex-wrap gap-2 justify-center">
-                    {character.traits.map((trait, index) => (
+                    {character?.traits?.map((trait, index) => (
                       <span 
                         key={index}
                         className="px-2 py-1 rounded-full text-xs font-medium bg-gray-600 text-white"
@@ -484,9 +477,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             {/* Character Image */}
             <div className="relative">
               <ImageWithFallback
-                src={character.avatar_url}
-                alt={character.name}
-                fallbackText={character.name}
+                src={character?.avatarUrl}
+                alt={character?.name}
+                fallbackText={character?.name}
                 size="lg"
                 showSpinner={true}
                 className="w-full h-96 object-cover"
@@ -506,16 +499,16 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
             {/* Character Info */}
             <div className="flex-1 p-4">
-              <h3 className="font-semibold text-lg mb-2">{character.name}</h3>
+              <h3 className="font-semibold text-lg mb-2">{character?.name}</h3>
               
               {/* Description */}
               <p className="text-sm text-gray-300 mb-4 leading-relaxed">
-                {character.backstory}
+                {character?.backstory}
               </p>
 
               {/* Tags */}
               <div className="flex flex-wrap gap-2 mb-6">
-                {character.traits.map((trait, index) => (
+                {character?.traits?.map((trait, index) => (
                   <span 
                     key={index}
                     className="px-3 py-1 rounded-full text-xs font-medium bg-gray-600 text-white"
