@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     # Database settings
-    database_url: str = "sqlite:///./roleplay_chat.db"  # Default to SQLite for development
+    database_url: str = "sqlite:///./backend/roleplay_chat.db"  # Default to SQLite for development
     
     # Authentication settings
     secret_key: str
