@@ -56,9 +56,10 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     data: character,
     isLoading: isLoadingCharacter
   } = useQuery<Character>({
-    queryKey: [`/api/characters/${chat?.characterId}`],
-    enabled: !!chat?.characterId,
+    queryKey: [`/api/characters/${chat?.character_id}`],
+    enabled: !!chat?.character_id,
   });
+  
   
   
   // Fetch all chats for the chat list
@@ -405,7 +406,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 <ChatBubble 
                   key={message.id} 
                   message={message} 
-                  avatarUrl={character?.avatarUrl}
+                  avatarUrl={character?.avatar_url}
                   onRegenerate={message.role === 'assistant' ? regenerateLastMessage : undefined}
                 />
               ))
