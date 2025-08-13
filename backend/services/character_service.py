@@ -176,13 +176,7 @@ class CharacterService:
         if len(data.description.strip()) > 2000:
             return ValidationResult(False, "Description must be less than 2000 characters")
         
-        # Check category if provided
-        valid_categories = ['companion', 'assistant', 'roleplay', 'creative', 'educational']
-        if data.category and data.category not in valid_categories:
-            return ValidationResult(
-                False, 
-                f"Category must be one of: {', '.join(valid_categories)}"
-            )
+        # Category validation disabled - accept any category value
         
         # Check gender if provided
         valid_genders = ['male', 'female', 'non-binary', 'other']

@@ -54,7 +54,7 @@ async def get_character(character_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/", response_model=CharacterSchema)
+@router.post("", response_model=CharacterSchema)
 async def create_character(
     character_data: CharacterCreate,
     db: Session = Depends(get_db),

@@ -118,7 +118,7 @@ const AdminPage = () => {
 
   const loginMutation = useMutation({
     mutationFn: async (password: string) => {
-      const response = await fetch("/api/admin/admin/login", {
+      const response = await fetch("/api/admin/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
@@ -167,7 +167,7 @@ const AdminPage = () => {
   const { data: stats, refetch: refetchStats } = useQuery<AdminStats>({
     queryKey: ["admin-stats"],
     queryFn: async () => {
-      const response = await fetch("/api/admin/admin/stats", {
+      const response = await fetch("/api/admin/stats", {
         headers: authHeaders,
       });
       if (!response.ok) throw new Error("Failed to fetch stats");
@@ -181,7 +181,7 @@ const AdminPage = () => {
   const { data: characters = [], refetch: refetchCharacters } = useQuery<Character[]>({
     queryKey: ["admin-characters"],
     queryFn: async () => {
-      const response = await fetch("/api/admin/admin/characters", {
+      const response = await fetch("/api/admin/characters", {
         headers: authHeaders,
       });
       if (!response.ok) throw new Error("Failed to fetch characters");
@@ -193,7 +193,7 @@ const AdminPage = () => {
   const { data: users = [], refetch: refetchUsers } = useQuery<User[]>({
     queryKey: ["admin-users"],
     queryFn: async () => {
-      const response = await fetch("/api/admin/admin/users", {
+      const response = await fetch("/api/admin/users", {
         headers: authHeaders,
       });
       if (!response.ok) throw new Error("Failed to fetch users");
@@ -207,7 +207,7 @@ const AdminPage = () => {
 
   const characterCreateMutation = useMutation({
     mutationFn: async (characterData: Omit<Character, "id" | "createdAt">) => {
-      const response = await fetch("/api/admin/admin/characters", {
+      const response = await fetch("/api/admin/characters", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -232,7 +232,7 @@ const AdminPage = () => {
   const characterUpdateMutation = useMutation({
     mutationFn: async ({ id, ...characterData }: Character) => {
       console.log('Updating character with data:', characterData);
-      const response = await fetch(`/api/admin/admin/characters/${id}`, {
+      const response = await fetch(`/api/admin/characters/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -266,7 +266,7 @@ const AdminPage = () => {
 
   const characterDeleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const response = await fetch(`/api/admin/admin/characters/${id}`, {
+      const response = await fetch(`/api/admin/characters/${id}`, {
         method: "DELETE",
         headers: authHeaders,
       });
