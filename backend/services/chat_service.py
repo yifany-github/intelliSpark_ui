@@ -20,10 +20,12 @@ try:
     from ..models import Chat, ChatMessage, Character, User
     from ..schemas import ChatCreate, EnrichedChat
     from .ai_service import AIService
+    from ..utils.character_utils import ensure_avatar_url
 except ImportError:
     from models import Chat, ChatMessage, Character, User
     from schemas import ChatCreate, EnrichedChat
     from services.ai_service import AIService
+    from utils.character_utils import ensure_avatar_url
 
 
 class ChatServiceError(Exception):
@@ -80,7 +82,7 @@ class ChatService:
                     "character": {
                         "id": character.id,
                         "name": character.name,
-                        "avatarUrl": character.avatar_url,
+                        "avatarUrl": ensure_avatar_url(character),
                         "description": character.description
                     } if character else None,
                     "lastMessage": {

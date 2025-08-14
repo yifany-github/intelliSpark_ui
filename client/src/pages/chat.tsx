@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { Chat, ChatMessage, Character, EnrichedChat } from "../types";
@@ -60,7 +60,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   });
   
   // Get character data from the enriched chats list instead of separate API call
-  const character = chats.find(c => c.id === parseInt(chatId || '0'))?.character;
+  const character = useMemo(() => {
+    return chats.find(c => c.id === parseInt(chatId || '0'))?.character || null;
+  }, [chats, chatId]);
   const isLoadingCharacter = isLoadingChats;
   
   // Mutation for sending messages
