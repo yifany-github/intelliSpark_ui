@@ -59,6 +59,7 @@ const ImageWithFallback = ({
   };
 
   const absoluteUrl = getAbsoluteUrl(src);
+  
 
   return (
     <Avatar className={cn(sizeClasses[size], className)}>

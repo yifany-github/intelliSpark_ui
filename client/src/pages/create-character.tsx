@@ -37,7 +37,7 @@ interface CharacterFormData {
 
 const ImprovedCreateCharacterPage = () => {
   const { user, isAuthenticated } = useAuth();
-  const { setSelectedCharacter } = useRolePlay();
+  const { setSelectedCharacter, startChat } = useRolePlay();
   const { navigateToLogin, navigateToPath } = useNavigation();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -120,10 +120,18 @@ const ImprovedCreateCharacterPage = () => {
   };
 
   // Success page actions
-  const handleStartChat = () => {
+  const handleStartChat = async () => {
     if (createdCharacter) {
-      setSelectedCharacter(createdCharacter);
-      navigateToPath('/chat');
+      try {
+        const chatId = await startChat(createdCharacter);
+        navigateToPath(`/chat/${chatId}`);
+      } catch (error) {
+        toast({
+          title: 'Failed to start chat',
+          description: 'Please try again',
+          variant: 'destructive'
+        });
+      }
     }
   };
 

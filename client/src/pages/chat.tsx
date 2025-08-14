@@ -59,11 +59,31 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: !!chatId,
   });
   
-  // Get character data from the enriched chats list instead of separate API call
+  // Fallback character fetch if not found in enriched chats
+  const {
+    data: fallbackCharacter,
+    isLoading: isLoadingFallbackCharacter
+  } = useQuery({
+    queryKey: [`/api/characters/${chat?.character_id}`],
+    enabled: !!chat?.character_id && !chats.find(c => c.id === parseInt(chatId || '0'))?.character,
+  });
+
+  // Get character data from the enriched chats list with fallback
   const character = useMemo(() => {
-    return chats.find(c => c.id === parseInt(chatId || '0'))?.character || null;
-  }, [chats, chatId]);
-  const isLoadingCharacter = isLoadingChats;
+    const foundCharacter = chats.find(c => c.id === parseInt(chatId || '0'))?.character;
+    
+    if (foundCharacter) {
+      return foundCharacter;
+    }
+    
+    if (fallbackCharacter) {
+      return fallbackCharacter;
+    }
+    
+    return null;
+  }, [chats, chatId, fallbackCharacter]);
+  
+  const isLoadingCharacter = isLoadingChats || isLoadingFallbackCharacter;
   
   // Mutation for sending messages
   const { mutate: sendMessage, isPending: isSending } = useMutation({
@@ -384,7 +404,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
-            {isLoadingMessages ? (
+            {isLoadingMessages || isLoadingCharacter ? (
               <div className="text-center py-4">
                 <p className="text-gray-400">{t('loadingMessages')}</p>
               </div>

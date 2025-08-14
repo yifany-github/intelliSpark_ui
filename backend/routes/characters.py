@@ -36,12 +36,13 @@ async def get_characters(db: Session = Depends(get_db)):
     """Get all characters"""
     try:
         service = CharacterService(db)
-        return await service.get_all_characters()
+        characters = await service.get_all_characters()
+        return characters
     except CharacterServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/{character_id}", response_model=CharacterSchema)
+@router.get("/{character_id}")
 async def get_character(character_id: int, db: Session = Depends(get_db)):
     """Get character by ID"""
     try:
@@ -54,7 +55,7 @@ async def get_character(character_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("", response_model=CharacterSchema)
+@router.post("")
 async def create_character(
     character_data: CharacterCreate,
     db: Session = Depends(get_db),
@@ -68,6 +69,7 @@ async def create_character(
         if not success:
             raise HTTPException(status_code=400, detail=error)
         
+        # Return the raw dict directly to bypass Pydantic schema conversion
         return character
     except CharacterServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
