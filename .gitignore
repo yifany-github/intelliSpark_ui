@@ -293,3 +293,7 @@ backend/*.db.backup*
 # Temporary logs and demo directories
 web_demo/
 demo_*/
+# User uploaded avatar images - should not be committed to repo
+attached_assets/user_characters_img/*.png
+attached_assets/user_characters_img/*.jpg
+attached_assets/user_characters_img/*.jpeg

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 import { Character, Chat, ChatMessage } from '../types';
-import { apiRequest } from '../lib/queryClient';
+import { apiRequest, queryClient } from '../lib/queryClient';
 
 interface RolePlayContextType {
   // User Preferences
@@ -99,6 +99,10 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
       
       const chat = await response.json();
       setCurrentChat(chat);
+      
+      // Invalidate chats query to refresh enriched chats list
+      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
+      
       return chat.id;
     } catch (error) {
       console.error('Error starting chat:', error);

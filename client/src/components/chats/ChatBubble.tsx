@@ -21,6 +21,7 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
   const { toast } = useToast();
   const isAI = message.role === 'assistant';
   const isSystem = message.role === 'system';
+  
   const messageTime = message.timestamp 
     ? format(new Date(message.timestamp), 'h:mm a')
     : '';
