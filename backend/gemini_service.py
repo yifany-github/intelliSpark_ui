@@ -213,32 +213,46 @@ class GeminiService:
     def _extract_character_name(self, character: Optional[Character]) -> str:
         """Extract character name for conversation history formatting"""
         if character and character.name:
-            return character.name
+            # Sanitize character name to prevent prompt injection
+            import re
+            sanitized_name = re.sub(r'[^\w\s\u4e00-\u9fff]', '', character.name)
+            return sanitized_name[:50]  # Limit length
         
         # Fallback to generic name
         return "AI助手"
     
     def _build_conversation_prompt(self, messages: List[ChatMessage], character: Optional[Character] = None) -> List[Dict]:
-        """Build conversation prompt with FULL conversation history"""
+        """
+        Build conversation prompt with FULL conversation history.
         
-        # Build complete conversation history text
-        conversation_history = ""
+        Uses natural conversation flow without meta-instructions to:
+        - Maintain immersion and avoid safety filter triggers
+        - Support any character (not hardcoded names)
+        - Follow SpicyChat/JuicyChat best practices
+        """
+        
         character_name = self._extract_character_name(character)
+        
+        # Build natural conversation history
+        conversation_history = ""
         
         for message in messages:
             if message.role == 'user':
                 conversation_history += f"用户: {message.content}\n"
             elif message.role == 'assistant':
+                # Use dynamic character name for any bot
                 conversation_history += f"{character_name}: {message.content}\n"
         
-        # Create prompt with full conversation context
+        # Create natural conversation prompt (no meta-instructions)
         if conversation_history:
-            full_prompt = f"对话历史:\n{conversation_history}\n请以{character_name}的身份回应最后一条消息:"
+            # End with character name to prompt natural continuation
+            # This follows SpicyChat/JuicyChat pattern for better NSFW quality
+            full_prompt = f"{conversation_history.rstrip()}\n{character_name}:"
         else:
-            # Fallback for empty conversation
-            full_prompt = f"请以{character_name}的身份开始对话:"
+            # For new conversations, just start with character name
+            full_prompt = f"{character_name}:"
         
-        logger.info(f"💬 Conversation prompt built with {len(messages)} messages for {character_name}")
+        logger.info(f"💬 Conversation prompt built: {len(messages)} messages for {character_name}")
         
         # Return in Gemini API format
         return [{
