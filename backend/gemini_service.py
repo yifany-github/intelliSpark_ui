@@ -84,8 +84,11 @@ class GeminiService:
             # Create cache for this conversation context if not exists
             cache = await self._create_or_get_cache(character_prompt)
             
-            # Build simplified conversation prompt
-            conversation_prompt = self._build_conversation_prompt(messages)
+            # Manage conversation length to stay within token limits
+            managed_messages = self._manage_conversation_length(messages)
+            
+            # Build conversation prompt with full history
+            conversation_prompt = self._build_conversation_prompt(managed_messages, character)
             
             # If cache creation failed, fall back to direct API call without cache
             if cache is None:
@@ -186,19 +189,61 @@ class GeminiService:
             # Return None to indicate no cache should be used
             return None
     
-    def _build_conversation_prompt(self, messages: List[ChatMessage]) -> List[Dict]:
-        """Build conversation prompt in proper Gemini API format"""
-        # Get the last user message
-        last_user_message = ""
-        for msg in reversed(messages):
-            if msg.role == "user":
-                last_user_message = msg.content
-                break
+    def _manage_conversation_length(self, messages: List[ChatMessage], max_messages: int = 20) -> List[ChatMessage]:
+        """
+        Manage conversation length to stay within token limits while preserving context.
+        
+        Strategy:
+        - Keep first 2-3 messages (character establishment)
+        - Keep most recent 15-17 messages (current context)
+        - Drop middle messages if needed
+        """
+        if len(messages) <= max_messages:
+            return messages
+        
+        # Preserve character establishment (first few messages)
+        establishment_messages = messages[:3]
+        
+        # Keep recent context
+        recent_messages = messages[-(max_messages-3):]
+        
+        logger.info(f"📏 Conversation length management: {len(messages)} -> {len(establishment_messages + recent_messages)} messages")
+        return establishment_messages + recent_messages
+    
+    def _extract_character_name(self, character: Optional[Character]) -> str:
+        """Extract character name for conversation history formatting"""
+        if character and character.name:
+            return character.name
+        
+        # Fallback to generic name
+        return "AI助手"
+    
+    def _build_conversation_prompt(self, messages: List[ChatMessage], character: Optional[Character] = None) -> List[Dict]:
+        """Build conversation prompt with FULL conversation history"""
+        
+        # Build complete conversation history text
+        conversation_history = ""
+        character_name = self._extract_character_name(character)
+        
+        for message in messages:
+            if message.role == 'user':
+                conversation_history += f"用户: {message.content}\n"
+            elif message.role == 'assistant':
+                conversation_history += f"{character_name}: {message.content}\n"
+        
+        # Create prompt with full conversation context
+        if conversation_history:
+            full_prompt = f"对话历史:\n{conversation_history}\n请以{character_name}的身份回应最后一条消息:"
+        else:
+            # Fallback for empty conversation
+            full_prompt = f"请以{character_name}的身份开始对话:"
+        
+        logger.info(f"💬 Conversation prompt built with {len(messages)} messages for {character_name}")
         
         # Return in Gemini API format
         return [{
             "role": "user",
-            "parts": [{"text": last_user_message}]
+            "parts": [{"text": full_prompt}]
         }]
     
     
