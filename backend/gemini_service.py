@@ -8,6 +8,7 @@ from typing import List, Optional, Dict
 import logging
 import json
 import os
+import importlib
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -34,27 +35,59 @@ class GeminiService:
             logger.warning("No Gemini API key found. Using simulated responses.")
     
     def _get_character_prompt(self, character: Character) -> dict:
-        """Get character prompt configuration for both hardcoded and user-created characters"""
-        # Keep existing hardcoded characters unchanged
-        if character and character.name == "艾莉丝":
-            from prompts.characters.艾莉丝 import PERSONA_PROMPT, FEW_SHOT_EXAMPLES
-            return {
-                "persona_prompt": PERSONA_PROMPT,
-                "few_shot_contents": FEW_SHOT_EXAMPLES
-            }
+        """Get character prompt configuration with unified loading mechanism"""
         
-        # Generate enhanced prompt for user-created characters
+        # Try to load as hardcoded character first
+        hardcoded_prompt = self._load_hardcoded_character(character)
+        if hardcoded_prompt:
+            return hardcoded_prompt
+        
+        # Fallback to dynamic character generation
         elif character:
             from utils.character_prompt_enhancer import CharacterPromptEnhancer
             enhancer = CharacterPromptEnhancer()
             return enhancer.enhance_dynamic_prompt(character)
         
-        # Fallback for no character
+        # No character fallback
         else:
             return {
                 "persona_prompt": "",
                 "few_shot_contents": []
             }
+    
+    def _load_hardcoded_character(self, character: Character) -> Optional[dict]:
+        """Load hardcoded character data if available"""
+        if not character:
+            return None
+        
+        # Registry of hardcoded characters - easy to extend for future characters
+        hardcoded_characters = {
+            "艾莉丝": "prompts.characters.艾莉丝"
+        }
+        
+        module_path = hardcoded_characters.get(character.name)
+        if module_path:
+            try:
+                module = importlib.import_module(module_path)
+                # Validate required attributes exist
+                if hasattr(module, 'PERSONA_PROMPT') and hasattr(module, 'FEW_SHOT_EXAMPLES'):
+                    return {
+                        "persona_prompt": module.PERSONA_PROMPT,
+                        "few_shot_contents": module.FEW_SHOT_EXAMPLES
+                    }
+                else:
+                    logger.error(f"Hardcoded character {character.name} missing required attributes (PERSONA_PROMPT, FEW_SHOT_EXAMPLES)")
+                    return None
+            except (ImportError, AttributeError) as e:
+                logger.error(f"Failed to load hardcoded character {character.name}: {e}")
+                return None
+        
+        return None
+    
+    def _is_hardcoded_character(self, character: Character) -> bool:
+        """Check if character is hardcoded (for logging purposes)"""
+        hardcoded_characters = {"艾莉丝"}  # Keep in sync with registry
+        return character and character.name in hardcoded_characters
     
     async def generate_response(
         self,
@@ -74,7 +107,7 @@ class GeminiService:
             # Log character loading info
             if character:
                 few_shot_count = len(character_prompt.get("few_shot_contents", []))
-                if character.name == "艾莉丝":
+                if self._is_hardcoded_character(character):
                     logger.info(f"🎭 Loading hardcoded character: {character.name} with {few_shot_count} few-shot examples")
                 else:
                     logger.info(f"🎭 Loading user-created character: {character.name} with dynamic prompt (few-shot: {few_shot_count})")
@@ -342,7 +375,7 @@ class GeminiService:
             
             # Log opening line generation info
             if character:
-                if character.name == "艾莉丝":
+                if self._is_hardcoded_character(character):
                     logger.info(f"🚀 Generating opening line for hardcoded character: {character.name}")
                 else:
                     logger.info(f"🚀 Generating opening line for user-created character: {character.name}")
