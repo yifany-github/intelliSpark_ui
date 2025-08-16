@@ -103,6 +103,75 @@ export default {
         'surface': '0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.1)',
         'glow': '0 0 15px rgba(245, 158, 11, 0.15)',
       },
+      // Premium Typography System for Adult Content Platform
+      fontFamily: {
+        'sans': [
+          'Inter Variable',
+          'PingFang SC',
+          'Hiragino Sans GB',
+          'Noto Sans CJK SC',
+          'Source Han Sans SC',
+          'Microsoft YaHei',
+          'SF Pro Display', 
+          '-apple-system', 
+          'BlinkMacSystemFont', 
+          'Segoe UI', 
+          'Roboto', 
+          'Helvetica Neue', 
+          'Arial', 
+          'sans-serif'
+        ],
+        'serif': [
+          'Noto Serif CJK SC',
+          'Source Han Serif SC',
+          'STSong',
+          'SimSun',
+          'Songti SC',
+          'Georgia Pro',
+          'Georgia', 
+          'Times New Roman',
+          'serif'
+        ],
+        'mono': [
+          'SF Mono',
+          'Monaco', 
+          'Inconsolata', 
+          'Roboto Mono', 
+          'monospace'
+        ],
+      },
+      fontSize: {
+        // Display sizes - Premium brand elements
+        'display-2xl': ['4.5rem', { lineHeight: '1.1', letterSpacing: '-0.02em', fontWeight: '800' }],
+        'display-xl': ['3.75rem', { lineHeight: '1.1', letterSpacing: '-0.02em', fontWeight: '800' }],
+        'display-lg': ['3rem', { lineHeight: '1.2', letterSpacing: '-0.01em', fontWeight: '700' }],
+        
+        // Heading sizes - Content hierarchy  
+        'heading-xl': ['2.25rem', { lineHeight: '1.3', letterSpacing: '-0.01em', fontWeight: '700' }],
+        'heading-lg': ['1.875rem', { lineHeight: '1.3', letterSpacing: '-0.005em', fontWeight: '600' }],
+        'heading-md': ['1.5rem', { lineHeight: '1.4', letterSpacing: '0em', fontWeight: '600' }],
+        'heading-sm': ['1.25rem', { lineHeight: '1.4', letterSpacing: '0em', fontWeight: '600' }],
+        'heading-xs': ['1.125rem', { lineHeight: '1.5', letterSpacing: '0em', fontWeight: '600' }],
+        
+        // Body text sizes - Content consumption
+        'body-xl': ['1.125rem', { lineHeight: '1.6', letterSpacing: '0em', fontWeight: '400' }],
+        'body-lg': ['1rem', { lineHeight: '1.6', letterSpacing: '0em', fontWeight: '400' }],
+        'body-md': ['0.875rem', { lineHeight: '1.6', letterSpacing: '0em', fontWeight: '400' }],
+        'body-sm': ['0.75rem', { lineHeight: '1.5', letterSpacing: '0.01em', fontWeight: '400' }],
+        
+        // Caption & metadata
+        'caption-lg': ['0.75rem', { lineHeight: '1.4', letterSpacing: '0.02em', fontWeight: '500' }],
+        'caption-md': ['0.6875rem', { lineHeight: '1.4', letterSpacing: '0.02em', fontWeight: '500' }],
+        'caption-sm': ['0.625rem', { lineHeight: '1.3', letterSpacing: '0.03em', fontWeight: '500' }],
+      },
+      letterSpacing: {
+        'tighter': '-0.02em',
+        'tight': '-0.01em', 
+        'normal': '0em',
+        'wide': '0.01em',
+        'wider': '0.02em',
+        'widest': '0.03em',
+      },
       keyframes: {
         "accordion-down": {
           from: {
