@@ -1,4 +1,4 @@
-import { X, Star, MessageCircle, Heart } from 'lucide-react';
+import { X, Star, MessageCircle, Heart, Crown } from 'lucide-react';
 import { Character } from '@/types';
 import { useLanguage } from '@/contexts/LanguageContext';
 
