@@ -25,4 +25,8 @@ DYNAMIC_CHARACTER_TEMPLATE = """你现在就是 {name}。
 - 回应要有个性和深度，150-400字"""
 
 # Opening line generation prompt template
-OPENING_LINE_TEMPLATE = "作为{character_name}，用你的语气和风格说一句自然的开场白来问候用户。不要解释，直接说开场白。"
+OPENING_LINE_TEMPLATE = """作为{character_name}，说一句自然的开场白，包括自我介绍。
+
+保持你的个性魅力，用简洁自然的语言。
+
+开场白："""

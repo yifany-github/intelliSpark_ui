@@ -9,6 +9,7 @@ import logging
 import json
 import os
 import importlib
+import asyncio
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -20,6 +21,7 @@ class GeminiService:
         self.model_name = "gemini-2.0-flash-001"
         self.client = None
         self.cache = None
+        self._intent_service = None  # Lazy-loaded intent service
         
         if settings.gemini_api_key:
             try:
@@ -95,7 +97,7 @@ class GeminiService:
         messages: List[ChatMessage],
         user_preferences: Optional[dict] = None
     ) -> str:
-        """Generate AI response using Gemini"""
+        """Generate AI response using Gemini with NSFW intent detection"""
         
         if not self.client:
             return self._simulate_response(character, messages), {"tokens_used": 1}
@@ -120,8 +122,11 @@ class GeminiService:
             # Manage conversation length to stay within token limits
             managed_messages = self._manage_conversation_length(messages)
             
-            # Build conversation prompt with full history
-            conversation_prompt = self._build_conversation_prompt(managed_messages, character)
+            # NEW: Detect user intent for enhanced response generation
+            user_intent = await self._detect_user_intent_background(managed_messages)
+            
+            # Build conversation prompt with full history and intent guidance
+            conversation_prompt = self._build_conversation_prompt(managed_messages, character, user_intent)
             
             # If cache creation failed, fall back to direct API call without cache
             if cache is None:
@@ -254,14 +259,15 @@ class GeminiService:
         # Fallback to generic name
         return "AI助手"
     
-    def _build_conversation_prompt(self, messages: List[ChatMessage], character: Optional[Character] = None) -> List[Dict]:
+    def _build_conversation_prompt(self, messages: List[ChatMessage], character: Optional[Character] = None, user_intent: Optional[str] = None) -> List[Dict]:
         """
-        Build conversation prompt with FULL conversation history.
+        Build conversation prompt with FULL conversation history and optional intent guidance.
         
         Uses natural conversation flow without meta-instructions to:
         - Maintain immersion and avoid safety filter triggers
         - Support any character (not hardcoded names)
         - Follow SpicyChat/JuicyChat best practices
+        - Add NSFW intent guidance for better pacing control
         """
         
         character_name = self._extract_character_name(character)
@@ -276,16 +282,25 @@ class GeminiService:
                 # Use dynamic character name for any bot
                 conversation_history += f"{character_name}: {message.content}\n"
         
-        # Create natural conversation prompt (no meta-instructions)
+        # NEW: Add intent guidance if available
+        intent_guidance = ""
+        if user_intent:
+            guidance_text = self._build_intent_guidance(user_intent)
+            intent_guidance = f"[智能指导: {guidance_text}]\n\n"
+        
+        # Create enhanced conversation prompt
         if conversation_history:
             # End with character name to prompt natural continuation
             # This follows SpicyChat/JuicyChat pattern for better NSFW quality
-            full_prompt = f"{conversation_history.rstrip()}\n{character_name}:"
+            full_prompt = f"{intent_guidance}{conversation_history.rstrip()}\n{character_name}:"
         else:
             # For new conversations, just start with character name
-            full_prompt = f"{character_name}:"
+            full_prompt = f"{intent_guidance}{character_name}:"
         
-        logger.info(f"💬 Conversation prompt built: {len(messages)} messages for {character_name}")
+        if user_intent:
+            logger.info(f"💬 Enhanced conversation prompt built: {len(messages)} messages for {character_name} with intent '{user_intent}'")
+        else:
+            logger.info(f"💬 Conversation prompt built: {len(messages)} messages for {character_name}")
         
         # Return in Gemini API format
         return [{
@@ -293,6 +308,53 @@ class GeminiService:
             "parts": [{"text": full_prompt}]
         }]
     
+    @property
+    def intent_service(self):
+        """Lazy-loaded intent service instance (industry standard pattern)"""
+        if self._intent_service is None:
+            from services.nsfw_intent_service import NSFWIntentService
+            self._intent_service = NSFWIntentService()
+            logger.info("🎯 NSFWIntentService initialized for this conversation")
+        return self._intent_service
+
+    async def _detect_user_intent_background(self, messages: List[ChatMessage]) -> Optional[str]:
+        """
+        Detect user intent in background for enhanced response generation
+        
+        Args:
+            messages: Recent conversation messages
+            
+        Returns:
+            Detected intent or None if detection fails
+        """
+        try:
+            # Use the shared intent service instance (efficient pattern)
+            user_intent = await self.intent_service.detect_user_intent(messages)
+            return user_intent
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Intent detection failed: {e}")
+            return None  # Graceful fallback - conversation continues without intent guidance
+    
+    def _build_intent_guidance(self, user_intent: str) -> str:
+        """
+        Build response guidance based on detected user intent
+        
+        Args:
+            user_intent: Detected intent category
+            
+        Returns:
+            Guidance text for enhanced response generation
+        """
+        
+        # Use the centralized guidance from the intent service
+        if hasattr(self, '_intent_service') and self._intent_service:
+            return self._intent_service.build_intent_guidance(user_intent)
+        else:
+            # Fallback if intent service not available
+            from services.nsfw_intent_service import NSFWIntentService
+            temp_service = NSFWIntentService()
+            return temp_service.build_intent_guidance(user_intent)
     
     def _simulate_response(
         self,
