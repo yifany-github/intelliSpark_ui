@@ -313,7 +313,8 @@ class GeminiService:
         """Lazy-loaded intent service instance (industry standard pattern)"""
         if self._intent_service is None:
             from services.nsfw_intent_service import NSFWIntentService
-            self._intent_service = NSFWIntentService()
+            # Share the Gemini client to avoid duplication
+            self._intent_service = NSFWIntentService(gemini_client=self.client)
             logger.info("🎯 NSFWIntentService initialized for this conversation")
         return self._intent_service
 

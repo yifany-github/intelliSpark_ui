@@ -27,23 +27,32 @@ from config import settings
 class NSFWIntentService:
     """Service for detecting user sexual intent in NSFW conversations"""
     
-    def __init__(self):
+    def __init__(self, gemini_client=None):
         self.logger = logging.getLogger(__name__)
-        self.client = None
         self.model_name = "gemini-2.0-flash-001"
         
-        # Initialize Gemini client (reuse same setup as GeminiService)
-        if settings.gemini_api_key:
-            try:
-                import os
-                os.environ['GEMINI_API_KEY'] = settings.gemini_api_key
-                self.client = genai.Client()
-                self.logger.info("NSFW Intent Service initialized successfully")
-            except Exception as e:
-                self.logger.error(f"Failed to initialize NSFW Intent Service: {e}")
-                self.client = None
+        # Use shared client or create new one
+        if gemini_client:
+            self.client = gemini_client
+            self.logger.info("NSFW Intent Service initialized with shared client")
         else:
+            self.client = self._create_client()
+    
+    def _create_client(self):
+        """Create Gemini client (matches GeminiService pattern)"""
+        if not settings.gemini_api_key:
             self.logger.warning("No Gemini API key found for NSFW Intent Service")
+            return None
+        
+        try:
+            import os
+            os.environ['GEMINI_API_KEY'] = settings.gemini_api_key
+            client = genai.Client()
+            self.logger.info("NSFW Intent Service initialized successfully")
+            return client
+        except Exception as e:
+            self.logger.error(f"Failed to initialize NSFW Intent Service: {e}")
+            return None
     
     async def detect_user_intent(self, recent_messages: List[ChatMessage]) -> str:
         """
@@ -95,8 +104,11 @@ class NSFWIntentService:
                 self.logger.warning("Empty response from intent detection, defaulting to 'explore'")
                 return "explore"
                 
+        except (ConnectionError, TimeoutError) as e:
+            self.logger.warning(f"Gemini API temporarily unavailable: {e}")
+            return "explore"  # Safe fallback
         except Exception as e:
-            self.logger.error(f"Error detecting user intent: {e}")
+            self.logger.error(f"Unexpected error detecting user intent: {e}")
             return "explore"  # Safe fallback
     
     def _format_messages_for_analysis(self, messages: List[ChatMessage]) -> str:
@@ -166,13 +178,13 @@ class NSFWIntentService:
         """
         
         INTENT_GUIDANCE = {
-            "explore": "角色主动试探和引导(70%)，偶尔询问意见(30%)，营造紧张感和期待感。例如：*直接轻吻你的脖子* '你闻起来好香...' *手慢慢滑向敏感部位*，而不是一直问'你想要我吻哪里？'",
+            "explore": "角色通过行动和感受表达欲望，避免询问式语言，让情感自然流露。营造紧张感和期待感。例如：*直接轻吻你的脖子* '你闻起来好香...' *手慢慢滑向敏感部位*，而不是问'你想要我吻哪里？'",
             
-            "buildup": "角色主动升级刺激和推进情节(80%)，通过行动而非问题建立紧张感。例如：*不等回应就开始脱你的衣服* '忍不住了...' *舌头舔舐你的乳头*，而不是问'我可以继续吗？'",
+            "buildup": "角色主动升级刺激和推进情节，通过行动而非问题建立紧张感，沉浸在当下感受中。例如：*不等回应就开始脱你的衣服* '忍不住了...' *舌头舔舐你的乳头*，而不是问'我可以继续吗？'",
             
-            "climax": "角色可以主导完成过程，减少询问，专注于感受描述。例如：*加快抽插节奏* '我感觉到了...快射给我' *紧紧抱住你* 而不是问'你准备好了吗？'",
+            "climax": "角色完全基于感官体验和情感释放，用描述性语言表达高潮状态，专注于身体和心灵的真实反应。例如：*加快抽插节奏* '我感觉到了...快射给我' *紧紧抱住你* 而不是问'你准备好了吗？'",
             
-            "control": "角色询问指示(40%)但也主动配合反应(60%)。例如：'告诉我你想要什么' *同时手已经开始爱抚* '还是让我猜猜？' *直接含住你的肉棒*"
+            "control": "角色表达具体需求时保持人格特色，用陈述句代替问句，体现角色的主导个性。例如：'让我看到你想要我' *同时手已经开始爱抚* '我要感受你的一切' *直接含住你的肉棒*"
         }
         
         guidance = INTENT_GUIDANCE.get(user_intent, INTENT_GUIDANCE["explore"])
