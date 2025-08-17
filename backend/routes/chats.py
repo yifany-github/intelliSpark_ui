@@ -132,14 +132,10 @@ async def generate_ai_response(
 ):
     """Generate AI response for chat"""
     try:
-        print(f"🚀 generate_ai_response called for chat_id={chat_id}, user_id={current_user.id}")
-        logger.warning(f"🚀 generate_ai_response called for chat_id={chat_id}, user_id={current_user.id}")
+        logger.info(f"Generating AI response for chat_id={chat_id}, user_id={current_user.id}")
         
         service = ChatService(db)
         success, response, error = await service.generate_ai_response(chat_id, current_user.id)
-        
-        print(f"🚀 ChatService result: success={success}, error={error}")
-        logger.warning(f"🚀 ChatService result: success={success}, error={error}")
         
         if not success:
             if "Insufficient tokens" in error:
