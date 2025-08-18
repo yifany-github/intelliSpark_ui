@@ -4,6 +4,7 @@ from config import settings
 from models import Character, ChatMessage
 from prompts.system import SYSTEM_PROMPT
 from prompts.character_templates import DYNAMIC_CHARACTER_TEMPLATE, OPENING_LINE_TEMPLATE
+from cache_components import SystemInstructionBuilder, ContentFormatConverter, CacheManager
 from typing import List, Optional, Dict
 import logging
 import json
@@ -183,49 +184,53 @@ class GeminiService:
             return self._simulate_response(character, messages), {"tokens_used": 1}
     
     async def _create_or_get_cache(self, character_prompt: dict):
-        """Create or get cached content for character context"""
-        try:
-            # Prepare system instruction combining general system prompt and persona
-            system_instruction = f"system_prompt: {SYSTEM_PROMPT}\n"
-            if character_prompt.get("persona_prompt"):
-                system_instruction += f"persona prompt: {character_prompt['persona_prompt']}"
+        """
+        Create or get cached content using separated responsibilities.
+        
+        This method orchestrates the cache creation process using focused components:
+        - SystemInstructionBuilder: Handles prompt formatting
+        - ContentFormatConverter: Handles format conversion
+        - CacheManager: Handles cache creation and management
+        
+        Args:
+            character_prompt: Dictionary containing persona_prompt and few_shot_contents
             
-            # Get few-shot examples - they should already be in proper Gemini API format
-            few_shot_examples = character_prompt.get("few_shot_contents", [])
-            
-            # Check if examples are already in Gemini format or need conversion
-            few_shot_contents = []
-            for example in few_shot_examples:
-                if "parts" in example:
-                    # Already in Gemini format (like 艾莉丝)
-                    few_shot_contents.append(example)
-                else:
-                    # Need conversion (like user-created characters)
-                    few_shot_contents.append({
-                        "role": example.get("role", "user"),
-                        "parts": [{"text": example.get("content", "")}]
-                    })
-            
-            if few_shot_contents:
-                logger.info(f"✅ Cache creation: {len(few_shot_contents)} few-shot examples")
-            else:
-                logger.warning("⚠️ Cache creation: No few-shot contents available")
-            
-            self.cache = self.client.caches.create(
-                model=self.model_name,
-                config=types.CreateCachedContentConfig(
-                    system_instruction=system_instruction,
-                    contents=few_shot_contents
-                )
-            )
-            
-            logger.info(f"🎯 Cache created successfully: {self.cache.name}")
-            return self.cache
-            
-        except Exception as e:
-            logger.warning(f"⚠️ Cache creation failed (likely due to minimum token requirement): {e}")
-            # Return None to indicate no cache should be used
+        Returns:
+            Cache object if successful, None if failed
+        """
+        # Initialize components with their specific responsibilities
+        instruction_builder = SystemInstructionBuilder(SYSTEM_PROMPT)
+        format_converter = ContentFormatConverter()
+        cache_manager = CacheManager(self.client, self.model_name, logger)
+        
+        # Validate inputs using dedicated validation
+        if not instruction_builder.validate_character_prompt(character_prompt):
+            logger.error("Invalid character prompt format")
             return None
+        
+        # Build system instruction using dedicated builder
+        system_instruction = instruction_builder.build_instruction(character_prompt)
+        
+        # Extract and validate few-shot examples
+        few_shot_examples = character_prompt.get("few_shot_contents", [])
+        if not format_converter.validate_examples(few_shot_examples):
+            logger.error("Invalid few-shot examples format")
+            return None
+        
+        # Convert content format using dedicated converter
+        few_shot_contents = format_converter.convert_to_gemini_format(few_shot_examples)
+        
+        # Validate cache inputs before creation
+        if not cache_manager.validate_cache_inputs(system_instruction, few_shot_contents):
+            logger.error("Invalid cache creation inputs")
+            return None
+        
+        # Create cache using dedicated manager
+        cache = await cache_manager.create_cache(system_instruction, few_shot_contents)
+        
+        # Store cache reference and return
+        self.cache = cache
+        return cache
     
     def _manage_conversation_length(self, messages: List[ChatMessage], max_messages: int = 20) -> List[ChatMessage]:
         """
