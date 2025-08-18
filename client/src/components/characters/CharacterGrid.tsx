@@ -176,6 +176,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
           {t('discoverAICharacters')}
         </div>
         
+        
         {/* Tabs */}
         <div className="flex space-x-6 mb-6">
           {tabs.map(tab => (
