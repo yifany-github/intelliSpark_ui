@@ -9,6 +9,8 @@ import { useNavigation } from '@/contexts/NavigationContext';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { CharacterAdultDisclaimer } from '../common/AdultDisclaimer';
+import { DiscreteMode } from '../privacy/DiscreteMode';
 
 const filterKeys = ['popular', 'recent', 'trending', 'new', 'following', 'editorChoice'] as const;
 const categoryKeys = ['all', 'anime', 'game', 'movie', 'book', 'original', 'fantasy', 'sciFi', 'romance', 'action'] as const;
@@ -176,6 +178,9 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
           {t('discoverAICharacters')}
         </div>
         
+        {/* Adult Platform Disclaimer */}
+        <CharacterAdultDisclaimer />
+        
         {/* Tabs */}
         <div className="flex space-x-6 mb-6">
           {tabs.map(tab => (
@@ -231,24 +236,40 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
               </select>
             </div>
             
-            <div className="flex items-center space-x-3 bg-surface-secondary p-3 rounded-lg border border-surface-border">
-              <Shield className="w-4 h-4 text-brand-secondary" />
-              <span className="text-sm font-medium text-content-primary">Adult Content Control</span>
-              <button
-                onClick={() => setNsfwEnabled(!nsfwEnabled)}
-                className={`relative w-12 h-6 rounded-full transition-all duration-300 ${
-                  nsfwEnabled 
-                    ? 'bg-brand-secondary shadow-glow' 
-                    : 'bg-surface-tertiary hover:bg-zinc-500'
-                }`}
-              >
-                <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-all duration-300 flex items-center justify-center ${
-                  nsfwEnabled ? 'translate-x-6 shadow-md' : 'translate-x-0'
-                }`}>
-                  <Crown className="w-3 h-3 text-brand-secondary" />
+            {/* Adult Platform Controls */}
+            <div className="bg-gradient-to-r from-red-950/30 to-pink-950/30 border border-red-500/30 rounded-xl p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center space-x-3">
+                  <div className="w-8 h-8 bg-red-500/20 rounded-full flex items-center justify-center">
+                    <Crown className="w-4 h-4 text-red-400" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-red-200 text-sm">Adult Content</p>
+                    <p className="text-xs text-red-300/80">18+ characters and interactions</p>
+                  </div>
                 </div>
-              </button>
+                <button
+                  onClick={() => setNsfwEnabled(!nsfwEnabled)}
+                  className={`px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
+                    nsfwEnabled
+                      ? 'bg-red-500 text-white shadow-lg hover:bg-red-600'
+                      : 'bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30'
+                  }`}
+                >
+                  {nsfwEnabled ? 'Enabled' : 'Enable'}
+                </button>
+              </div>
+              
+              {nsfwEnabled && (
+                <div className="flex items-center space-x-2 text-xs text-red-300/80">
+                  <Shield className="w-3 h-3" />
+                  <span>Adult content enabled - showing 18+ characters</span>
+                </div>
+              )}
             </div>
+            
+            {/* Privacy Controls */}
+            <DiscreteMode />
           </div>
         </div>
 
