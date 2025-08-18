@@ -36,8 +36,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
-import { DiscreteMode } from "@/components/privacy/DiscreteMode";
-import { AdultDisclaimer } from "@/components/common/AdultDisclaimer";
 
 const SettingsPage = () => {
   const { 
@@ -215,13 +213,7 @@ const SettingsPage = () => {
             <h3 className="font-semibold text-lg text-white">{t('dataPrivacy')}</h3>
           </div>
           
-          {/* Adult Platform Notice */}
-          <AdultDisclaimer variant="legal" className="mb-4" />
-          
-          {/* Privacy Controls */}
-          <DiscreteMode />
-          
-          <div className="space-y-3 mt-6">
+          <div className="space-y-3">
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <button 
