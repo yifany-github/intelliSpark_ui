@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Cache Test</title>
+</head>
+<body>
+    <h1>Image Cache Test</h1>
+    <p>This page will help debug the image caching issue.</p>
+    
+    <h2>Direct Image URLs:</h2>
+    <p>Image from backend (port 8000):</p>
+    <img src="http://localhost:8000/assets/characters_img/Elara.jpeg" style="max-width: 200px; border: 2px solid red;" alt="Backend Image">
+    
+    <p>Image from frontend dev server (port 5173):</p>
+    <img src="http://localhost:5173/assets/characters_img/Elara.jpeg" style="max-width: 200px; border: 2px solid blue;" alt="Frontend Image">
+    
+    <p>Image with cache-busting parameter:</p>
+    <img src="http://localhost:5173/assets/characters_img/Elara.jpeg?v=123456" style="max-width: 200px; border: 2px solid green;" alt="Cache-busted Image">
+    
+    <h2>File Info:</h2>
+    <p>File last modified: Mon, 18 Aug 2025 22:36:29 GMT</p>
+    <p>File size: 152,628 bytes</p>
+    
+    <button onclick="location.reload(true)">Hard Refresh Page</button>
+    <button onclick="window.open('http://localhost:5173/assets/characters_img/Elara.jpeg?v=' + Date.now())">Open Image in New Tab</button>
+</body>
+</html>

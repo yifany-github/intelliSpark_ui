@@ -20,6 +20,7 @@ import ChatPreviewPage from "@/pages/chat-preview";
 import ChatPage from "@/pages/chat";
 import PaymentPage from "@/pages/payment";
 import NotificationsPage from "@/pages/notifications";
+import FAQPage from "@/pages/faq";
 import AuthModal from "@/components/auth/AuthModal";
 import TabNavigation from "@/components/layout/TabNavigation";
 import { RolePlayProvider, useRolePlay } from "@/contexts/RolePlayContext";
@@ -120,6 +121,7 @@ function MainApp() {
             <Switch>
               <Route path="/" component={CharactersPage} />
               <Route path="/characters" component={CharactersPage} />
+              <Route path="/faq" component={FAQPage} />
               <Route path="/favorites" component={FavoritesPage} />
               <Route path="/discover" component={DiscoverPage} />
               <Route path="/create-character">
