@@ -314,10 +314,10 @@ const FAQPage = () => {
         {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-4">
-            <HelpCircle className="w-8 h-8 text-blue-600" />
-            <h1 className="text-3xl font-bold text-gray-900">Frequently Asked Questions</h1>
+            <HelpCircle className="w-8 h-8 text-primary" />
+            <h1 className="text-3xl font-bold">Frequently Asked Questions</h1>
           </div>
-          <p className="text-gray-600 max-w-2xl mx-auto">
+          <p className="text-muted-foreground max-w-2xl mx-auto">
             Find answers to common questions about our AI roleplay chat application. 
             Can't find what you're looking for? Contact our support team.
           </p>
@@ -336,7 +336,7 @@ const FAQPage = () => {
             />
           </div>
           {searchQuery && (
-            <p className="text-center text-sm text-gray-600 mt-2">
+            <p className="text-center text-sm text-muted-foreground mt-2">
               Found {filteredData.reduce((acc, cat) => acc + cat.items.length, 0)} results
             </p>
           )}
@@ -353,10 +353,10 @@ const FAQPage = () => {
                   <Button
                     key={category.id}
                     variant="outline"
-                    className="h-auto p-3 flex flex-col items-center gap-2 hover:bg-blue-50"
+                    className="h-auto p-3 flex flex-col items-center gap-2 hover:bg-primary/10 hover:border-primary/30 transition-colors"
                     onClick={() => handleCategoryClick(category.id)}
                   >
-                    <Icon className="w-5 h-5 text-blue-600" />
+                    <Icon className="w-5 h-5 text-primary" />
                     <span className="text-xs font-medium text-center">{category.title}</span>
                   </Button>
                 );
@@ -369,36 +369,36 @@ const FAQPage = () => {
         <div className="space-y-6">
           {filteredData.map((category) => (
             <Card key={category.id} id={category.id} className="overflow-hidden">
-              <CardHeader className="bg-gray-50">
+              <CardHeader className="bg-gradient-to-r from-primary/10 to-accent/10 border-b border-border">
                 <CardTitle className="flex items-center gap-2">
-                  <category.icon className="w-5 h-5 text-blue-600" />
+                  <category.icon className="w-5 h-5 text-primary" />
                   {category.title}
                   <Badge variant="secondary">{category.items.length}</Badge>
                 </CardTitle>
-                <p className="text-sm text-gray-600">{category.description}</p>
+                <p className="text-sm text-muted-foreground">{category.description}</p>
               </CardHeader>
               <CardContent className="p-0">
                 <Accordion type="single" collapsible className="w-full">
                   {category.items.map((item) => (
                     <AccordionItem key={item.id} value={item.id} className="border-b last:border-b-0">
-                      <AccordionTrigger className="px-6 py-4 text-left hover:bg-gray-50">
+                      <AccordionTrigger className="px-6 py-4 text-left hover:bg-accent/10 transition-colors">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{item.question}</span>
                         </div>
                       </AccordionTrigger>
                       <AccordionContent className="px-6 pb-4">
-                        <div className="prose prose-sm max-w-none text-gray-700">
+                        <div className="prose prose-sm max-w-none text-muted-foreground">
                           <p>{item.answer}</p>
                         </div>
                         
                         {/* Feedback Section */}
-                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
                             <span>Was this helpful?</span>
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-8 px-2"
+                              className="h-8 px-2 hover:bg-green-500/20 hover:text-green-400"
                               onClick={() => handleFeedback(item.id, true)}
                             >
                               <ThumbsUp className="w-4 h-4" />
@@ -406,7 +406,7 @@ const FAQPage = () => {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-8 px-2"
+                              className="h-8 px-2 hover:bg-red-500/20 hover:text-red-400"
                               onClick={() => handleFeedback(item.id, false)}
                             >
                               <ThumbsDown className="w-4 h-4" />
@@ -415,7 +415,7 @@ const FAQPage = () => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="h-8 px-2"
+                            className="h-8 px-2 hover:bg-primary/20 hover:text-primary"
                             onClick={() => copyLinkToClipboard(item.id)}
                           >
                             <Hash className="w-4 h-4" />
@@ -433,12 +433,15 @@ const FAQPage = () => {
         {/* No Results */}
         {filteredData.length === 0 && searchQuery && (
           <div className="text-center py-12">
-            <HelpCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
-            <p className="text-gray-600 mb-4">
+            <HelpCircle className="w-16 h-16 text-muted-foreground/50 mx-auto mb-4" />
+            <h3 className="text-lg font-medium mb-2">No results found</h3>
+            <p className="text-muted-foreground mb-4">
               We couldn't find any FAQ items matching "{searchQuery}"
             </p>
-            <Button variant="outline" onClick={() => setSearchQuery("")}>
+            <Button 
+              variant="outline" 
+              onClick={() => setSearchQuery("")}
+            >
               Clear Search
             </Button>
           </div>
@@ -448,12 +451,12 @@ const FAQPage = () => {
         <div className="mt-12 text-center">
           <Separator className="mb-6" />
           <h3 className="text-lg font-semibold mb-2">Still need help?</h3>
-          <p className="text-gray-600 mb-4">
+          <p className="text-muted-foreground mb-4">
             Can't find the answer you're looking for? Our support team is here to help.
           </p>
           <Button 
             onClick={() => window.open('mailto:support@productinsightai.com', '_blank')}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 shadow-md hover:shadow-lg transition-all"
           >
             Contact Support
           </Button>
