@@ -16,7 +16,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 
 const DiscoverSection = () => {
   const { navigateToPath } = useNavigation();
-  const { setSelectedCharacter, nsfwLevel } = useRolePlay();
+  const { setSelectedCharacter } = useRolePlay();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const { t } = useLanguage();
   const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
@@ -94,13 +94,12 @@ const DiscoverSection = () => {
     recommendationEngine.getRecommendations({
       favorites,
       userPreferences: {
-        nsfwLevel,
         preferredTraits: favorites.length > 0 ? 
           characters.filter(c => favorites.includes(c.id)).flatMap(c => c.traits) : 
           []
       }
     }, 3), 
-    [recommendationEngine, favorites, nsfwLevel, characters]
+    [recommendationEngine, favorites, characters]
   );
   
   const featuredCharacters = useMemo(() => recommendationEngine.getFeatured(2), [recommendationEngine]);

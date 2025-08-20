@@ -4,7 +4,6 @@ export interface RecommendationOptions {
   favorites: number[];
   userPreferences?: {
     preferredTraits?: string[];
-    nsfwLevel?: number;
   };
   chatHistory?: {
     characterId: number;

@@ -15,7 +15,6 @@ class UserBase(BaseSchema):
     username: str
     email: Optional[str] = None
     provider: str = 'email'
-    nsfw_level: int = 1
     memory_enabled: bool = True
 
 class UserCreate(BaseSchema):
