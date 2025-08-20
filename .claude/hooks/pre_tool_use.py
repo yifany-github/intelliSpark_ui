@@ -40,9 +40,6 @@ def main():
         if tool_name in skip_tools:
             sys.exit(0)
         
-        # Debug: print when hook is triggered
-        print(f"🔔 PreToolUse hook triggered for tool: {tool_name}")
-        
         # Play a quick notification sound
         play_notification_sound()
         

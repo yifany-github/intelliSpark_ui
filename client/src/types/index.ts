@@ -4,7 +4,6 @@ export interface User {
   id: number;
   username: string;
   email?: string;
-  nsfw_level: number;
   memory_enabled: boolean;
   created_at: string;
 }

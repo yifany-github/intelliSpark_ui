@@ -75,9 +75,6 @@ interface Character {
 interface User {
   id: number;
   username: string;
-  nsfw_level: number;
-  context_window_length: number;
-  temperature: number;
   memory_enabled: boolean;
   created_at: string;
   total_chats: number;
@@ -741,18 +738,6 @@ const AdminPage = () => {
                         <span className="text-sm text-gray-600">Total Chats:</span>
                         <Badge variant="outline" className="bg-blue-50 text-blue-700">
                           {user.total_chats}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">NSFW Level:</span>
-                        <Badge variant="outline" className="bg-orange-50 text-orange-700">
-                          {user.nsfw_level}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Temperature:</span>
-                        <Badge variant="outline" className="bg-green-50 text-green-700">
-                          {user.temperature}%
                         </Badge>
                       </div>
                       <div className="flex justify-between items-center">
