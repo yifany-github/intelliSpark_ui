@@ -2,6 +2,7 @@ import { CheckCircle, ArrowRight, Eye, Heart } from 'lucide-react';
 import { Character } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 interface CharacterCreationSuccessProps {
   character: Character;
@@ -18,6 +19,40 @@ export default function CharacterCreationSuccess({
   onCreateAnother,
   onGoToCharacters
 }: CharacterCreationSuccessProps) {
+  const { t } = useLanguage();
+
+  // Validate callback functions to prevent runtime errors
+  const handleStartChat = () => {
+    try {
+      onStartChat?.();
+    } catch (error) {
+      console.error('Error starting chat:', error);
+    }
+  };
+
+  const handleViewCharacter = () => {
+    try {
+      onViewCharacter?.();
+    } catch (error) {
+      console.error('Error viewing character:', error);
+    }
+  };
+
+  const handleCreateAnother = () => {
+    try {
+      onCreateAnother?.();
+    } catch (error) {
+      console.error('Error creating another character:', error);
+    }
+  };
+
+  const handleGoToCharacters = () => {
+    try {
+      onGoToCharacters?.();
+    } catch (error) {
+      console.error('Error navigating to characters:', error);
+    }
+  };
   return (
     <div className="max-w-2xl mx-auto p-6">
       <Card className="text-center">
@@ -25,9 +60,9 @@ export default function CharacterCreationSuccess({
           <div className="flex justify-center mb-4">
             <CheckCircle className="w-16 h-16 text-green-500" />
           </div>
-          <CardTitle className="text-2xl">Character Created Successfully!</CardTitle>
+          <CardTitle className="text-2xl">{t('characterCreatedSuccessfully')}</CardTitle>
           <CardDescription>
-            {character.name} has been created and is ready for conversations
+            {character.name} {t('characterReadyForConversations')}
           </CardDescription>
         </CardHeader>
         
@@ -61,44 +96,44 @@ export default function CharacterCreationSuccess({
           {/* Action Buttons */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Button
-              onClick={onStartChat}
+              onClick={handleStartChat}
               className="flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700"
             >
               <ArrowRight className="w-4 h-4" />
-              <span>Start Chatting</span>
+              <span>{t('startChatting')}</span>
             </Button>
             
             <Button
-              onClick={onViewCharacter}
+              onClick={handleViewCharacter}
               variant="outline"
               className="flex items-center justify-center space-x-2"
             >
               <Eye className="w-4 h-4" />
-              <span>View Character</span>
+              <span>{t('viewCharacter')}</span>
             </Button>
             
             <Button
-              onClick={onCreateAnother}
+              onClick={handleCreateAnother}
               variant="outline"
               className="flex items-center justify-center space-x-2"
             >
               <Heart className="w-4 h-4" />
-              <span>Create Another</span>
+              <span>{t('createAnother')}</span>
             </Button>
             
             <Button
-              onClick={onGoToCharacters}
+              onClick={handleGoToCharacters}
               variant="secondary"
               className="flex items-center justify-center space-x-2"
             >
-              <span>Browse Characters</span>
+              <span>{t('browseCharacters')}</span>
             </Button>
           </div>
 
           {/* Next Steps */}
           <div className="text-sm text-gray-400 space-y-2">
-            <p>🎉 Your character is now live and ready for conversations!</p>
-            <p>💡 Tip: You can always edit your character's details later from your profile.</p>
+            <p>{t('characterNowLive')}</p>
+            <p>{t('editCharacterTip')}</p>
           </div>
         </CardContent>
       </Card>

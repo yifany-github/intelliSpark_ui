@@ -39,7 +39,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
         "/api/chats",
         {
           characterId,
-          title: `Chat with Character`
+          title: t('chatWithCharacter')
         }
       );
       return response.json();
@@ -234,7 +234,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
             
             <div className="flex items-center space-x-3 bg-surface-secondary p-3 rounded-lg border border-surface-border">
               <Shield className="w-4 h-4 text-brand-secondary" />
-              <span className="text-sm font-medium text-content-primary">Adult Content Control</span>
+              <span className="text-sm font-medium text-content-primary">{t('adultContentControl')}</span>
               <button
                 onClick={() => setNsfwEnabled(!nsfwEnabled)}
                 className={`relative w-12 h-6 rounded-full transition-all duration-300 ${
@@ -299,8 +299,8 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       ) : error ? (
         <div className="text-center py-16">
           <div className="text-6xl mb-4">⚠️</div>
-          <h3 className="text-xl font-semibold mb-2">Unable to load characters</h3>
-          <p className="text-gray-400">Please check your connection and try again</p>
+          <h3 className="text-xl font-semibold mb-2">{t('unableToLoadCharacters')}</h3>
+          <p className="text-gray-400">{t('checkConnectionRetry')}</p>
         </div>
       ) : sortedCharacters.length === 0 ? (
         <div className="text-center py-16">
@@ -440,7 +440,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                     >
                       <div className="flex items-center justify-center space-x-2">
                         <MessageCircle className="w-4 h-4" />
-                        <span>Start Premium Chat</span>
+                        <span>{t('startPremiumChat')}</span>
                       </div>
                     </button>
                     
@@ -457,13 +457,13 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                         aria-label={`Preview ${character.name}`}
                         className="flex-1 py-2 px-3 bg-surface-secondary/90 backdrop-blur-sm hover:bg-surface-tertiary text-content-primary rounded-lg font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-zinc-900"
                       >
-                        Preview
+{t('preview')}
                       </button>
                       <button 
                         aria-label={`View details for ${character.name}`}
                         className="flex-1 py-2 px-3 bg-surface-secondary/90 backdrop-blur-sm hover:bg-surface-tertiary text-content-primary rounded-lg font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-zinc-900"
                       >
-                        Details
+{t('details')}
                       </button>
                     </div>
                   </div>
@@ -477,7 +477,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   </h3>
                   <div className="flex items-center space-x-1">
                     <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                    <span className="text-xs text-content-tertiary font-medium">Available</span>
+                    <span className="text-xs text-content-tertiary font-medium">{t('available')}</span>
                   </div>
                 </div>
                 
@@ -485,7 +485,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2">
                     <Mic className="w-3 h-3 text-brand-secondary" />
-                    <span className="text-xs text-content-secondary font-medium truncate">{character.voiceStyle || 'Default Voice'}</span>
+                    <span className="text-xs text-content-secondary font-medium truncate">{character.voiceStyle || t('defaultVoice')}</span>
                   </div>
                   <p className="text-xs text-content-tertiary line-clamp-2 leading-relaxed">
                     {character.description || character.backstory}
@@ -547,7 +547,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 {isFavorite(character.id) && (
                   <div className="flex items-center space-x-1">
                     <Star className="w-3 h-3 text-brand-secondary fill-current" />
-                    <span className="text-xs text-content-secondary font-medium">Favorited</span>
+                    <span className="text-xs text-content-secondary font-medium">{t('favorited')}</span>
                   </div>
                 )}
               </div>

@@ -4,6 +4,7 @@ import { Character } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useNavigation } from '@/contexts/NavigationContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import GlobalLayout from '@/components/layout/GlobalLayout';
@@ -39,6 +40,7 @@ const ImprovedCreateCharacterPage = () => {
   const { user, isAuthenticated } = useAuth();
   const { setSelectedCharacter, startChat } = useRolePlay();
   const { navigateToLogin, navigateToPath } = useNavigation();
+  const { t } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -87,8 +89,8 @@ const ImprovedCreateCharacterPage = () => {
       setCurrentStep(CreationStep.SUCCESS);
       
       toast({
-        title: 'Character created successfully!',
-        description: `${character.name} has been saved and is now available to all users.`
+        title: t('characterCreatedSuccessfully'),
+        description: `${character.name} ${t('characterSavedAvailable')}`
       });
       
       // Invalidate queries to refresh character lists
@@ -96,7 +98,7 @@ const ImprovedCreateCharacterPage = () => {
     },
     onError: (error: Error) => {
       toast({
-        title: 'Failed to create character',
+        title: t('failedToCreateCharacter'),
         description: error.message,
         variant: 'destructive'
       });
@@ -107,8 +109,8 @@ const ImprovedCreateCharacterPage = () => {
   const handleCreateCharacter = async (characterData: CharacterFormData) => {
     if (!isAuthenticated) {
       toast({
-        title: 'Authentication required',
-        description: 'Please log in to create a character',
+        title: t('authenticationRequired'),
+        description: t('pleaseLoginToCreate'),
         variant: 'destructive'
       });
       navigateToLogin(); // Redirect to login if needed
@@ -126,8 +128,8 @@ const ImprovedCreateCharacterPage = () => {
         navigateToPath(`/chat/${chatId}`);
       } catch (error) {
         toast({
-          title: 'Failed to start chat',
-          description: 'Please try again',
+          title: t('failedToStartChat'),
+          description: t('pleaseRetry'),
           variant: 'destructive'
         });
       }
@@ -163,8 +165,8 @@ const ImprovedCreateCharacterPage = () => {
         return (
           <div className="w-full">
             <div className="mb-8">
-              <h1 className="text-3xl font-bold mb-3">Create Your Character</h1>
-              <p className="text-muted-foreground text-lg">Fill in the details to bring your character to life</p>
+              <h1 className="text-3xl font-bold mb-3">{t('createYourCharacter')}</h1>
+              <p className="text-muted-foreground text-lg">{t('fillDetailsCharacterLife')}</p>
             </div>
             <CharacterCreationForm
               initialData={formData}
@@ -209,6 +211,7 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
   onCancel: () => void;
   isLoading: boolean;
 }) => {
+  const { t } = useLanguage();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState<CharacterFormData>(initialData);
@@ -222,8 +225,8 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
     const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
       toast({
-        title: 'File too large',
-        description: 'Please choose an image under 5MB',
+        title: t('fileTooLarge'),
+        description: t('selectSmallerImage'),
         variant: 'destructive'
       });
       return;
@@ -232,8 +235,8 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!allowedTypes.includes(file.type)) {
       toast({
-        title: 'Invalid file type',
-        description: 'Please choose a JPEG, PNG, WebP, or GIF image',
+        title: t('invalidFileType'),
+        description: t('chooseValidImageFormat'),
         variant: 'destructive'
       });
       return;
@@ -244,13 +247,22 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
       uploadFormData.append('file', file);
       
       const response = await apiRequest('POST', '/api/characters/upload-avatar', uploadFormData);
+      
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+      }
+      
       const result = await response.json();
+      
+      if (!result.avatarUrl) {
+        throw new Error('No avatar URL returned from server');
+      }
       
       setFormData(prev => ({ ...prev, avatar: result.avatarUrl }));
       
       toast({
-        title: 'Image uploaded successfully',
-        description: 'Your character image has been saved'
+        title: t('uploadedSuccessfully'),
+        description: t('characterImageSaved')
       });
     } catch (error) {
       // Reset file input on error to prevent confusion
@@ -258,9 +270,12 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
         fileInputRef.current.value = '';
       }
       
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Avatar upload failed:', errorMessage);
+      
       toast({
-        title: 'Upload failed',
-        description: 'Please try again with a different image',
+        title: t('uploadFailed'),
+        description: t('tryDifferentImage'),
         variant: 'destructive'
       });
       
@@ -296,62 +311,62 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
       <form onSubmit={handleSubmit} className="space-y-8">
         {/* Basic Information */}
         <div className="bg-card/50 rounded-lg p-6 space-y-6">
-          <h3 className="text-xl font-semibold border-b border-border pb-3">Basic Information</h3>
+          <h3 className="text-xl font-semibold border-b border-border pb-3">{t('basicInfo')}</h3>
           
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <Label htmlFor="name" className="text-sm font-medium">Character Name</Label>
+              <Label htmlFor="name" className="text-sm font-medium">{t('characterName')}</Label>
               <Input
                 id="name"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter character name"
+                placeholder={t('enterCharacterName')}
                 required
               />
             </div>
             
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Gender</Label>
+              <Label className="text-sm font-medium">{t('gender')}</Label>
               <Select value={formData.gender} onValueChange={(value) => setFormData({ ...formData, gender: value })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select gender" />
+                  <SelectValue placeholder={t('selectGender')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="female">Female</SelectItem>
-                  <SelectItem value="male">Male</SelectItem>
-                  <SelectItem value="non-binary">Non-binary</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                  <SelectItem value="not-specified">Prefer not to say</SelectItem>
+                  <SelectItem value="female">{t('female')}</SelectItem>
+                  <SelectItem value="male">{t('male')}</SelectItem>
+                  <SelectItem value="non-binary">{t('nonBinary')}</SelectItem>
+                  <SelectItem value="other">{t('other')}</SelectItem>
+                  <SelectItem value="not-specified">{t('preferNotToSay')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="backstory" className="text-sm font-medium">Character Description</Label>
+            <Label htmlFor="backstory" className="text-sm font-medium">{t('characterDescription')}</Label>
             <Textarea
               id="backstory"
               value={formData.backstory}
               onChange={(e) => setFormData({ ...formData, backstory: e.target.value })}
-              placeholder="Describe your character's personality, background, history, and what makes them unique. Include their motivations, traits, and how they interact with others..."
+              placeholder={t('characterDescriptionPlaceholder')}
               rows={5}
               required
             />
             <p className="text-xs text-muted-foreground">
-              This comprehensive description will be used to generate your character's personality and responses.
+              {t('characterDescriptionHelp')}
             </p>
           </div>
         </div>
 
         {/* Character Avatar */}
         <div className="bg-card/50 rounded-lg p-6 space-y-6">
-          <h3 className="text-xl font-semibold border-b border-border pb-3">Character Avatar</h3>
+          <h3 className="text-xl font-semibold border-b border-border pb-3">{t('characterAvatar')}</h3>
           
           <div className="flex items-center gap-6">
             <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
               <img
                 src={formData.avatar || '/assets/characters_img/Elara.jpeg'}
-                alt="Character avatar"
+                alt={t('characterAvatar')}
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
@@ -384,7 +399,7 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
                     }
                   }}
                 >
-                  Choose Avatar Image
+{t('chooseAvatarImage')}
                 </Button>
                 {formData.avatar && formData.avatar !== '/assets/characters_img/Elara.jpeg' && (
                   <Button
@@ -392,12 +407,12 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
                     variant="outline"
                     onClick={() => setFormData({ ...formData, avatar: '/assets/characters_img/Elara.jpeg' })}
                   >
-                    Reset to Default
+{t('resetToDefault')}
                   </Button>
                 )}
               </div>
               <p className="text-sm text-muted-foreground">
-                Upload an image or use the default avatar. Supported formats: JPG, PNG, WebP, GIF
+                {t('uploadImageOrDefault')}
               </p>
             </div>
           </div>
@@ -405,18 +420,18 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
 
         {/* Character Traits */}
         <div className="bg-card/50 rounded-lg p-6 space-y-6">
-          <h3 className="text-xl font-semibold border-b border-border pb-3">Character Traits</h3>
+          <h3 className="text-xl font-semibold border-b border-border pb-3">{t('characterTraits')}</h3>
           
           <div className="space-y-3">
-            <Label className="text-sm font-medium">Add Character Traits</Label>
+            <Label className="text-sm font-medium">{t('addCharacterTraits')}</Label>
             <div className="flex gap-2">
               <Input
                 value={newTrait}
                 onChange={(e) => setNewTrait(e.target.value)}
-                placeholder="Add a trait (e.g., friendly, mysterious, confident)..."
+                placeholder={t('addTraitPlaceholder')}
                 onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTrait())}
               />
-              <Button type="button" onClick={addTrait}>Add</Button>
+              <Button type="button" onClick={addTrait}>{t('add')}</Button>
             </div>
             <div className="flex flex-wrap gap-2">
               {formData.traits.map((trait, index) => (
@@ -430,31 +445,31 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
               ))}
             </div>
             <p className="text-xs text-muted-foreground">
-              Add personality traits that define your character (optional but recommended).
+              {t('addTraitsHelp')}
             </p>
           </div>
         </div>
 
         {/* Character Settings */}
         <div className="bg-card/50 rounded-lg p-6 space-y-6">
-          <h3 className="text-xl font-semibold border-b border-border pb-3">Character Settings</h3>
+          <h3 className="text-xl font-semibold border-b border-border pb-3">{t('characterSettings')}</h3>
           
           <div className="space-y-2">
-            <Label className="text-sm font-medium">Category</Label>
+            <Label className="text-sm font-medium">{t('category')}</Label>
             <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
               <SelectTrigger>
-                <SelectValue placeholder="Select category" />
+                <SelectValue placeholder={t('selectCategory')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="original">Original</SelectItem>
-                <SelectItem value="anime">Anime</SelectItem>
-                <SelectItem value="game">Game</SelectItem>
-                <SelectItem value="movie">Movie</SelectItem>
-                <SelectItem value="book">Book</SelectItem>
-                <SelectItem value="fantasy">Fantasy</SelectItem>
-                <SelectItem value="sci-fi">Sci-Fi</SelectItem>
-                <SelectItem value="romance">Romance</SelectItem>
-                <SelectItem value="action">Action</SelectItem>
+                <SelectItem value="original">{t('original')}</SelectItem>
+                <SelectItem value="anime">{t('anime')}</SelectItem>
+                <SelectItem value="game">{t('game')}</SelectItem>
+                <SelectItem value="movie">{t('movie')}</SelectItem>
+                <SelectItem value="book">{t('book')}</SelectItem>
+                <SelectItem value="fantasy">{t('fantasy')}</SelectItem>
+                <SelectItem value="sci-fi">{t('sciFi')}</SelectItem>
+                <SelectItem value="romance">{t('romance')}</SelectItem>
+                <SelectItem value="action">{t('action')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -462,8 +477,8 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex items-center justify-between p-4 rounded-lg border">
               <div>
-                <Label className="text-sm font-medium">Make Public</Label>
-                <p className="text-xs text-muted-foreground">Allow others to discover and chat with this character</p>
+                <Label className="text-sm font-medium">{t('makePublic')}</Label>
+                <p className="text-xs text-muted-foreground">{t('allowOthersDiscover')}</p>
               </div>
               <Switch
                 checked={formData.isPublic}
@@ -473,8 +488,8 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
 
             <div className="flex items-center justify-between p-4 rounded-lg border">
               <div>
-                <Label className="text-sm font-medium">NSFW Content</Label>
-                <p className="text-xs text-muted-foreground">Enable adult/mature content for this character</p>
+                <Label className="text-sm font-medium">{t('nsfwContent')}</Label>
+                <p className="text-xs text-muted-foreground">{t('enableMatureContent')}</p>
               </div>
               <Switch
                 checked={formData.isNsfw}
@@ -489,10 +504,10 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
         {/* Form Actions */}
         <div className="flex justify-between items-center pt-6 border-t border-border">
           <Button type="button" variant="outline" onClick={onCancel} size="lg">
-            Cancel
+            {t('cancel')}
           </Button>
           <Button type="submit" disabled={isLoading} size="lg" className="min-w-[200px]">
-            {isLoading ? 'Creating Character...' : 'Create Character'}
+            {isLoading ? t('creatingCharacter') : t('createCharacter')}
           </Button>
         </div>
       </form>

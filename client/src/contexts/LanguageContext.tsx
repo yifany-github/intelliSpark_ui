@@ -687,7 +687,52 @@ export type TranslationKey =
   // Other missing keys
   | 'overview'
   | 'history'
-  | 'language';
+  | 'language'
+  // Issue #69 - New keys for hardcoded strings
+  | 'chatWith'
+  | 'adultContentControl'
+  | 'unableToLoadCharacters'
+  | 'checkConnectionRetry'
+  | 'startPremiumChat'
+  | 'available'
+  | 'defaultVoice'
+  | 'favorited'
+  | 'characterSavedAvailable'
+  | 'failedToCreateCharacter'
+  | 'failedToStartChat'
+  | 'pleaseRetry'
+  | 'createYourCharacter'
+  | 'fillDetailsCharacterLife'
+  | 'chooseValidImageFormat'
+  | 'uploadedSuccessfully'
+  | 'characterImageSaved'
+  | 'tryDifferentImage'
+  | 'selectGender'
+  | 'characterDescription'
+  | 'characterDescriptionPlaceholder'
+  | 'characterDescriptionHelp'
+  | 'chooseAvatarImage'
+  | 'resetToDefault'
+  | 'uploadImageOrDefault'
+  | 'addCharacterTraits'
+  | 'addTraitPlaceholder'
+  | 'add'
+  | 'addTraitsHelp'
+  | 'characterSettings'
+  | 'selectCategory'
+  | 'nsfwContent'
+  | 'enableMatureContent'
+  | 'creatingCharacter'
+  | 'characterReadyForConversations'
+  | 'viewCharacter'
+  | 'createAnother'
+  | 'browseCharacters'
+  | 'characterNowLive'
+  | 'editCharacterTip'
+  | 'chatWithCharacter'
+  | 'nonBinary'
+  | 'other'
+  | 'preferNotToSay';
 
 // Define translations for each language
 const translations: Record<Language, Record<TranslationKey, string>> = {
@@ -1291,6 +1336,51 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     creating: 'Creating...',
     adventure: 'Adventure',
     mystery: 'Mystery',
+    // Issue #69 - New English translations
+    chatWith: 'Chat with',
+    adultContentControl: 'Adult Content Control',
+    unableToLoadCharacters: 'Unable to load characters',
+    checkConnectionRetry: 'Please check your connection and try again',
+    startPremiumChat: 'Start Premium Chat',
+    available: 'Available',
+    defaultVoice: 'Default Voice',
+    favorited: 'Favorited',
+    characterSavedAvailable: 'has been saved and is now available to all users.',
+    failedToCreateCharacter: 'Failed to create character',
+    failedToStartChat: 'Failed to start chat',
+    pleaseRetry: 'Please try again',
+    createYourCharacter: 'Create Your Character',
+    fillDetailsCharacterLife: 'Fill in the details to bring your character to life',
+    chooseValidImageFormat: 'Please choose a JPEG, PNG, WebP, or GIF image',
+    uploadedSuccessfully: 'Image uploaded successfully',
+    characterImageSaved: 'Your character image has been saved',
+    tryDifferentImage: 'Please try again with a different image',
+    selectGender: 'Select gender',
+    characterDescription: 'Character Description',
+    characterDescriptionPlaceholder: 'Describe your character\'s personality, background, history, and what makes them unique. Include their motivations, traits, and how they interact with others...',
+    characterDescriptionHelp: 'This comprehensive description will be used to generate your character\'s personality and responses.',
+    chooseAvatarImage: 'Choose Avatar Image',
+    resetToDefault: 'Reset to Default',
+    uploadImageOrDefault: 'Upload an image or use the default avatar. Supported formats: JPG, PNG, WebP, GIF',
+    addCharacterTraits: 'Add Character Traits',
+    addTraitPlaceholder: 'Add a trait (e.g., friendly, mysterious, confident)...',
+    add: 'Add',
+    addTraitsHelp: 'Add personality traits that define your character (optional but recommended).',
+    characterSettings: 'Character Settings',
+    selectCategory: 'Select category',
+    nsfwContent: 'NSFW Content',
+    enableMatureContent: 'Enable adult/mature content for this character',
+    creatingCharacter: 'Creating Character...',
+    characterReadyForConversations: 'has been created and is ready for conversations',
+    viewCharacter: 'View Character',
+    createAnother: 'Create Another',
+    browseCharacters: 'Browse Characters',
+    characterNowLive: '🎉 Your character is now live and ready for conversations!',
+    editCharacterTip: '💡 Tip: You can always edit your character\'s details later from your profile.',
+    chatWithCharacter: 'Chat with Character',
+    nonBinary: 'Non-binary',
+    other: 'Other',
+    preferNotToSay: 'Prefer not to say',
   },
   zh: {
     characters: '角色',
@@ -1892,6 +1982,51 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     creating: '创建中...',
     adventure: '冒险',
     mystery: '悬疑',
+    // Issue #69 - New Chinese translations
+    chatWith: '与',
+    adultContentControl: '成人内容控制',
+    unableToLoadCharacters: '无法加载角色',
+    checkConnectionRetry: '请检查网络连接并重试',
+    startPremiumChat: '开始聊天',
+    available: '在线',
+    defaultVoice: '默认语音',
+    favorited: '已收藏',
+    characterSavedAvailable: '已保存并对所有用户开放。',
+    failedToCreateCharacter: '创建角色失败',
+    failedToStartChat: '开始聊天失败',
+    pleaseRetry: '请重试',
+    createYourCharacter: '创建您的角色',
+    fillDetailsCharacterLife: '填写详细信息，让您的角色栩栩如生',
+    chooseValidImageFormat: '请选择JPEG、PNG、WebP或GIF图片',
+    uploadedSuccessfully: '图片上传成功',
+    characterImageSaved: '您的角色图片已保存',
+    tryDifferentImage: '请尝试上传不同的图片',
+    selectGender: '选择性别',
+    characterDescription: '角色描述',
+    characterDescriptionPlaceholder: '描述您角色的性格、背景、历史以及独特之处。包括他们的动机、特征以及与他人的互动方式...',
+    characterDescriptionHelp: '此详细描述将用于生成您角色的个性和回应。',
+    chooseAvatarImage: '选择头像图片',
+    resetToDefault: '重置为默认',
+    uploadImageOrDefault: '上传图片或使用默认头像。支持格式：JPG、PNG、WebP、GIF',
+    addCharacterTraits: '添加角色特征',
+    addTraitPlaceholder: '添加特征（例如：友好、神秘、自信）...',
+    add: '添加',
+    addTraitsHelp: '添加定义您角色性格的特征（可选但建议）。',
+    characterSettings: '角色设置',
+    selectCategory: '选择分类',
+    nsfwContent: '成人内容',
+    enableMatureContent: '为此角色启用成人/成熟内容',
+    creatingCharacter: '创建角色中...',
+    characterReadyForConversations: '已创建，准备开始对话',
+    viewCharacter: '查看角色',
+    createAnother: '再创建一个',
+    browseCharacters: '浏览角色',
+    characterNowLive: '🎉 您的角色现已上线，准备开始对话！',
+    editCharacterTip: '💡 提示：您随时可以从个人资料中编辑角色详情。',
+    chatWithCharacter: '与角色聊天',
+    nonBinary: '非二元',
+    other: '其他',
+    preferNotToSay: '不愿说明',
   },
 };
 
@@ -1913,20 +2048,32 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 // Language provider component
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Get stored language preferences or default to English
-  const [interfaceLanguage, setInterfaceLanguage] = useState<Language>(() => {
+  // Get stored language preferences or default to Chinese (Issue #69)
+  const [interfaceLanguage, setInterfaceLanguage] = useState<Language>('zh');
+  const [chatLanguage, setChatLanguage] = useState<Language>('zh');
+
+  // Load saved preferences after component mounts to avoid hydration issues
+  useEffect(() => {
     const saved = localStorage.getItem('interfaceLanguage');
-    return (saved as Language) || 'en';
-  });
-  
-  const [chatLanguage, setChatLanguage] = useState<Language>(() => {
+    const isValidLanguage = (lang: string): lang is Language => ['en', 'zh'].includes(lang);
+    if (saved && isValidLanguage(saved)) {
+      setInterfaceLanguage(saved);
+    }
+  }, []);
+
+  useEffect(() => {
     const saved = localStorage.getItem('chatLanguage');
-    return (saved as Language) || 'en';
-  });
+    const isValidLanguage = (lang: string): lang is Language => ['en', 'zh'].includes(lang);
+    if (saved && isValidLanguage(saved)) {
+      setChatLanguage(saved);
+    }
+  }, []);
 
   // Save language preferences when they change
   useEffect(() => {
     localStorage.setItem('interfaceLanguage', interfaceLanguage);
+    // Update HTML lang attribute for accessibility
+    document.documentElement.lang = interfaceLanguage;
   }, [interfaceLanguage]);
 
   useEffect(() => {
