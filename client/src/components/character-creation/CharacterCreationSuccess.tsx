@@ -20,6 +20,39 @@ export default function CharacterCreationSuccess({
   onGoToCharacters
 }: CharacterCreationSuccessProps) {
   const { t } = useLanguage();
+
+  // Validate callback functions to prevent runtime errors
+  const handleStartChat = () => {
+    try {
+      onStartChat?.();
+    } catch (error) {
+      console.error('Error starting chat:', error);
+    }
+  };
+
+  const handleViewCharacter = () => {
+    try {
+      onViewCharacter?.();
+    } catch (error) {
+      console.error('Error viewing character:', error);
+    }
+  };
+
+  const handleCreateAnother = () => {
+    try {
+      onCreateAnother?.();
+    } catch (error) {
+      console.error('Error creating another character:', error);
+    }
+  };
+
+  const handleGoToCharacters = () => {
+    try {
+      onGoToCharacters?.();
+    } catch (error) {
+      console.error('Error navigating to characters:', error);
+    }
+  };
   return (
     <div className="max-w-2xl mx-auto p-6">
       <Card className="text-center">
@@ -63,7 +96,7 @@ export default function CharacterCreationSuccess({
           {/* Action Buttons */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Button
-              onClick={onStartChat}
+              onClick={handleStartChat}
               className="flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700"
             >
               <ArrowRight className="w-4 h-4" />
@@ -71,7 +104,7 @@ export default function CharacterCreationSuccess({
             </Button>
             
             <Button
-              onClick={onViewCharacter}
+              onClick={handleViewCharacter}
               variant="outline"
               className="flex items-center justify-center space-x-2"
             >
@@ -80,7 +113,7 @@ export default function CharacterCreationSuccess({
             </Button>
             
             <Button
-              onClick={onCreateAnother}
+              onClick={handleCreateAnother}
               variant="outline"
               className="flex items-center justify-center space-x-2"
             >
@@ -89,7 +122,7 @@ export default function CharacterCreationSuccess({
             </Button>
             
             <Button
-              onClick={onGoToCharacters}
+              onClick={handleGoToCharacters}
               variant="secondary"
               className="flex items-center justify-center space-x-2"
             >

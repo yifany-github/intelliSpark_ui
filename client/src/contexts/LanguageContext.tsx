@@ -2049,15 +2049,25 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 // Language provider component
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Get stored language preferences or default to Chinese (Issue #69)
-  const [interfaceLanguage, setInterfaceLanguage] = useState<Language>(() => {
+  const [interfaceLanguage, setInterfaceLanguage] = useState<Language>('zh');
+  const [chatLanguage, setChatLanguage] = useState<Language>('zh');
+
+  // Load saved preferences after component mounts to avoid hydration issues
+  useEffect(() => {
     const saved = localStorage.getItem('interfaceLanguage');
-    return (saved as Language) || 'zh';
-  });
-  
-  const [chatLanguage, setChatLanguage] = useState<Language>(() => {
+    const isValidLanguage = (lang: string): lang is Language => ['en', 'zh'].includes(lang);
+    if (saved && isValidLanguage(saved)) {
+      setInterfaceLanguage(saved);
+    }
+  }, []);
+
+  useEffect(() => {
     const saved = localStorage.getItem('chatLanguage');
-    return (saved as Language) || 'zh';
-  });
+    const isValidLanguage = (lang: string): lang is Language => ['en', 'zh'].includes(lang);
+    if (saved && isValidLanguage(saved)) {
+      setChatLanguage(saved);
+    }
+  }, []);
 
   // Save language preferences when they change
   useEffect(() => {

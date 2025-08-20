@@ -247,7 +247,16 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
       uploadFormData.append('file', file);
       
       const response = await apiRequest('POST', '/api/characters/upload-avatar', uploadFormData);
+      
+      if (!response.ok) {
+        throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+      }
+      
       const result = await response.json();
+      
+      if (!result.avatarUrl) {
+        throw new Error('No avatar URL returned from server');
+      }
       
       setFormData(prev => ({ ...prev, avatar: result.avatarUrl }));
       
@@ -260,6 +269,9 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
+      
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      console.error('Avatar upload failed:', errorMessage);
       
       toast({
         title: t('uploadFailed'),
