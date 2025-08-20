@@ -37,7 +37,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /Users/yongboyu/Desktop/intelliSpark_ui/.claude/hooks/stop.py"
+            "command": "python3 .claude/hooks/stop.py"
           }
         ]
       }
@@ -48,7 +48,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /Users/yongboyu/Desktop/intelliSpark_ui/.claude/hooks/notification.py"
+            "command": "python3 .claude/hooks/notification.py"
           }
         ]
       }
@@ -59,7 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "python3 /Users/yongboyu/Desktop/intelliSpark_ui/.claude/hooks/pre_tool_use.py"
+            "command": "python3 .claude/hooks/pre_tool_use.py"
           }
         ]
       }
