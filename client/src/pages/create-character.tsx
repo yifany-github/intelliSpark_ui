@@ -4,6 +4,7 @@ import { Character } from '@/types';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useNavigation } from '@/contexts/NavigationContext';
+import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import GlobalLayout from '@/components/layout/GlobalLayout';
@@ -39,6 +40,7 @@ const ImprovedCreateCharacterPage = () => {
   const { user, isAuthenticated } = useAuth();
   const { setSelectedCharacter, startChat } = useRolePlay();
   const { navigateToLogin, navigateToPath } = useNavigation();
+  const { t } = useLanguage();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -87,8 +89,8 @@ const ImprovedCreateCharacterPage = () => {
       setCurrentStep(CreationStep.SUCCESS);
       
       toast({
-        title: 'Character created successfully!',
-        description: `${character.name} has been saved and is now available to all users.`
+        title: t('characterCreatedSuccessfully'),
+        description: `${character.name} ${t('characterSavedAvailable')}`
       });
       
       // Invalidate queries to refresh character lists
@@ -96,7 +98,7 @@ const ImprovedCreateCharacterPage = () => {
     },
     onError: (error: Error) => {
       toast({
-        title: 'Failed to create character',
+        title: t('failedToCreateCharacter'),
         description: error.message,
         variant: 'destructive'
       });
@@ -107,8 +109,8 @@ const ImprovedCreateCharacterPage = () => {
   const handleCreateCharacter = async (characterData: CharacterFormData) => {
     if (!isAuthenticated) {
       toast({
-        title: 'Authentication required',
-        description: 'Please log in to create a character',
+        title: t('authenticationRequired'),
+        description: t('pleaseLoginToCreate'),
         variant: 'destructive'
       });
       navigateToLogin(); // Redirect to login if needed
@@ -126,8 +128,8 @@ const ImprovedCreateCharacterPage = () => {
         navigateToPath(`/chat/${chatId}`);
       } catch (error) {
         toast({
-          title: 'Failed to start chat',
-          description: 'Please try again',
+          title: t('failedToStartChat'),
+          description: t('pleaseRetry'),
           variant: 'destructive'
         });
       }
@@ -163,8 +165,8 @@ const ImprovedCreateCharacterPage = () => {
         return (
           <div className="w-full">
             <div className="mb-8">
-              <h1 className="text-3xl font-bold mb-3">Create Your Character</h1>
-              <p className="text-muted-foreground text-lg">Fill in the details to bring your character to life</p>
+              <h1 className="text-3xl font-bold mb-3">{t('createYourCharacter')}</h1>
+              <p className="text-muted-foreground text-lg">{t('fillDetailsCharacterLife')}</p>
             </div>
             <CharacterCreationForm
               initialData={formData}
