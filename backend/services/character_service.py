@@ -134,7 +134,6 @@ class CharacterService:
                 gender=character_data.gender,
                 conversation_style=character_data.conversationStyle,
                 is_public=character_data.isPublic,
-                nsfw_level=character_data.nsfwLevel,
                 created_by=user_id
             )
             
@@ -333,7 +332,6 @@ class CharacterService:
             character.gender = character_data.gender
             character.conversation_style = character_data.conversationStyle
             character.is_public = character_data.isPublic
-            character.nsfw_level = character_data.nsfwLevel
             
             self.db.commit()
             self.db.refresh(character)

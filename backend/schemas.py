@@ -64,7 +64,6 @@ class CharacterBase(BaseSchema):
     gender: Optional[str] = None
     conversationStyle: Optional[str] = Field(default=None, alias="conversation_style")
     isPublic: bool = Field(default=True, alias="is_public")
-    nsfwLevel: int = Field(default=0, alias="nsfw_level")
 
 class CharacterCreate(CharacterBase):
     pass
