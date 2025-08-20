@@ -39,7 +39,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
         "/api/chats",
         {
           characterId,
-          title: `${t('chatWith')} Character`
+          title: t('chatWithCharacter')
         }
       );
       return response.json();

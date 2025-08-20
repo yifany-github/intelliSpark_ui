@@ -728,7 +728,11 @@ export type TranslationKey =
   | 'createAnother'
   | 'browseCharacters'
   | 'characterNowLive'
-  | 'editCharacterTip';
+  | 'editCharacterTip'
+  | 'chatWithCharacter'
+  | 'nonBinary'
+  | 'other'
+  | 'preferNotToSay';
 
 // Define translations for each language
 const translations: Record<Language, Record<TranslationKey, string>> = {
@@ -1373,6 +1377,10 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     browseCharacters: 'Browse Characters',
     characterNowLive: '🎉 Your character is now live and ready for conversations!',
     editCharacterTip: '💡 Tip: You can always edit your character\'s details later from your profile.',
+    chatWithCharacter: 'Chat with Character',
+    nonBinary: 'Non-binary',
+    other: 'Other',
+    preferNotToSay: 'Prefer not to say',
   },
   zh: {
     characters: '角色',
@@ -2015,6 +2023,10 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     browseCharacters: '浏览角色',
     characterNowLive: '🎉 您的角色现已上线，准备开始对话！',
     editCharacterTip: '💡 提示：您随时可以从个人资料中编辑角色详情。',
+    chatWithCharacter: '与角色聊天',
+    nonBinary: '非二元',
+    other: '其他',
+    preferNotToSay: '不愿说明',
   },
 };
 
@@ -2050,6 +2062,8 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
   // Save language preferences when they change
   useEffect(() => {
     localStorage.setItem('interfaceLanguage', interfaceLanguage);
+    // Update HTML lang attribute for accessibility
+    document.documentElement.lang = interfaceLanguage;
   }, [interfaceLanguage]);
 
   useEffect(() => {

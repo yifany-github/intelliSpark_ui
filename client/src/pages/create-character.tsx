@@ -322,9 +322,9 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
                 <SelectContent>
                   <SelectItem value="female">{t('female')}</SelectItem>
                   <SelectItem value="male">{t('male')}</SelectItem>
-                  <SelectItem value="non-binary">非二元</SelectItem>
-                  <SelectItem value="other">其他</SelectItem>
-                  <SelectItem value="not-specified">不愿说明</SelectItem>
+                  <SelectItem value="non-binary">{t('nonBinary')}</SelectItem>
+                  <SelectItem value="other">{t('other')}</SelectItem>
+                  <SelectItem value="not-specified">{t('preferNotToSay')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
