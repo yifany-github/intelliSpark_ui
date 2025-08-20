@@ -1979,7 +1979,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     adultContentControl: '成人内容控制',
     unableToLoadCharacters: '无法加载角色',
     checkConnectionRetry: '请检查网络连接并重试',
-    startPremiumChat: '开始高级聊天',
+    startPremiumChat: '开始聊天',
     available: '在线',
     defaultVoice: '默认语音',
     favorited: '已收藏',
