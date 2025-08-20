@@ -16,8 +16,6 @@ class UserBase(BaseSchema):
     email: Optional[str] = None
     provider: str = 'email'
     nsfw_level: int = 1
-    context_window_length: int = 10
-    temperature: int = 70
     memory_enabled: bool = True
 
 class UserCreate(BaseSchema):

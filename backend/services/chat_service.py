@@ -242,7 +242,6 @@ class ChatService:
             # Get user preferences for AI generation
             user = self.db.query(User).filter(User.id == user_id).first()
             user_preferences = {
-                'temperature': getattr(user, 'temperature', 0.8),
                 'nsfw_level': getattr(user, 'nsfw_level', 1)
             }
             
