@@ -4,12 +4,6 @@ import { apiRequest, queryClient } from '../lib/queryClient';
 
 interface RolePlayContextType {
   // User Preferences
-  nsfwLevel: number;
-  setNsfwLevel: (level: number) => void;
-  contextWindowLength: number;
-  setContextWindowLength: (length: number) => void;
-  temperature: number;
-  setTemperature: (temp: number) => void;
   memoryEnabled: boolean;
   setMemoryEnabled: (enabled: boolean) => void;
   
@@ -42,9 +36,6 @@ const RolePlayContext = createContext<RolePlayContextType | undefined>(undefined
 
 export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
   // User Preferences
-  const [nsfwLevel, setNsfwLevel] = useState(1);
-  const [contextWindowLength, setContextWindowLength] = useState(10);
-  const [temperature, setTemperature] = useState(70);
   const [memoryEnabled, setMemoryEnabled] = useState(true);
   
   // Active Selections
@@ -113,12 +104,6 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
   return (
     <RolePlayContext.Provider
       value={{
-        nsfwLevel,
-        setNsfwLevel,
-        contextWindowLength,
-        setContextWindowLength,
-        temperature,
-        setTemperature,
         memoryEnabled,
         setMemoryEnabled,
         

@@ -4,9 +4,6 @@ export interface User {
   id: number;
   username: string;
   email?: string;
-  nsfw_level: number;
-  context_window_length: number;
-  temperature: number;
   memory_enabled: boolean;
   created_at: string;
 }

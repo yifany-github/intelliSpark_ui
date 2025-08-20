@@ -40,7 +40,6 @@ def transform_character_to_response(character: Character) -> Dict[str, Any]:
         "gender": character.gender,
         "conversationStyle": character.conversation_style,  # snake_case to camelCase
         "isPublic": character.is_public,  # snake_case to camelCase
-        "nsfwLevel": character.nsfw_level,  # snake_case to camelCase
         "createdBy": character.created_by,  # snake_case to camelCase
         "createdAt": character.created_at.isoformat() + "Z" if character.created_at else None  # ISO format
     }

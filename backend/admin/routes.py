@@ -197,9 +197,6 @@ async def get_admin_users(
             user_dict = {
                 "id": user.id,
                 "username": user.username,
-                "nsfw_level": user.nsfw_level,
-                "context_window_length": user.context_window_length,
-                "temperature": user.temperature,
                 "memory_enabled": user.memory_enabled,
                 "created_at": user.created_at,
                 "total_chats": len(user.chats)

@@ -12,7 +12,6 @@ import CreateCharacterPage from "@/pages/create-character";
 import ChatsPage from "@/pages/chats";
 import ProfilePage from "@/pages/profile";
 import SettingsPage from "@/pages/settings";
-import OnboardingPage from "@/pages/onboarding";
 import AdminPage from "@/pages/admin";
 import LoginPage from "@/pages/auth/login";
 import RegisterPage from "@/pages/auth/register";
@@ -86,31 +85,7 @@ function AuthModalHandler() {
 // Main App component - now allows browsing without authentication
 function MainApp() {
   const { isAuthenticated, isLoading } = useAuth();
-  const [showOnboarding, setShowOnboarding] = useState(false);
   const [location] = useLocation();
-  
-  useEffect(() => {
-    // Skip onboarding for admin routes
-    if (location.startsWith('/admin')) {
-      return;
-    }
-    
-    // Only show onboarding for authenticated users who haven't completed it
-    const hasCompletedOnboarding = localStorage.getItem("onboardingCompleted");
-    if (!hasCompletedOnboarding && isAuthenticated) {
-      setShowOnboarding(true);
-    }
-  }, [location, isAuthenticated]);
-  
-  const completeOnboarding = () => {
-    localStorage.setItem("onboardingCompleted", "true");
-    setShowOnboarding(false);
-  };
-
-  // Show onboarding if user is authenticated and hasn't completed it, but skip for admin routes
-  if (isAuthenticated && showOnboarding && !location.startsWith('/admin')) {
-    return <OnboardingPage onComplete={completeOnboarding} />;
-  }
 
   return (
     <ErrorBoundary>

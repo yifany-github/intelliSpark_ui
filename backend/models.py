@@ -15,9 +15,6 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=True, index=True)  # nullable for existing users
     provider = Column(String(50), default='email')  # 'email', 'google', 'apple'
     firebase_uid = Column(String(255), unique=True, nullable=True)  # Firebase user ID
-    nsfw_level = Column(Integer, default=1)
-    context_window_length = Column(Integer, default=10)
-    temperature = Column(Integer, default=70)
     memory_enabled = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())
     
@@ -43,7 +40,6 @@ class Character(Base):
     gender = Column(String(100), nullable=True)
     conversation_style = Column(String(255), nullable=True)
     is_public = Column(Boolean, default=True)
-    nsfw_level = Column(Integer, default=0)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=func.now())
     

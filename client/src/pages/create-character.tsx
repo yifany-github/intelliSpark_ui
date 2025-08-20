@@ -74,7 +74,6 @@ const ImprovedCreateCharacterPage = () => {
         gender: characterData.gender,
         conversationStyle: "detailed", // Default conversation style since not in form
         isPublic: characterData.isPublic,
-        nsfwLevel: characterData.isNsfw ? 1 : 0
       });
       
       if (!response.ok) {

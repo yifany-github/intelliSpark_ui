@@ -239,13 +239,6 @@ class ChatService:
             if not character:
                 return False, {}, "Character not found"
             
-            # Get user preferences for AI generation
-            user = self.db.query(User).filter(User.id == user_id).first()
-            user_preferences = {
-                'temperature': getattr(user, 'temperature', 0.8),
-                'nsfw_level': getattr(user, 'nsfw_level', 1)
-            }
-            
             # Generate response using Gemini service
             try:
                 from gemini_service import GeminiService
@@ -253,8 +246,7 @@ class ChatService:
                 
                 response_content, token_info = await gemini_service.generate_response(
                     character=character,
-                    messages=messages,
-                    user_preferences=user_preferences
+                    messages=messages
                 )
                 
                 # Log token usage information

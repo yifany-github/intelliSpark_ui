@@ -21,11 +21,11 @@ def play_notification_sound():
             import winsound
             winsound.MessageBeep(winsound.MB_ICONASTERISK)
         else:
-            print("🔔 Notification!")
+            pass  # Silent notification
             
     except Exception as e:
-        # Fallback: just print a notification
-        print(f"🔔 Claude notification! ({e})")
+        # Silent fail to avoid interfering with Claude output
+        pass
 
 def main():
     try:
@@ -35,18 +35,10 @@ def main():
         # Play notification sound
         play_notification_sound()
         
-        # Optional: print what triggered the notification
-        if input_data.strip():
-            try:
-                data = json.loads(input_data)
-                print(f"🔔 Claude needs attention!")
-            except json.JSONDecodeError:
-                print(f"🔔 Claude notification!")
-        else:
-            print(f"🔔 Claude notification!")
+        # Don't print anything to avoid interfering with Claude output
             
     except Exception as e:
-        print(f"Notification hook error: {e}")
+        # Silent fail to avoid interfering with Claude output
         sys.exit(0)  # Don't fail the main process
 
 if __name__ == "__main__":

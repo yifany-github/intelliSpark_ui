@@ -15,9 +15,6 @@ class UserBase(BaseSchema):
     username: str
     email: Optional[str] = None
     provider: str = 'email'
-    nsfw_level: int = 1
-    context_window_length: int = 10
-    temperature: int = 70
     memory_enabled: bool = True
 
 class UserCreate(BaseSchema):
@@ -67,7 +64,6 @@ class CharacterBase(BaseSchema):
     gender: Optional[str] = None
     conversationStyle: Optional[str] = Field(default=None, alias="conversation_style")
     isPublic: bool = Field(default=True, alias="is_public")
-    nsfwLevel: int = Field(default=0, alias="nsfw_level")
 
 class CharacterCreate(CharacterBase):
     pass

@@ -15,7 +15,6 @@ import {
   LogOut,
   Settings as SettingsIcon,
   Sliders,
-  Shield,
   Bell,
   Database,
   Zap
@@ -39,9 +38,6 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 
 const SettingsPage = () => {
   const { 
-    nsfwLevel, setNsfwLevel,
-    contextWindowLength, setContextWindowLength,
-    temperature, setTemperature,
     memoryEnabled, setMemoryEnabled,
     setCurrentChat
   } = useRolePlay();
@@ -81,11 +77,7 @@ const SettingsPage = () => {
     });
   };
   
-  // Format temperature for display (0.0 - 1.0)
-  const formattedTemperature = (temperature / 100).toFixed(1);
   
-  // NSFW Level labels
-  const nsfwLevelLabels = ["None", "Mild", "Moderate", "Maximum"];
   
   return (
     <GlobalLayout>
@@ -119,48 +111,6 @@ const SettingsPage = () => {
           </div>
           
           <div className="space-y-6">
-            {/* Context Window Length */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-sm text-gray-300">{t('contextWindowLength')}</label>
-                <span className="text-sm text-purple-400 bg-purple-900/30 px-2 py-1 rounded">{contextWindowLength}k tokens</span>
-              </div>
-              <Slider
-                value={[contextWindowLength]}
-                min={1}
-                max={15}
-                step={1}
-                onValueChange={(value) => setContextWindowLength(value[0])}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-gray-400 mt-1">
-                <span>{t('short')}</span>
-                <span>{t('long')}</span>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">{t('controlsContextWindow')}</p>
-            </div>
-            
-            {/* Temperature */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-sm text-gray-300">{t('temperatureLevel')}</label>
-                <span className="text-sm text-orange-400 bg-orange-900/30 px-2 py-1 rounded">{formattedTemperature}</span>
-              </div>
-              <Slider
-                value={[temperature]}
-                min={0}
-                max={100}
-                step={10}
-                onValueChange={(value) => setTemperature(value[0])}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-gray-400 mt-1">
-                <span>{t('precise')}</span>
-                <span>{t('creative')}</span>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">{t('higherValues')} {t('moreCreative')} {t('unpredictable')}</p>
-            </div>
-            
             {/* Memory */}
             <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
               <div>
@@ -175,35 +125,6 @@ const SettingsPage = () => {
           </div>
         </div>
         
-        {/* Content & Safety Settings */}
-        <div className="bg-gray-800 rounded-2xl p-6 mb-6">
-          <div className="flex items-center space-x-2 mb-4">
-            <Shield className="w-5 h-5 text-red-400" />
-            <h3 className="font-semibold text-lg text-white">{t('contentSafety')}</h3>
-          </div>
-          
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <label className="text-sm text-gray-300">{t('nsfwLevel')}</label>
-              <span className="text-sm text-red-400 bg-red-900/30 px-2 py-1 rounded">
-                {nsfwLevelLabels[nsfwLevel]} ({nsfwLevel})
-              </span>
-            </div>
-            <Slider
-              value={[nsfwLevel]}
-              min={0}
-              max={3}
-              step={1}
-              onValueChange={(value) => setNsfwLevel(value[0])}
-              className="w-full"
-            />
-            <div className="flex justify-between text-xs text-gray-400 mt-1">
-              <span>{t('none')}</span>
-              <span>{t('strict')}</span>
-            </div>
-            <p className="text-xs text-gray-500 mt-2">{t('controlsLevel')} {t('matureContent')} {t('allowedConversations')}</p>
-          </div>
-        </div>
 
         
         {/* Data & Privacy */}

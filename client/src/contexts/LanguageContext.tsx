@@ -44,9 +44,6 @@ export type TranslationKey =
   | 'settings'
   | 'interfaceLanguage'
   | 'chatLanguage'
-  | 'nsfwLevel'
-  | 'temperatureLevel'
-  | 'contextWindowLength'
   | 'memoryEnabled'
   | 'save'
   | 'cancel'
@@ -706,9 +703,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     settings: 'Settings',
     interfaceLanguage: 'Interface Language',
     chatLanguage: 'Chat Language',
-    nsfwLevel: 'NSFW Level',
-    temperatureLevel: 'Temperature',
-    contextWindowLength: 'Context Window Length',
     memoryEnabled: 'Memory Enabled',
     save: 'Save',
     cancel: 'Cancel',
@@ -1309,9 +1303,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     settings: '设置',
     interfaceLanguage: '界面语言',
     chatLanguage: '聊天语言',
-    nsfwLevel: '成人内容级别',
-    temperatureLevel: '随机度',
-    contextWindowLength: '上下文窗口长度',
     memoryEnabled: '启用记忆',
     save: '保存',
     cancel: '取消',
