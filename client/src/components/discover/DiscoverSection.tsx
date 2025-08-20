@@ -16,7 +16,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 
 const DiscoverSection = () => {
   const { navigateToPath } = useNavigation();
-  const { setSelectedCharacter, nsfwLevel, temperature } = useRolePlay();
+  const { setSelectedCharacter, nsfwLevel } = useRolePlay();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const { t } = useLanguage();
   const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
