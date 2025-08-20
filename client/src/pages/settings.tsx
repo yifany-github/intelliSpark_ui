@@ -40,8 +40,6 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 const SettingsPage = () => {
   const { 
     nsfwLevel, setNsfwLevel,
-    contextWindowLength, setContextWindowLength,
-    temperature, setTemperature,
     memoryEnabled, setMemoryEnabled,
     setCurrentChat
   } = useRolePlay();
@@ -81,8 +79,6 @@ const SettingsPage = () => {
     });
   };
   
-  // Format temperature for display (0.0 - 1.0)
-  const formattedTemperature = (temperature / 100).toFixed(1);
   
   // NSFW Level labels
   const nsfwLevelLabels = ["None", "Mild", "Moderate", "Maximum"];
@@ -119,48 +115,6 @@ const SettingsPage = () => {
           </div>
           
           <div className="space-y-6">
-            {/* Context Window Length */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-sm text-gray-300">{t('contextWindowLength')}</label>
-                <span className="text-sm text-purple-400 bg-purple-900/30 px-2 py-1 rounded">{contextWindowLength}k tokens</span>
-              </div>
-              <Slider
-                value={[contextWindowLength]}
-                min={1}
-                max={15}
-                step={1}
-                onValueChange={(value) => setContextWindowLength(value[0])}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-gray-400 mt-1">
-                <span>{t('short')}</span>
-                <span>{t('long')}</span>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">{t('controlsContextWindow')}</p>
-            </div>
-            
-            {/* Temperature */}
-            <div>
-              <div className="flex justify-between items-center mb-2">
-                <label className="text-sm text-gray-300">{t('temperatureLevel')}</label>
-                <span className="text-sm text-orange-400 bg-orange-900/30 px-2 py-1 rounded">{formattedTemperature}</span>
-              </div>
-              <Slider
-                value={[temperature]}
-                min={0}
-                max={100}
-                step={10}
-                onValueChange={(value) => setTemperature(value[0])}
-                className="w-full"
-              />
-              <div className="flex justify-between text-xs text-gray-400 mt-1">
-                <span>{t('precise')}</span>
-                <span>{t('creative')}</span>
-              </div>
-              <p className="text-xs text-gray-500 mt-2">{t('higherValues')} {t('moreCreative')} {t('unpredictable')}</p>
-            </div>
-            
             {/* Memory */}
             <div className="flex items-center justify-between p-3 bg-gray-700/50 rounded-lg">
               <div>
