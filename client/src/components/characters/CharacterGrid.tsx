@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield, Mic, Heart, Share, MessageCircle } from 'lucide-react';
+import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield, Heart, Share, MessageCircle } from 'lucide-react';
 import { Character } from '@/types';
 import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
@@ -483,7 +483,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 
                 {/* Voice style and description */}
                 <div className="space-y-2">
-                  {/* Voice style - commented out until voice system is implemented
+                  {/* TODO: Re-enable voice style UI when voice system is implemented (Issue #118)
                   <div className="flex items-center space-x-2">
                     <Mic className="w-3 h-3 text-brand-secondary" />
                     <span className="text-xs text-content-secondary font-medium truncate">{character.voiceStyle || t('defaultVoice')}</span>

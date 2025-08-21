@@ -61,7 +61,7 @@ const CharacterDetails = ({ character }: CharacterDetailsProps) => {
         {character.backstory}
       </p>
       
-      {/* Voice & Speech Pattern - commented out until voice system is implemented
+      {/* TODO: Re-enable voice controls when voice system is implemented (Issue #118)
       <h3 className="font-poppins font-semibold text-lg mb-2">Voice & Speech Pattern</h3>
       <div className="bg-secondary rounded-2xl p-4 mb-6">
         <div className="mb-4">
