@@ -83,7 +83,9 @@ def get_character_traits_from_archetype_weights(character_name: str) -> List[str
         return [trait for trait, _ in traits]
         
     except Exception as e:
-        print(f"Error extracting traits for {character_name}: {e}")
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error extracting traits for {character_name}: {e}")
         return []
 
 
@@ -100,8 +102,8 @@ def clean_archetype_name(archetype_name: str) -> str:
     suffixes_to_remove = ["者", "人", "型"]
     
     for suffix in suffixes_to_remove:
-        if archetype_name.endswith(suffix) and len(archetype_name) > 2:
-            return archetype_name[:-1]
+        if archetype_name.endswith(suffix) and len(archetype_name) > len(suffix):
+            return archetype_name[:-len(suffix)]
     
     return archetype_name
 
@@ -124,5 +126,7 @@ def load_character_archetype_weights(character_name: str) -> Dict[str, float]:
         return getattr(char_module, 'ARCHETYPE_WEIGHTS', {})
         
     except Exception as e:
-        print(f"Error loading archetype weights for {character_name}: {e}")
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error loading archetype weights for {character_name}: {e}")
         return {}
