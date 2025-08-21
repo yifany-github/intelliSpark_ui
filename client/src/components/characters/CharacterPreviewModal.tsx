@@ -73,10 +73,12 @@ export default function CharacterPreviewModal({
                   </div>
                 </div>
 
+                {/* Voice style - commented out until voice system is implemented
                 <div className="mb-4">
                   <h3 className="text-lg font-semibold text-white mb-2">{t('voiceStyle')}</h3>
                   <p className="text-gray-300">{character.voiceStyle || t('natural')}</p>
                 </div>
+                */}
 
                 <div className="flex items-center space-x-4 text-sm text-gray-400">
                   <div className="flex items-center space-x-1">

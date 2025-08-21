@@ -61,6 +61,7 @@ const CharacterDetails = ({ character }: CharacterDetailsProps) => {
         {character.backstory}
       </p>
       
+      {/* Voice & Speech Pattern - commented out until voice system is implemented
       <h3 className="font-poppins font-semibold text-lg mb-2">Voice & Speech Pattern</h3>
       <div className="bg-secondary rounded-2xl p-4 mb-6">
         <div className="mb-4">
@@ -73,6 +74,7 @@ const CharacterDetails = ({ character }: CharacterDetailsProps) => {
           <i className="fas fa-volume-up mr-2"></i> Test Voice
         </button>
       </div>
+      */}
       
       
       <button 

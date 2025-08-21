@@ -483,10 +483,14 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 
                 {/* Voice style and description */}
                 <div className="space-y-2">
+                  {/* Voice style - commented out until voice system is implemented
                   <div className="flex items-center space-x-2">
                     <Mic className="w-3 h-3 text-brand-secondary" />
                     <span className="text-xs text-content-secondary font-medium truncate">{character.voiceStyle || t('defaultVoice')}</span>
                   </div>
+                  */}
+                  
+                  {/* Character description - always visible */}
                   <p className="text-xs text-content-tertiary line-clamp-2 leading-relaxed">
                     {character.description || character.backstory}
                   </p>
