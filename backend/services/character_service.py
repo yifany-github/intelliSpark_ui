@@ -73,6 +73,24 @@ class CharacterService:
                 query = query.filter(Character.is_public == True)
                 
             characters = query.all()
+            
+            # Ensure all characters have CSV archetype-based traits (Issue #112)
+            from utils.character_utils import get_character_traits_from_archetype_weights
+            
+            needs_update = []
+            for character in characters:
+                expected_traits = get_character_traits_from_archetype_weights(character.name)
+                
+                if expected_traits and character.traits != expected_traits:
+                    # Update traits to match archetype sampling in real-time
+                    character.traits = expected_traits
+                    needs_update.append(character.name)
+            
+            # Single commit for all updates (performance optimization)
+            if needs_update:
+                self.db.commit()
+                self.logger.info(f"Updated traits for characters: {needs_update}")
+            
             return transform_character_list_to_response(characters)
         except Exception as e:
             self.logger.error(f"Error fetching characters: {e}")
@@ -80,7 +98,7 @@ class CharacterService:
     
     async def get_character(self, character_id: int) -> Optional[Dict[str, Any]]:
         """
-        Get single character by ID
+        Get single character by ID with CSV archetype-based traits
         
         Args:
             character_id: ID of character to retrieve
@@ -95,6 +113,17 @@ class CharacterService:
             character = self.db.query(Character).filter(Character.id == character_id).first()
             if not character:
                 return None
+            
+            # Ensure traits match CSV archetype sampling (Issue #112)
+            from utils.character_utils import get_character_traits_from_archetype_weights
+            expected_traits = get_character_traits_from_archetype_weights(character.name)
+            
+            if expected_traits and character.traits != expected_traits:
+                # Update traits to match archetype sampling in real-time
+                self.logger.info(f"Updating {character.name} traits to match archetype sampling: {expected_traits}")
+                character.traits = expected_traits
+                self.db.commit()
+            
             return transform_character_to_response(character)
         except Exception as e:
             self.logger.error(f"Error fetching character {character_id}: {e}")
