@@ -694,6 +694,8 @@ export type TranslationKey =
   | 'unableToLoadCharacters'
   | 'checkConnectionRetry'
   | 'startPremiumChat'
+  | 'isPreparingMessage'
+  | 'creatingChat'
   | 'available'
   | 'defaultVoice'
   | 'favorited'
@@ -1342,6 +1344,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     unableToLoadCharacters: 'Unable to load characters',
     checkConnectionRetry: 'Please check your connection and try again',
     startPremiumChat: 'Start Premium Chat',
+    isPreparingMessage: 'is preparing a message...',
+    creatingChat: 'Creating chat...',
     available: 'Available',
     defaultVoice: 'Default Voice',
     favorited: 'Favorited',
@@ -1988,6 +1992,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     unableToLoadCharacters: '无法加载角色',
     checkConnectionRetry: '请检查网络连接并重试',
     startPremiumChat: '开始聊天',
+    isPreparingMessage: '正在准备消息...',
+    creatingChat: '正在创建对话...',
     available: '在线',
     defaultVoice: '默认语音',
     favorited: '已收藏',

@@ -31,7 +31,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const { isAuthenticated } = useAuth();
   const { t } = useLanguage();
   
-  // Mutation for creating a new chat
+  // Mutation for creating a new chat (runs in background after immediate navigation)
   const { mutate: createChat, isPending: isCreatingChat } = useMutation({
     mutationFn: async ({ characterId }: { characterId: number }) => {
       const response = await apiRequest(
@@ -45,13 +45,12 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       return response.json();
     },
     onSuccess: (chat) => {
-      // Navigate to the new chat
+      // ✅ REDIRECT: Replace temporary creating state with real chat
       navigateToPath(`/chat/${chat.id}`);
-      handlePreviewClose();
     },
     onError: (error) => {
       console.error('Failed to create chat:', error);
-      // Fallback to generic chat page
+      // Fallback to generic chat page if creation fails
       navigateToPath('/chat');
     }
   });
@@ -162,7 +161,12 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     
     setSelectedCharacter(character);
     
-    // Create a new chat with the selected character
+    // ✅ IMMEDIATE: Navigate to a temporary chat state first
+    // This gives instant feedback while chat is being created
+    navigateToPath(`/chat/creating?characterId=${character.id}`);
+    handlePreviewClose();
+    
+    // 🚀 BACKGROUND: Create chat asynchronously 
     createChat({
       characterId: character.id
     });
