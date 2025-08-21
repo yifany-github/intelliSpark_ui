@@ -159,11 +159,12 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       return;
     }
     
+    // ✅ STORE CHARACTER: Set character data immediately for instant avatar loading
     setSelectedCharacter(character);
     
-    // ✅ IMMEDIATE: Navigate to a temporary chat state first
+    // ✅ IMMEDIATE: Navigate to chat with character data pre-loaded
     // This gives instant feedback while chat is being created
-    navigateToPath(`/chat/creating?characterId=${character.id}`);
+    navigateToPath(`/chat/creating?characterId=${character.id}&name=${encodeURIComponent(character.name)}`);
     handlePreviewClose();
     
     // 🚀 BACKGROUND: Create chat asynchronously 

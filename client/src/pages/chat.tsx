@@ -22,7 +22,7 @@ interface ChatPageProps {
 
 const ChatPage = ({ chatId }: ChatPageProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { isTyping, setIsTyping } = useRolePlay();
+  const { isTyping, setIsTyping, selectedCharacter } = useRolePlay();
   const { t } = useLanguage();
   const { navigateBack } = useNavigation();
   const [showChatList, setShowChatList] = useState(false);
@@ -87,11 +87,17 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
   // Get character data from the enriched chats list with fallback, or from creating state
   const character = useMemo(() => {
-    // If in creating state, use the creating character
+    // ✅ PRIORITY 1: If in creating state, use selectedCharacter from RolePlayContext (immediately available)
+    if (isCreatingChat && selectedCharacter) {
+      return selectedCharacter;
+    }
+    
+    // ✅ PRIORITY 2: If in creating state but no selectedCharacter, use API-fetched character
     if (isCreatingChat && creatingCharacter) {
       return creatingCharacter;
     }
     
+    // Regular chat - use existing logic
     const foundCharacter = chats.find(c => c.id === parseInt(chatId || '0'))?.character;
     
     if (foundCharacter) {
@@ -103,9 +109,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     }
     
     return null;
-  }, [chats, chatId, fallbackCharacter, isCreatingChat, creatingCharacter]);
+  }, [chats, chatId, fallbackCharacter, isCreatingChat, creatingCharacter, selectedCharacter]);
   
-  const isLoadingCharacter = isLoadingChats || isLoadingFallbackCharacter || (isCreatingChat && isLoadingCreatingCharacter);
+  const isLoadingCharacter = isLoadingChats || isLoadingFallbackCharacter || (isCreatingChat && !selectedCharacter && isLoadingCreatingCharacter);
   
   // Mutation for sending messages
   const { mutate: sendMessage, isPending: isSending } = useMutation({
