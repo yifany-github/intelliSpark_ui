@@ -128,6 +128,34 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       }
     }
     
+    // NSFW filter
+    if (!nsfwEnabled) {
+      // When NSFW is disabled, only show SFW content
+      const nsfwKeywords = ['nsfw', 'adult', '成人', '性', '娇羞', '淫', '魅惑', '撩人', '敏感', '情色', '欲望', '肉体', '呻吟'];
+      
+      // Check traits for NSFW content
+      const hasNsfwTrait = character.traits.some((trait: string) => 
+        nsfwKeywords.some(keyword => trait.toLowerCase().includes(keyword.toLowerCase()))
+      );
+      
+      // Check description for NSFW content
+      const description = character.description || '';
+      const hasNsfwDescription = nsfwKeywords.some(keyword => 
+        description.toLowerCase().includes(keyword.toLowerCase())
+      );
+      
+      // Check backstory for NSFW content
+      const backstory = character.backstory || '';
+      const hasNsfwBackstory = nsfwKeywords.some(keyword => 
+        backstory.toLowerCase().includes(keyword.toLowerCase())
+      );
+      
+      // Exclude characters with any NSFW content when NSFW is disabled
+      if (hasNsfwTrait || hasNsfwDescription || hasNsfwBackstory) {
+        return false;
+      }
+    }
+    
     return true;
   });
 
