@@ -62,6 +62,18 @@ class ChatService:
             for chat in chats:
                 character = self.db.query(Character).filter(Character.id == chat.character_id).first()
                 
+                # Ensure character has up-to-date description from persona prompt (Issue #119)
+                if character:
+                    from utils.character_utils import get_character_description_from_persona
+                    expected_description = get_character_description_from_persona(character.name)
+                    
+                    if expected_description and (character.description != expected_description or character.backstory != expected_description):
+                        # Update description and backstory to match persona prompt in real-time
+                        self.logger.info(f"Chat service updating {character.name} description and backstory from persona prompt")
+                        character.description = expected_description
+                        character.backstory = expected_description
+                        self.db.commit()
+                
                 # Get latest message for preview
                 latest_message = self.db.query(ChatMessage).filter(
                     ChatMessage.chat_id == chat.id

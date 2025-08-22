@@ -120,8 +120,20 @@ export const queryClient = new QueryClient({
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
-      refetchOnWindowFocus: false,
-      staleTime: Infinity,
+      refetchOnWindowFocus: (query) => {
+        // Refetch character data when window gains focus to ensure latest descriptions
+        const queryKey = query.queryKey[0] as string;
+        return queryKey.includes('/api/characters') || queryKey.includes('/api/chats');
+      },
+      staleTime: (query) => {
+        // Character-related queries should refresh more frequently to pick up 
+        // real-time description/trait updates from persona prompts (Issue #119)
+        const queryKey = query.queryKey[0] as string;
+        if (queryKey.includes('/api/characters') || queryKey.includes('/api/chats')) {
+          return 30 * 1000; // 30 seconds stale time for character data
+        }
+        return Infinity; // Other data can be cached forever
+      },
       retry: false,
     },
     mutations: {
