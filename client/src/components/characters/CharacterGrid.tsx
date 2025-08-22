@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield, Heart, Share, MessageCircle } from 'lucide-react';
 import { Character } from '@/types';
 import { useRolePlay } from '@/contexts/RolePlayContext';
@@ -30,6 +31,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const { setSelectedCharacter } = useRolePlay();
   const { isAuthenticated } = useAuth();
   const { t } = useLanguage();
+  const [, setLocation] = useLocation();
   
   // Mutation for creating a new chat (runs in background after immediate navigation)
   const { mutate: createChat, isPending: isCreatingChat } = useMutation({
@@ -45,8 +47,8 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       return response.json();
     },
     onSuccess: (chat) => {
-      // ✅ REDIRECT: Replace temporary creating state with real chat
-      navigateToPath(`/chat/${chat.id}`);
+      // ✅ REDIRECT: Replace temporary creating state with real chat (no history entry)
+      setLocation(`/chat/${chat.id}`, { replace: true });
     },
     onError: (error) => {
       console.error('Failed to create chat:', error);
