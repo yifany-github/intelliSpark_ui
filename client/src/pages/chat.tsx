@@ -261,9 +261,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                       showSpinner={true}
                     />
                     <div className="ml-3">
-                      <h3 className="font-medium">{chat.title}</h3>
+                      <h3 className="font-medium">{chat.character?.name}</h3>
                       <p className="text-sm text-gray-400">
-                        {chat.character?.name}
+                        {chat.title}
                       </p>
                       <p className="text-xs text-gray-500">
                         {chat.updatedAt ? new Date(chat.updatedAt).toLocaleDateString() : ''}
