@@ -77,15 +77,26 @@ async def create_chat(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create new chat with AI opening line"""
+    """Create new chat immediately and trigger background AI opening line generation"""
     try:
         service = ChatService(db)
-        success, chat, error = await service.create_chat(chat_data, current_user.id)
+        
+        # ✅ FAST: Create chat immediately without waiting for AI generation
+        success, chat, error = await service.create_chat_immediate(chat_data, current_user.id)
         
         if not success:
             raise HTTPException(status_code=400, detail=error)
         
+        # 🚀 BACKGROUND: Trigger async opening line generation
+        import asyncio
+        asyncio.create_task(service.generate_opening_line_async(
+            chat_id=chat.id,
+            character_id=chat_data.characterId
+        ))
+        
+        # ✅ IMMEDIATE: Return chat for instant navigation
         return chat
+        
     except ChatServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
 

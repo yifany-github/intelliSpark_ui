@@ -133,13 +133,14 @@ class ChatService:
             self.logger.error(f"Error fetching chat {chat_id}: {e}")
             raise ChatServiceError(f"Failed to fetch chat {chat_id}: {e}")
     
-    async def create_chat(
+    async def create_chat_immediate(
         self, 
         chat_data: ChatCreate, 
         user_id: int
     ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
         """
-        Create new chat with AI opening line generation
+        Create new chat immediately without waiting for AI opening line generation.
+        AI opening line will be generated asynchronously in the background.
         
         Args:
             chat_data: Chat creation data
@@ -154,7 +155,7 @@ class ChatService:
             if not character:
                 return False, {}, "Character not found"
             
-            # Create chat
+            # Create chat immediately (fast operation ~50ms)
             chat = Chat(
                 user_id=user_id,
                 character_id=chat_data.characterId,
@@ -165,36 +166,52 @@ class ChatService:
             self.db.commit()
             self.db.refresh(chat)
             
-            # Auto-generate opening line like the original routes
-            try:
-                from gemini_service import GeminiService
-                gemini_service = GeminiService()
-                
-                self.logger.info("Generating opening line for new chat")
-                opening_line = await gemini_service.generate_opening_line(character)
-                self.logger.info(f"Opening line generated: {opening_line[:50]}...")
-                
-                self.logger.info("Creating initial message")
-                initial_message = ChatMessage(
-                    chat_id=chat.id,
-                    role="assistant",
-                    content=opening_line
-                )
-                self.db.add(initial_message)
-                self.db.commit()
-                self.logger.info("Initial message created successfully")
-            except Exception as e:
-                self.logger.warning(f"Failed to generate opening line: {e}")
-                # Continue without opening line if generation fails
-            
-            self.logger.info(f"Chat created successfully: {chat.id} for user {user_id}")
-            # Return the raw SQLAlchemy object like the original routes
+            self.logger.info(f"Chat created immediately: {chat.id} for user {user_id}")
+            # Return immediately without waiting for AI generation
             return True, chat, None
             
         except Exception as e:
             self.logger.error(f"Error creating chat: {e}")
             self.db.rollback()
             return False, {}, f"Chat creation failed: {e}"
+
+    async def generate_opening_line_async(self, chat_id: int, character_id: int):
+        """
+        Generate opening line asynchronously after chat creation.
+        This method runs in the background without blocking chat creation.
+        
+        Args:
+            chat_id: ID of the chat to generate opening line for
+            character_id: ID of the character to generate opening line from
+        """
+        try:
+            # Get character for opening line generation
+            character = self.db.query(Character).filter(Character.id == character_id).first()
+            if not character:
+                self.logger.error(f"Character {character_id} not found for opening line generation")
+                return
+                
+            from gemini_service import GeminiService
+            gemini_service = GeminiService()
+            
+            self.logger.info(f"🚀 Generating opening line asynchronously for chat {chat_id}")
+            opening_line = await gemini_service.generate_opening_line(character)
+            self.logger.info(f"Opening line generated: {opening_line[:50]}...")
+            
+            # Save opening line as first message
+            initial_message = ChatMessage(
+                chat_id=chat_id,
+                role="assistant",
+                content=opening_line
+            )
+            self.db.add(initial_message)
+            self.db.commit()
+            
+            self.logger.info(f"✅ Background opening line created successfully for chat {chat_id}")
+            
+        except Exception as e:
+            self.logger.error(f"Background opening line generation failed for chat {chat_id}: {e}")
+            # Don't raise exception - this is background processing
     
     async def generate_ai_response(
         self, 
