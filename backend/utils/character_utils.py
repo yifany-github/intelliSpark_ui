@@ -4,6 +4,11 @@ Utility functions for character data handling and transformation
 from models import Character
 from typing import Dict, Any, Optional, List
 
+# Constants for persona parsing
+PERSONA_DESCRIPTION_PATTERN = r'你是([^#]+?)(?=\n\n|\n####|$)'
+MAX_PERSONA_PROMPT_SIZE = 50000  # 50KB limit for security
+MAX_CHARACTER_NAME_LENGTH = 100
+
 
 def ensure_avatar_url(character: Character) -> str:
     """
@@ -180,9 +185,15 @@ def extract_description_from_persona(persona_prompt: str) -> str:
     """
     import re
     
+    # Security: Prevent ReDoS by limiting input size
+    if len(persona_prompt) > MAX_PERSONA_PROMPT_SIZE:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Persona prompt too large for parsing: {len(persona_prompt)} chars")
+        return ""
+    
     # Find the description paragraph after "你是"
-    pattern = r'你是([^#]+?)(?=\n\n|\n####|$)'
-    match = re.search(pattern, persona_prompt, re.DOTALL)
+    match = re.search(PERSONA_DESCRIPTION_PATTERN, persona_prompt, re.DOTALL)
     
     if match:
         description = match.group(1).strip()
@@ -197,8 +208,23 @@ def load_character_persona_prompt(character_name: str) -> str:
     """Load PERSONA_PROMPT from character prompt file"""
     import importlib.util
     from pathlib import Path
+    import re
     
     try:
+        # Security: Validate character name to prevent path traversal and arbitrary file access
+        if not re.match(r'^[a-zA-Z0-9_\u4e00-\u9fff]+$', character_name):
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Invalid character name format rejected: {repr(character_name)}")
+            return ""
+        
+        # Additional security: Limit character name length to prevent DoS
+        if len(character_name) > MAX_CHARACTER_NAME_LENGTH:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Character name too long rejected: {len(character_name)} chars")
+            return ""
+        
         char_file = Path(__file__).parent.parent / "prompts" / "characters" / f"{character_name}.py"
         
         if not char_file.exists():

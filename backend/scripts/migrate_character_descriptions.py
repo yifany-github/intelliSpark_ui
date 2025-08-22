@@ -22,6 +22,9 @@ def migrate_all_character_descriptions():
         print(f"Migrating descriptions for {len(characters)} characters...")
         print("=" * 60)
         
+        updated_characters = []
+        
+        # Process all characters first, collecting updates
         for character in characters:
             print(f"\nCharacter: {character.name}")
             print(f"  Current description: {character.description or 'None'}")
@@ -36,11 +39,18 @@ def migrate_all_character_descriptions():
                 # Update both description and backstory fields
                 character.description = new_description
                 character.backstory = new_description
-                db.commit()
+                updated_characters.append(character.name)
                 
-                print(f"  ✅ Updated description and backstory successfully")
+                print(f"  ✅ Prepared for update")
             else:
                 print(f"  ⚠️ No persona prompt found, keeping current description")
+        
+        # Single commit for all changes - transaction safety
+        if updated_characters:
+            db.commit()
+            print(f"\n🎉 Successfully committed updates for: {', '.join(updated_characters)}")
+        else:
+            print(f"\n📝 No characters needed updates")
         
         print("\n" + "=" * 60)
         print("Migration completed! All character descriptions now match persona prompts.")
@@ -48,6 +58,7 @@ def migrate_all_character_descriptions():
     except Exception as e:
         print(f"❌ Migration failed: {e}")
         db.rollback()
+        raise
     finally:
         db.close()
 
