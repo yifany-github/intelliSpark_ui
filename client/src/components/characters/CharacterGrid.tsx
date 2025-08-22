@@ -109,9 +109,23 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       };
       
       const searchTerms = categoryMap[selectedCategory] || [selectedCategory];
-      return character.traits.some((trait: string) => 
+      const matchesCategory = character.traits.some((trait: string) => 
         searchTerms.some(term => trait.toLowerCase().includes(term.toLowerCase()))
       );
+      
+      if (!matchesCategory) {
+        return false;
+      }
+    }
+    
+    // Gender filter
+    if (genderFilter !== 'all') {
+      if (!character.gender) {
+        return false; // Exclude characters with no gender specified
+      }
+      if (character.gender.toLowerCase() !== genderFilter.toLowerCase()) {
+        return false; // Exclude characters that don't match selected gender
+      }
     }
     
     return true;
@@ -236,6 +250,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 <option value="all">{t('all')}</option>
                 <option value="male">{t('male')}</option>
                 <option value="female">{t('female')}</option>
+                <option value="other">{t('other')}</option>
               </select>
             </div>
             

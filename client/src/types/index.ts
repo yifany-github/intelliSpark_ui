@@ -18,6 +18,7 @@ export interface Character {
   description?: string;
   voiceStyle: string;
   traits: string[];
+  gender?: string;
   createdAt: string;
 }
 
