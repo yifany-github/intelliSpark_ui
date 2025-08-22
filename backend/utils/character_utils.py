@@ -4,6 +4,14 @@ Utility functions for character data handling and transformation
 from models import Character
 from typing import Dict, Any, Optional, List
 
+# Constants for persona parsing
+PERSONA_DESCRIPTION_PATTERN = r'你是([^#]+?)(?=\n\n|\n####|$)'
+MAX_PERSONA_PROMPT_SIZE = 50000  # 50KB limit for security
+MAX_CHARACTER_NAME_LENGTH = 100
+
+# In-memory cache for persona prompts to avoid file I/O on every request
+_PERSONA_CACHE = {}
+
 
 def ensure_avatar_url(character: Character) -> str:
     """
@@ -130,3 +138,122 @@ def load_character_archetype_weights(character_name: str) -> Dict[str, float]:
         logger = logging.getLogger(__name__)
         logger.error(f"Error loading archetype weights for {character_name}: {e}")
         return {}
+
+
+# Persona description extraction functions (Issue #119)
+
+def get_character_description_from_persona(character_name: str) -> str:
+    """
+    Get character description by parsing their persona prompt structure
+    
+    Args:
+        character_name: Name of character (matches .py file in prompts/characters/)
+        
+    Returns:
+        Extracted description from persona prompt
+    """
+    try:
+        # Load character's persona prompt using existing infrastructure
+        persona_prompt = load_character_persona_prompt(character_name)
+        
+        if not persona_prompt:
+            return ""
+        
+        # Extract description using structural parsing
+        description = extract_description_from_persona(persona_prompt)
+        
+        return description
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error extracting description for {character_name}: {e}")
+        return ""
+
+
+def extract_description_from_persona(persona_prompt: str) -> str:
+    """
+    Extract character description from structured persona prompt
+    
+    Parsing rules:
+    1. Find paragraph starting with "你是" 
+    2. Extract until first double newline "\n\n" or section header "####"
+    3. Clean up whitespace
+    
+    Args:
+        persona_prompt: The PERSONA_PROMPT string from character file
+        
+    Returns:
+        Extracted description string
+    """
+    import re
+    
+    # Security: Prevent ReDoS by limiting input size
+    if len(persona_prompt) > MAX_PERSONA_PROMPT_SIZE:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"Persona prompt too large for parsing: {len(persona_prompt)} chars")
+        return ""
+    
+    # Find the description paragraph after "你是"
+    match = re.search(PERSONA_DESCRIPTION_PATTERN, persona_prompt, re.DOTALL)
+    
+    if match:
+        description = match.group(1).strip()
+        # Clean up any extra whitespace
+        description = re.sub(r'\s+', ' ', description)
+        return description
+    
+    return ""
+
+
+def load_character_persona_prompt(character_name: str) -> str:
+    """Load PERSONA_PROMPT from character prompt file with caching"""
+    import importlib.util
+    from pathlib import Path
+    import re
+    
+    try:
+        # Security: Validate character name to prevent path traversal and arbitrary file access
+        if not re.match(r'^[a-zA-Z0-9_\u4e00-\u9fff]+$', character_name):
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Invalid character name format rejected: {repr(character_name)}")
+            return ""
+        
+        # Additional security: Limit character name length to prevent DoS
+        if len(character_name) > MAX_CHARACTER_NAME_LENGTH:
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Character name too long rejected: {len(character_name)} chars")
+            return ""
+        
+        # Check cache first to avoid file I/O
+        if character_name in _PERSONA_CACHE:
+            return _PERSONA_CACHE[character_name]
+        
+        char_file = Path(__file__).parent.parent / "prompts" / "characters" / f"{character_name}.py"
+        
+        if not char_file.exists():
+            # Cache negative result to avoid repeated file system checks
+            _PERSONA_CACHE[character_name] = ""
+            return ""
+        
+        # Load the character module
+        spec = importlib.util.spec_from_file_location("char_module", char_file)
+        char_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(char_module)
+        
+        # Get persona prompt and cache it
+        persona_prompt = getattr(char_module, 'PERSONA_PROMPT', "")
+        _PERSONA_CACHE[character_name] = persona_prompt
+        
+        return persona_prompt
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error loading persona prompt for {character_name}: {e}")
+        # Cache empty result to avoid repeated failures
+        _PERSONA_CACHE[character_name] = ""
+        return ""

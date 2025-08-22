@@ -87,11 +87,10 @@ class CharacterService:
                     character.traits = expected_traits
                     character_updated = True
                 
-                # Update description and backstory to match persona prompt
+                # Update description to match persona prompt
                 expected_description = get_character_description_from_persona(character.name)
-                if expected_description and (character.description != expected_description or character.backstory != expected_description):
+                if expected_description and character.description != expected_description:
                     character.description = expected_description
-                    character.backstory = expected_description
                     character_updated = True
                 
                 if character_updated:
