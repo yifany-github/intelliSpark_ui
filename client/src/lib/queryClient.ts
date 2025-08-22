@@ -123,16 +123,22 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: (query) => {
         // Refetch character data when window gains focus to ensure latest descriptions
         const queryKey = query.queryKey[0] as string;
-        return queryKey.includes('/api/characters') || queryKey.includes('/api/chats');
+        // More targeted: only character list and individual character queries
+        return queryKey === '/api/characters' || queryKey.match(/^\/api\/characters\/\d+$/);
       },
       staleTime: (query) => {
         // Character-related queries should refresh more frequently to pick up 
         // real-time description/trait updates from persona prompts (Issue #119)
         const queryKey = query.queryKey[0] as string;
-        if (queryKey.includes('/api/characters') || queryKey.includes('/api/chats')) {
-          return 30 * 1000; // 30 seconds stale time for character data
+        // More targeted caching: only character endpoints, not all chats
+        if (queryKey === '/api/characters' || queryKey.match(/^\/api\/characters\/\d+$/)) {
+          return 5 * 60 * 1000; // 5 minutes for character data (more reasonable)
         }
-        return Infinity; // Other data can be cached forever
+        // Chat list can be cached longer since character data in chats is updated via real-time sync
+        if (queryKey === '/api/chats') {
+          return 2 * 60 * 1000; // 2 minutes for chat list
+        }
+        return Infinity; // Other data cached forever
       },
       retry: false,
     },

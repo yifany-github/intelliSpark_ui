@@ -9,6 +9,9 @@ PERSONA_DESCRIPTION_PATTERN = r'你是([^#]+?)(?=\n\n|\n####|$)'
 MAX_PERSONA_PROMPT_SIZE = 50000  # 50KB limit for security
 MAX_CHARACTER_NAME_LENGTH = 100
 
+# In-memory cache for persona prompts to avoid file I/O on every request
+_PERSONA_CACHE = {}
+
 
 def ensure_avatar_url(character: Character) -> str:
     """
@@ -205,7 +208,7 @@ def extract_description_from_persona(persona_prompt: str) -> str:
 
 
 def load_character_persona_prompt(character_name: str) -> str:
-    """Load PERSONA_PROMPT from character prompt file"""
+    """Load PERSONA_PROMPT from character prompt file with caching"""
     import importlib.util
     from pathlib import Path
     import re
@@ -225,9 +228,15 @@ def load_character_persona_prompt(character_name: str) -> str:
             logger.warning(f"Character name too long rejected: {len(character_name)} chars")
             return ""
         
+        # Check cache first to avoid file I/O
+        if character_name in _PERSONA_CACHE:
+            return _PERSONA_CACHE[character_name]
+        
         char_file = Path(__file__).parent.parent / "prompts" / "characters" / f"{character_name}.py"
         
         if not char_file.exists():
+            # Cache negative result to avoid repeated file system checks
+            _PERSONA_CACHE[character_name] = ""
             return ""
         
         # Load the character module
@@ -235,11 +244,16 @@ def load_character_persona_prompt(character_name: str) -> str:
         char_module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(char_module)
         
-        # Return persona prompt
-        return getattr(char_module, 'PERSONA_PROMPT', "")
+        # Get persona prompt and cache it
+        persona_prompt = getattr(char_module, 'PERSONA_PROMPT', "")
+        _PERSONA_CACHE[character_name] = persona_prompt
+        
+        return persona_prompt
         
     except Exception as e:
         import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error loading persona prompt for {character_name}: {e}")
+        # Cache empty result to avoid repeated failures
+        _PERSONA_CACHE[character_name] = ""
         return ""
