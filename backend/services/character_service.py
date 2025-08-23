@@ -80,7 +80,6 @@ class CharacterService:
                 get_character_traits_from_archetype_weights, 
                 get_character_description_from_persona,
                 get_character_gender_from_prompt,
-                get_character_nsfw_level_from_prompt,
                 get_character_category_from_prompt
             )
             

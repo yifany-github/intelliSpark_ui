@@ -278,9 +278,20 @@ def get_character_category_from_prompt(character_name: str) -> Optional[str]:
 
 def _get_character_metadata_field(character_name: str, field_name: str):
     """Generic function to get metadata field from character prompt file"""
-    import importlib.util
-    from pathlib import Path
     import re
+    import ast
+    from pathlib import Path
+    import logging
+    
+    # Security: Validate field name whitelist
+    ALLOWED_FIELDS = {
+        'CHARACTER_GENDER', 
+        'CHARACTER_NSFW_LEVEL', 
+        'CHARACTER_CATEGORY'
+    }
+    
+    if field_name not in ALLOWED_FIELDS:
+        return None
     
     try:
         # Security: Validate character name to prevent path traversal
@@ -295,16 +306,24 @@ def _get_character_metadata_field(character_name: str, field_name: str):
         if not char_file.exists():
             return None
         
-        # Load the character module
-        spec = importlib.util.spec_from_file_location("char_module", char_file)
-        char_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(char_module)
+        # Security: Read file and parse constants only (no code execution)
+        with open(char_file, 'r', encoding='utf-8') as f:
+            content = f.read()
         
-        # Get the requested field
-        return getattr(char_module, field_name, None)
+        # Parse the specific field using regex instead of exec
+        pattern = rf'^{re.escape(field_name)}\s*=\s*(.+)$'
+        match = re.search(pattern, content, re.MULTILINE)
+        
+        if match:
+            try:
+                # Safely evaluate basic Python literals only (no code execution)
+                return ast.literal_eval(match.group(1).strip())
+            except (ValueError, SyntaxError):
+                return None
+        
+        return None
         
     except Exception as e:
-        import logging
         logger = logging.getLogger(__name__)
         logger.error(f"Error loading {field_name} for {character_name}: {e}")
         return None
