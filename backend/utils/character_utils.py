@@ -257,3 +257,54 @@ def load_character_persona_prompt(character_name: str) -> str:
         # Cache empty result to avoid repeated failures
         _PERSONA_CACHE[character_name] = ""
         return ""
+
+
+# Character metadata sync functions
+
+def get_character_gender_from_prompt(character_name: str) -> Optional[str]:
+    """Get character gender from prompt file"""
+    return _get_character_metadata_field(character_name, 'CHARACTER_GENDER')
+
+
+def get_character_nsfw_level_from_prompt(character_name: str) -> Optional[int]:
+    """Get character NSFW level from prompt file"""
+    return _get_character_metadata_field(character_name, 'CHARACTER_NSFW_LEVEL')
+
+
+def get_character_category_from_prompt(character_name: str) -> Optional[str]:
+    """Get character category from prompt file"""
+    return _get_character_metadata_field(character_name, 'CHARACTER_CATEGORY')
+
+
+def _get_character_metadata_field(character_name: str, field_name: str):
+    """Generic function to get metadata field from character prompt file"""
+    import importlib.util
+    from pathlib import Path
+    import re
+    
+    try:
+        # Security: Validate character name to prevent path traversal
+        if not re.match(r'^[a-zA-Z0-9_\u4e00-\u9fff]+$', character_name):
+            return None
+        
+        if len(character_name) > MAX_CHARACTER_NAME_LENGTH:
+            return None
+        
+        char_file = Path(__file__).parent.parent / "prompts" / "characters" / f"{character_name}.py"
+        
+        if not char_file.exists():
+            return None
+        
+        # Load the character module
+        spec = importlib.util.spec_from_file_location("char_module", char_file)
+        char_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(char_module)
+        
+        # Get the requested field
+        return getattr(char_module, field_name, None)
+        
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error loading {field_name} for {character_name}: {e}")
+        return None

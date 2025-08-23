@@ -75,7 +75,14 @@ class CharacterService:
             characters = query.all()
             
             # Ensure all characters have CSV archetype-based traits (Issue #112) and persona descriptions (Issue #119)
-            from utils.character_utils import get_character_traits_from_archetype_weights, get_character_description_from_persona
+            # Also sync gender/NSFW/category metadata from prompt files
+            from utils.character_utils import (
+                get_character_traits_from_archetype_weights, 
+                get_character_description_from_persona,
+                get_character_gender_from_prompt,
+                get_character_nsfw_level_from_prompt,
+                get_character_category_from_prompt
+            )
             
             needs_update = []
             for character in characters:
@@ -94,13 +101,25 @@ class CharacterService:
                     character.backstory = expected_description
                     character_updated = True
                 
+                # Update gender from prompt file
+                expected_gender = get_character_gender_from_prompt(character.name)
+                if expected_gender and character.gender != expected_gender:
+                    character.gender = expected_gender
+                    character_updated = True
+                
+                # Update category from prompt file  
+                expected_category = get_character_category_from_prompt(character.name)
+                if expected_category and character.category != expected_category:
+                    character.category = expected_category
+                    character_updated = True
+                
                 if character_updated:
                     needs_update.append(character.name)
             
             # Single commit for all updates (performance optimization)
             if needs_update:
                 self.db.commit()
-                self.logger.info(f"Updated traits/descriptions for characters: {needs_update}")
+                self.logger.info(f"Updated metadata (traits/descriptions/gender/category) for characters: {needs_update}")
             
             return transform_character_list_to_response(characters)
         except Exception as e:

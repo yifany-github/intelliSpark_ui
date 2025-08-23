@@ -44,6 +44,7 @@ def create_initial_data(db: Session):
                 backstory="Elara is the last of an ancient line of arcane practitioners who once advised kings and queens throughout the realm. After centuries of extending her life through magical means, she has accumulated vast knowledge but has grown somewhat detached from humanity.",
                 voice_style="Mystical, refined feminine voice",
                 traits=["Mage", "Wise", "Ancient", "Mysterious"],
+                gender="female",
                 personality_traits={
                     "Warmth": 40,
                     "Humor": 20,
@@ -57,6 +58,7 @@ def create_initial_data(db: Session):
                 backstory="A battle-hardened warrior from the northern plains, Kravus fights for honor and glory. His imposing presence and scarred visage tell of countless battles survived through sheer strength and determination.",
                 voice_style="Deep, commanding masculine voice",
                 traits=["Warrior", "Brash", "Honorable", "Strong"],
+                gender="male",
                 personality_traits={
                     "Warmth": 30,
                     "Humor": 45,
