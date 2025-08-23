@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional, List
 PERSONA_DESCRIPTION_PATTERN = r'你是([^#]+?)(?=\n\n|\n####|$)'
 MAX_PERSONA_PROMPT_SIZE = 50000  # 50KB limit for security
 MAX_CHARACTER_NAME_LENGTH = 100
+MAX_METADATA_FILE_SIZE = 10000  # 10KB limit for metadata files
 
 # In-memory cache for persona prompts to avoid file I/O on every request
 _PERSONA_CACHE = {}
@@ -304,6 +305,12 @@ def _get_character_metadata_field(character_name: str, field_name: str):
         char_file = Path(__file__).parent.parent / "prompts" / "characters" / f"{character_name}.py"
         
         if not char_file.exists():
+            return None
+        
+        # Security: Check file size before reading to prevent memory issues
+        if char_file.stat().st_size > MAX_METADATA_FILE_SIZE:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Character file {character_name} too large: {char_file.stat().st_size} bytes")
             return None
         
         # Security: Read file and parse constants only (no code execution)

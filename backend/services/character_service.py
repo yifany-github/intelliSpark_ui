@@ -100,15 +100,17 @@ class CharacterService:
                     character.backstory = expected_description
                     character_updated = True
                 
-                # Update gender from prompt file
+                # Update gender from prompt file (only if different)
                 expected_gender = get_character_gender_from_prompt(character.name)
                 if expected_gender and character.gender != expected_gender:
+                    self.logger.info(f"Updating {character.name} gender: {character.gender} -> {expected_gender}")
                     character.gender = expected_gender
                     character_updated = True
                 
-                # Update category from prompt file  
+                # Update category from prompt file (only if different)
                 expected_category = get_character_category_from_prompt(character.name)
                 if expected_category and character.category != expected_category:
+                    self.logger.info(f"Updating {character.name} category: {character.category} -> {expected_category}")
                     character.category = expected_category
                     character_updated = True
                 
