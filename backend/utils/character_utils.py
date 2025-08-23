@@ -8,6 +8,7 @@ from typing import Dict, Any, Optional, List
 PERSONA_DESCRIPTION_PATTERN = r'你是([^#]+?)(?=\n\n|\n####|$)'
 MAX_PERSONA_PROMPT_SIZE = 50000  # 50KB limit for security
 MAX_CHARACTER_NAME_LENGTH = 100
+MAX_METADATA_FILE_SIZE = 10000  # 10KB limit for metadata files
 
 # In-memory cache for persona prompts to avoid file I/O on every request
 _PERSONA_CACHE = {}
@@ -257,3 +258,79 @@ def load_character_persona_prompt(character_name: str) -> str:
         # Cache empty result to avoid repeated failures
         _PERSONA_CACHE[character_name] = ""
         return ""
+
+
+# Character metadata sync functions
+
+def get_character_gender_from_prompt(character_name: str) -> Optional[str]:
+    """Get character gender from prompt file"""
+    return _get_character_metadata_field(character_name, 'CHARACTER_GENDER')
+
+
+def get_character_nsfw_level_from_prompt(character_name: str) -> Optional[int]:
+    """Get character NSFW level from prompt file"""
+    return _get_character_metadata_field(character_name, 'CHARACTER_NSFW_LEVEL')
+
+
+def get_character_category_from_prompt(character_name: str) -> Optional[str]:
+    """Get character category from prompt file"""
+    return _get_character_metadata_field(character_name, 'CHARACTER_CATEGORY')
+
+
+def _get_character_metadata_field(character_name: str, field_name: str):
+    """Generic function to get metadata field from character prompt file"""
+    import re
+    import ast
+    from pathlib import Path
+    import logging
+    
+    # Security: Validate field name whitelist
+    ALLOWED_FIELDS = {
+        'CHARACTER_GENDER', 
+        'CHARACTER_NSFW_LEVEL', 
+        'CHARACTER_CATEGORY'
+    }
+    
+    if field_name not in ALLOWED_FIELDS:
+        return None
+    
+    try:
+        # Security: Validate character name to prevent path traversal
+        if not re.match(r'^[a-zA-Z0-9_\u4e00-\u9fff]+$', character_name):
+            return None
+        
+        if len(character_name) > MAX_CHARACTER_NAME_LENGTH:
+            return None
+        
+        char_file = Path(__file__).parent.parent / "prompts" / "characters" / f"{character_name}.py"
+        
+        if not char_file.exists():
+            return None
+        
+        # Security: Check file size before reading to prevent memory issues
+        if char_file.stat().st_size > MAX_METADATA_FILE_SIZE:
+            logger = logging.getLogger(__name__)
+            logger.warning(f"Character file {character_name} too large: {char_file.stat().st_size} bytes")
+            return None
+        
+        # Security: Read file and parse constants only (no code execution)
+        with open(char_file, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        # Parse the specific field using regex instead of exec
+        pattern = rf'^{re.escape(field_name)}\s*=\s*(.+)$'
+        match = re.search(pattern, content, re.MULTILINE)
+        
+        if match:
+            try:
+                # Safely evaluate basic Python literals only (no code execution)
+                return ast.literal_eval(match.group(1).strip())
+            except (ValueError, SyntaxError):
+                return None
+        
+        return None
+        
+    except Exception as e:
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error loading {field_name} for {character_name}: {e}")
+        return None

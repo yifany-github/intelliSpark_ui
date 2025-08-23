@@ -15,6 +15,11 @@ ARCHETYPE_WEIGHTS = {
     "俏皮叛逆者": 0.1   # Minor archetype - playful/rebellious (for occasional wit)
 }
 
+# Character metadata for database sync
+CHARACTER_GENDER = "female"
+CHARACTER_NSFW_LEVEL = 3  # Adult content (0=safe, 1=mild, 2=moderate, 3=explicit)
+CHARACTER_CATEGORY = "adult"
+
 PERSONA_PROMPT =persona_prompt = """
 ## 角色设定：艾莉丝（腼腆却淫乱的空姐）
 

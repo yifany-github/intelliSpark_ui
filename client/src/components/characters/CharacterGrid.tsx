@@ -156,6 +156,16 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       }
     }
     
+    // Gender filter
+    if (genderFilter !== 'all') {
+      if (!character.gender) {
+        return false; // Exclude characters with no gender specified
+      }
+      if (character.gender.toLowerCase() !== genderFilter.toLowerCase()) {
+        return false; // Exclude characters that don't match selected gender
+      }
+    }
+    
     return true;
   });
 
