@@ -14,6 +14,7 @@ Features:
 
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
+from uuid import UUID
 import logging
 
 try:
@@ -144,6 +145,41 @@ class ChatService:
         except Exception as e:
             self.logger.error(f"Error fetching chat {chat_id}: {e}")
             raise ChatServiceError(f"Failed to fetch chat {chat_id}: {e}")
+    
+    async def get_chat_by_uuid(self, chat_uuid: UUID, user_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get specific chat by UUID with validation (secure method)
+        
+        Args:
+            chat_uuid: UUID of chat to retrieve  
+            user_id: ID of user requesting the chat
+            
+        Returns:
+            Chat dictionary or None if not found/unauthorized
+            
+        Raises:
+            ChatServiceError: If database operation fails
+        """
+        try:
+            chat = self.db.query(Chat).filter(Chat.uuid == chat_uuid, Chat.user_id == user_id).first()
+            if not chat:
+                return None
+            
+            # Return basic chat data with UUID
+            chat_dict = {
+                "id": chat.id,
+                "uuid": str(chat.uuid) if chat.uuid else None,
+                "user_id": chat.user_id,
+                "character_id": chat.character_id,
+                "title": chat.title,
+                "created_at": chat.created_at.isoformat() + "Z" if chat.created_at else None,
+                "updated_at": chat.updated_at.isoformat() + "Z" if chat.updated_at else None
+            }
+            
+            return chat_dict
+        except Exception as e:
+            self.logger.error(f"Error fetching chat by UUID {chat_uuid}: {e}")
+            raise ChatServiceError(f"Failed to fetch chat by UUID {chat_uuid}: {e}")
     
     async def create_chat_immediate(
         self, 

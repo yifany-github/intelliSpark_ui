@@ -13,6 +13,7 @@ Features:
 
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
+from uuid import UUID
 import logging
 
 try:
