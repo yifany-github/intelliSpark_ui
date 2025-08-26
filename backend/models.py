@@ -3,8 +3,36 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
+from sqlalchemy.types import TypeDecorator, String as SQLString
 from datetime import datetime
 import uuid
+
+# Universal UUID type that works with both SQLite and PostgreSQL
+class UniversalUUID(TypeDecorator):
+    """Platform-independent UUID type. Uses String(36) for SQLite, UUID for PostgreSQL"""
+    
+    impl = SQLString
+    cache_ok = True
+    
+    def load_dialect_impl(self, dialect):
+        if dialect.name == 'postgresql':
+            return dialect.type_descriptor(UUID(as_uuid=True))
+        else:
+            return dialect.type_descriptor(SQLString(36))
+    
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, uuid.UUID):
+            return str(value)
+        return str(value)
+    
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        if isinstance(value, uuid.UUID):
+            return value
+        return uuid.UUID(value)
 
 Base = declarative_base()
 
@@ -53,7 +81,7 @@ class Chat(Base):
     __tablename__ = "chats"
     
     id = Column(Integer, primary_key=True, index=True)
-    uuid = Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, index=True, nullable=True)  # New UUID field - nullable during migration
+    uuid = Column(UniversalUUID(), default=uuid.uuid4, unique=True, index=True, nullable=True)  # New UUID field - nullable during migration
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     character_id = Column(Integer, ForeignKey("characters.id"), nullable=False)
     title = Column(String(500), nullable=False)
@@ -63,21 +91,21 @@ class Chat(Base):
     # Relationships
     user = relationship("User", back_populates="chats")
     character = relationship("Character", back_populates="chats")
-    messages = relationship("ChatMessage", back_populates="chat")
+    messages = relationship("ChatMessage", back_populates="chat", foreign_keys="ChatMessage.chat_id")
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
     
     id = Column(Integer, primary_key=True, index=True)
-    uuid = Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, index=True, nullable=True)  # New UUID field - nullable during migration
+    uuid = Column(UniversalUUID(), default=uuid.uuid4, unique=True, index=True, nullable=True)  # New UUID field - nullable during migration
     chat_id = Column(Integer, ForeignKey("chats.id"), nullable=False)
-    chat_uuid = Column(UUID(as_uuid=True), ForeignKey("chats.uuid"), nullable=True, index=True)  # New UUID foreign key - nullable during migration
+    chat_uuid = Column(UniversalUUID(), ForeignKey("chats.uuid"), nullable=True, index=True)  # New UUID foreign key - nullable during migration
     role = Column(String(50), nullable=False)  # 'user' or 'assistant'
     content = Column(String(10000), nullable=False)  # 10KB limit to prevent DoS attacks
     timestamp = Column(DateTime, default=func.now())
     
     # Relationships
-    chat = relationship("Chat", back_populates="messages")
+    chat = relationship("Chat", back_populates="messages", foreign_keys=[chat_id])
 
 class UserToken(Base):
     __tablename__ = "user_tokens"

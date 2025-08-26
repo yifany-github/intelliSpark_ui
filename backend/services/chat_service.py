@@ -363,6 +363,43 @@ class ChatService:
             self.logger.error(f"Error in generate_ai_response: {e}")
             self.db.rollback()
             return False, {}, f"AI response generation failed: {e}"
+
+    # UUID-based methods for enhanced security
+    async def generate_ai_response_by_uuid(
+        self, 
+        chat_uuid: UUID, 
+        user_id: int
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+        """Generate AI response for chat by UUID (secure method)"""
+        try:
+            # Find chat by UUID and verify ownership
+            chat = self.db.query(Chat).filter(Chat.uuid == chat_uuid, Chat.user_id == user_id).first()
+            if not chat:
+                return False, {}, "Chat not found or access denied"
+            
+            # Use the regular chat_id method for actual AI generation
+            return await self.generate_ai_response(chat.id, user_id)
+        except Exception as e:
+            self.logger.error(f"Error generating AI response for chat UUID {chat_uuid}: {e}")
+            return False, {}, f"AI response generation failed: {e}"
+    
+    async def generate_opening_line_by_uuid(
+        self, 
+        chat_uuid: UUID, 
+        user_id: int
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+        """Generate opening line for chat by UUID (secure method)"""
+        try:
+            # Find chat by UUID and verify ownership
+            chat = self.db.query(Chat).filter(Chat.uuid == chat_uuid, Chat.user_id == user_id).first()
+            if not chat:
+                return False, {}, "Chat not found or access denied"
+            
+            # Use the regular chat_id method for actual opening line generation
+            return await self.generate_opening_line(chat.id, user_id)
+        except Exception as e:
+            self.logger.error(f"Error generating opening line for chat UUID {chat_uuid}: {e}")
+            return False, {}, f"Opening line generation failed: {e}"
     
     async def delete_chat(
         self, 

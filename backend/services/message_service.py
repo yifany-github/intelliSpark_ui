@@ -17,10 +17,10 @@ from uuid import UUID
 import logging
 
 try:
-    from ..models import ChatMessage
+    from ..models import ChatMessage, Chat
     from ..schemas import ChatMessageCreate
 except ImportError:
-    from models import ChatMessage
+    from models import ChatMessage, Chat
     from schemas import ChatMessageCreate
 
 
@@ -144,6 +144,48 @@ class MessageService:
         except Exception as e:
             self.logger.error(f"Error creating message: {e}")
             self.db.rollback()
+            return False, {}, f"Message creation failed: {e}"
+
+    # UUID-based methods for enhanced security
+    async def get_chat_messages_by_uuid(
+        self, 
+        chat_uuid: UUID, 
+        user_id: int,
+        limit: Optional[int] = None,
+        offset: Optional[int] = None
+    ) -> List[Dict[str, Any]]:
+        """Get messages for chat by UUID (secure method)"""
+        try:
+            # Find chat by UUID and verify ownership
+            chat = self.db.query(Chat).filter(Chat.uuid == chat_uuid, Chat.user_id == user_id).first()
+            if not chat:
+                raise MessageServiceError(f"Chat not found or access denied")
+            
+            # Use the regular chat_id method for actual message retrieval
+            return await self.get_chat_messages(chat.id, user_id, limit, offset)
+        except MessageServiceError:
+            raise
+        except Exception as e:
+            self.logger.error(f"Error fetching messages for chat UUID {chat_uuid}: {e}")
+            raise MessageServiceError(f"Failed to fetch messages: {e}")
+    
+    async def create_message_by_uuid(
+        self,
+        message_data: ChatMessageCreate,
+        chat_uuid: UUID,
+        user_id: int
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+        """Create message for chat by UUID (secure method)"""
+        try:
+            # Find chat by UUID and verify ownership
+            chat = self.db.query(Chat).filter(Chat.uuid == chat_uuid, Chat.user_id == user_id).first()
+            if not chat:
+                return False, {}, "Chat not found or access denied"
+            
+            # Use the regular chat_id method for actual message creation
+            return await self.create_message(message_data, chat.id, user_id)
+        except Exception as e:
+            self.logger.error(f"Error creating message for chat UUID {chat_uuid}: {e}")
             return False, {}, f"Message creation failed: {e}"
     
     async def delete_message(
