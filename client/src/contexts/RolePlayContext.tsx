@@ -94,7 +94,8 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
       // Invalidate chats query to refresh enriched chats list
       queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
       
-      return chat.id;
+      // Use UUID if available for privacy, fallback to integer ID for compatibility  
+      return chat.uuid || chat.id;
     } catch (error) {
       console.error('Error starting chat:', error);
       throw error;
