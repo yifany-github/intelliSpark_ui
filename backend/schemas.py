@@ -1,7 +1,8 @@
 from pydantic import BaseModel, Field, validator
 import bleach
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Union
 from datetime import datetime
+from uuid import UUID
 
 # Base schemas
 class BaseSchema(BaseModel):
@@ -87,12 +88,14 @@ class ChatCreate(BaseSchema):
 
 class Chat(ChatBase):
     id: int
+    uuid: Optional[UUID] = None  # UUID field for new security model
     created_at: datetime
     updated_at: datetime
 
 # Enriched chat for API responses (includes character info)
 class EnrichedChat(BaseSchema):
     id: int
+    uuid: Optional[UUID] = None  # UUID field for new security model
     user_id: int
     character_id: int
     title: str
@@ -128,6 +131,7 @@ class ChatMessageCreate(BaseSchema):
 
 class ChatMessage(ChatMessageBase):
     id: int
+    uuid: Optional[UUID] = None  # UUID field for new security model
     timestamp: datetime
 
 # API response schemas

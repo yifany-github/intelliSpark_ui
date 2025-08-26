@@ -1,8 +1,10 @@
 from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, Numeric
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from datetime import datetime
+import uuid
 
 Base = declarative_base()
 
@@ -51,6 +53,7 @@ class Chat(Base):
     __tablename__ = "chats"
     
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, index=True, nullable=True)  # New UUID field - nullable during migration
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     character_id = Column(Integer, ForeignKey("characters.id"), nullable=False)
     title = Column(String(500), nullable=False)
@@ -66,7 +69,9 @@ class ChatMessage(Base):
     __tablename__ = "chat_messages"
     
     id = Column(Integer, primary_key=True, index=True)
+    uuid = Column(UUID(as_uuid=True), default=uuid.uuid4, unique=True, index=True, nullable=True)  # New UUID field - nullable during migration
     chat_id = Column(Integer, ForeignKey("chats.id"), nullable=False)
+    chat_uuid = Column(UUID(as_uuid=True), ForeignKey("chats.uuid"), nullable=True, index=True)  # New UUID foreign key - nullable during migration
     role = Column(String(50), nullable=False)  # 'user' or 'assistant'
     content = Column(String(10000), nullable=False)  # 10KB limit to prevent DoS attacks
     timestamp = Column(DateTime, default=func.now())
