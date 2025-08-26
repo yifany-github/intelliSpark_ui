@@ -134,6 +134,7 @@ class ChatService:
             # Return basic chat data
             chat_dict = {
                 "id": chat.id,
+                "uuid": chat.uuid,  # Include UUID field
                 "user_id": chat.user_id,
                 "character_id": chat.character_id,
                 "title": chat.title,
@@ -214,7 +215,16 @@ class ChatService:
             self.db.commit()
             self.db.refresh(chat)
             
-            self.logger.info(f"Chat created immediately: {chat.id} for user {user_id}")
+            self.logger.info(f"Chat created immediately: {chat.id} (UUID: {chat.uuid}) for user {user_id}")
+            
+            # Ensure UUID is properly set - if None, generate one
+            if not chat.uuid:
+                import uuid as uuid_module
+                chat.uuid = uuid_module.uuid4()
+                self.db.commit()
+                self.db.refresh(chat)
+                self.logger.warning(f"Had to manually set UUID for chat {chat.id}: {chat.uuid}")
+            
             # Return immediately without waiting for AI generation
             return True, chat, None
             
