@@ -16,12 +16,18 @@ Routes:
 - DELETE /chats/{chat_id} - Delete specific chat
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import List
 import logging
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
 logger = logging.getLogger(__name__)
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
 
 from database import get_db
 from auth.routes import get_current_user
@@ -116,7 +122,9 @@ async def get_chat_messages(
 
 
 @router.post("/{chat_id}/messages", response_model=ChatMessageSchema)
+@limiter.limit("20/minute")  # 20 messages per minute per IP to prevent spam
 async def add_message_to_chat(
+    request: Request,
     chat_id: int,
     message_data: ChatMessageCreate,
     db: Session = Depends(get_db),
@@ -136,7 +144,9 @@ async def add_message_to_chat(
 
 
 @router.post("/{chat_id}/generate", response_model=ChatMessageSchema)
+@limiter.limit("15/minute")  # 15 AI generations per minute per IP (more restrictive)
 async def generate_ai_response(
+    request: Request,
     chat_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -160,7 +170,9 @@ async def generate_ai_response(
 
 
 @router.post("/{chat_id}/opening-line")
+@limiter.limit("10/minute")  # 10 opening line generations per minute per IP
 async def generate_opening_line(
+    request: Request,
     chat_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)

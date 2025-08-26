@@ -16,3 +16,4 @@ python-magic==0.4.27
 Pillow==10.0.0
 slowapi==0.1.9
 aiofiles==23.2.1
+bleach==6.1.0

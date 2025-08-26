@@ -1,4 +1,5 @@
 from pydantic import BaseModel, Field, validator
+import bleach
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
@@ -110,12 +111,20 @@ class ChatMessageCreate(BaseSchema):
     content: str = Field(..., max_length=10000, description="Message content, max 10KB")
     
     @validator('content')
-    def validate_content_length(cls, v):
+    def validate_and_sanitize_content(cls, v):
         if not v or len(v.strip()) == 0:
             raise ValueError('Message content cannot be empty')
-        if len(v.encode('utf-8')) > 10000:  # Check byte size for UTF-8
+        
+        # Sanitize content to prevent XSS attacks
+        # Allow basic markdown formatting but strip dangerous HTML
+        allowed_tags = []  # No HTML tags allowed for security
+        sanitized = bleach.clean(v, tags=allowed_tags, strip=True)
+        
+        # Check byte size after sanitization
+        if len(sanitized.encode('utf-8')) > 10000:  # Check byte size for UTF-8
             raise ValueError('Message content exceeds 10KB limit')
-        return v.strip()
+            
+        return sanitized.strip()
 
 class ChatMessage(ChatMessageBase):
     id: int
