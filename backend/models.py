@@ -68,7 +68,7 @@ class ChatMessage(Base):
     id = Column(Integer, primary_key=True, index=True)
     chat_id = Column(Integer, ForeignKey("chats.id"), nullable=False)
     role = Column(String(50), nullable=False)  # 'user' or 'assistant'
-    content = Column(Text, nullable=False)
+    content = Column(String(10000), nullable=False)  # 10KB limit to prevent DoS attacks
     timestamp = Column(DateTime, default=func.now())
     
     # Relationships

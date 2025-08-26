@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
@@ -107,7 +107,15 @@ class ChatMessageBase(BaseSchema):
 
 class ChatMessageCreate(BaseSchema):
     role: str = Field(..., description="Either 'user' or 'assistant'")
-    content: str
+    content: str = Field(..., max_length=10000, description="Message content, max 10KB")
+    
+    @validator('content')
+    def validate_content_length(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Message content cannot be empty')
+        if len(v.encode('utf-8')) > 10000:  # Check byte size for UTF-8
+            raise ValueError('Message content exceeds 10KB limit')
+        return v.strip()
 
 class ChatMessage(ChatMessageBase):
     id: int
