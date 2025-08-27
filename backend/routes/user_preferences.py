@@ -92,17 +92,23 @@ async def set_preferred_ai_model(
         if not model_info["is_available"]:
             raise HTTPException(status_code=400, detail=f"AI model {request.model} is currently unavailable")
         
-        # Update user preference
-        current_user.preferred_ai_model = request.model
-        db.commit()
-        
-        logger.info(f"User {current_user.username} set preferred AI model to: {request.model}")
-        
-        return {
-            "message": f"Preferred AI model set to {request.model}",
-            "preferred_model": request.model,
-            "model_name": model_info["service_name"]
-        }
+        # Update user preference with proper transaction handling
+        try:
+            current_user.preferred_ai_model = request.model
+            db.commit()
+            db.refresh(current_user)
+            
+            logger.info(f"User {current_user.username} set preferred AI model to: {request.model}")
+            
+            return {
+                "message": f"Preferred AI model set to {request.model}",
+                "preferred_model": request.model,
+                "model_name": model_info["service_name"]
+            }
+        except Exception as db_error:
+            db.rollback()
+            logger.error(f"Database error while setting preferred AI model: {db_error}")
+            raise HTTPException(status_code=500, detail="Failed to save preferred AI model")
         
     except HTTPException:
         raise
@@ -161,16 +167,25 @@ async def set_memory_enabled(
 ):
     """Set user's memory enabled preference"""
     try:
-        current_user.memory_enabled = enabled
-        db.commit()
+        # Update memory preference with proper transaction handling
+        try:
+            current_user.memory_enabled = enabled
+            db.commit()
+            db.refresh(current_user)
+            
+            logger.info(f"User {current_user.username} set memory enabled to: {enabled}")
+            
+            return {
+                "message": f"Memory {'enabled' if enabled else 'disabled'}",
+                "memory_enabled": enabled
+            }
+        except Exception as db_error:
+            db.rollback()
+            logger.error(f"Database error while setting memory preference: {db_error}")
+            raise HTTPException(status_code=500, detail="Failed to save memory preference")
         
-        logger.info(f"User {current_user.username} set memory enabled to: {enabled}")
-        
-        return {
-            "message": f"Memory {'enabled' if enabled else 'disabled'}",
-            "memory_enabled": enabled
-        }
-        
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error setting memory enabled: {e}")
         raise HTTPException(status_code=500, detail="Failed to set memory preference")

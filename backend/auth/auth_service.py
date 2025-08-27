@@ -132,24 +132,26 @@ class AuthService:
                 logger.error("Firebase token is empty or None")
                 return None
             
-            logger.info(f"🔐 Attempting Firebase token verification, token length: {len(firebase_token)}")
+            logger.debug(f"🔐 Attempting Firebase token verification, token length: {len(firebase_token)}")
             
             # Verify the ID token using Firebase Auth REST API
             verify_url = f"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={settings.firebase_api_key}"
             response = requests.post(verify_url, json={"idToken": firebase_token}, timeout=10)
             
-            logger.info(f"🔍 Firebase verification response status: {response.status_code}")
+            logger.debug(f"🔍 Firebase verification response status: {response.status_code}")
             
             if response.status_code != 200:
                 try:
                     error_data = response.json()
-                    logger.error(f"❌ Firebase token verification failed: {error_data}")
+                    logger.error(f"❌ Firebase token verification failed: status {response.status_code}")
+                    logger.debug(f"Firebase error details: {error_data}")
                 except:
-                    logger.error(f"❌ Firebase token verification failed: {response.text}")
+                    logger.error(f"❌ Firebase token verification failed: status {response.status_code}")
+                    logger.debug(f"Firebase response: {response.text}")
                 return None
                 
             data = response.json()
-            logger.info(f"🔍 Firebase response data keys: {list(data.keys())}")
+            logger.debug(f"🔍 Firebase response data keys: {list(data.keys())}")
             
             if 'users' not in data or len(data['users']) == 0:
                 logger.error("❌ No users found in Firebase response")
@@ -159,8 +161,8 @@ class AuthService:
             email = firebase_user.get('email')
             firebase_uid = firebase_user.get('localId')
             
-            logger.info(f"📧 Firebase user email: {email}")
-            logger.info(f"🆔 Firebase user localId: {firebase_uid}")
+            logger.debug(f"📧 Firebase user email: {email}")
+            logger.debug(f"🆔 Firebase user localId: {firebase_uid}")
             
             if not email:
                 logger.error("❌ No email found in Firebase user data")
