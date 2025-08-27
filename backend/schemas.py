@@ -18,6 +18,7 @@ class UserBase(BaseSchema):
     email: Optional[str] = None
     provider: str = 'email'
     memory_enabled: bool = True
+    is_admin: bool = False
 
 class UserCreate(BaseSchema):
     username: str

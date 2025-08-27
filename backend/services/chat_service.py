@@ -17,16 +17,10 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 import logging
 
-try:
-    from ..models import Chat, ChatMessage, Character, User
-    from ..schemas import ChatCreate, EnrichedChat
-    from .ai_service import AIService
-    from ..utils.character_utils import ensure_avatar_url
-except ImportError:
-    from models import Chat, ChatMessage, Character, User
-    from schemas import ChatCreate, EnrichedChat
-    from services.ai_service import AIService
-    from utils.character_utils import ensure_avatar_url
+from models import Chat, ChatMessage, Character, User
+from schemas import ChatCreate, EnrichedChat
+from services.ai_service import AIService
+from utils.character_utils import ensure_avatar_url
 
 
 class ChatServiceError(Exception):
@@ -243,22 +237,28 @@ class ChatService:
             character_id: ID of the character to generate opening line from
         """
         try:
-            # Get character for opening line generation
+            # Get chat and character for opening line generation
+            chat = self.db.query(Chat).filter(Chat.id == chat_id).first()
+            if not chat:
+                self.logger.error(f"Chat {chat_id} not found for opening line generation")
+                return
+                
             character = self.db.query(Character).filter(Character.id == character_id).first()
             if not character:
                 self.logger.error(f"Character {character_id} not found for opening line generation")
                 return
                 
-            from gemini_service import GeminiService
-            gemini_service = GeminiService()
+            from .ai_model_manager import get_ai_model_manager
+            ai_manager = await get_ai_model_manager()
             
             self.logger.info(f"🚀 Generating opening line asynchronously for chat {chat_id}")
-            opening_line = await gemini_service.generate_opening_line(character)
+            opening_line = await ai_manager.generate_opening_line(character)
             self.logger.info(f"Opening line generated: {opening_line[:50]}...")
             
             # Save opening line as first message
             initial_message = ChatMessage(
                 chat_id=chat_id,
+                chat_uuid=chat.uuid,  # Set chat_uuid for security
                 role="assistant",
                 content=opening_line
             )
@@ -287,10 +287,15 @@ class ChatService:
             (success, response_data, error_message)
         """
         try:
-            # Get the chat and verify it belongs to current user
+            # Get the chat and user, verify chat belongs to current user
             chat = self.db.query(Chat).filter(Chat.id == chat_id, Chat.user_id == user_id).first()
             if not chat:
                 return False, {}, "Chat not found"
+            
+            # Get user object for AI model preferences
+            user_obj = self.db.query(User).filter(User.id == user_id).first()
+            if not user_obj:
+                return False, {}, "User not found"
             
             # Check token balance before generating response
             try:
@@ -314,14 +319,15 @@ class ChatService:
             if not character:
                 return False, {}, "Character not found"
             
-            # Generate response using Gemini service
+            # Generate response using AI model manager
             try:
-                from gemini_service import GeminiService
-                gemini_service = GeminiService()
+                from .ai_model_manager import get_ai_model_manager
+                ai_manager = await get_ai_model_manager()
                 
-                response_content, token_info = await gemini_service.generate_response(
+                response_content, token_info = await ai_manager.generate_response(
                     character=character,
-                    messages=messages
+                    messages=messages,
+                    user=user_obj
                 )
                 
                 # Log token usage information
@@ -345,6 +351,7 @@ class ChatService:
                 # Save the AI response
                 ai_message = ChatMessage(
                     chat_id=chat_id,
+                    chat_uuid=chat.uuid,  # Set chat_uuid for security
                     role="assistant",
                     content=response_content
                 )
@@ -545,16 +552,17 @@ class ChatService:
             if not character:
                 return False, {}, "Character not found"
             
-            # Generate opening line using Gemini service
+            # Generate opening line using AI model manager
             try:
-                from gemini_service import GeminiService
-                gemini_service = GeminiService()
+                from .ai_model_manager import get_ai_model_manager
+                ai_manager = await get_ai_model_manager()
                 
-                opening_line = await gemini_service.generate_opening_line(character)
+                opening_line = await ai_manager.generate_opening_line(character)
                 
                 # Save the opening line as the first assistant message
                 opening_message = ChatMessage(
                     chat_id=chat_id,
+                    chat_uuid=chat.uuid,  # Set chat_uuid for security
                     role="assistant", 
                     content=opening_line
                 )

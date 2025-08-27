@@ -16,12 +16,8 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 import logging
 
-try:
-    from ..models import ChatMessage, Chat
-    from ..schemas import ChatMessageCreate
-except ImportError:
-    from models import ChatMessage, Chat
-    from schemas import ChatMessageCreate
+from models import ChatMessage, Chat
+from schemas import ChatMessageCreate
 
 
 class MessageServiceError(Exception):
@@ -137,9 +133,10 @@ class MessageService:
             if not chat:
                 return False, {}, "Chat not found or access denied"
             
-            # Create message
+            # Create message with chat_uuid for security
             message = ChatMessage(
                 chat_id=chat_id,
+                chat_uuid=chat.uuid,  # Set chat_uuid for security
                 role=message_data.role,
                 content=message_data.content
             )
