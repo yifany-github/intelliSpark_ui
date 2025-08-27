@@ -46,7 +46,7 @@ class User(Base):
     provider = Column(String(50), default='email')  # 'email', 'google', 'apple'
     firebase_uid = Column(String(255), unique=True, nullable=True)  # Firebase user ID
     memory_enabled = Column(Boolean, default=True)
-    is_admin = Column(Boolean, default=False)  # Admin privileges flag
+    preferred_ai_model = Column(String(50), default='gemini')  # User's preferred AI model: 'gemini', 'grok', etc.
     created_at = Column(DateTime, default=func.now())
     
     # Relationships

@@ -116,39 +116,67 @@ class AuthService:
     @staticmethod
     def authenticate_user_by_firebase_token(db: Session, firebase_token: str) -> Optional[User]:
         """Authenticate user by Firebase token and create user if doesn't exist"""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
             # Use Firebase REST API for token verification (simpler than Admin SDK)
             import requests
             from config import settings
             
             if not settings.firebase_api_key:
-                print("Firebase API key not configured")
+                logger.error("Firebase API key not configured")
                 return None
+            
+            if not firebase_token or len(firebase_token.strip()) == 0:
+                logger.error("Firebase token is empty or None")
+                return None
+            
+            logger.debug(f"🔐 Attempting Firebase token verification, token length: {len(firebase_token)}")
             
             # Verify the ID token using Firebase Auth REST API
             verify_url = f"https://identitytoolkit.googleapis.com/v1/accounts:lookup?key={settings.firebase_api_key}"
-            response = requests.post(verify_url, json={"idToken": firebase_token})
+            response = requests.post(verify_url, json={"idToken": firebase_token}, timeout=10)
+            
+            logger.debug(f"🔍 Firebase verification response status: {response.status_code}")
             
             if response.status_code != 200:
+                try:
+                    error_data = response.json()
+                    logger.error(f"❌ Firebase token verification failed: status {response.status_code}")
+                    logger.debug(f"Firebase error details: {error_data}")
+                except:
+                    logger.error(f"❌ Firebase token verification failed: status {response.status_code}")
+                    logger.debug(f"Firebase response: {response.text}")
                 return None
                 
             data = response.json()
+            logger.debug(f"🔍 Firebase response data keys: {list(data.keys())}")
+            
             if 'users' not in data or len(data['users']) == 0:
+                logger.error("❌ No users found in Firebase response")
                 return None
                 
             firebase_user = data['users'][0]
             email = firebase_user.get('email')
             firebase_uid = firebase_user.get('localId')
             
+            logger.debug(f"📧 Firebase user email: {email}")
+            logger.debug(f"🆔 Firebase user localId: {firebase_uid}")
+            
             if not email:
+                logger.error("❌ No email found in Firebase user data")
                 return None
             
             # Check if user exists by firebase_uid first, then by email
+            logger.info(f"🔍 Checking for existing user with firebase_uid: {firebase_uid}")
             user = db.query(User).filter(User.firebase_uid == firebase_uid).first()
             if not user:
+                logger.info(f"🔍 No user found with firebase_uid, checking email: {email}")
                 user = db.query(User).filter(User.email == email).first()
             
             if not user:
+                logger.info("👤 Creating new user from Firebase data")
                 # Create new user from Firebase data
                 username = email.split('@')[0]
                 counter = 1
@@ -167,25 +195,32 @@ class AuthService:
                 db.add(user)
                 db.commit()
                 db.refresh(user)
+                logger.info(f"✅ New user created with ID: {user.id}")
                 
                 # Give new users 10 free tokens to start
                 try:
                     from payment.token_service import TokenService
                     token_service = TokenService(db)
                     token_service.add_tokens(user.id, 10, "Welcome bonus - 10 free tokens")
+                    logger.info(f"🎁 Welcome tokens assigned to user {user.id}")
                 except Exception as e:
                     # Don't fail user creation if token assignment fails
-                    import logging
-                    logging.warning(f"Failed to assign welcome tokens to user {user.id}: {e}")
+                    logger.warning(f"Failed to assign welcome tokens to user {user.id}: {e}")
             else:
+                logger.info(f"👤 Existing user found with ID: {user.id}")
                 # Update firebase_uid if user exists but doesn't have it
                 if not user.firebase_uid:
+                    logger.info("🔄 Updating existing user with firebase_uid")
                     user.firebase_uid = firebase_uid
                     db.commit()
             
+            logger.info(f"✅ Firebase authentication successful for user: {user.email}")
             return user
             
         except Exception as e:
+            logger.error(f"❌ Exception in Firebase authentication: {e}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return None
     
     @staticmethod
