@@ -1,6 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
+
+// Constants
+const MAX_MESSAGE_LENGTH = 10000; // 10KB limit to match backend
 import {
   Popover,
   PopoverContent,
@@ -19,10 +22,29 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
   const { t } = useLanguage();
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
+  const validateMessage = (content: string): string | null => {
+    if (!content.trim()) return 'Message cannot be empty';
+    if (new Blob([content]).size > MAX_MESSAGE_LENGTH) {
+      return `Message too long (max ${Math.floor(MAX_MESSAGE_LENGTH / 1000)}KB)`;
+    }
+    return null;
+  };
+
   const handleSend = () => {
-    if (!message.trim()) return;
+    const trimmedMessage = message.trim();
+    if (!trimmedMessage) return;
     
-    onSendMessage(message);
+    const validationError = validateMessage(trimmedMessage);
+    if (validationError) {
+      toast({
+        title: "Message Error",
+        description: validationError,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    onSendMessage(trimmedMessage);
     setMessage('');
   };
 

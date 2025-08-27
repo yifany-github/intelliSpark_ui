@@ -1,6 +1,8 @@
-from pydantic import BaseModel, Field
-from typing import List, Dict, Optional, Any
+from pydantic import BaseModel, Field, validator
+import bleach
+from typing import List, Dict, Optional, Any, Union
 from datetime import datetime
+from uuid import UUID
 
 # Base schemas
 class BaseSchema(BaseModel):
@@ -86,12 +88,14 @@ class ChatCreate(BaseSchema):
 
 class Chat(ChatBase):
     id: int
+    uuid: Optional[UUID] = None  # UUID field for new security model
     created_at: datetime
     updated_at: datetime
 
 # Enriched chat for API responses (includes character info)
 class EnrichedChat(BaseSchema):
     id: int
+    uuid: Optional[UUID] = None  # UUID field for new security model
     user_id: int
     character_id: int
     title: str
@@ -107,10 +111,27 @@ class ChatMessageBase(BaseSchema):
 
 class ChatMessageCreate(BaseSchema):
     role: str = Field(..., description="Either 'user' or 'assistant'")
-    content: str
+    content: str = Field(..., max_length=10000, description="Message content, max 10KB")
+    
+    @validator('content')
+    def validate_and_sanitize_content(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Message content cannot be empty')
+        
+        # Sanitize content to prevent XSS attacks
+        # Allow basic markdown formatting but strip dangerous HTML
+        allowed_tags = []  # No HTML tags allowed for security
+        sanitized = bleach.clean(v, tags=allowed_tags, strip=True)
+        
+        # Check byte size after sanitization
+        if len(sanitized.encode('utf-8')) > 10000:  # Check byte size for UTF-8
+            raise ValueError('Message content exceeds 10KB limit')
+            
+        return sanitized.strip()
 
 class ChatMessage(ChatMessageBase):
     id: int
+    uuid: Optional[UUID] = None  # UUID field for new security model
     timestamp: datetime
 
 # API response schemas

@@ -10,6 +10,7 @@ import { useNavigation } from '@/contexts/NavigationContext';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useToast } from '@/hooks/use-toast';
 
 const filterKeys = ['popular', 'recent', 'trending', 'new', 'following', 'editorChoice'] as const;
 const categoryKeys = ['all', 'anime', 'game', 'movie', 'book', 'original', 'fantasy', 'sciFi', 'romance', 'action'] as const;
@@ -31,6 +32,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const { setSelectedCharacter } = useRolePlay();
   const { isAuthenticated } = useAuth();
   const { t } = useLanguage();
+  const { toast } = useToast();
   const [, setLocation] = useLocation();
   
   // Mutation for creating a new chat (runs in background after immediate navigation)
@@ -48,10 +50,26 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     },
     onSuccess: (chat) => {
       // ✅ REDIRECT: Replace temporary creating state with real chat (no history entry)
-      setLocation(`/chat/${chat.id}`, { replace: true });
+      // SECURITY: Always use UUID for privacy - no fallback to integer ID
+      if (!chat.uuid) {
+        console.error('Security error: Chat UUID missing from API response');
+        toast({
+          title: 'Unable to start chat',
+          description: 'There was a technical issue creating your chat. Please try again.',
+          variant: 'destructive',
+        });
+        navigateToPath('/chat'); // Fallback to generic chat page
+        return;
+      }
+      setLocation(`/chat/${chat.uuid}`, { replace: true });
     },
     onError: (error) => {
       console.error('Failed to create chat:', error);
+      toast({
+        title: 'Chat creation failed',
+        description: 'Unable to start your conversation. Please check your connection and try again.',
+        variant: 'destructive',
+      });
       // Fallback to generic chat page if creation fails
       navigateToPath('/chat');
     }

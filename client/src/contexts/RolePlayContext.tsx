@@ -94,7 +94,11 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
       // Invalidate chats query to refresh enriched chats list
       queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
       
-      return chat.id;
+      // SECURITY: Always use UUID for privacy - no fallback to integer ID
+      if (!chat.uuid || typeof chat.uuid !== 'string' || chat.uuid.length === 0) {
+        throw new Error('Security error: Chat UUID is required but missing from API response');
+      }
+      return chat.uuid;
     } catch (error) {
       console.error('Error starting chat:', error);
       throw error;

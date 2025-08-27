@@ -16,12 +16,41 @@ Routes:
 - DELETE /chats/{chat_id} - Delete specific chat
 """
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Union
 import logging
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from uuid import UUID
+import re
 
 logger = logging.getLogger(__name__)
+
+# Initialize rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
+def parse_chat_identifier(chat_id: str) -> tuple[bool, Union[int, UUID]]:
+    """
+    Parse chat identifier to determine if it's an integer ID or UUID.
+    
+    Returns:
+        tuple: (is_uuid: bool, parsed_value: int | UUID)
+    """
+    # Check if it's a valid UUID format (accepts both uppercase and lowercase)
+    uuid_pattern = r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    if re.match(uuid_pattern, chat_id):
+        try:
+            return True, UUID(chat_id)
+        except ValueError:
+            pass
+    
+    # Try to parse as integer
+    try:
+        return False, int(chat_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid chat identifier format")
 
 from database import get_db
 from auth.routes import get_current_user
@@ -56,14 +85,23 @@ async def get_chats(
 
 @router.get("/{chat_id}", response_model=ChatSchema)
 async def get_chat(
-    chat_id: int,
+    chat_id: str,  # Accept string to handle both int and UUID
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get specific chat"""
+    """Get specific chat by ID or UUID"""
     try:
+        # Parse the identifier 
+        is_uuid, parsed_id = parse_chat_identifier(chat_id)
+        
         service = ChatService(db)
-        chat = await service.get_chat(chat_id, current_user.id)
+        if is_uuid:
+            # Use UUID-based lookup (more secure)
+            chat = await service.get_chat_by_uuid(parsed_id, current_user.id)
+        else:
+            # Legacy integer ID lookup (backward compatibility)
+            chat = await service.get_chat(parsed_id, current_user.id)
+            
         if not chat:
             raise HTTPException(status_code=404, detail="Chat not found")
         return chat
@@ -103,29 +141,43 @@ async def create_chat(
 
 @router.get("/{chat_id}/messages", response_model=List[ChatMessageSchema])
 async def get_chat_messages(
-    chat_id: int,
+    chat_id: str,  # Accept string to handle both int and UUID
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get messages for a specific chat"""
+    """Get messages for a specific chat by ID or UUID"""
     try:
+        # Parse the identifier
+        is_uuid, parsed_id = parse_chat_identifier(chat_id)
+        
         service = MessageService(db)
-        return await service.get_chat_messages(chat_id, current_user.id)
+        if is_uuid:
+            return await service.get_chat_messages_by_uuid(parsed_id, current_user.id)
+        else:
+            return await service.get_chat_messages(parsed_id, current_user.id)
     except MessageServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("/{chat_id}/messages", response_model=ChatMessageSchema)
+@limiter.limit("20/minute")  # 20 messages per minute per IP to prevent spam
 async def add_message_to_chat(
-    chat_id: int,
+    request: Request,
+    chat_id: str,  # Accept string to handle both int and UUID
     message_data: ChatMessageCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Add a message to a chat"""
+    """Add a message to a chat by ID or UUID"""
     try:
+        # Parse the identifier
+        is_uuid, parsed_id = parse_chat_identifier(chat_id)
+        
         service = MessageService(db)
-        success, message, error = await service.create_message(message_data, chat_id, current_user.id)
+        if is_uuid:
+            success, message, error = await service.create_message_by_uuid(message_data, parsed_id, current_user.id)
+        else:
+            success, message, error = await service.create_message(message_data, parsed_id, current_user.id)
         
         if not success:
             raise HTTPException(status_code=400, detail=error)
@@ -136,17 +188,25 @@ async def add_message_to_chat(
 
 
 @router.post("/{chat_id}/generate", response_model=ChatMessageSchema)
+@limiter.limit("15/minute")  # 15 AI generations per minute per IP (more restrictive)
 async def generate_ai_response(
-    chat_id: int,
+    request: Request,
+    chat_id: str,  # Accept string to handle both int and UUID
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Generate AI response for chat"""
+    """Generate AI response for chat by ID or UUID"""
     try:
+        # Parse the identifier
+        is_uuid, parsed_id = parse_chat_identifier(chat_id)
+        
         logger.info(f"Generating AI response for chat_id={chat_id}, user_id={current_user.id}")
         
         service = ChatService(db)
-        success, response, error = await service.generate_ai_response(chat_id, current_user.id)
+        if is_uuid:
+            success, response, error = await service.generate_ai_response_by_uuid(parsed_id, current_user.id)
+        else:
+            success, response, error = await service.generate_ai_response(parsed_id, current_user.id)
         
         if not success:
             if "Insufficient tokens" in error:
@@ -160,15 +220,23 @@ async def generate_ai_response(
 
 
 @router.post("/{chat_id}/opening-line")
+@limiter.limit("10/minute")  # 10 opening line generations per minute per IP
 async def generate_opening_line(
-    chat_id: int,
+    request: Request,
+    chat_id: str,  # Accept string to handle both int and UUID
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Generate opening line for chat"""
+    """Generate opening line for chat by ID or UUID"""
     try:
+        # Parse the identifier
+        is_uuid, parsed_id = parse_chat_identifier(chat_id)
+        
         service = ChatService(db)
-        success, message, error = await service.generate_opening_line(chat_id, current_user.id)
+        if is_uuid:
+            success, message, error = await service.generate_opening_line_by_uuid(parsed_id, current_user.id)
+        else:
+            success, message, error = await service.generate_opening_line(parsed_id, current_user.id)
         
         if not success:
             raise HTTPException(status_code=400, detail=error)
@@ -198,14 +266,20 @@ async def delete_all_chats(
 
 @router.delete("/{chat_id}", response_model=MessageResponse)
 async def delete_chat(
-    chat_id: int,
+    chat_id: str,  # Accept string to handle both int and UUID
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete a specific chat"""
+    """Delete a specific chat by ID or UUID"""
     try:
+        # Parse the identifier
+        is_uuid, parsed_id = parse_chat_identifier(chat_id)
+        
         service = ChatService(db)
-        success, error = await service.delete_chat(chat_id, current_user.id)
+        if is_uuid:
+            success, error = await service.delete_chat_by_uuid(parsed_id, current_user.id)
+        else:
+            success, error = await service.delete_chat(parsed_id, current_user.id)
         
         if not success:
             raise HTTPException(status_code=500, detail=error)

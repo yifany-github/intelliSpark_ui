@@ -14,6 +14,7 @@ Features:
 
 from typing import List, Dict, Any, Optional, Tuple
 from sqlalchemy.orm import Session
+from uuid import UUID
 import logging
 
 try:
@@ -133,6 +134,7 @@ class ChatService:
             # Return basic chat data
             chat_dict = {
                 "id": chat.id,
+                "uuid": chat.uuid,  # Include UUID field
                 "user_id": chat.user_id,
                 "character_id": chat.character_id,
                 "title": chat.title,
@@ -144,6 +146,41 @@ class ChatService:
         except Exception as e:
             self.logger.error(f"Error fetching chat {chat_id}: {e}")
             raise ChatServiceError(f"Failed to fetch chat {chat_id}: {e}")
+    
+    async def get_chat_by_uuid(self, chat_uuid: UUID, user_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Get specific chat by UUID with validation (secure method)
+        
+        Args:
+            chat_uuid: UUID of chat to retrieve  
+            user_id: ID of user requesting the chat
+            
+        Returns:
+            Chat dictionary or None if not found/unauthorized
+            
+        Raises:
+            ChatServiceError: If database operation fails
+        """
+        try:
+            chat = self.db.query(Chat).filter(Chat.uuid == chat_uuid, Chat.user_id == user_id).first()
+            if not chat:
+                return None
+            
+            # Return basic chat data with UUID
+            chat_dict = {
+                "id": chat.id,
+                "uuid": str(chat.uuid) if chat.uuid else None,
+                "user_id": chat.user_id,
+                "character_id": chat.character_id,
+                "title": chat.title,
+                "created_at": chat.created_at.isoformat() + "Z" if chat.created_at else None,
+                "updated_at": chat.updated_at.isoformat() + "Z" if chat.updated_at else None
+            }
+            
+            return chat_dict
+        except Exception as e:
+            self.logger.error(f"Error fetching chat by UUID {chat_uuid}: {e}")
+            raise ChatServiceError(f"Failed to fetch chat by UUID {chat_uuid}: {e}")
     
     async def create_chat_immediate(
         self, 
@@ -178,7 +215,16 @@ class ChatService:
             self.db.commit()
             self.db.refresh(chat)
             
-            self.logger.info(f"Chat created immediately: {chat.id} for user {user_id}")
+            self.logger.info(f"Chat created immediately: {chat.id} (UUID: {chat.uuid}) for user {user_id}")
+            
+            # Ensure UUID is properly set - if None, generate one
+            if not chat.uuid:
+                import uuid as uuid_module
+                chat.uuid = uuid_module.uuid4()
+                self.db.commit()
+                self.db.refresh(chat)
+                self.logger.warning(f"Had to manually set UUID for chat {chat.id}: {chat.uuid}")
+            
             # Return immediately without waiting for AI generation
             return True, chat, None
             
@@ -327,6 +373,43 @@ class ChatService:
             self.logger.error(f"Error in generate_ai_response: {e}")
             self.db.rollback()
             return False, {}, f"AI response generation failed: {e}"
+
+    # UUID-based methods for enhanced security
+    async def generate_ai_response_by_uuid(
+        self, 
+        chat_uuid: UUID, 
+        user_id: int
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+        """Generate AI response for chat by UUID (secure method)"""
+        try:
+            # Find chat by UUID and verify ownership
+            chat = self.db.query(Chat).filter(Chat.uuid == chat_uuid, Chat.user_id == user_id).first()
+            if not chat:
+                return False, {}, "Chat not found or access denied"
+            
+            # Use the regular chat_id method for actual AI generation
+            return await self.generate_ai_response(chat.id, user_id)
+        except Exception as e:
+            self.logger.error(f"Error generating AI response for chat UUID {chat_uuid}: {e}")
+            return False, {}, f"AI response generation failed: {e}"
+    
+    async def generate_opening_line_by_uuid(
+        self, 
+        chat_uuid: UUID, 
+        user_id: int
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+        """Generate opening line for chat by UUID (secure method)"""
+        try:
+            # Find chat by UUID and verify ownership
+            chat = self.db.query(Chat).filter(Chat.uuid == chat_uuid, Chat.user_id == user_id).first()
+            if not chat:
+                return False, {}, "Chat not found or access denied"
+            
+            # Use the regular chat_id method for actual opening line generation
+            return await self.generate_opening_line(chat.id, user_id)
+        except Exception as e:
+            self.logger.error(f"Error generating opening line for chat UUID {chat_uuid}: {e}")
+            return False, {}, f"Opening line generation failed: {e}"
     
     async def delete_chat(
         self, 
@@ -363,6 +446,44 @@ class ChatService:
             
         except Exception as e:
             self.logger.error(f"Error deleting chat {chat_id}: {e}")
+            self.db.rollback()
+            return False, f"Chat deletion failed: {e}"
+
+    async def delete_chat_by_uuid(
+        self, 
+        chat_uuid: UUID, 
+        user_id: int
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Delete specific chat by UUID
+        
+        Args:
+            chat_uuid: UUID of chat to delete
+            user_id: ID of user requesting deletion
+            
+        Returns:
+            (success, error_message)
+        """
+        try:
+            # Check if chat exists and belongs to current user
+            chat = self.db.query(Chat).filter(Chat.uuid == chat_uuid, Chat.user_id == user_id).first()
+            
+            if not chat:
+                return False, "Chat not found"
+            
+            # Delete all messages for this chat first (due to foreign key constraints)
+            self.db.query(ChatMessage).filter(ChatMessage.chat_id == chat.id).delete()
+            
+            # Delete the chat itself
+            self.db.query(Chat).filter(Chat.uuid == chat_uuid).delete()
+            
+            self.db.commit()
+            
+            self.logger.info(f"Chat {chat_uuid} deleted successfully by user {user_id}")
+            return True, None
+            
+        except Exception as e:
+            self.logger.error(f"Error deleting chat {chat_uuid}: {e}")
             self.db.rollback()
             return False, f"Chat deletion failed: {e}"
     
