@@ -22,6 +22,7 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import LanguageSelector from "@/components/settings/LanguageSelector";
+import AIModelSelector from "@/components/settings/AIModelSelector";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -124,6 +125,9 @@ const SettingsPage = () => {
             </div>
           </div>
         </div>
+        
+        {/* AI Model Selection */}
+        <AIModelSelector />
         
 
         

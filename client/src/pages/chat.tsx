@@ -4,6 +4,7 @@ import { useRoute, Link } from "wouter";
 import { Chat, ChatMessage, Character, EnrichedChat } from "../types";
 import ChatBubble from "@/components/chats/ChatBubble";
 import ChatInput from "@/components/chats/ChatInput";
+import ChatModelSelector from "@/components/chats/ChatModelSelector";
 import TypingIndicator from "@/components/ui/TypingIndicator";
 import { apiRequest } from "@/lib/queryClient";
 import { useRolePlay } from "@/contexts/RolePlayContext";
@@ -419,6 +420,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 </div>
               </div>
               <div className="flex items-center space-x-1 sm:space-x-2">
+                <ChatModelSelector />
                 <button 
                   onClick={() => setShowCharacterInfo(!showCharacterInfo)}
                   className="xl:hidden p-2 hover:bg-gray-700 rounded transition-colors"

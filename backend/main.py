@@ -18,6 +18,7 @@ from routes.admin import router as new_admin_router  # New AI admin routes
 from admin.routes import router as admin_router
 from auth.routes import router as auth_router
 from payment.routes import router as payment_router
+from routes.user_preferences import router as preferences_router
 from notifications_routes import router as notifications_router
 from database import init_db
 
@@ -64,6 +65,7 @@ parent_dir = Path(__file__).parent.parent
 app.include_router(characters_router, prefix="/api")
 app.include_router(chats_router, prefix="/api")
 app.include_router(new_admin_router, prefix="/api")  # New AI admin routes
+app.include_router(preferences_router, prefix="/api")  # User preferences routes
 app.include_router(admin_router, prefix="/api/admin")  # Legacy admin routes
 app.include_router(auth_router, prefix="/api/auth", tags=["authentication"])
 app.include_router(payment_router)
