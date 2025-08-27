@@ -36,6 +36,25 @@ class MessageService:
         self.db = db
         self.logger = logging.getLogger(__name__)
     
+    def _validate_uuid_format(self, uuid_value: UUID) -> None:
+        """
+        Validate UUID format and raise error if invalid.
+        
+        Args:
+            uuid_value: UUID to validate
+            
+        Raises:
+            MessageServiceError: If UUID format is invalid
+        """
+        if not isinstance(uuid_value, UUID):
+            raise MessageServiceError("Invalid UUID format: must be UUID type")
+        
+        # Additional validation: ensure it's a valid UUID string representation
+        try:
+            str(uuid_value)
+        except (ValueError, TypeError):
+            raise MessageServiceError("Invalid UUID format: corrupted UUID object")
+    
     async def get_chat_messages(
         self, 
         chat_id: int, 
@@ -156,6 +175,9 @@ class MessageService:
     ) -> List[Dict[str, Any]]:
         """Get messages for chat by UUID (secure method)"""
         try:
+            # Validate UUID format first
+            self._validate_uuid_format(chat_uuid)
+            
             # Find chat by UUID and verify ownership
             chat = self.db.query(Chat).filter(Chat.uuid == chat_uuid, Chat.user_id == user_id).first()
             if not chat:
@@ -177,6 +199,9 @@ class MessageService:
     ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
         """Create message for chat by UUID (secure method)"""
         try:
+            # Validate UUID format first
+            self._validate_uuid_format(chat_uuid)
+            
             # Find chat by UUID and verify ownership
             chat = self.db.query(Chat).filter(Chat.uuid == chat_uuid, Chat.user_id == user_id).first()
             if not chat:

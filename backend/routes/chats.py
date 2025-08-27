@@ -38,9 +38,9 @@ def parse_chat_identifier(chat_id: str) -> tuple[bool, Union[int, UUID]]:
     Returns:
         tuple: (is_uuid: bool, parsed_value: int | UUID)
     """
-    # Check if it's a valid UUID format
-    uuid_pattern = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-    if re.match(uuid_pattern, chat_id, re.IGNORECASE):
+    # Check if it's a valid UUID format (accepts both uppercase and lowercase)
+    uuid_pattern = r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+    if re.match(uuid_pattern, chat_id):
         try:
             return True, UUID(chat_id)
         except ValueError:
@@ -266,14 +266,20 @@ async def delete_all_chats(
 
 @router.delete("/{chat_id}", response_model=MessageResponse)
 async def delete_chat(
-    chat_id: int,
+    chat_id: str,  # Accept string to handle both int and UUID
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Delete a specific chat"""
+    """Delete a specific chat by ID or UUID"""
     try:
+        # Parse the identifier
+        is_uuid, parsed_id = parse_chat_identifier(chat_id)
+        
         service = ChatService(db)
-        success, error = await service.delete_chat(chat_id, current_user.id)
+        if is_uuid:
+            success, error = await service.delete_chat_by_uuid(parsed_id, current_user.id)
+        else:
+            success, error = await service.delete_chat(parsed_id, current_user.id)
         
         if not success:
             raise HTTPException(status_code=500, detail=error)

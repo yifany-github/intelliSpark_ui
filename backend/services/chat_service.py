@@ -448,6 +448,44 @@ class ChatService:
             self.logger.error(f"Error deleting chat {chat_id}: {e}")
             self.db.rollback()
             return False, f"Chat deletion failed: {e}"
+
+    async def delete_chat_by_uuid(
+        self, 
+        chat_uuid: UUID, 
+        user_id: int
+    ) -> Tuple[bool, Optional[str]]:
+        """
+        Delete specific chat by UUID
+        
+        Args:
+            chat_uuid: UUID of chat to delete
+            user_id: ID of user requesting deletion
+            
+        Returns:
+            (success, error_message)
+        """
+        try:
+            # Check if chat exists and belongs to current user
+            chat = self.db.query(Chat).filter(Chat.uuid == chat_uuid, Chat.user_id == user_id).first()
+            
+            if not chat:
+                return False, "Chat not found"
+            
+            # Delete all messages for this chat first (due to foreign key constraints)
+            self.db.query(ChatMessage).filter(ChatMessage.chat_id == chat.id).delete()
+            
+            # Delete the chat itself
+            self.db.query(Chat).filter(Chat.uuid == chat_uuid).delete()
+            
+            self.db.commit()
+            
+            self.logger.info(f"Chat {chat_uuid} deleted successfully by user {user_id}")
+            return True, None
+            
+        except Exception as e:
+            self.logger.error(f"Error deleting chat {chat_uuid}: {e}")
+            self.db.rollback()
+            return False, f"Chat deletion failed: {e}"
     
     async def delete_all_chats(self, user_id: int) -> Tuple[bool, Optional[str]]:
         """
