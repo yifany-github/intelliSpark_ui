@@ -9,8 +9,9 @@ class Settings(BaseSettings):
     # Authentication settings
     secret_key: str
     
-    # Gemini AI settings
+    # AI Model settings
     gemini_api_key: Optional[str] = None
+    grok_api_key: Optional[str] = None  # xAI Grok API key
     
     # Firebase settings
     firebase_api_key: Optional[str] = None
@@ -41,7 +42,10 @@ settings = Settings()
 def validate_settings():
     """Validate that required settings are present"""
     if not settings.gemini_api_key:
-        print("WARNING: GEMINI_API_KEY not found. AI responses will be simulated.")
+        print("WARNING: GEMINI_API_KEY not found. Gemini AI responses will be simulated.")
+    
+    if not settings.grok_api_key:
+        print("WARNING: GROK_API_KEY not found. Grok AI responses will be simulated.")
     
     if not settings.firebase_api_key:
         print("WARNING: FIREBASE_API_KEY not found. Google OAuth will not work.")
@@ -55,6 +59,7 @@ def validate_settings():
     print(f"Database URL: {settings.database_url}")
     print(f"Debug mode: {settings.debug}")
     print(f"Gemini API Key present: {'Yes' if settings.gemini_api_key else 'No'}")
+    print(f"Grok API Key present: {'Yes' if settings.grok_api_key else 'No'}")
     print(f"Firebase API Key present: {'Yes' if settings.firebase_api_key else 'No'}")
     print(f"Secret Key present: {'Yes' if settings.secret_key else 'No'}")
     print(f"Stripe Secret Key present: {'Yes' if settings.stripe_secret_key else 'No'}")

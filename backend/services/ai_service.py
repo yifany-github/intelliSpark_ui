@@ -1,13 +1,14 @@
 """
 AI Service for IntelliSpark AI Chat Application
 
-This service provides a clean interface for AI integration, wrapping the Gemini service
-and providing consistent error handling and response formatting.
+This service provides a clean interface for AI integration with multi-model support.
+It maintains backward compatibility while enabling advanced multi-model features.
 
 Features:
-- Gemini API integration wrapper
+- Multi-model AI integration (Gemini, Grok, future models)
+- Intelligent model selection and fallback
 - Character prompt enhancement
-- Conversation generation
+- Conversation generation with model optimization
 - Error handling and retries
 - Response formatting and validation
 """
@@ -15,10 +16,13 @@ Features:
 from typing import Dict, Any, List, Optional
 import logging
 
+# Import multi-model manager
 try:
-    from ..gemini_service import GeminiService
+    from .ai_model_manager import get_ai_model_manager
+    from ..gemini_service import GeminiService  # Fallback compatibility
 except ImportError:
-    from gemini_service import GeminiService
+    from services.ai_model_manager import get_ai_model_manager
+    from gemini_service import GeminiService  # Fallback compatibility
 
 
 class AIServiceError(Exception):
@@ -27,11 +31,24 @@ class AIServiceError(Exception):
 
 
 class AIService:
-    """Service for AI integration and response generation"""
+    """Enhanced AI service with multi-model support and backward compatibility"""
     
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.gemini_service = GeminiService()
+        self._ai_manager = None
+        self._fallback_service = None  # Fallback to old GeminiService if needed
+        
+    async def _get_ai_manager(self):
+        """Get initialized AI model manager"""
+        if self._ai_manager is None:
+            try:
+                self._ai_manager = await get_ai_model_manager()
+                self.logger.info("✅ AIService using multi-model manager")
+            except Exception as e:
+                self.logger.warning(f"⚠️ Failed to initialize AI manager, falling back to GeminiService: {e}")
+                if self._fallback_service is None:
+                    self._fallback_service = GeminiService()
+        return self._ai_manager
     
     async def enhance_character_prompts(
         self,
