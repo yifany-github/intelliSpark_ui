@@ -48,7 +48,13 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     },
     onSuccess: (chat) => {
       // ✅ REDIRECT: Replace temporary creating state with real chat (no history entry)
-      setLocation(`/chat/${chat.id}`, { replace: true });
+      // SECURITY: Always use UUID for privacy - no fallback to integer ID
+      if (!chat.uuid) {
+        console.error('Security error: Chat UUID missing from API response');
+        navigateToPath('/chat'); // Fallback to generic chat page
+        return;
+      }
+      setLocation(`/chat/${chat.uuid}`, { replace: true });
     },
     onError: (error) => {
       console.error('Failed to create chat:', error);
