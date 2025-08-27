@@ -45,11 +45,8 @@ class GeminiService(AIServiceBase):
                 self.logger.warning("No Gemini API key found. Using simulated responses.")
                 return True  # Allow fallback mode
             
-            # Set environment variable for the new SDK
-            os.environ['GEMINI_API_KEY'] = self.api_key
-            
-            # Initialize Gemini client (new API style)
-            self.client = genai.Client()
+            # Initialize Gemini client with API key directly (more secure)
+            self.client = genai.Client(api_key=self.api_key)
             
             self.logger.info("✅ Gemini AI client initialized successfully")
             return True
@@ -351,5 +348,6 @@ class GeminiService(AIServiceBase):
                 from services.nsfw_intent_service import NSFWIntentService
                 temp_service = NSFWIntentService()
                 return temp_service.build_intent_guidance(user_intent)
-            except:
+            except (ImportError, Exception) as e:
+                self.logger.warning(f"Intent service unavailable, using fallback: {e}")
                 return "保持角色一致性，自然回应对话"

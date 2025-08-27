@@ -42,18 +42,9 @@ def is_admin(current_user: User) -> bool:
     """
     Check if current user has admin privileges
     
-    For now, this is a simple check. In production, you might:
-    - Add an 'is_admin' field to the User model
-    - Use role-based access control
-    - Check specific admin permissions
+    Uses the is_admin field in the User model for secure role-based access control.
     """
-    # TODO: Implement proper admin authentication
-    # For now, assume user ID 1 is admin or check username
-    return (
-        current_user.id == 1 or 
-        current_user.username in ['admin', 'administrator'] or
-        current_user.email in ['admin@intellispark.ai', 'admin@localhost']
-    )
+    return getattr(current_user, 'is_admin', False)
 
 @router.get("/ai-models/status", response_model=ModelStatusResponse)
 async def get_ai_models_status(

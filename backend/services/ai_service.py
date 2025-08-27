@@ -17,12 +17,8 @@ from typing import Dict, Any, List, Optional
 import logging
 
 # Import multi-model manager
-try:
-    from .ai_model_manager import get_ai_model_manager
-    from ..gemini_service import GeminiService  # Fallback compatibility
-except ImportError:
-    from services.ai_model_manager import get_ai_model_manager
-    from gemini_service import GeminiService  # Fallback compatibility
+from services.ai_model_manager import get_ai_model_manager
+from gemini_service import GeminiService  # Fallback compatibility
 
 
 class AIServiceError(Exception):

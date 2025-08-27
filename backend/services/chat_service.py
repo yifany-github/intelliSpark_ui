@@ -17,16 +17,10 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 import logging
 
-try:
-    from ..models import Chat, ChatMessage, Character, User
-    from ..schemas import ChatCreate, EnrichedChat
-    from .ai_service import AIService
-    from ..utils.character_utils import ensure_avatar_url
-except ImportError:
-    from models import Chat, ChatMessage, Character, User
-    from schemas import ChatCreate, EnrichedChat
-    from services.ai_service import AIService
-    from utils.character_utils import ensure_avatar_url
+from models import Chat, ChatMessage, Character, User
+from schemas import ChatCreate, EnrichedChat
+from services.ai_service import AIService
+from utils.character_utils import ensure_avatar_url
 
 
 class ChatServiceError(Exception):

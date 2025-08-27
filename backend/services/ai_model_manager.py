@@ -195,8 +195,8 @@ class AIModelManager:
                         opening_line = await fallback_service.generate_opening_line(character)
                         self.logger.info(f"✅ Fallback opening line generated using {fallback_service.service_name}")
                         return opening_line
-                    except:
-                        pass
+                    except Exception as e:
+                        self.logger.warning(f"Fallback opening line generation failed: {e}")
             
             # Final fallback
             return f"Hello! I'm {character.name}. {character.backstory[:100] if character.backstory else 'Nice to meet you!'}..."
@@ -332,11 +332,22 @@ class AIModelManager:
             "default_model": self.admin_settings["default_model"].value
         }
 
-# Global instance
-ai_model_manager = AIModelManager()
+# Dependency injection compatible instance
+_ai_model_manager_instance: Optional[AIModelManager] = None
 
 async def get_ai_model_manager() -> AIModelManager:
-    """Get initialized AI model manager instance"""
-    if not ai_model_manager.services:
-        await ai_model_manager.initialize()
-    return ai_model_manager
+    """Get initialized AI model manager instance using dependency injection pattern"""
+    global _ai_model_manager_instance
+    
+    if _ai_model_manager_instance is None:
+        _ai_model_manager_instance = AIModelManager()
+    
+    if not _ai_model_manager_instance.services:
+        await _ai_model_manager_instance.initialize()
+    
+    return _ai_model_manager_instance
+
+def reset_ai_model_manager():
+    """Reset the manager instance - useful for testing"""
+    global _ai_model_manager_instance
+    _ai_model_manager_instance = None

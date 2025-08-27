@@ -16,12 +16,8 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 import logging
 
-try:
-    from ..models import ChatMessage, Chat
-    from ..schemas import ChatMessageCreate
-except ImportError:
-    from models import ChatMessage, Chat
-    from schemas import ChatMessageCreate
+from models import ChatMessage, Chat
+from schemas import ChatMessageCreate
 
 
 class MessageServiceError(Exception):

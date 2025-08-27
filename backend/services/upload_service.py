@@ -21,10 +21,7 @@ import aiofiles
 import logging
 from slowapi.util import get_remote_address
 
-try:
-    from ..utils.file_validation import comprehensive_image_validation
-except ImportError:
-    from utils.file_validation import comprehensive_image_validation
+from utils.file_validation import comprehensive_image_validation
 
 
 class UploadServiceError(Exception):
