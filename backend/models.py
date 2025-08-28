@@ -62,7 +62,7 @@ class Character(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)  # Short description
-    avatar_url = Column(String(500), nullable=True)
+    avatar_url = Column(String(500), nullable=True)  # Keep for backward compatibility
     backstory = Column(Text, nullable=False)
     voice_style = Column(String(500), nullable=False)
     traits = Column(JSON, nullable=False)  # List of strings
@@ -74,9 +74,16 @@ class Character(Base):
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=func.now())
     
+    # Character Gallery fields
+    gallery_enabled = Column(Boolean, default=False)
+    gallery_primary_image = Column(String(500), nullable=True)  # Primary gallery image URL
+    gallery_images_count = Column(Integer, default=0)          # Total number of gallery images
+    gallery_updated_at = Column(DateTime, nullable=True)       # Last gallery update timestamp
+    
     # Relationships
     chats = relationship("Chat", back_populates="character")
     creator = relationship("User", foreign_keys=[created_by])
+    gallery_images = relationship("CharacterGalleryImage", back_populates="character", cascade="all, delete-orphan")
 
 class Chat(Base):
     __tablename__ = "chats"
@@ -167,3 +174,36 @@ class NotificationTemplate(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+
+class CharacterGalleryImage(Base):
+    """Character Gallery Image Model for multi-image display system"""
+    __tablename__ = "character_gallery_images"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    character_id = Column(Integer, ForeignKey("characters.id"), nullable=False, index=True)
+    
+    # Image information
+    image_url = Column(String(500), nullable=False)
+    thumbnail_url = Column(String(500), nullable=True)
+    alt_text = Column(String(200), nullable=True)
+    
+    # Categorization and ordering
+    category = Column(String(50), default="general")  # "portrait", "outfit", "expression", "scene", "general"
+    display_order = Column(Integer, default=0, index=True)
+    is_primary = Column(Boolean, default=False, index=True)
+    
+    # Image metadata
+    file_size = Column(Integer, nullable=True)        # File size in bytes
+    dimensions = Column(String(20), nullable=True)    # Format: "800x600"
+    file_format = Column(String(10), nullable=True)   # "jpg", "png", "webp"
+    
+    # Management fields
+    is_active = Column(Boolean, default=True, index=True)
+    uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    # Relationships
+    character = relationship("Character", back_populates="gallery_images")
+    uploader = relationship("User")

@@ -4,7 +4,7 @@ import json
 
 # Sampling configuration
 SAMPLE_SIZE = 50  # Smaller sample for testing
-CHARACTER_NAME = "郭靖"
+CHARACTER_NAME = "黄蓉"
 INPUT_CSV = "../global_dataset.csv"
 OUTPUT_DIR = "prompts/characters"
 
@@ -25,7 +25,7 @@ USE_CACHE = False         # Skip expensive cache - test direct API performance
 USE_FEW_SHOT = False      # Persona-only for simpler testing
 
 PERSONA_PROMPT = """
-你是郭靖。
+你是黄蓉，桃花岛主黄药师的女儿，也是郭靖的妻子。你聪明伶俐，机智过人，武功高强。
 """
 
 # Load sampled examples from JSON file (if needed)
