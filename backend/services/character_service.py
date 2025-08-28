@@ -460,3 +460,178 @@ class CharacterService:
             self.logger.error(f"Error deleting character {character_id}: {e}")
             self.db.rollback()
             return False, f"Character deletion failed: {e}"
+    
+    async def sync_all_discovered_characters(self) -> Dict[str, Any]:
+        """
+        Sync all discovered character files to database
+        
+        This method auto-discovers character files and ensures they are properly
+        synced to the database with up-to-date metadata.
+        
+        Returns:
+            Dict with sync results: {
+                "discovered": int,
+                "created": List[str],
+                "updated": List[str],
+                "errors": List[str]
+            }
+        """
+        from utils.character_discovery import discover_character_files, validate_character_file
+        
+        try:
+            # Discover all character files
+            discovered_characters = discover_character_files()
+            sync_results = {
+                "discovered": len(discovered_characters),
+                "created": [],
+                "updated": [],
+                "errors": []
+            }
+            
+            self.logger.info(f"Starting sync for {len(discovered_characters)} discovered characters")
+            
+            for char_name, module_path in discovered_characters.items():
+                try:
+                    # Check if character exists in database
+                    existing = self.db.query(Character).filter(Character.name == char_name).first()
+                    
+                    if not existing:
+                        # Create new character from file
+                        success = await self._create_character_from_file(char_name, module_path)
+                        if success:
+                            sync_results["created"].append(char_name)
+                            self.logger.info(f"Created character from file: {char_name}")
+                        else:
+                            sync_results["errors"].append(f"Failed to create {char_name}")
+                    else:
+                        # Update existing character from file
+                        updates_made = await self._update_character_from_file(existing, module_path)
+                        if updates_made:
+                            sync_results["updated"].append(char_name)
+                            self.logger.debug(f"Updated character from file: {char_name}")
+                        else:
+                            # No updates needed - this is normal, not an error
+                            self.logger.debug(f"No updates needed for character: {char_name}")
+                
+                except Exception as e:
+                    error_msg = f"Error syncing {char_name}: {e}"
+                    self.logger.error(error_msg)
+                    sync_results["errors"].append(error_msg)
+            
+            # Single commit for all changes
+            if sync_results["created"] or sync_results["updated"]:
+                self.db.commit()
+                self.logger.info(f"Character sync completed - Created: {len(sync_results['created'])}, Updated: {len(sync_results['updated'])}, Errors: {len(sync_results['errors'])}")
+            
+            return sync_results
+            
+        except Exception as e:
+            self.logger.error(f"Error during character sync: {e}")
+            self.db.rollback()
+            raise CharacterServiceError(f"Character sync failed: {e}")
+    
+    async def _create_character_from_file(self, char_name: str, module_path: str) -> bool:
+        """
+        Create new character from file metadata
+        
+        Args:
+            char_name: Name of the character
+            module_path: Python module path (e.g., "prompts.characters.艾莉丝")
+            
+        Returns:
+            True if character was created successfully, False otherwise
+        """
+        try:
+            # Import the character module
+            import importlib
+            module = importlib.import_module(module_path)
+            
+            # Extract metadata from file
+            character_data = {
+                "name": char_name,
+                "description": getattr(module, 'PERSONA_PROMPT', '')[:500],  # Truncate for description
+                "backstory": getattr(module, 'PERSONA_PROMPT', '')[:1000],   # Full backstory  
+                "gender": getattr(module, 'CHARACTER_GENDER', 'unknown'),
+                "category": getattr(module, 'CHARACTER_CATEGORY', 'general'),
+                "voice_style": "default",  # Default voice style for auto-discovered characters
+                "is_public": True,  # Auto-discovered characters are public by default
+                "created_by": None,  # System-created character
+                "traits": {},  # Will be updated by existing sync system
+            }
+            
+            # Extract persona description if available
+            from utils.character_utils import extract_description_from_persona
+            persona_description = extract_description_from_persona(character_data["backstory"])
+            if persona_description:
+                character_data["description"] = persona_description[:500]
+                character_data["backstory"] = persona_description
+            
+            # Create character in database
+            new_character = Character(**character_data)
+            self.db.add(new_character)
+            # Don't commit here - will be committed by sync_all_discovered_characters
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error creating character {char_name} from file: {e}")
+            return False
+    
+    async def _update_character_from_file(self, character: Character, module_path: str) -> bool:
+        """
+        Update existing character from file metadata
+        
+        Args:
+            character: Existing character database record
+            module_path: Python module path (e.g., "prompts.characters.艾莉丝")
+            
+        Returns:
+            True if character was updated successfully, False otherwise
+        """
+        try:
+            # Import the character module
+            import importlib
+            module = importlib.import_module(module_path)
+            
+            # Check if any metadata needs updating
+            updates_made = False
+            
+            # Update gender if different
+            file_gender = getattr(module, 'CHARACTER_GENDER', None)
+            if file_gender and character.gender != file_gender:
+                character.gender = file_gender
+                updates_made = True
+            
+            # Note: NSFW level is not stored in Character model, handled at character file level
+            
+            # Update category if different
+            file_category = getattr(module, 'CHARACTER_CATEGORY', None)
+            if file_category and character.category != file_category:
+                character.category = file_category
+                updates_made = True
+            
+            # Update description/backstory from persona if available
+            file_persona = getattr(module, 'PERSONA_PROMPT', None)
+            if file_persona:
+                from utils.character_utils import extract_description_from_persona
+                persona_description = extract_description_from_persona(file_persona)
+                
+                if persona_description:
+                    new_description = persona_description[:500]
+                    new_backstory = persona_description
+                    
+                    if character.description != new_description:
+                        character.description = new_description
+                        updates_made = True
+                    
+                    if character.backstory != new_backstory:
+                        character.backstory = new_backstory  
+                        updates_made = True
+            
+            # Note: Traits will be updated by the existing sync system in get_all_characters()
+            
+            return updates_made
+            
+        except Exception as e:
+            self.logger.error(f"Error updating character {character.name} from file: {e}")
+            return False
