@@ -190,7 +190,8 @@ class UploadService:
         try:
             resolved_path = upload_path.resolve()
             expected_base = self.upload_base_dir.resolve()
-            return str(resolved_path).startswith(str(expected_base))
+            # Proper path validation instead of string comparison to prevent path traversal
+            return expected_base in resolved_path.parents or resolved_path == expected_base
         except Exception:
             return False
     

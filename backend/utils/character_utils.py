@@ -18,8 +18,14 @@ def ensure_avatar_url(character: Character) -> str:
     """
     Backend ensures every character has valid avatar URL - no frontend fallbacks needed.
     Centralizes image logic to prevent external dependencies in frontend.
+    Priority: gallery_primary_image > avatar_url > fallback placeholder
     """
-    # Check if avatar_url exists and is not None/empty
+    # First priority: Gallery primary image (if gallery is enabled)
+    if (hasattr(character, 'gallery_enabled') and character.gallery_enabled and 
+        hasattr(character, 'gallery_primary_image') and character.gallery_primary_image):
+        return character.gallery_primary_image
+    
+    # Second priority: Check if avatar_url exists and is not None/empty
     if character.avatar_url and isinstance(character.avatar_url, str) and character.avatar_url.strip():
         if character.avatar_url.startswith('/assets'):
             # Local asset URL - return as-is
