@@ -59,38 +59,57 @@ class GeminiService:
             }
     
     def _load_hardcoded_character(self, character: Character) -> Optional[dict]:
-        """Load hardcoded character data if available"""
+        """Load hardcoded character data if available using auto-discovery"""
         if not character:
             return None
         
-        # Registry of hardcoded characters - easy to extend for future characters
-        hardcoded_characters = {
-            "艾莉丝": "prompts.characters.艾莉丝"
-        }
+        # Auto-discover characters from prompts/characters/ directory
+        from utils.character_discovery import discover_character_files
         
-        module_path = hardcoded_characters.get(character.name)
-        if module_path:
-            try:
+        try:
+            hardcoded_characters = discover_character_files()
+            module_path = hardcoded_characters.get(character.name)
+            
+            if module_path:
                 module = importlib.import_module(module_path)
+                
                 # Validate required attributes exist
                 if hasattr(module, 'PERSONA_PROMPT') and hasattr(module, 'FEW_SHOT_EXAMPLES'):
-                    return {
+                    # Respect character-specific control flags
+                    character_data = {
                         "persona_prompt": module.PERSONA_PROMPT,
-                        "few_shot_contents": module.FEW_SHOT_EXAMPLES
+                        "few_shot_contents": module.FEW_SHOT_EXAMPLES,
+                        # NEW: Control flags for cache and few-shot behavior
+                        "use_cache": getattr(module, 'USE_CACHE', True),
+                        "use_few_shot": getattr(module, 'USE_FEW_SHOT', True),
                     }
+                    
+                    logger.debug(f"Loaded character {character.name}: cache={character_data['use_cache']}, few_shot={character_data['use_few_shot']}")
+                    return character_data
                 else:
-                    logger.error(f"Hardcoded character {character.name} missing required attributes (PERSONA_PROMPT, FEW_SHOT_EXAMPLES)")
+                    logger.error(f"Character {character.name} missing required attributes (PERSONA_PROMPT, FEW_SHOT_EXAMPLES)")
                     return None
-            except (ImportError, AttributeError) as e:
-                logger.error(f"Failed to load hardcoded character {character.name}: {e}")
+            else:
+                logger.debug(f"Character {character.name} not found in auto-discovered characters")
                 return None
-        
-        return None
+                
+        except Exception as e:
+            logger.error(f"Failed to load character {character.name} via auto-discovery: {e}")
+            return None
     
     def _is_hardcoded_character(self, character: Character) -> bool:
-        """Check if character is hardcoded (for logging purposes)"""
-        hardcoded_characters = {"艾莉丝"}  # Keep in sync with registry
-        return character and character.name in hardcoded_characters
+        """Check if character is hardcoded using auto-discovery (for logging purposes)"""
+        if not character:
+            return False
+            
+        from utils.character_discovery import discover_character_files
+        
+        try:
+            hardcoded_characters = discover_character_files()
+            return character.name in hardcoded_characters
+        except Exception as e:
+            logger.error(f"Error checking if character {character.name} is hardcoded: {e}")
+            return False
     
     async def generate_response(
         self,
@@ -193,11 +212,16 @@ class GeminiService:
         - CacheManager: Handles cache creation and management
         
         Args:
-            character_prompt: Dictionary containing persona_prompt and few_shot_contents
+            character_prompt: Dictionary containing persona_prompt, few_shot_contents, and control flags
             
         Returns:
-            Cache object if successful, None if failed
+            Cache object if successful, None if failed (triggers direct API fallback)
         """
+        # NEW: Respect character's cache preference
+        if character_prompt.get("use_cache") == False:
+            logger.info("Character configured to skip cache, using direct API")
+            return None  # Triggers existing fallback path (lines 152-165)
+        
         # Initialize components with their specific responsibilities
         instruction_builder = SystemInstructionBuilder(SYSTEM_PROMPT)
         format_converter = ContentFormatConverter()

@@ -147,7 +147,7 @@ class AIServiceBase(ABC):
     
     def _load_hardcoded_character(self, character: Character) -> Optional[dict]:
         """
-        Load hardcoded character data if available (shared implementation)
+        Load hardcoded character data if available using auto-discovery (shared implementation)
         
         Args:
             character: Character to load
@@ -158,34 +158,44 @@ class AIServiceBase(ABC):
         if not character:
             return None
         
-        # Registry of hardcoded characters - easy to extend for future characters
-        hardcoded_characters = {
-            "艾莉丝": "prompts.characters.艾莉丝"
-        }
+        # Auto-discover characters from prompts/characters/ directory
+        from utils.character_discovery import discover_character_files
         
-        module_path = hardcoded_characters.get(character.name)
-        if module_path:
-            try:
+        try:
+            hardcoded_characters = discover_character_files()
+            module_path = hardcoded_characters.get(character.name)
+            
+            if module_path:
                 import importlib
                 module = importlib.import_module(module_path)
+                
                 # Validate required attributes exist
                 if hasattr(module, 'PERSONA_PROMPT') and hasattr(module, 'FEW_SHOT_EXAMPLES'):
-                    return {
+                    # Respect character-specific control flags (shared across all AI services)
+                    character_data = {
                         "persona_prompt": module.PERSONA_PROMPT,
-                        "few_shot_contents": module.FEW_SHOT_EXAMPLES
+                        "few_shot_contents": module.FEW_SHOT_EXAMPLES,
+                        # Control flags for cache and few-shot behavior
+                        "use_cache": getattr(module, 'USE_CACHE', True),
+                        "use_few_shot": getattr(module, 'USE_FEW_SHOT', True),
                     }
+                    
+                    self.logger.debug(f"Loaded character {character.name}: cache={character_data['use_cache']}, few_shot={character_data['use_few_shot']}")
+                    return character_data
                 else:
-                    self.logger.error(f"Hardcoded character {character.name} missing required attributes")
+                    self.logger.error(f"Character {character.name} missing required attributes (PERSONA_PROMPT, FEW_SHOT_EXAMPLES)")
                     return None
-            except (ImportError, AttributeError) as e:
-                self.logger.error(f"Failed to load hardcoded character {character.name}: {e}")
+            else:
+                self.logger.debug(f"Character {character.name} not found in auto-discovered characters")
                 return None
-        
-        return None
+                
+        except Exception as e:
+            self.logger.error(f"Failed to load character {character.name} via auto-discovery: {e}")
+            return None
     
     def _is_hardcoded_character(self, character: Character) -> bool:
         """
-        Check if character is hardcoded (shared implementation)
+        Check if character is hardcoded using auto-discovery (shared implementation)
         
         Args:
             character: Character to check
@@ -193,8 +203,17 @@ class AIServiceBase(ABC):
         Returns:
             bool: True if character is hardcoded
         """
-        hardcoded_characters = {"艾莉丝"}  # Keep in sync with registry
-        return character and character.name in hardcoded_characters
+        if not character:
+            return False
+            
+        from utils.character_discovery import discover_character_files
+        
+        try:
+            hardcoded_characters = discover_character_files()
+            return character.name in hardcoded_characters
+        except Exception as e:
+            self.logger.error(f"Error checking if character {character.name} is hardcoded: {e}")
+            return False
     
     def _manage_conversation_length(
         self, 
