@@ -460,3 +460,289 @@ class CharacterService:
             self.logger.error(f"Error deleting character {character_id}: {e}")
             self.db.rollback()
             return False, f"Character deletion failed: {e}"
+    
+    async def sync_all_discovered_characters(self) -> Dict[str, Any]:
+        """
+        Sync all discovered character files to database
+        
+        This method auto-discovers character files and ensures they are properly
+        synced to the database with up-to-date metadata.
+        
+        Returns:
+            Dict with sync results: {
+                "discovered": int,
+                "created": List[str],
+                "updated": List[str],
+                "errors": List[str]
+            }
+        """
+        from utils.character_discovery import discover_character_files, validate_character_file
+        
+        try:
+            # Discover all character files
+            discovered_characters = discover_character_files()
+            sync_results = {
+                "discovered": len(discovered_characters),
+                "created": [],
+                "updated": [],
+                "renamed": [],
+                "errors": []
+            }
+            
+            self.logger.info(f"Starting sync for {len(discovered_characters)} discovered characters")
+            
+            # First pass: Handle renames by checking for orphaned database characters
+            await self._handle_character_renames(discovered_characters, sync_results)
+            
+            # Second pass: Create or update characters
+            for char_name, module_path in discovered_characters.items():
+                try:
+                    # Check if character exists in database
+                    existing = self.db.query(Character).filter(Character.name == char_name).first()
+                    
+                    if not existing:
+                        # Create new character from file
+                        success = await self._create_character_from_file(char_name, module_path)
+                        if success:
+                            sync_results["created"].append(char_name)
+                            self.logger.info(f"Created character from file: {char_name}")
+                        else:
+                            sync_results["errors"].append(f"Failed to create {char_name}")
+                    else:
+                        # Update existing character from file
+                        updates_made = await self._update_character_from_file(existing, module_path)
+                        if updates_made:
+                            sync_results["updated"].append(char_name)
+                            self.logger.debug(f"Updated character from file: {char_name}")
+                        else:
+                            # No updates needed - this is normal, not an error
+                            self.logger.debug(f"No updates needed for character: {char_name}")
+                
+                except Exception as e:
+                    error_msg = f"Error syncing {char_name}: {e}"
+                    self.logger.error(error_msg)
+                    sync_results["errors"].append(error_msg)
+            
+            # Single commit for all changes
+            if sync_results["created"] or sync_results["updated"] or sync_results["renamed"]:
+                self.db.commit()
+                self.logger.info(f"Character sync completed - Created: {len(sync_results['created'])}, Updated: {len(sync_results['updated'])}, Renamed: {len(sync_results['renamed'])}, Errors: {len(sync_results['errors'])}")
+            
+            return sync_results
+            
+        except Exception as e:
+            self.logger.error(f"Error during character sync: {e}")
+            self.db.rollback()
+            raise CharacterServiceError(f"Character sync failed: {e}")
+    
+    async def _create_character_from_file(self, char_name: str, module_path: str) -> bool:
+        """
+        Create new character from file metadata
+        
+        Args:
+            char_name: Name of the character
+            module_path: Python module path (e.g., "prompts.characters.艾莉丝")
+            
+        Returns:
+            True if character was created successfully, False otherwise
+        """
+        try:
+            # Import the character module
+            import importlib
+            module = importlib.import_module(module_path)
+            
+            # Extract metadata from file
+            character_data = {
+                "name": char_name,
+                "description": getattr(module, 'PERSONA_PROMPT', '')[:500],  # Truncate for description
+                "backstory": getattr(module, 'PERSONA_PROMPT', '')[:1000],   # Full backstory  
+                "gender": getattr(module, 'CHARACTER_GENDER', 'unknown'),
+                "category": getattr(module, 'CHARACTER_CATEGORY', 'general'),
+                "voice_style": "default",  # Default voice style for auto-discovered characters
+                "is_public": True,  # Auto-discovered characters are public by default
+                "created_by": None,  # System-created character
+                "traits": [],  # Empty array - will be updated by existing sync system
+            }
+            
+            # Extract persona description if available
+            from utils.character_utils import extract_description_from_persona
+            persona_description = extract_description_from_persona(character_data["backstory"])
+            if persona_description:
+                character_data["description"] = persona_description[:500]
+                character_data["backstory"] = persona_description
+            
+            # Create character in database
+            new_character = Character(**character_data)
+            self.db.add(new_character)
+            # Don't commit here - will be committed by sync_all_discovered_characters
+            
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"Error creating character {char_name} from file: {e}")
+            return False
+    
+    async def _update_character_from_file(self, character: Character, module_path: str) -> bool:
+        """
+        Update existing character from file metadata
+        
+        Args:
+            character: Existing character database record
+            module_path: Python module path (e.g., "prompts.characters.艾莉丝")
+            
+        Returns:
+            True if character was updated successfully, False otherwise
+        """
+        try:
+            # Import the character module
+            import importlib
+            module = importlib.import_module(module_path)
+            
+            # Check if any metadata needs updating
+            updates_made = False
+            
+            # Update gender if different
+            file_gender = getattr(module, 'CHARACTER_GENDER', None)
+            if file_gender and character.gender != file_gender:
+                character.gender = file_gender
+                updates_made = True
+            
+            # Note: NSFW level is not stored in Character model, handled at character file level
+            
+            # Update category if different
+            file_category = getattr(module, 'CHARACTER_CATEGORY', None)
+            if file_category and character.category != file_category:
+                character.category = file_category
+                updates_made = True
+            
+            # Update description/backstory from persona if available
+            file_persona = getattr(module, 'PERSONA_PROMPT', None)
+            if file_persona:
+                from utils.character_utils import extract_description_from_persona
+                persona_description = extract_description_from_persona(file_persona)
+                
+                if persona_description:
+                    new_description = persona_description[:500]
+                    new_backstory = persona_description
+                    
+                    if character.description != new_description:
+                        character.description = new_description
+                        updates_made = True
+                    
+                    if character.backstory != new_backstory:
+                        character.backstory = new_backstory  
+                        updates_made = True
+            
+            # Note: Traits will be updated by the existing sync system in get_all_characters()
+            
+            return updates_made
+            
+        except Exception as e:
+            self.logger.error(f"Error updating character {character.name} from file: {e}")
+            return False
+    
+    async def _handle_character_renames(self, discovered_characters: dict, sync_results: dict) -> None:
+        """
+        Handle cases where CHARACTER_NAME in .py file was changed, creating orphaned database records
+        
+        Args:
+            discovered_characters: Dict mapping character names to module paths from files
+            sync_results: Sync results dict to update
+        """
+        try:
+            # Get all existing characters from database
+            existing_chars = self.db.query(Character).all()
+            
+            for db_char in existing_chars:
+                # Skip if this character name is still in discovered files
+                if db_char.name in discovered_characters:
+                    continue
+                
+                # This character is in database but not in discovered files
+                # Check if any .py file might have been renamed by checking creation patterns
+                potential_match = await self._find_renamed_character(db_char, discovered_characters)
+                
+                if potential_match:
+                    old_name = db_char.name
+                    new_name = potential_match["name"]
+                    
+                    # Update the database character with new name
+                    db_char.name = new_name
+                    
+                    # Update other metadata from the .py file
+                    import importlib
+                    module = importlib.import_module(potential_match["module_path"])
+                    
+                    # Update metadata from file
+                    if hasattr(module, 'CHARACTER_GENDER'):
+                        db_char.gender = getattr(module, 'CHARACTER_GENDER')
+                    if hasattr(module, 'CHARACTER_CATEGORY'):
+                        db_char.category = getattr(module, 'CHARACTER_CATEGORY')
+                    
+                    # Update description/backstory from persona
+                    if hasattr(module, 'PERSONA_PROMPT'):
+                        file_persona = getattr(module, 'PERSONA_PROMPT')
+                        from utils.character_utils import extract_description_from_persona
+                        persona_description = extract_description_from_persona(file_persona)
+                        
+                        if persona_description:
+                            db_char.description = persona_description[:500]
+                            db_char.backstory = persona_description
+                    
+                    sync_results["renamed"].append(f"{old_name} → {new_name}")
+                    self.logger.info(f"Renamed character: {old_name} → {new_name}")
+                    
+                    # Remove from discovered_characters to prevent duplicate creation
+                    discovered_characters.pop(new_name, None)
+                    
+        except Exception as e:
+            self.logger.error(f"Error handling character renames: {e}")
+    
+    async def _find_renamed_character(self, db_char: Character, discovered_characters: dict) -> Optional[dict]:
+        """
+        Find if a database character corresponds to a renamed .py file
+        
+        Uses heuristics like similar metadata, creation time, etc.
+        
+        Args:
+            db_char: Database character that's not in discovered files
+            discovered_characters: Dict of discovered character names to module paths
+            
+        Returns:
+            Dict with name and module_path if match found, None otherwise
+        """
+        try:
+            import importlib
+            
+            for char_name, module_path in discovered_characters.items():
+                # Skip if this discovered character already exists in database
+                if self.db.query(Character).filter(Character.name == char_name).first():
+                    continue
+                
+                # Load the module to check metadata
+                try:
+                    module = importlib.import_module(module_path)
+                    
+                    # Heuristic 1: Check if gender matches
+                    file_gender = getattr(module, 'CHARACTER_GENDER', None)
+                    if file_gender and db_char.gender and file_gender == db_char.gender:
+                        # Additional check: category matches
+                        file_category = getattr(module, 'CHARACTER_CATEGORY', None) 
+                        if file_category and db_char.category and file_category == db_char.category:
+                            return {"name": char_name, "module_path": module_path}
+                    
+                    # Heuristic 2: Check if persona description partially matches
+                    file_persona = getattr(module, 'PERSONA_PROMPT', '')
+                    if file_persona and db_char.description:
+                        # Simple substring check (first 50 chars)
+                        if file_persona[:50].strip() in db_char.description or db_char.description[:50] in file_persona:
+                            return {"name": char_name, "module_path": module_path}
+                    
+                except ImportError:
+                    continue
+            
+            return None
+            
+        except Exception as e:
+            self.logger.error(f"Error finding renamed character for {db_char.name}: {e}")
+            return None

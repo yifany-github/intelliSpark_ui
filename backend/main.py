@@ -83,8 +83,35 @@ if client_dist_path.exists():
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize database on startup"""
+    """Initialize database and sync discovered characters on startup"""
     await init_db()
+    
+    # Auto-sync discovered character files to database
+    try:
+        from database import get_db
+        from services.character_service import CharacterService
+        import logging
+        
+        logger = logging.getLogger("startup")
+        logger.info("Starting character auto-discovery sync...")
+        
+        # Get database session
+        db = next(get_db())
+        service = CharacterService(db)
+        
+        # Sync all discovered characters
+        sync_results = await service.sync_all_discovered_characters()
+        
+        logger.info(f"Character sync completed: {sync_results['discovered']} discovered, "
+                   f"{len(sync_results['created'])} created, {len(sync_results['updated'])} updated, "
+                   f"{len(sync_results['errors'])} errors")
+                   
+        if sync_results['errors']:
+            logger.warning(f"Character sync errors: {sync_results['errors']}")
+            
+    except Exception as e:
+        logger.error(f"Failed to sync characters on startup: {e}")
+        # Don't fail startup if character sync fails
 
 @app.get("/api/health")
 async def health():

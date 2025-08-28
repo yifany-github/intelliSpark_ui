@@ -6,6 +6,7 @@ import { Character } from '@/types';
 import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
 import CharacterPreviewModal from './CharacterPreviewModal';
+import TraitChips from '@/components/characters/TraitChips';
 import { useNavigation } from '@/contexts/NavigationContext';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
@@ -456,15 +457,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                     <span className="text-xs text-zinc-900 font-semibold">18+</span>
                   </div>
                 </div>
-                <div className="absolute bottom-2 left-2 right-2">
-                  <div className="flex flex-wrap gap-1 mb-2">
-                    {character.traits.slice(0, 3).map((trait: string) => (
-                      <span key={trait} className="bg-brand-accent text-white px-2 py-1 rounded text-xs backdrop-blur-sm shadow-surface">
-                        {trait}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+                {/* Removed overlay trait chips to avoid duplication with content area */}
                 {/* Advanced hover overlay system */}
                 <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300" role="region" aria-label={`Quick actions for ${character.name}`}>
                   {/* Primary overlay with gradient */}
@@ -574,32 +567,16 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   </p>
                 </div>
                 
-                {/* Premium traits display */}
+                {/* Traits display (single location on card) */}
                 {character.traits?.length > 0 && (
                   <div className="space-y-2">
-                    <div className="flex flex-wrap gap-1.5" role="list" aria-label={`Traits for ${character.name}`}>
-                      {character.traits.slice(0, 2).map((trait: string, index: number) => (
-                        <span 
-                          key={trait}
-                          role="listitem"
-                          className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all duration-200 ${
-                            index === 0 
-                              ? 'bg-brand-accent/20 text-brand-accent border border-brand-accent/30'
-                              : 'bg-brand-secondary/20 text-brand-secondary border border-brand-secondary/30'
-                          }`}
-                        >
-                          {trait}
-                        </span>
-                      ))}
-                      {character.traits.length > 2 && (
-                        <span 
-                          className="px-2.5 py-1 rounded-full text-xs font-medium bg-surface-tertiary text-content-tertiary border border-surface-border"
-                          title={`${character.traits.length - 2} more traits: ${character.traits.slice(2).join(', ')}`}
-                        >
-                          +{character.traits.length - 2}
-                        </span>
-                      )}
-                    </div>
+                    <TraitChips
+                      traits={character.traits}
+                      maxVisible={2}
+                      size="xs"
+                      chipClassName="px-2.5 py-1 bg-brand-secondary/20 text-brand-secondary border border-brand-secondary/30"
+                      moreChipClassName="px-2.5 py-1 bg-surface-tertiary text-content-tertiary border border-surface-border"
+                    />
                   </div>
                 )}
                 

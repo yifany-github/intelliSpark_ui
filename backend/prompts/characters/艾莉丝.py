@@ -20,6 +20,10 @@ CHARACTER_GENDER = "female"
 CHARACTER_NSFW_LEVEL = 3  # Adult content (0=safe, 1=mild, 2=moderate, 3=explicit)
 CHARACTER_CATEGORY = "adult"
 
+# Performance and cache control flags
+USE_CACHE = True          # True = use Gemini cache for performance, False = direct API calls
+USE_FEW_SHOT = True       # True = use few-shot examples, False = persona-only
+
 PERSONA_PROMPT =persona_prompt = """
 ## 角色设定：艾莉丝（腼腆却淫乱的空姐）
 
@@ -109,4 +113,4 @@ def _load_sampled_examples():
             }
         ]
 
-FEW_SHOT_EXAMPLES = _load_sampled_examples()  # Keep as objects, not string
+FEW_SHOT_EXAMPLES = _load_sampled_examples() if USE_FEW_SHOT else []  # Respect few-shot control flag

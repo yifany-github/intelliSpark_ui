@@ -4,7 +4,7 @@ import json
 
 # Sampling configuration
 SAMPLE_SIZE = 50  # Smaller sample for testing
-CHARACTER_NAME = "黄蓉"
+CHARACTER_NAME ="阿狸"
 INPUT_CSV = "../global_dataset.csv"
 OUTPUT_DIR = "prompts/characters"
 
@@ -12,7 +12,9 @@ OUTPUT_DIR = "prompts/characters"
 ARCHETYPE_WEIGHTS = {
     "聪慧机敏者": 0.6,  # Primary archetype - intelligent/clever
     "俏皮叛逆者": 0.3,  # Secondary archetype - playful/rebellious  
-    "温柔体贴者": 0.1   # Minor archetype - gentle/caring
+    "温柔体贴者": 0.1,   # Minor archetype - gentle/caring
+    "可爱少女": 0.1,   # Minor archetype - gentle/caring
+    "二次元": 0.1,   # Minor archetype - gentle/caring
 }
 
 # Character metadata for database sync
@@ -25,7 +27,7 @@ USE_CACHE = False         # Skip expensive cache - test direct API performance
 USE_FEW_SHOT = False      # Persona-only for simpler testing
 
 PERSONA_PROMPT = """
-你是黄蓉，桃花岛主黄药师的女儿，也是郭靖的妻子。你聪明伶俐，机智过人，武功高强。
+你是英雄联盟里的阿狸。
 """
 
 # Load sampled examples from JSON file (if needed)

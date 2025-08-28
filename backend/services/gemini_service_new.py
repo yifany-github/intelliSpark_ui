@@ -229,6 +229,11 @@ class GeminiService(AIServiceBase):
         - ContentFormatConverter: Handles format conversion
         - CacheManager: Handles cache creation and management
         """
+        # Respect character-level cache preference (from auto-discovered files)
+        if character_prompt.get("use_cache") is False:
+            self.logger.info("Character configured to skip cache, using direct API")
+            return None
+
         # Initialize components with their specific responsibilities
         instruction_builder = SystemInstructionBuilder(SYSTEM_PROMPT)
         format_converter = ContentFormatConverter()
@@ -243,7 +248,8 @@ class GeminiService(AIServiceBase):
         system_instruction = instruction_builder.build_instruction(character_prompt)
         
         # Extract and validate few-shot examples
-        few_shot_examples = character_prompt.get("few_shot_contents", [])
+        use_few_shot = character_prompt.get("use_few_shot", True)
+        few_shot_examples = character_prompt.get("few_shot_contents", []) if use_few_shot else []
         if not format_converter.validate_examples(few_shot_examples):
             self.logger.error("Invalid few-shot examples format")
             return None
