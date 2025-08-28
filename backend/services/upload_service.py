@@ -42,7 +42,8 @@ class UploadService:
         file: UploadFile, 
         user_id: int, 
         request: Request,
-        upload_type: str = "character_avatar"
+        upload_type: str = "character_avatar",
+        character_id: int = None
     ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
         """
         Process file upload with comprehensive security validation
@@ -74,7 +75,7 @@ class UploadService:
             
             # Process validated file
             upload_result = await self._save_validated_file(
-                validation_result, upload_type, user_id, client_ip
+                validation_result, upload_type, user_id, client_ip, character_id
             )
             
             if not upload_result['success']:
@@ -99,12 +100,13 @@ class UploadService:
         validation_result: dict, 
         upload_type: str, 
         user_id: int, 
-        client_ip: str
+        client_ip: str,
+        character_id: int = None
     ) -> Dict[str, Any]:
         """Save validated file to appropriate directory"""
         try:
             # Determine upload directory based on type
-            upload_dir = self._get_upload_directory(upload_type)
+            upload_dir = self._get_upload_directory(upload_type, character_id)
             upload_dir.mkdir(parents=True, exist_ok=True)
             
             # Security check: verify directory is within expected bounds
@@ -130,7 +132,7 @@ class UploadService:
                 raise HTTPException(status_code=500, detail="File upload verification failed")
             
             # Generate response data
-            asset_url = f"/assets/{self._get_asset_path(upload_type)}/{secure_filename}"
+            asset_url = f"/assets/{self._get_asset_path(upload_type, character_id)}/{secure_filename}"
             
             response_data = {
                 'avatarUrl': asset_url,
@@ -160,10 +162,11 @@ class UploadService:
             self.logger.error(f"Failed to save uploaded file: {e}")
             return {'success': False, 'error': f'File save failed: {str(e)}'}
     
-    def _get_upload_directory(self, upload_type: str) -> Path:
+    def _get_upload_directory(self, upload_type: str, character_id: int = None) -> Path:
         """Get appropriate upload directory for file type"""
         upload_dirs = {
             'character_avatar': 'user_characters_img',
+            'character_gallery': f'character_galleries/character_{character_id}' if character_id else 'character_galleries',
             'chat_image': 'chat_images', 
             'user_profile': 'user_profiles'
         }
@@ -171,10 +174,11 @@ class UploadService:
         subdir = upload_dirs.get(upload_type, 'general')
         return self.upload_base_dir / subdir
     
-    def _get_asset_path(self, upload_type: str) -> str:
+    def _get_asset_path(self, upload_type: str, character_id: int = None) -> str:
         """Get asset path for URL generation"""
         asset_paths = {
             'character_avatar': 'user_characters_img',
+            'character_gallery': f'character_galleries/character_{character_id}' if character_id else 'character_galleries',
             'chat_image': 'chat_images',
             'user_profile': 'user_profiles'
         }

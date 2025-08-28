@@ -11,7 +11,7 @@ Routes:
 - POST /characters/upload-avatar - Upload character avatar
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Request
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
 from typing import List
 from slowapi import Limiter
@@ -21,6 +21,7 @@ from database import get_db
 from auth.routes import get_current_user
 from services.character_service import CharacterService, CharacterServiceError
 from services.upload_service import UploadService
+from services.character_gallery_service import CharacterGalleryService
 from schemas import Character as CharacterSchema, CharacterCreate
 from models import User
 
@@ -110,3 +111,161 @@ async def upload_character_avatar(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail="Upload processing failed")
+
+
+# Character Gallery Routes
+
+@router.get("/{character_id}/gallery")
+async def get_character_gallery(
+    character_id: int,
+    db: Session = Depends(get_db)
+):
+    """Get character gallery data with all images"""
+    try:
+        gallery_service = CharacterGalleryService(db)
+        gallery_data = await gallery_service.get_character_gallery(character_id)
+        return gallery_data
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get character gallery: {str(e)}")
+
+
+@router.post("/{character_id}/gallery/images")
+@limiter.limit("10/minute")
+async def upload_gallery_image(
+    request: Request,
+    character_id: int,
+    file: UploadFile = File(...),
+    category: str = Form("general"),
+    is_primary: bool = Form(False),
+    alt_text: str = Form(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Upload new image to character gallery (admin only)"""
+    try:
+        # Check admin permissions (for now, any authenticated user can add gallery images)
+        # TODO: Add proper admin role checking
+        
+        # Process image upload
+        upload_service = UploadService()
+        success, upload_data, error = await upload_service.process_avatar_upload(
+            file, current_user.id, request, "character_gallery", character_id
+        )
+        
+        if not success:
+            raise HTTPException(status_code=400, detail=error)
+        
+        # Create gallery image record
+        gallery_service = CharacterGalleryService(db)
+        
+        image_data = {
+            "image_url": upload_data["avatarUrl"],
+            "alt_text": alt_text or f"Gallery image for character {character_id}",
+            "category": category,
+            "file_size": upload_data.get("size"),
+            "dimensions": upload_data.get("dimensions"),
+            "file_format": upload_data.get("filename", "").split(".")[-1].lower() if "." in upload_data.get("filename", "") else None
+        }
+        
+        success, gallery_image_data, error = await gallery_service.add_gallery_image(
+            character_id, image_data, current_user.id, is_primary
+        )
+        
+        if not success:
+            raise HTTPException(status_code=400, detail=error)
+        
+        return {
+            "message": "Gallery image uploaded successfully",
+            "image": gallery_image_data,
+            "upload_info": upload_data
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gallery image upload failed: {str(e)}")
+
+
+@router.put("/{character_id}/gallery/images/{image_id}/primary")
+async def set_primary_gallery_image(
+    character_id: int,
+    image_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Set a gallery image as the primary image"""
+    try:
+        gallery_service = CharacterGalleryService(db)
+        success, error = await gallery_service.update_primary_image(character_id, image_id)
+        
+        if not success:
+            raise HTTPException(status_code=400, detail=error)
+        
+        return {"message": f"Image {image_id} set as primary for character {character_id}"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to set primary image: {str(e)}")
+
+
+@router.delete("/{character_id}/gallery/images/{image_id}")
+async def delete_gallery_image(
+    character_id: int,
+    image_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a gallery image (soft delete)"""
+    try:
+        gallery_service = CharacterGalleryService(db)
+        success, error = await gallery_service.delete_gallery_image(character_id, image_id)
+        
+        if not success:
+            raise HTTPException(status_code=400, detail=error)
+        
+        return {"message": f"Gallery image {image_id} deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete gallery image: {str(e)}")
+
+
+@router.put("/{character_id}/gallery/reorder")
+async def reorder_gallery_images(
+    character_id: int,
+    image_order: List[dict],  # [{"image_id": 1, "display_order": 0}, ...]
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Reorder gallery images"""
+    try:
+        gallery_service = CharacterGalleryService(db)
+        success, error = await gallery_service.reorder_gallery_images(character_id, image_order)
+        
+        if not success:
+            raise HTTPException(status_code=400, detail=error)
+        
+        return {"message": f"Gallery images reordered successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reorder gallery images: {str(e)}")
+
+
+@router.get("/gallery/stats")
+async def get_gallery_stats(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get overall gallery statistics (admin endpoint)"""
+    try:
+        gallery_service = CharacterGalleryService(db)
+        stats = await gallery_service.get_gallery_stats()
+        return stats
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get gallery stats: {str(e)}")

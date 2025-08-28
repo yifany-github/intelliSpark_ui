@@ -5,6 +5,7 @@ import { Chat, ChatMessage, Character, EnrichedChat } from "../types";
 import ChatBubble from "@/components/chats/ChatBubble";
 import ChatInput from "@/components/chats/ChatInput";
 import ChatModelSelector from "@/components/chats/ChatModelSelector";
+import { CharacterGallery } from "@/components/chats/CharacterGallery";
 import TypingIndicator from "@/components/ui/TypingIndicator";
 import { apiRequest } from "@/lib/queryClient";
 import { useRolePlay } from "@/contexts/RolePlayContext";
@@ -535,17 +536,15 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 </button>
               </div>
               <div className="p-4">
-                <div className="text-center mb-4">
-                  <ImageWithFallback
-                    src={character?.avatarUrl}
-                    alt={character?.name}
-                    fallbackText={character?.name}
-                    size="lg"
-                    showSpinner={true}
-                    className="w-32 h-48 mx-auto mb-3"
+                <div className="mb-4">
+                  <CharacterGallery 
+                    characterId={character.id}
+                    className="mb-4"
                   />
-                  <h4 className="font-semibold text-lg mb-2">{character?.name}</h4>
-                  <p className="text-sm text-gray-300 mb-4">{character?.backstory}</p>
+                  <div className="text-center">
+                    <h4 className="font-semibold text-lg mb-2">{character?.name}</h4>
+                    <p className="text-sm text-gray-300 mb-4">{character?.backstory}</p>
+                  </div>
                   <div className="flex flex-wrap gap-2 justify-center">
                     {character?.traits?.map((trait, index) => (
                       <span 
@@ -565,24 +564,20 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
         {/* Right Sidebar - Character Info */}
         {character && (
           <div className="w-full lg:w-80 bg-gray-800 border-l border-gray-700 flex-shrink-0 hidden xl:flex xl:flex-col">
-            {/* Character Image */}
-            <div className="relative">
-              <ImageWithFallback
-                src={character?.avatarUrl}
-                alt={character?.name}
-                fallbackText={character?.name}
-                size="lg"
-                showSpinner={true}
-                className="w-full h-96 object-cover"
+            {/* Character Gallery */}
+            <div className="relative p-4">
+              <CharacterGallery 
+                characterId={character.id}
+                className="mb-4"
               />
-              <div className="absolute top-4 right-4 flex space-x-2">
-                <button className="p-2 bg-black/50 hover:bg-black/70 rounded-full">
+              <div className="flex justify-center space-x-2">
+                <button className="p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors">
                   <Heart className="w-4 h-4" />
                 </button>
-                <button className="p-2 bg-black/50 hover:bg-black/70 rounded-full">
+                <button className="p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors">
                   <Bookmark className="w-4 h-4" />
                 </button>
-                <button className="p-2 bg-black/50 hover:bg-black/70 rounded-full">
+                <button className="p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors">
                   <Share className="w-4 h-4" />
                 </button>
               </div>
