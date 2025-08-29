@@ -30,8 +30,8 @@ export default function GlobalLayout({
         />
       )}
       {showSidebar && <GlobalSidebar />}
-      <div className={`flex-1 overflow-auto ${showSidebar ? (isCollapsed ? 'sm:ml-16' : 'sm:ml-64') : ''} ${showTopNav ? 'pt-2' : ''}`}>
-        <div className="w-full max-w-none">
+      <div className={`flex-1 overflow-auto ${showSidebar ? (isCollapsed ? 'sm:ml-16' : 'sm:ml-64') : ''} ${showTopNav ? 'pt-2' : ''} h-full`}>
+        <div className="w-full">
           {children}
         </div>
       </div>

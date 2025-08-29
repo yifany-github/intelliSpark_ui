@@ -247,7 +247,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   };
 
   return (
-    <div className="w-full h-full p-3 sm:p-6">
+    <div className="w-full h-full px-3 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 py-3 sm:py-6">
       {/* Content Header */}
       <div className="mb-6">
         <div className="text-sm text-gray-400 mb-4">

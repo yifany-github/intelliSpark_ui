@@ -288,7 +288,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   // If we're showing a specific chat
   return (
     <GlobalLayout showSidebar={false}>
-      <div className="h-screen bg-gray-900 text-white flex relative">
+      <div className="h-full bg-gray-900 text-white flex relative">
         {/* Mobile overlay */}
         {showChatList && (
           <div 
@@ -563,7 +563,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
         {/* Right Sidebar - Character Info */}
         {character && (
-          <div className="w-full lg:w-80 bg-gray-800 border-l border-gray-700 flex-shrink-0 hidden xl:flex xl:flex-col">
+          <div className="w-full lg:w-80 bg-gray-800 border-l border-gray-700 flex-shrink-0 hidden xl:flex xl:flex-col h-full">
             {/* Character Gallery */}
             <div className="relative p-4">
               <CharacterGallery 
@@ -584,13 +584,15 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             </div>
 
             {/* Character Info */}
-            <div className="flex-1 p-4">
+            <div className="flex-1 p-4 flex flex-col min-h-0">
               <h3 className="font-semibold text-lg mb-2">{character?.name}</h3>
               
-              {/* Description */}
-              <p className="text-sm text-gray-300 mb-4 leading-relaxed">
-                {character?.backstory}
-              </p>
+              {/* Description with scrollbar */}
+              <div className="flex-1 mb-4 min-h-0">
+                <p className="text-sm text-gray-300 leading-relaxed max-h-48 overflow-y-auto pr-2 scrollbar-thin">
+                  {character?.backstory}
+                </p>
+              </div>
 
               {/* Tags */}
               <div className="flex flex-wrap gap-2 mb-6">
@@ -604,8 +606,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 ))}
               </div>
 
-              {/* Action Buttons */}
-              <div className="space-y-3">
+              {/* Action Buttons - Fixed at bottom */}
+              <div className="space-y-3 flex-shrink-0">
                 <Link href="/" className="block">
                   <button className="w-full bg-brand-accent hover:bg-indigo-500 text-white py-2 px-4 rounded-lg font-medium transition-colors shadow-surface">
                     {t('startNewChat')}
