@@ -189,6 +189,14 @@ class CharacterService:
             if not validation_result.is_valid:
                 return False, {}, validation_result.error
             
+            # 处理分类标签 - 将多个分类合并到traits中用于搜索
+            enhanced_traits = character_data.traits.copy()
+            if character_data.categories:
+                # 将分类标签添加到traits中，以便搜索和过滤能正常工作
+                enhanced_traits.extend(character_data.categories)
+                # 去重
+                enhanced_traits = list(set(enhanced_traits))
+
             # Create character in database
             character = Character(
                 name=character_data.name,
@@ -196,9 +204,9 @@ class CharacterService:
                 avatar_url=character_data.avatarUrl,
                 backstory=character_data.backstory,
                 voice_style=character_data.voiceStyle,
-                traits=character_data.traits,
+                traits=enhanced_traits,  # 包含分类标签的扩展traits
                 personality_traits=character_data.personalityTraits or {},  # Default to empty dict if None
-                category=character_data.category,
+                category=character_data.category or (character_data.categories[0] if character_data.categories else 'original'),  # 向后兼容
                 gender=character_data.gender,
                 conversation_style=character_data.conversationStyle,
                 is_public=character_data.isPublic,
@@ -244,6 +252,18 @@ class CharacterService:
             return ValidationResult(False, "Description must be less than 2000 characters")
         
         # Category validation disabled - accept any category value
+        
+        # 验证分类标签
+        if data.categories:
+            if len(data.categories) > 5:
+                return ValidationResult(False, "最多只能选择5个分类标签")
+            
+            # 验证每个分类标签的格式
+            for category in data.categories:
+                if not isinstance(category, str) or len(category.strip()) == 0:
+                    return ValidationResult(False, "分类标签不能为空")
+                if len(category.strip()) > 20:
+                    return ValidationResult(False, "分类标签长度不能超过20个字符")
         
         # Check gender if provided
         valid_genders = ['male', 'female', 'non-binary', 'other']

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
-import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield, Heart, Share, MessageCircle } from 'lucide-react';
+import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield, Heart, Share, MessageCircle, ChevronDown, Filter } from 'lucide-react';
 import { Character } from '@/types';
 import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
@@ -14,7 +14,62 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 
 const filterKeys = ['popular', 'recent', 'trending', 'new', 'following', 'editorChoice'] as const;
-const categoryKeys = ['all', 'anime', 'game', 'movie', 'book', 'original', 'fantasy', 'sciFi', 'romance', 'action'] as const;
+
+// 新的多层次分类体系
+interface CategoryGroup {
+  key: string;
+  label: string;
+  categories: {
+    key: string;
+    label: string;
+    keywords: string[];
+  }[];
+}
+
+const categoryGroups: CategoryGroup[] = [
+  {
+    key: 'source',
+    label: '来源分类',
+    categories: [
+      { key: 'anime', label: '动漫', keywords: ['动漫', 'anime', 'manga', '漫画', '二次元', '动画'] },
+      { key: 'game', label: '游戏', keywords: ['游戏', 'game', 'gaming', '电竞', '虚拟'] },
+      { key: 'movie', label: '影视', keywords: ['影视', 'movie', 'film', '电影', '电视剧', '明星'] },
+      { key: 'book', label: '书籍', keywords: ['书籍', 'book', 'novel', '小说', '文学', '名著'] },
+      { key: 'celebrity', label: '真人', keywords: ['真人', 'celebrity', '名人', '明星', '历史', 'historical'] },
+      { key: 'life', label: '生活', keywords: ['生活', 'life', '日常', '现实', 'original', '原创'] }
+    ]
+  },
+  {
+    key: 'scene',
+    label: '场景分类', 
+    categories: [
+      { key: 'family', label: '家庭', keywords: ['家庭', 'family', '亲情', '家人', '父母', '兄妹'] },
+      { key: 'school', label: '校园', keywords: ['校园', 'school', '学生', '老师', '同学', '青春'] },
+      { key: 'office', label: '职场', keywords: ['职场', 'office', '公司', '同事', '老板', '商务'] },
+      { key: 'party', label: '聚会', keywords: ['聚会', 'party', '派对', '社交', '朋友', '娱乐'] },
+      { key: 'travel', label: '旅行', keywords: ['旅行', 'travel', '冒险', '探索', '度假'] },
+      { key: 'medical', label: '医院', keywords: ['医院', 'medical', '医生', '护士', '病人', '治疗'] },
+      { key: 'restaurant', label: '餐厅', keywords: ['餐厅', 'restaurant', '服务员', '厨师', '美食'] }
+    ]
+  },
+  {
+    key: 'style',
+    label: '风格分类',
+    categories: [
+      { key: 'fantasy', label: '奇幻', keywords: ['奇幻', 'fantasy', '魔法', '神话', '超自然', '魔幻'] },
+      { key: 'scifi', label: '科幻', keywords: ['科幻', 'sci-fi', '未来', '机器人', '太空', 'android'] },
+      { key: 'warm', label: '温情', keywords: ['温情', 'warm', '治愈', '暖心', '友好', '温柔体贴', '可爱'] },
+      { key: 'historical', label: '古装', keywords: ['古装', 'historical', '古代', '传统', '历史', '武侠'] },
+      { key: 'modern', label: '现代', keywords: ['现代', 'modern', '都市', '时尚', '当代'] },
+      { key: 'horror', label: '恐怖', keywords: ['恐怖', 'horror', '惊悚', '悬疑', '黑暗'] },
+      { key: 'humor', label: '幽默', keywords: ['幽默', 'humor', '搞笑', '诙谐', '轻松', '俏皮叛逆'] }
+    ]
+  }
+];
+
+// 扁平化所有分类用于快速查找
+const allCategories = categoryGroups.flatMap(group => group.categories);
+const categoryKeys = ['all', ...allCategories.map(cat => cat.key)] as const;
 
 interface CharacterGridProps {
   searchQuery?: string;
@@ -28,6 +83,8 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const [nsfwEnabled, setNsfwEnabled] = useState(false);
   const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isCategoryExpanded, setIsCategoryExpanded] = useState(false);
+  const [visibleCategoriesCount, setVisibleCategoriesCount] = useState(6);
   const { navigateToPath, navigateToLogin } = useNavigation();
   
   const { setSelectedCharacter } = useRolePlay();
@@ -96,6 +153,57 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     { key: 'Favorites', label: t('favorites') }
   ];
 
+  // 根据屏幕宽度计算可显示的分类标签数量
+  const calculateVisibleCategories = useCallback(() => {
+    const screenWidth = window.innerWidth;
+    
+    // 根据不同屏幕宽度设置不同的显示数量
+    if (screenWidth < 640) {        // sm breakpoint
+      return 2; // 移动端显示最少
+    } else if (screenWidth < 768) { // md breakpoint  
+      return 4;
+    } else if (screenWidth < 1024) { // lg breakpoint
+      return 6;
+    } else if (screenWidth < 1280) { // xl breakpoint
+      return 8;
+    } else if (screenWidth < 1536) { // 2xl breakpoint
+      return 10;
+    } else {                        // 超大屏幕
+      return 12; // 显示更多分类
+    }
+  }, []);
+
+  // 监听窗口大小变化
+  useEffect(() => {
+    const updateVisibleCategories = () => {
+      const newCount = calculateVisibleCategories();
+      setVisibleCategoriesCount(newCount);
+      
+      // 如果新的可见分类数量能够包含所有分类，自动收起展开状态
+      if (newCount >= allCategories.length && isCategoryExpanded) {
+        setIsCategoryExpanded(false);
+      }
+    };
+
+    // 初始化
+    updateVisibleCategories();
+
+    // 添加窗口大小变化监听器 - 使用防抖以提高性能
+    let timeoutId: NodeJS.Timeout;
+    const debouncedUpdate = () => {
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(updateVisibleCategories, 100);
+    };
+
+    window.addEventListener('resize', debouncedUpdate);
+
+    // 清理监听器
+    return () => {
+      window.removeEventListener('resize', debouncedUpdate);
+      clearTimeout(timeoutId);
+    };
+  }, [calculateVisibleCategories, isCategoryExpanded, allCategories.length]);
+
 
   // Ensure characters is an array
   const charactersArray = Array.isArray(characters) ? characters : [];
@@ -113,27 +221,32 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       }
     }
     
-    // Category filter
+    // Category filter - 新的多层次分类系统
     if (selectedCategory !== 'all') {
-      const categoryMap: { [key: string]: string[] } = {
-        'anime': ['anime', 'manga'],
-        'game': ['game', 'gaming'],
-        'movie': ['movie', 'film'],
-        'book': ['book', 'novel'],
-        'original': ['original'],
-        'fantasy': ['fantasy', 'magical'],
-        'sciFi': ['sci-fi', 'science fiction'],
-        'romance': ['romance', 'romantic'],
-        'action': ['action', 'adventure']
-      };
+      const selectedCategoryData = allCategories.find(cat => cat.key === selectedCategory);
       
-      const searchTerms = categoryMap[selectedCategory] || [selectedCategory];
-      const matchesCategory = character.traits.some((trait: string) => 
-        searchTerms.some(term => trait.toLowerCase().includes(term.toLowerCase()))
-      );
-      
-      if (!matchesCategory) {
-        return false;
+      if (selectedCategoryData) {
+        const keywords = selectedCategoryData.keywords;
+        
+        // 检查角色的traits和category字段
+        const matchesTraits = character.traits.some((trait: string) => 
+          keywords.some(keyword => trait.toLowerCase().includes(keyword.toLowerCase()))
+        );
+        
+        const matchesCategory = character.category && 
+          keywords.some(keyword => character.category!.toLowerCase().includes(keyword.toLowerCase()));
+        
+        // 检查描述和背景故事
+        const description = (character.description || '').toLowerCase();
+        const backstory = (character.backstory || '').toLowerCase();
+        const matchesDescription = keywords.some(keyword => 
+          description.includes(keyword.toLowerCase()) || backstory.includes(keyword.toLowerCase())
+        );
+        
+        // 只要有一个匹配就通过
+        if (!matchesTraits && !matchesCategory && !matchesDescription) {
+          return false;
+        }
       }
     }
     
@@ -332,21 +445,87 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
           </div>
         </div>
 
-        {/* Category Tags */}
-        <div className="flex flex-wrap gap-2 mb-6">
-          {categoryKeys.map(categoryKey => (
+        {/* Category Tags - 响应式折叠式设计 */}
+        <div className="mb-6">
+          {/* 主要分类标签和展开按钮 */}
+          <div className="flex flex-wrap items-center gap-2 mb-3 transition-all duration-300">
+            {/* 全部标签 */}
             <button
-              key={categoryKey}
-              onClick={() => setSelectedCategory(categoryKey)}
-              className={`px-3 py-1 rounded-full text-sm transition-colors ${
-                selectedCategory === categoryKey
-                  ? 'bg-brand-accent text-white shadow-surface'
+              onClick={() => setSelectedCategory('all')}
+              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                selectedCategory === 'all'
+                  ? 'bg-brand-secondary text-zinc-900 shadow-surface'
                   : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600'
               }`}
             >
-              {t(categoryKey)}
+              全部
             </button>
-          ))}
+            
+            {/* 常用分类标签（响应式显示） */}
+            <div className="flex flex-wrap gap-1.5 sm:gap-2">
+              {allCategories.slice(0, visibleCategoriesCount).map((category) => (
+                <button
+                  key={category.key}
+                  onClick={() => setSelectedCategory(category.key)}
+                  className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all duration-200 transform hover:scale-105 ${
+                    selectedCategory === category.key
+                      ? 'bg-brand-accent text-white shadow-surface scale-105'
+                      : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600'
+                  }`}
+                >
+                  {category.label}
+                </button>
+              ))}
+            </div>
+            
+            {/* 展开更多分类按钮 - 只在有剩余分类时显示 */}
+            {allCategories.length > visibleCategoriesCount && (
+              <button
+                onClick={() => setIsCategoryExpanded(!isCategoryExpanded)}
+                className="flex items-center space-x-1 px-3 py-1.5 rounded-full text-xs sm:text-sm bg-surface-secondary text-content-secondary hover:bg-zinc-600 transition-colors"
+              >
+                <Filter className="w-3 h-3" />
+                <span className="hidden sm:inline">
+                  更多 ({allCategories.length - visibleCategoriesCount})
+                </span>
+                <span className="sm:hidden">
+                  +{allCategories.length - visibleCategoriesCount}
+                </span>
+                <ChevronDown className={`w-3 h-3 transition-transform ${isCategoryExpanded ? 'rotate-180' : ''}`} />
+              </button>
+            )}
+          </div>
+          
+          {/* 展开的分类标签 */}
+          {isCategoryExpanded && (
+            <div className="space-y-3 p-4 bg-surface-secondary/30 rounded-lg border border-surface-border animate-in slide-in-from-top-2 duration-200">
+              {categoryGroups.map(group => (
+                <div key={group.key} className="space-y-2">
+                  <h4 className="text-xs font-medium text-content-tertiary uppercase tracking-wider px-1">
+                    {group.label}
+                  </h4>
+                  <div className="flex flex-wrap gap-2">
+                    {group.categories.map(category => (
+                      <button
+                        key={category.key}
+                        onClick={() => {
+                          setSelectedCategory(category.key);
+                          setIsCategoryExpanded(false); // 选择后自动收起
+                        }}
+                        className={`px-3 py-1 rounded-full text-xs transition-colors ${
+                          selectedCategory === category.key
+                            ? 'bg-brand-accent text-white shadow-surface'
+                            : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600'
+                        }`}
+                      >
+                        {category.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 

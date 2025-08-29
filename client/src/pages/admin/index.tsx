@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ImageSelector } from "@/components/admin/ImageSelector";
+import CategorySelector from "@/components/characters/CategorySelector";
 import {
   Users,
   FileText,
@@ -69,6 +70,8 @@ interface Character {
   voiceStyle: string;
   traits: string[];
   personalityTraits: { [key: string]: number };
+  category?: string;
+  categories?: string[];  // 新增：多分类标签
   createdAt: string;
 }
 
@@ -89,6 +92,7 @@ const AdminPage = () => {
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
   const [showNotificationDialog, setShowNotificationDialog] = useState(false);
   const [notificationForm, setNotificationForm] = useState({
     title: "",
@@ -281,10 +285,20 @@ const AdminPage = () => {
   });
 
 
-  const filteredCharacters = characters.filter(character =>
-    character.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    character.backstory.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredCharacters = characters.filter(character => {
+    // 文本搜索
+    const matchesSearch = character.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      character.backstory.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // 分类过滤
+    if (categoryFilter === "all") {
+      return matchesSearch;
+    } else if (categoryFilter === "uncategorized") {
+      return matchesSearch && (!character.categories || character.categories.length === 0);
+    } else {
+      return matchesSearch && character.categories && character.categories.includes(categoryFilter);
+    }
+  });
 
   const filteredUsers = users.filter(user =>
     user.username.toLowerCase().includes(searchTerm.toLowerCase())
@@ -574,6 +588,32 @@ const AdminPage = () => {
                     className="pl-10 w-64 bg-white border-slate-300 text-slate-900"
                   />
                 </div>
+                <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                  <SelectTrigger className="w-48 bg-white border-slate-300 text-slate-900">
+                    <div className="flex items-center">
+                      <Filter className="w-4 h-4 mr-2 text-slate-400" />
+                      <SelectValue placeholder="筛选分类" />
+                    </div>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部分类</SelectItem>
+                    <SelectItem value="uncategorized">未分类</SelectItem>
+                    {(() => {
+                      // 获取所有唯一的分类标签
+                      const allCategories = new Set<string>();
+                      characters.forEach(character => {
+                        if (character.categories) {
+                          character.categories.forEach(category => allCategories.add(category));
+                        }
+                      });
+                      return Array.from(allCategories).sort().map(category => (
+                        <SelectItem key={category} value={category}>
+                          {category}
+                        </SelectItem>
+                      ));
+                    })()}
+                  </SelectContent>
+                </Select>
                 <Dialog open={showCharacterDialog} onOpenChange={setShowCharacterDialog}>
                   <DialogTrigger asChild>
                     <Button onClick={() => setEditingCharacter(null)} className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white">
@@ -666,15 +706,34 @@ const AdminPage = () => {
                     <p className="text-sm text-slate-600 mb-4 line-clamp-3">
                       {character.backstory}
                     </p>
+                    {/* 分类标签 */}
+                    {character.categories && character.categories.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mb-3">
+                        <span className="text-xs font-medium text-gray-600 mr-1">分类:</span>
+                        {character.categories.slice(0, 3).map((category, index) => (
+                          <Badge key={index} variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-300">
+                            {category}
+                          </Badge>
+                        ))}
+                        {character.categories.length > 3 && (
+                          <Badge variant="outline" className="text-xs bg-slate-50 text-slate-600 border-slate-300">
+                            +{character.categories.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                    
+                    {/* 角色特征 */}
                     <div className="flex flex-wrap gap-1 mb-4">
-                      {character.traits.slice(0, 4).map((trait, index) => (
+                      <span className="text-xs font-medium text-gray-600 mr-1">特征:</span>
+                      {character.traits.slice(0, 3).map((trait, index) => (
                         <Badge key={index} variant="outline" className="text-xs bg-green-50 text-green-700 border-green-300">
                           {trait}
                         </Badge>
                       ))}
-                      {character.traits.length > 4 && (
+                      {character.traits.length > 3 && (
                         <Badge variant="outline" className="text-xs bg-slate-50 text-slate-700 border-slate-300">
-                          +{character.traits.length - 4} more
+                          +{character.traits.length - 3} more
                         </Badge>
                       )}
                     </div>
@@ -776,6 +835,54 @@ const AdminPage = () => {
             <div>
               <h2 className="text-2xl font-bold text-slate-900 mb-2">Analytics Dashboard</h2>
               <p className="text-slate-600">Advanced insights and metrics</p>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* 分类标签统计 */}
+              <Card className="shadow-sm border-slate-200">
+                <CardHeader>
+                  <CardTitle className="flex items-center text-slate-900">
+                    <Target className="w-5 h-5 mr-2 text-purple-600" />
+                    分类标签分布
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {(() => {
+                      // 计算分类标签分布
+                      const categoryCount: { [key: string]: number } = {};
+                      characters.forEach(character => {
+                        if (character.categories && character.categories.length > 0) {
+                          character.categories.forEach(category => {
+                            categoryCount[category] = (categoryCount[category] || 0) + 1;
+                          });
+                        } else {
+                          categoryCount['未分类'] = (categoryCount['未分类'] || 0) + 1;
+                        }
+                      });
+
+                      const sortedCategories = Object.entries(categoryCount)
+                        .sort(([,a], [,b]) => b - a)
+                        .slice(0, 6);
+
+                      return sortedCategories.map(([category, count]) => (
+                        <div key={category} className="flex items-center justify-between p-2 bg-purple-50 rounded-lg">
+                          <span className="text-sm font-medium text-purple-800">{category}</span>
+                          <div className="flex items-center space-x-2">
+                            <div className="w-16 bg-purple-200 rounded-full h-2">
+                              <div 
+                                className="bg-purple-600 h-2 rounded-full" 
+                                style={{ width: `${Math.max(count / Math.max(...Object.values(categoryCount)) * 100, 10)}%` }}
+                              />
+                            </div>
+                            <span className="text-sm font-bold text-purple-600">{count}</span>
+                          </div>
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -1115,6 +1222,8 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
     voiceStyle: character?.voiceStyle || "",
     traits: character?.traits || [],
     personalityTraits: character?.personalityTraits || {},
+    category: character?.category || "original",
+    categories: character?.categories || [],  // 新增：多分类标签
   });
 
   const [newTrait, setNewTrait] = useState("");
@@ -1128,6 +1237,8 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
       voiceStyle: character?.voiceStyle || "",
       traits: character?.traits || [],
       personalityTraits: character?.personalityTraits || {},
+      category: character?.category || "original",
+      categories: character?.categories || [],
     });
   }, [character]);
 
@@ -1201,6 +1312,24 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
             className="bg-white border-slate-300 text-slate-900"
             rows={3}
             required
+          />
+        </div>
+
+        {/* 分类标签选择 */}
+        <div className="space-y-3">
+          <Label className="text-sm font-medium text-slate-900">角色分类</Label>
+          <CategorySelector
+            selectedCategories={formData.categories}
+            onCategoriesChange={(categories) => {
+              setFormData({ 
+                ...formData, 
+                categories,
+                // 同时更新单个category字段以保持向后兼容
+                category: categories.length > 0 ? categories[0] : 'original'
+              });
+            }}
+            maxSelections={5}
+            className="bg-white border border-slate-300 rounded-lg p-4"
           />
         </div>
 
