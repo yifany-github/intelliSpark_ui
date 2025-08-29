@@ -21,7 +21,7 @@ export default function GlobalLayout({
   const { isCollapsed } = useNavigation();
 
   return (
-    <div className="min-h-screen w-full bg-gray-900 text-white flex flex-col">
+    <div className="min-h-screen w-full bg-gray-900 text-white flex flex-col overflow-x-hidden">
       {showTopNav && (
         <TopNavigation 
           searchQuery={searchQuery} 
@@ -30,10 +30,8 @@ export default function GlobalLayout({
         />
       )}
       {showSidebar && <GlobalSidebar />}
-      <div className={`flex-1 overflow-auto ${showSidebar ? (isCollapsed ? 'sm:ml-16' : 'sm:ml-64') : ''} ${showTopNav ? 'pt-2' : ''} h-full`}>
-        <div className="w-full">
-          {children}
-        </div>
+      <div className={`flex-1 overflow-auto ${showSidebar ? (isCollapsed ? 'sm:pl-16' : 'sm:pl-64') : ''} ${showTopNav ? 'pt-2' : ''}`}>
+        {children}
       </div>
     </div>
   );

@@ -247,7 +247,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   };
 
   return (
-    <div className="w-full h-full px-3 sm:px-6 lg:px-8 xl:px-12 2xl:px-16 py-3 sm:py-6">
+    <div className="w-full h-full px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10 py-3 sm:py-6">
       {/* Content Header */}
       <div className="mb-6">
         <div className="text-sm text-gray-400 mb-4">
@@ -352,7 +352,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
 
       {/* Character Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4" role="grid" aria-label="Character cards loading">
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 3xl:grid-cols-10 gap-3 sm:gap-4" role="grid" aria-label="Character cards loading">
           {[...Array(10)].map((_, i) => (
             <div key={i} className="bg-gradient-surface border border-surface-border rounded-xl overflow-hidden shadow-elevated animate-pulse relative" role="gridcell" aria-label={`Loading character ${i + 1}`}>
               {/* Shimmer effect */}
@@ -397,7 +397,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 gap-3 sm:gap-4" role="grid" aria-label="Character cards">
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 3xl:grid-cols-10 gap-3 sm:gap-4" role="grid" aria-label="Character cards">
           {sortedCharacters.map(character => (
             <div 
               key={character.id} 

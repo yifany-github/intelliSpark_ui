@@ -288,7 +288,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   // If we're showing a specific chat
   return (
     <GlobalLayout showSidebar={false}>
-      <div className="h-full bg-gray-900 text-white flex relative">
+      <div className="h-[calc(100vh-4rem)] bg-gray-900 text-white flex relative overflow-hidden">
         {/* Mobile overlay */}
         {showChatList && (
           <div 
@@ -298,7 +298,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
         )}
         
         {/* Left Sidebar - Recent Chats */}
-        <div className={`${showChatList ? 'flex' : 'hidden'} lg:flex w-full lg:w-64 bg-gray-800 border-r border-gray-700 flex-shrink-0 flex-col absolute lg:relative z-10 h-full lg:h-auto`}>
+        <div className={`${showChatList ? 'flex' : 'hidden'} lg:flex w-full lg:w-64 bg-gray-800 border-r border-gray-700 flex-shrink-0 flex-col absolute lg:relative z-10 h-full`}>
           <div className="p-4 border-b border-gray-700">
             <div className="flex items-center justify-between mb-2">
               <h2 className="text-lg font-semibold">{t('chats')}</h2>
@@ -321,7 +321,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             </div>
           </div>
           
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto scrollbar-thin">
             {/* Current Active Chat */}
             {character && (
               <div className="p-3 bg-brand-accent/20 border-l-4 border-brand-accent">
@@ -379,7 +379,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
         </div>
 
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 h-full">
           {/* Chat Header */}
           <div className="bg-gray-800 border-b border-gray-700 p-2 sm:p-4">
             <div className="flex items-center justify-between">
@@ -434,7 +434,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
           </div>
 
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2 space-y-4 scrollbar-thin">
             {/* Creating chat state - show immediate loading UI */}
             {isCreatingChat ? (
               <div className="flex items-start mb-4">
@@ -563,33 +563,33 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
         {/* Right Sidebar - Character Info */}
         {character && (
-          <div className="w-full lg:w-80 bg-gray-800 border-l border-gray-700 flex-shrink-0 hidden xl:flex xl:flex-col h-full">
+          <div className="w-full lg:w-80 bg-gray-800 border-l border-gray-700 flex-shrink-0 hidden xl:flex xl:flex-col h-full overflow-y-auto scrollbar-thin">
             {/* Character Gallery */}
-            <div className="relative p-4">
+            <div className="relative p-4 flex-shrink-0">
               <CharacterGallery 
                 characterId={character.id}
-                className="mb-4"
+                className="mb-3"
               />
-              <div className="flex justify-center space-x-2">
-                <button className="p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors">
-                  <Heart className="w-4 h-4" />
+              <div className="flex justify-center space-x-2 mt-2">
+                <button className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors">
+                  <Heart className="w-3.5 h-3.5" />
                 </button>
-                <button className="p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors">
-                  <Bookmark className="w-4 h-4" />
+                <button className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors">
+                  <Bookmark className="w-3.5 h-3.5" />
                 </button>
-                <button className="p-2 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors">
-                  <Share className="w-4 h-4" />
+                <button className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded-full transition-colors">
+                  <Share className="w-3.5 h-3.5" />
                 </button>
               </div>
             </div>
 
             {/* Character Info */}
-            <div className="flex-1 p-4 flex flex-col min-h-0">
-              <h3 className="font-semibold text-lg mb-2">{character?.name}</h3>
+            <div className="px-4 pb-4">
+              <h3 className="font-semibold text-lg mb-3">{character?.name}</h3>
               
-              {/* Description with scrollbar */}
-              <div className="flex-1 mb-4 min-h-0">
-                <p className="text-sm text-gray-300 leading-relaxed max-h-48 overflow-y-auto pr-2 scrollbar-thin">
+              {/* Description */}
+              <div className="mb-4">
+                <p className="text-sm text-gray-300 leading-relaxed">
                   {character?.backstory}
                 </p>
               </div>
@@ -599,21 +599,21 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 {character?.traits?.map((trait, index) => (
                   <span 
                     key={index}
-                    className="px-3 py-1 rounded-full text-xs font-medium bg-gray-600 text-white"
+                    className="px-2.5 py-1 rounded-full text-xs font-medium bg-gray-600 text-white"
                   >
                     {trait}
                   </span>
                 ))}
               </div>
 
-              {/* Action Buttons - Fixed at bottom */}
-              <div className="space-y-3 flex-shrink-0">
+              {/* Action Buttons */}
+              <div className="space-y-2 border-t border-gray-700/50 pt-4">
                 <Link href="/" className="block">
-                  <button className="w-full bg-brand-accent hover:bg-indigo-500 text-white py-2 px-4 rounded-lg font-medium transition-colors shadow-surface">
+                  <button className="w-full bg-brand-accent hover:bg-indigo-500 text-white py-2 px-3 rounded-lg text-sm font-medium transition-colors shadow-surface">
                     {t('startNewChat')}
                   </button>
                 </Link>
-                <button className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-4 rounded-lg font-medium transition-colors">
+                <button className="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 px-3 rounded-lg text-sm font-medium transition-colors">
                   {t('chatSettings')}
                 </button>
               </div>
