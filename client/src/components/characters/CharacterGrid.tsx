@@ -249,12 +249,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   return (
     <div className="w-full h-full px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10 py-3 sm:py-6">
       {/* Content Header */}
-      <div className="mb-6">
-        <div className="text-sm text-gray-400 mb-4">
-          {t('discoverAICharacters')}
-        </div>
-        
-        
+      <div className="mb-6">        
         {/* Tabs */}
         <div className="flex space-x-6 mb-6">
           {tabs.map(tab => (

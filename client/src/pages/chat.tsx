@@ -415,9 +415,6 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                   <h1 className="font-semibold truncate">
                     {isLoadingCharacter ? t('loading') : character?.name}
                   </h1>
-                  <div className="flex items-center text-xs text-gray-400">
-                    <ImprovedTokenBalance compact={true} showTitle={false} />
-                  </div>
                 </div>
               </div>
               <div className="flex items-center space-x-1 sm:space-x-2">
