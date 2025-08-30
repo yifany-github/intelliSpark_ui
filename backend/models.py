@@ -74,6 +74,14 @@ class Character(Base):
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=func.now())
     
+    # Admin management and analytics fields
+    is_featured = Column(Boolean, default=False)  # Editor's choice flag
+    view_count = Column(Integer, default=0)       # Track character views
+    like_count = Column(Integer, default=0)       # Track character likes
+    chat_count = Column(Integer, default=0)       # Track chat sessions created
+    trending_score = Column(Numeric(10, 2), default=0.0)  # Calculated trending score
+    last_activity = Column(DateTime, nullable=True)  # Last interaction timestamp
+    
     # Character Gallery fields
     gallery_enabled = Column(Boolean, default=False)
     gallery_primary_image = Column(String(500), nullable=True)  # Primary gallery image URL

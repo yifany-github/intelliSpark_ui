@@ -30,6 +30,7 @@ import {
   BarChart3,
   Search,
   Filter,
+  Crown,
   Upload,
   Download,
   RefreshCw,
@@ -73,6 +74,13 @@ interface Character {
   category?: string;
   categories?: string[];  // 新增：多分类标签
   createdAt: string;
+  // Admin management fields
+  isFeatured?: boolean;
+  viewCount?: number;
+  likeCount?: number;
+  chatCount?: number;
+  trendingScore?: number;
+  lastActivity?: string;
 }
 
 interface User {
@@ -284,6 +292,24 @@ const AdminPage = () => {
     },
   });
 
+  // Toggle featured status mutation
+  const toggleFeaturedMutation = useMutation({
+    mutationFn: async (characterId: number) => {
+      const response = await fetch(`/api/admin/characters/${characterId}/toggle-featured`, {
+        method: "POST",
+        headers: authHeaders,
+      });
+      if (!response.ok) throw new Error("Failed to toggle featured status");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-characters"] });
+      toast({ 
+        title: `✅ Character ${data.isFeatured ? 'added to' : 'removed from'} Editor's Choice`,
+        className: "border-green-200 bg-green-50"
+      });
+    },
+  });
 
   const filteredCharacters = characters.filter(character => {
     // 文本搜索
@@ -680,6 +706,16 @@ const AdminPage = () => {
                         <CardTitle className="text-lg text-slate-900">{character.name}</CardTitle>
                       </div>
                       <div className="flex gap-1">
+                        {/* Featured Status Toggle */}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => toggleFeaturedMutation.mutate(character.id)}
+                          className={`h-8 w-8 p-0 ${character.isFeatured ? 'bg-amber-100 hover:bg-amber-200' : 'hover:bg-gray-100'}`}
+                          title={character.isFeatured ? "Remove from Editor's Choice" : "Add to Editor's Choice"}
+                        >
+                          <Crown className={`w-4 h-4 ${character.isFeatured ? 'text-amber-600' : 'text-gray-400'}`} />
+                        </Button>
                         <Button
                           size="sm"
                           variant="ghost"
@@ -737,6 +773,33 @@ const AdminPage = () => {
                         </Badge>
                       )}
                     </div>
+                    
+                    {/* Admin Analytics */}
+                    <div className="grid grid-cols-2 gap-2 mb-3 p-2 bg-slate-50 rounded">
+                      <div className="flex items-center space-x-1">
+                        <Eye className="w-3 h-3 text-slate-500" />
+                        <span className="text-xs text-slate-600">Views: {character.viewCount || 0}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <MessageSquare className="w-3 h-3 text-slate-500" />
+                        <span className="text-xs text-slate-600">Chats: {character.chatCount || 0}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <TrendingUp className="w-3 h-3 text-slate-500" />
+                        <span className="text-xs text-slate-600">Score: {character.trendingScore || 0}</span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        {character.isFeatured ? (
+                          <>
+                            <Crown className="w-3 h-3 text-amber-500" />
+                            <span className="text-xs text-amber-600">Featured</span>
+                          </>
+                        ) : (
+                          <span className="text-xs text-slate-500">Not featured</span>
+                        )}
+                      </div>
+                    </div>
+                    
                     <div className="text-xs text-gray-500">
                       Created: {new Date(character.createdAt).toLocaleDateString()}
                     </div>

@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 
-const filterKeys = ['popular', 'recent', 'trending', 'new', 'following', 'editorChoice'] as const;
+const filterKeys = ['popular', 'trending', 'new', 'following', 'editorChoice'] as const;
 
 // 新的多层次分类体系
 interface CategoryGroup {
@@ -310,11 +310,106 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const sortedCharacters = [...tabFilteredCharacters].sort((a: Character, b: Character) => {
     switch (selectedFilter) {
       case 'popular':
-        return b.id - a.id; // Mock popularity sorting
-      case 'recent':
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        // Calculate popularity score based on multiple factors
+        const getPopularityScore = (char: Character) => {
+          const ageInDays = (Date.now() - new Date(char.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+          const recencyBonus = Math.max(0, (30 - ageInDays) * 0.1); // Bonus for newer characters (up to 30 days)
+          
+          // Mock popularity calculation until we have real analytics data
+          // Higher ID = newer character, gets slight popularity boost
+          const mockPopularity = char.id * 0.01;
+          
+          // Characters with more traits are considered more detailed/popular
+          const traitBonus = char.traits.length * 0.5;
+          
+          // Longer backstories indicate more effort/quality
+          const backstoryBonus = (char.backstory?.length || 0) * 0.001;
+          
+          return mockPopularity + traitBonus + backstoryBonus + recencyBonus;
+        };
+        
+        return getPopularityScore(b) - getPopularityScore(a);
+      case 'trending':
+        // Calculate trending score based on recent activity and momentum  
+        const getTrendingScore = (char: Character) => {
+          const now = Date.now();
+          const createdTime = new Date(char.createdAt).getTime();
+          const ageInHours = (now - createdTime) / (1000 * 60 * 60);
+          
+          // Recent activity boost: newer characters get higher trending scores
+          const recencyMultiplier = Math.max(0.1, 1 - (ageInHours / (24 * 7))); // 1 week decay
+          
+          // Quality indicators for trending momentum
+          const qualityScore = (
+            (char.traits.length * 2) + // Rich traits indicate engaging content
+            ((char.backstory?.length || 0) / 100) + // Detailed backstory
+            ((char.description?.length || 0) / 50) // Rich description
+          );
+          
+          // Trending score combines quality with recency
+          const trendingScore = qualityScore * recencyMultiplier;
+          
+          // Add slight randomness to simulate dynamic trending (0.8-1.2x multiplier)
+          const randomFactor = 0.8 + (Math.sin(char.id * 0.1 + Date.now() / 86400000) + 1) * 0.2;
+          
+          return trendingScore * randomFactor;
+        };
+        
+        return getTrendingScore(b) - getTrendingScore(a);
       case 'new':
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      case 'following':
+        // Mock following system - prioritize characters user might be interested in
+        const getFollowingScore = (char: Character) => {
+          // Simulate user preference based on character traits and type
+          const preferredTraits = ['friendly', 'helpful', 'cute', 'intelligent', 'caring', 'funny'];
+          const traitMatches = char.traits.filter(trait => 
+            preferredTraits.some(preferred => 
+              trait.toLowerCase().includes(preferred.toLowerCase())
+            )
+          ).length;
+          
+          // Characters with preferred traits get higher scores
+          const preferenceScore = traitMatches * 3;
+          
+          // Add some variety with character ID-based pseudo-randomization
+          const varietyScore = (char.id % 7) * 0.5;
+          
+          return preferenceScore + varietyScore;
+        };
+        
+        return getFollowingScore(b) - getFollowingScore(a);
+      case 'editorChoice':
+        // Use real featured status from backend + quality fallback
+        const getEditorScore = (char: Character) => {
+          // Featured characters get top priority
+          if ((char as any).isFeatured) {
+            return 1000; // High priority for admin-featured characters
+          }
+          
+          // Fallback to quality-based scoring for non-featured characters
+          const traitQuality = char.traits.length >= 3 ? char.traits.length * 2 : 0;
+          const backstoryQuality = (char.backstory?.length || 0) >= 100 ? 
+            Math.min((char.backstory?.length || 0) / 50, 20) : 0;
+          const descriptionQuality = (char.description?.length || 0) >= 50 ? 
+            Math.min((char.description?.length || 0) / 25, 15) : 0;
+          
+          // Bonus for diverse and interesting traits
+          const diversityBonus = new Set(char.traits.map(t => t.toLowerCase())).size * 1.5;
+          
+          // Character completeness score
+          const completenessScore = [
+            char.name?.length > 2,
+            char.backstory?.length > 50,
+            char.traits.length >= 2,
+            char.description?.length > 30,
+            char.gender
+          ].filter(Boolean).length * 2;
+          
+          return traitQuality + backstoryQuality + descriptionQuality + diversityBonus + completenessScore;
+        };
+        
+        return getEditorScore(b) - getEditorScore(a);
       default:
         return 0;
     }
