@@ -12,6 +12,10 @@ This migration adds the following fields to the characters table:
 Run this migration to enable admin-controlled filtering and analytics tracking.
 """
 
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from sqlalchemy import text
 from database import engine
 

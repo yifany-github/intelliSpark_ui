@@ -56,7 +56,14 @@ def transform_character_to_response(character: Character) -> Dict[str, Any]:
         "conversationStyle": character.conversation_style,  # snake_case to camelCase
         "isPublic": character.is_public,  # snake_case to camelCase
         "createdBy": character.created_by,  # snake_case to camelCase
-        "createdAt": character.created_at.isoformat() + "Z" if character.created_at else None  # ISO format
+        "createdAt": character.created_at.isoformat() + "Z" if character.created_at else None,  # ISO format
+        # Admin management and analytics fields
+        "isFeatured": character.is_featured,
+        "viewCount": character.view_count,
+        "likeCount": character.like_count,
+        "chatCount": character.chat_count,
+        "trendingScore": float(character.trending_score) if character.trending_score else 0.0,
+        "lastActivity": character.last_activity.isoformat() + "Z" if character.last_activity else None
     }
 
 
