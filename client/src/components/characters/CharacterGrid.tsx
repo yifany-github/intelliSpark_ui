@@ -551,19 +551,18 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
               <button
                 key={filterKey}
                 onClick={() => setSelectedFilter(filterKey)}
-                className={`px-2 sm:px-3 py-1 rounded-full text-xs sm:text-sm transition-colors flex items-center space-x-1 ${
+                className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-sm font-medium transition-colors flex items-center space-x-2 min-h-[44px] min-w-[44px] justify-center ${
                   selectedFilter === filterKey
                     ? 'bg-brand-secondary text-zinc-900 shadow-surface'
-                    : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600'
+                    : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600 active:bg-zinc-500'
                 }`}
               >
-                {filterKey === 'popular' && <Flame className="w-3 h-3" />}
-                {filterKey === 'trending' && <TrendingUp className="w-3 h-3" />}
-                {filterKey === 'new' && <Star className="w-3 h-3" />}
-                {filterKey === 'following' && <Users className="w-3 h-3" />}
-                {filterKey === 'editorChoice' && <Crown className="w-3 h-3" />}
+                {filterKey === 'popular' && <Flame className="w-4 h-4" />}
+                {filterKey === 'trending' && <TrendingUp className="w-4 h-4" />}
+                {filterKey === 'new' && <Star className="w-4 h-4" />}
+                {filterKey === 'following' && <Users className="w-4 h-4" />}
+                {filterKey === 'editorChoice' && <Crown className="w-4 h-4" />}
                 <span className="hidden sm:inline">{t(filterKey)}</span>
-                <span className="sm:hidden">{t(filterKey).charAt(0)}</span>
               </button>
             ))}
           </div>
@@ -604,87 +603,36 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
           </div>
         </div>
 
-        {/* Category Tags - 响应式折叠式设计 */}
+        {/* Category Tags - 水平滚动设计，移动端友好 */}
         <div className="mb-6">
-          {/* 主要分类标签和展开按钮 */}
-          <div className="flex flex-wrap items-center gap-2 mb-3 transition-all duration-300">
+          <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-surface-border">
             {/* 全部标签 */}
             <button
               onClick={() => setSelectedCategory('all')}
-              className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-colors min-h-[40px] ${
                 selectedCategory === 'all'
                   ? 'bg-brand-secondary text-zinc-900 shadow-surface'
-                  : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600'
+                  : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600 active:bg-zinc-500'
               }`}
             >
               全部
             </button>
             
-            {/* 常用分类标签（响应式显示） */}
-            <div className="flex flex-wrap gap-1.5 sm:gap-2">
-              {allCategories.slice(0, visibleCategoriesCount).map((category) => (
-                <button
-                  key={category.key}
-                  onClick={() => setSelectedCategory(category.key)}
-                  className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs sm:text-sm font-medium transition-all duration-200 transform hover:scale-105 ${
-                    selectedCategory === category.key
-                      ? 'bg-brand-accent text-white shadow-surface scale-105'
-                      : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600'
-                  }`}
-                >
-                  {category.label}
-                </button>
-              ))}
-            </div>
-            
-            {/* 展开更多分类按钮 - 只在有剩余分类时显示 */}
-            {allCategories.length > visibleCategoriesCount && (
+            {/* 所有分类标签水平滚动 */}
+            {allCategories.map((category) => (
               <button
-                onClick={() => setIsCategoryExpanded(!isCategoryExpanded)}
-                className="flex items-center space-x-1 px-3 py-1.5 rounded-full text-xs sm:text-sm bg-surface-secondary text-content-secondary hover:bg-zinc-600 transition-colors"
+                key={category.key}
+                onClick={() => setSelectedCategory(category.key)}
+                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-colors min-h-[40px] ${
+                  selectedCategory === category.key
+                    ? 'bg-brand-accent text-white shadow-surface'
+                    : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600 active:bg-zinc-500'
+                }`}
               >
-                <Filter className="w-3 h-3" />
-                <span className="hidden sm:inline">
-                  更多 ({allCategories.length - visibleCategoriesCount})
-                </span>
-                <span className="sm:hidden">
-                  +{allCategories.length - visibleCategoriesCount}
-                </span>
-                <ChevronDown className={`w-3 h-3 transition-transform ${isCategoryExpanded ? 'rotate-180' : ''}`} />
+                {category.label}
               </button>
-            )}
+            ))}
           </div>
-          
-          {/* 展开的分类标签 */}
-          {isCategoryExpanded && (
-            <div className="space-y-3 p-4 bg-surface-secondary/30 rounded-lg border border-surface-border animate-in slide-in-from-top-2 duration-200">
-              {categoryGroups.map(group => (
-                <div key={group.key} className="space-y-2">
-                  <h4 className="text-xs font-medium text-content-tertiary uppercase tracking-wider px-1">
-                    {group.label}
-                  </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {group.categories.map(category => (
-                      <button
-                        key={category.key}
-                        onClick={() => {
-                          setSelectedCategory(category.key);
-                          setIsCategoryExpanded(false); // 选择后自动收起
-                        }}
-                        className={`px-3 py-1 rounded-full text-xs transition-colors ${
-                          selectedCategory === category.key
-                            ? 'bg-brand-accent text-white shadow-surface'
-                            : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600'
-                        }`}
-                      >
-                        {category.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       </div>
 
@@ -692,22 +640,63 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       {isLoading ? (
         <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 3xl:grid-cols-10 gap-3 sm:gap-4" role="grid" aria-label="Character cards loading">
           {[...Array(10)].map((_, i) => (
-            <div key={i} className="bg-gradient-surface border border-surface-border rounded-xl overflow-hidden shadow-elevated animate-pulse relative" role="gridcell" aria-label={`Loading character ${i + 1}`}>
-              {/* Shimmer effect */}
-              <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shimmer" />
-              <div className="w-full aspect-[3/4] bg-surface-tertiary relative overflow-hidden">
+            <div key={i} className="group relative bg-gradient-surface border border-surface-border rounded-xl overflow-hidden shadow-elevated animate-pulse" role="gridcell" aria-label={`Loading character ${i + 1}`}>
+              {/* Enhanced shimmer effect */}
+              <div className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer" 
+                   style={{ animationDuration: '2s', animationIterationCount: 'infinite' }} />
+              
+              {/* Image area matching aspect ratio */}
+              <div className="relative w-full aspect-[3/4] overflow-hidden bg-surface-tertiary">
                 <div className="absolute inset-0 bg-gradient-to-br from-surface-tertiary to-zinc-600" />
-              </div>
-              <div className="p-4 space-y-3">
-                <div className="h-5 bg-surface-tertiary rounded w-3/4 relative overflow-hidden" />
-                <div className="space-y-2">
-                  <div className="h-3 bg-surface-tertiary rounded w-full relative overflow-hidden" />
-                  <div className="h-3 bg-surface-tertiary rounded w-2/3 relative overflow-hidden" />
+                
+                {/* Loading indicators in corners */}
+                <div className="absolute top-3 left-3">
+                  <div className="w-12 h-6 bg-surface-secondary/60 rounded-full" />
                 </div>
-                <div className="flex space-x-2">
-                  <div className="h-6 bg-surface-tertiary rounded-full w-16 relative overflow-hidden" />
-                  <div className="h-6 bg-surface-tertiary rounded-full w-20 relative overflow-hidden" />
-                  <div className="h-6 bg-surface-tertiary rounded-full w-12 relative overflow-hidden" />
+                <div className="absolute top-3 right-3 flex items-center space-x-2">
+                  <div className="w-6 h-6 bg-surface-secondary/60 rounded-full" />
+                </div>
+              </div>
+              
+              {/* Content area matching real card */}
+              <div className="p-4 space-y-3">
+                {/* Character name with status - matching real layout */}
+                <div className="flex items-center justify-between">
+                  <div className="h-5 bg-surface-tertiary rounded w-2/3" />
+                  <div className="flex items-center space-x-1">
+                    <div className="w-2 h-2 bg-surface-tertiary rounded-full" />
+                    <div className="w-8 h-3 bg-surface-tertiary rounded" />
+                  </div>
+                </div>
+                
+                {/* Description area - matching line-clamp-2 */}
+                <div className="space-y-1.5">
+                  <div className="h-3 bg-surface-tertiary rounded w-full" />
+                  <div className="h-3 bg-surface-tertiary rounded w-4/5" />
+                </div>
+                
+                {/* Trait chips - matching maxVisible={2} */}
+                <div className="flex gap-2">
+                  <div className="h-6 bg-surface-tertiary rounded-full w-16" />
+                  <div className="h-6 bg-surface-tertiary rounded-full w-14" />
+                </div>
+                
+                {/* Metrics area - matching real layout */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-1">
+                      <div className="w-3 h-3 bg-surface-tertiary rounded" />
+                      <div className="w-6 h-3 bg-surface-tertiary rounded" />
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <div className="w-3 h-3 bg-surface-tertiary rounded" />
+                      <div className="w-8 h-3 bg-surface-tertiary rounded" />
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-1">
+                    <div className="w-3 h-3 bg-surface-tertiary rounded" />
+                    <div className="w-8 h-3 bg-surface-tertiary rounded" />
+                  </div>
                 </div>
               </div>
             </div>
@@ -801,45 +790,10 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   )}
                 </div>
                 {/* Removed overlay trait chips to avoid duplication with content area */}
-                {/* Advanced hover overlay system */}
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300" role="region" aria-label={`Quick actions for ${character.name}`}>
-                  {/* Primary overlay with gradient */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/90 via-zinc-800/50 to-transparent" />
-                  
-                  {/* Quick action buttons - top area */}
-                  <div className="absolute top-4 right-4 flex space-x-2">
-                    <button 
-                      onClick={(e) => {
-                        try {
-                          e.stopPropagation();
-                          handleFavoriteToggle(character.id);
-                        } catch (error) {
-                          console.error('Failed to toggle favorite:', error);
-                        }
-                      }}
-                      aria-label={`${isFavorite(character.id) ? 'Remove' : 'Add'} ${character.name} to favorites`}
-                      className="p-2 bg-black/60 backdrop-blur-sm rounded-full hover:bg-brand-secondary/20 transition-all duration-200 group/btn"
-                    >
-                      <Heart className={`w-4 h-4 transition-colors ${isFavorite(character.id) ? 'text-brand-secondary fill-current' : 'text-white group-hover/btn:text-brand-secondary'}`} />
-                    </button>
-                    <button 
-                      onClick={(e) => {
-                        try {
-                          e.stopPropagation();
-                          // TODO: Implement share functionality
-                        } catch (error) {
-                          console.error('Failed to share character:', error);
-                        }
-                      }}
-                      aria-label={`Share ${character.name}`}
-                      className="p-2 bg-black/60 backdrop-blur-sm rounded-full hover:bg-brand-accent/20 transition-all duration-200 group/btn"
-                    >
-                      <Share className="w-4 h-4 text-white group-hover/btn:text-brand-accent" />
-                    </button>
-                  </div>
-                  
-                  {/* Main action area - center */}
-                  <div className="absolute inset-x-4 bottom-4 space-y-2">
+                {/* Simplified hover overlay - dual action layout */}
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4">
+                  <div className="w-full space-y-2">
+                    {/* Primary action - Start Chat */}
                     <button 
                       onClick={(e) => {
                         try {
@@ -849,37 +803,31 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                           console.error('Failed to start chat:', error);
                         }
                       }}
-                      aria-label={`Start premium chat with ${character.name}`}
-                      className="w-full py-3 px-4 bg-gradient-premium hover:shadow-premium text-zinc-900 rounded-lg font-bold text-sm transition-all duration-200 hover:-translate-y-0.5 focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-zinc-900"
+                      className="w-full py-3 bg-brand-secondary text-zinc-900 rounded-lg font-bold text-sm hover:bg-brand-secondary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-black"
                     >
                       <div className="flex items-center justify-center space-x-2">
                         <MessageCircle className="w-4 h-4" />
-                        <span>{t('startPremiumChat')}</span>
+                        <span>开始聊天</span>
                       </div>
                     </button>
                     
-                    <div className="flex space-x-2">
-                      <button 
-                        onClick={(e) => {
-                          try {
-                            e.stopPropagation();
-                            handlePreviewOpen(character);
-                          } catch (error) {
-                            console.error('Failed to open preview:', error);
-                          }
-                        }}
-                        aria-label={`Preview ${character.name}`}
-                        className="flex-1 py-2 px-3 bg-surface-secondary/90 backdrop-blur-sm hover:bg-surface-tertiary text-content-primary rounded-lg font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-zinc-900"
-                      >
-{t('preview')}
-                      </button>
-                      <button 
-                        aria-label={`View details for ${character.name}`}
-                        className="flex-1 py-2 px-3 bg-surface-secondary/90 backdrop-blur-sm hover:bg-surface-tertiary text-content-primary rounded-lg font-medium text-sm transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-zinc-900"
-                      >
-{t('details')}
-                      </button>
-                    </div>
+                    {/* Secondary action - Preview */}
+                    <button 
+                      onClick={(e) => {
+                        try {
+                          e.stopPropagation();
+                          handlePreviewOpen(character);
+                        } catch (error) {
+                          console.error('Failed to open preview:', error);
+                        }
+                      }}
+                      className="w-full py-2 bg-surface-secondary/90 backdrop-blur-sm text-content-primary rounded-lg font-medium text-sm hover:bg-surface-tertiary transition-colors focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-black"
+                    >
+                      <div className="flex items-center justify-center space-x-2">
+                        <Eye className="w-4 h-4" />
+                        <span>预览详情</span>
+                      </div>
+                    </button>
                   </div>
                 </div>
               </div>
