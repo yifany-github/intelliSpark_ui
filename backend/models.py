@@ -71,8 +71,8 @@ class Character(Base):
     gender = Column(String(100), nullable=True)
     conversation_style = Column(String(255), nullable=True)
     is_public = Column(Boolean, default=True)
-    age = Column(Integer, nullable=True, CheckConstraint('age >= 1 AND age <= 200', name='check_age_range'))           # Character age (1-200 range)
-    nsfw_level = Column(Integer, default=0, CheckConstraint('nsfw_level >= 0 AND nsfw_level <= 3', name='check_nsfw_level_range'))        # NSFW level (0-3 range)
+    age = Column(Integer, nullable=True)           # Character age (1-200 range)
+    nsfw_level = Column(Integer, default=0)        # NSFW level (0-3 range)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=func.now())
     
@@ -89,6 +89,12 @@ class Character(Base):
     gallery_primary_image = Column(String(500), nullable=True)  # Primary gallery image URL
     gallery_images_count = Column(Integer, default=0)          # Total number of gallery images
     gallery_updated_at = Column(DateTime, nullable=True)       # Last gallery update timestamp
+    
+    # Table-level constraints
+    __table_args__ = (
+        CheckConstraint('age >= 1 AND age <= 200', name='check_age_range'),
+        CheckConstraint('nsfw_level >= 0 AND nsfw_level <= 3', name='check_nsfw_level_range'),
+    )
     
     # Relationships
     chats = relationship("Chat", back_populates="character")
