@@ -71,6 +71,8 @@ class Character(Base):
     gender = Column(String(100), nullable=True)
     conversation_style = Column(String(255), nullable=True)
     is_public = Column(Boolean, default=True)
+    age = Column(Integer, nullable=True)           # Character age (1-200 range)
+    nsfw_level = Column(Integer, default=0)        # NSFW level (0-3 range)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=func.now())
     

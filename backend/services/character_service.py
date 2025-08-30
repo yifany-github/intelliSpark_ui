@@ -218,6 +218,8 @@ class CharacterService:
                 personality_traits=character_data.personalityTraits or {},  # Default to empty dict if None
                 category=character_data.category or (character_data.categories[0] if character_data.categories else 'original'),  # 向后兼容
                 gender=character_data.gender,
+                age=character_data.age,
+                nsfw_level=character_data.nsfwLevel or 0,
                 conversation_style=character_data.conversationStyle,
                 is_public=character_data.isPublic,
                 created_by=user_id
@@ -286,6 +288,10 @@ class CharacterService:
         # Check NSFW level
         if data.nsfwLevel is not None and (data.nsfwLevel < 0 or data.nsfwLevel > 3):
             return ValidationResult(False, "NSFW level must be between 0 and 3")
+        
+        # Check age if provided
+        if data.age is not None and (data.age < 1 or data.age > 200):
+            return ValidationResult(False, "Age must be between 1 and 200")
         
         # Check backstory length if provided
         if data.backstory and len(data.backstory) > 3000:
@@ -428,6 +434,8 @@ class CharacterService:
             character.personality_traits = character_data.personalityTraits or {}
             character.category = character_data.category
             character.gender = character_data.gender
+            character.age = character_data.age
+            character.nsfw_level = character_data.nsfwLevel or 0
             character.conversation_style = character_data.conversationStyle
             character.is_public = character_data.isPublic
             

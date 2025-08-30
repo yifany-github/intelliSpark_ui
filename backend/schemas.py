@@ -67,6 +67,7 @@ class CharacterBase(BaseSchema):
     categories: Optional[List[str]] = Field(default=None, description="多个分类标签")  # 新增：多分类标签
     gender: Optional[str] = None
     nsfwLevel: Optional[int] = Field(default=None, ge=0, le=3, description="NSFW level from 0-3")
+    age: Optional[int] = Field(None, ge=1, le=200, description="Character age (1-200)")
     conversationStyle: Optional[str] = Field(default=None, alias="conversation_style")
     isPublic: bool = Field(default=True, alias="is_public")
 
