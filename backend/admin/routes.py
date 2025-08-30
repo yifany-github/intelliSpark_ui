@@ -315,9 +315,10 @@ async def get_admin_stats(
         
         # Get user engagement statistics
         # Fix: Use subquery to calculate average messages per chat correctly
+        # Specify explicit join condition to avoid ambiguity with multiple foreign keys
         chat_message_counts = db.query(
             func.count(ChatMessage.id).label('message_count')
-        ).join(Chat).group_by(Chat.id).subquery()
+        ).join(Chat, ChatMessage.chat_id == Chat.id).group_by(Chat.id).subquery()
         
         avg_messages_per_chat = db.query(
             func.avg(chat_message_counts.c.message_count)
