@@ -73,6 +73,12 @@ interface Character {
   personalityTraits: { [key: string]: number };
   category?: string;
   categories?: string[];  // 新增：多分类标签
+  gender?: string;
+  nsfwLevel?: number;
+  age?: number;
+  conversationStyle?: string;
+  isPublic?: boolean;
+  galleryEnabled?: boolean;
   createdAt: string;
   // Admin management fields
   isFeatured?: boolean;
@@ -242,7 +248,6 @@ const AdminPage = () => {
 
   const characterUpdateMutation = useMutation({
     mutationFn: async ({ id, ...characterData }: Character) => {
-      console.log('Updating character with data:', characterData);
       const response = await fetch(`/api/admin/characters/${id}`, {
         method: "PUT",
         headers: {
@@ -253,11 +258,9 @@ const AdminPage = () => {
       });
       if (!response.ok) throw new Error("Failed to update character");
       const result = await response.json();
-      console.log('Update response:', result);
       return result;
     },
     onSuccess: (updatedCharacter) => {
-      console.log('Character update successful:', updatedCharacter);
       
       // Clear all related caches first
       queryClient.removeQueries({ queryKey: ["admin-characters"] });
@@ -673,8 +676,8 @@ const AdminPage = () => {
                       Add Character
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
+                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white">
+                    <DialogHeader className="bg-white">
                       <DialogTitle className="text-xl text-slate-900">
                         {editingCharacter ? "Edit Character" : "Create New Character"}
                       </DialogTitle>
@@ -805,7 +808,6 @@ const AdminPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredCharacters.map((character) => {
                 // Debug logging
-                console.log('Rendering character:', character.name, 'with avatar:', character.avatarUrl);
                 return (
                 <Card key={character.id} className="shadow-sm border-slate-200 hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
@@ -825,7 +827,7 @@ const AdminPage = () => {
                                 target.nextElementSibling?.classList.remove('hidden');
                               }}
                               onLoad={() => {
-                                console.log('Image loaded successfully:', character.avatarUrl);
+;
                               }}
                             />
                           ) : null}
@@ -1189,8 +1191,8 @@ const AdminPage = () => {
                     Send Notification
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
+                <DialogContent className="max-w-2xl bg-white">
+                  <DialogHeader className="bg-white">
                     <DialogTitle className="text-xl text-slate-900">Send Notification</DialogTitle>
                   </DialogHeader>
                   <NotificationForm
@@ -1417,6 +1419,10 @@ const AdminPage = () => {
 };
 
 
+// Validation functions
+const validateAge = (age: number): boolean => age >= 1 && age <= 200;
+const validateNSFWLevel = (level: number): boolean => level >= 0 && level <= 3;
+
 const CharacterForm = ({ character, onSubmit, onCancel }: {
   character: Character | null;
   onSubmit: (data: Omit<Character, "id" | "createdAt">) => void;
@@ -1431,6 +1437,12 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
     personalityTraits: character?.personalityTraits || {},
     category: character?.category || "original",
     categories: character?.categories || [],  // 新增：多分类标签
+    gender: character?.gender || "",
+    nsfwLevel: character?.nsfwLevel || 0,
+    age: character?.age || undefined,
+    conversationStyle: character?.conversationStyle || "",
+    isPublic: character?.isPublic ?? true,
+    galleryEnabled: character?.galleryEnabled || false,
   });
 
   const [newTrait, setNewTrait] = useState("");
@@ -1446,11 +1458,37 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
       personalityTraits: character?.personalityTraits || {},
       category: character?.category || "original",
       categories: character?.categories || [],
+      gender: character?.gender || "",
+      nsfwLevel: character?.nsfwLevel || 0,
+      age: character?.age || undefined,
+      conversationStyle: character?.conversationStyle || "",
+      isPublic: character?.isPublic ?? true,
+      galleryEnabled: character?.galleryEnabled || false,
     });
   }, [character]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Client-side validation
+    if (formData.age && !validateAge(formData.age)) {
+      toast({
+        title: "❌ Validation Error",
+        description: "Age must be between 1 and 200",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (formData.nsfwLevel && !validateNSFWLevel(formData.nsfwLevel)) {
+      toast({
+        title: "❌ Validation Error", 
+        description: "NSFW Level must be between 0 and 3",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     onSubmit(formData);
   };
 
@@ -1472,8 +1510,8 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
   };
 
   return (
-    <ScrollArea className="max-h-[70vh]">
-      <form onSubmit={handleSubmit} className="space-y-6 p-1">
+    <ScrollArea className="max-h-[70vh] bg-white">
+      <form onSubmit={handleSubmit} className="space-y-6 p-1 bg-white text-slate-900">
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-sm font-medium text-slate-900">Character Name</Label>
@@ -1538,6 +1576,89 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
             maxSelections={5}
             className="bg-white border border-slate-300 rounded-lg p-4"
           />
+        </div>
+
+        {/* Gender Selection */}
+        <div className="space-y-2">
+          <Label htmlFor="gender" className="text-sm font-medium text-slate-900">Gender</Label>
+          <Select value={formData.gender || ""} onValueChange={(value) => setFormData({ ...formData, gender: value })}>
+            <SelectTrigger className="bg-white border-slate-300 text-slate-900">
+              <SelectValue placeholder="Select gender" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="male">Male</SelectItem>
+              <SelectItem value="female">Female</SelectItem>
+              <SelectItem value="non-binary">Non-binary</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+              <SelectItem value="unspecified">Unspecified</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* NSFW Level Selection */}
+        <div className="space-y-2">
+          <Label htmlFor="nsfwLevel" className="text-sm font-medium text-slate-900">NSFW Level</Label>
+          <Select value={formData.nsfwLevel?.toString() || "0"} onValueChange={(value) => setFormData({ ...formData, nsfwLevel: parseInt(value) })}>
+            <SelectTrigger className="bg-white border-slate-300 text-slate-900">
+              <SelectValue placeholder="Select NSFW level" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">0 - Safe</SelectItem>
+              <SelectItem value="1">1 - Mild</SelectItem>
+              <SelectItem value="2">2 - Moderate</SelectItem>
+              <SelectItem value="3">3 - Explicit</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Age Field */}
+        <div className="space-y-2">
+          <Label htmlFor="age" className="text-sm font-medium text-slate-900">Age (Optional)</Label>
+          <Input
+            id="age"
+            type="number"
+            min="1"
+            max="200"
+            value={formData.age || ""}
+            onChange={(e) => setFormData({ ...formData, age: e.target.value ? parseInt(e.target.value) : undefined })}
+            placeholder="Enter character age"
+            className="bg-white border-slate-300 text-slate-900"
+          />
+        </div>
+
+        {/* Conversation Style */}
+        <div className="space-y-2">
+          <Label htmlFor="conversationStyle" className="text-sm font-medium text-slate-900">Conversation Style</Label>
+          <Input
+            id="conversationStyle"
+            value={formData.conversationStyle || ""}
+            onChange={(e) => setFormData({ ...formData, conversationStyle: e.target.value })}
+            placeholder="Describe conversation style (e.g., formal, casual, playful)"
+            className="bg-white border-slate-300 text-slate-900"
+          />
+        </div>
+
+        {/* Character Settings Toggles */}
+        <div className="space-y-4">
+          <Label className="text-sm font-medium text-slate-900">Character Settings</Label>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isPublic"
+                checked={formData.isPublic}
+                onCheckedChange={(checked) => setFormData({ ...formData, isPublic: checked as boolean })}
+              />
+              <Label htmlFor="isPublic" className="text-sm text-slate-700">Public Character (visible to all users)</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="galleryEnabled"
+                checked={formData.galleryEnabled || false}
+                onCheckedChange={(checked) => setFormData({ ...formData, galleryEnabled: checked as boolean })}
+              />
+              <Label htmlFor="galleryEnabled" className="text-sm text-slate-700">Gallery Enabled (character can have multiple images)</Label>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-3">
@@ -1613,8 +1734,8 @@ const NotificationForm = ({ form, setForm, users, onSubmit, onCancel, isLoading 
   };
 
   return (
-    <ScrollArea className="max-h-[70vh]">
-      <form onSubmit={handleSubmit} className="space-y-6 p-1">
+    <ScrollArea className="max-h-[70vh] bg-white">
+      <form onSubmit={handleSubmit} className="space-y-6 p-1 bg-white text-slate-900">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="title" className="text-sm font-medium text-slate-900">Title</Label>

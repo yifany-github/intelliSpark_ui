@@ -63,6 +63,12 @@ class GeminiService:
         if not character:
             return None
         
+        # Only load hardcoded characters if explicitly enabled
+        from config import settings
+        if not settings.enable_hardcoded_character_loading:
+            logger.debug("Hardcoded character loading disabled via config - using dynamic prompts")
+            return None
+        
         # Auto-discover characters from prompts/characters/ directory
         from utils.character_discovery import discover_character_files
         

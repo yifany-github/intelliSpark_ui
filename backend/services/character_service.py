@@ -67,53 +67,58 @@ class CharacterService:
                 
             characters = query.all()
             
-            # Ensure all characters have CSV archetype-based traits (Issue #112) and persona descriptions (Issue #119)
-            # Also sync gender/NSFW/category metadata from prompt files
-            from utils.character_utils import (
-                get_character_traits_from_archetype_weights, 
-                get_character_description_from_persona,
-                get_character_gender_from_prompt,
-                get_character_category_from_prompt
-            )
-            
-            needs_update = []
-            for character in characters:
-                character_updated = False
+            # Only sync from files if explicitly enabled
+            from config import settings
+            if settings.enable_character_file_sync:
+                # Ensure all characters have CSV archetype-based traits (Issue #112) and persona descriptions (Issue #119)
+                # Also sync gender/NSFW/category metadata from prompt files
+                from utils.character_utils import (
+                    get_character_traits_from_archetype_weights, 
+                    get_character_description_from_persona,
+                    get_character_gender_from_prompt,
+                    get_character_category_from_prompt
+                )
                 
-                # Update traits to match archetype sampling
-                expected_traits = get_character_traits_from_archetype_weights(character.name)
-                if expected_traits and character.traits != expected_traits:
-                    character.traits = expected_traits
-                    character_updated = True
+                needs_update = []
+                for character in characters:
+                    character_updated = False
+                    
+                    # Update traits to match archetype sampling
+                    expected_traits = get_character_traits_from_archetype_weights(character.name)
+                    if expected_traits and character.traits != expected_traits:
+                        character.traits = expected_traits
+                        character_updated = True
+                    
+                    # Update description and backstory to match persona prompt
+                    expected_description = get_character_description_from_persona(character.name)
+                    if expected_description and (character.description != expected_description or character.backstory != expected_description):
+                        character.description = expected_description
+                        character.backstory = expected_description
+                        character_updated = True
+                    
+                    # Update gender from prompt file (only if different)
+                    expected_gender = get_character_gender_from_prompt(character.name)
+                    if expected_gender and character.gender != expected_gender:
+                        self.logger.info(f"Updating {character.name} gender: {character.gender} -> {expected_gender}")
+                        character.gender = expected_gender
+                        character_updated = True
+                    
+                    # Update category from prompt file (only if different)
+                    expected_category = get_character_category_from_prompt(character.name)
+                    if expected_category and character.category != expected_category:
+                        self.logger.info(f"Updating {character.name} category: {character.category} -> {expected_category}")
+                        character.category = expected_category
+                        character_updated = True
+                    
+                    if character_updated:
+                        needs_update.append(character.name)
                 
-                # Update description and backstory to match persona prompt
-                expected_description = get_character_description_from_persona(character.name)
-                if expected_description and (character.description != expected_description or character.backstory != expected_description):
-                    character.description = expected_description
-                    character.backstory = expected_description
-                    character_updated = True
-                
-                # Update gender from prompt file (only if different)
-                expected_gender = get_character_gender_from_prompt(character.name)
-                if expected_gender and character.gender != expected_gender:
-                    self.logger.info(f"Updating {character.name} gender: {character.gender} -> {expected_gender}")
-                    character.gender = expected_gender
-                    character_updated = True
-                
-                # Update category from prompt file (only if different)
-                expected_category = get_character_category_from_prompt(character.name)
-                if expected_category and character.category != expected_category:
-                    self.logger.info(f"Updating {character.name} category: {character.category} -> {expected_category}")
-                    character.category = expected_category
-                    character_updated = True
-                
-                if character_updated:
-                    needs_update.append(character.name)
-            
-            # Single commit for all updates (performance optimization)
-            if needs_update:
-                self.db.commit()
-                self.logger.info(f"Updated metadata (traits/descriptions/gender/category) for characters: {needs_update}")
+                # Single commit for all updates (performance optimization)
+                if needs_update:
+                    self.db.commit()
+                    self.logger.info(f"Updated metadata (traits/descriptions/gender/category) for characters: {needs_update}")
+            else:
+                self.logger.debug("Character file sync disabled via config - skipping file-based updates")
             
             return transform_character_list_to_response(characters)
         except Exception as e:
@@ -138,30 +143,35 @@ class CharacterService:
             if not character:
                 return None
             
-            # Ensure traits match CSV archetype sampling (Issue #112)
-            from utils.character_utils import get_character_traits_from_archetype_weights, get_character_description_from_persona
-            expected_traits = get_character_traits_from_archetype_weights(character.name)
-            
-            needs_update = False
-            
-            if expected_traits and character.traits != expected_traits:
-                # Update traits to match archetype sampling in real-time
-                self.logger.info(f"Updating {character.name} traits to match archetype sampling: {expected_traits}")
-                character.traits = expected_traits
-                needs_update = True
-            
-            # Ensure description matches persona prompt (Issue #119)
-            expected_description = get_character_description_from_persona(character.name)
-            
-            if expected_description and (character.description != expected_description or character.backstory != expected_description):
-                # Update both description and backstory to match persona prompt in real-time
-                self.logger.info(f"Updating {character.name} description and backstory from persona prompt")
-                character.description = expected_description
-                character.backstory = expected_description
-                needs_update = True
-            
-            if needs_update:
-                self.db.commit()
+            # Only sync from files if explicitly enabled
+            from config import settings
+            if settings.enable_character_file_sync:
+                # Ensure traits match CSV archetype sampling (Issue #112)
+                from utils.character_utils import get_character_traits_from_archetype_weights, get_character_description_from_persona
+                expected_traits = get_character_traits_from_archetype_weights(character.name)
+                
+                needs_update = False
+                
+                if expected_traits and character.traits != expected_traits:
+                    # Update traits to match archetype sampling in real-time
+                    self.logger.info(f"Updating {character.name} traits to match archetype sampling: {expected_traits}")
+                    character.traits = expected_traits
+                    needs_update = True
+                
+                # Ensure description matches persona prompt (Issue #119)
+                expected_description = get_character_description_from_persona(character.name)
+                
+                if expected_description and (character.description != expected_description or character.backstory != expected_description):
+                    # Update both description and backstory to match persona prompt in real-time
+                    self.logger.info(f"Updating {character.name} description and backstory from persona prompt")
+                    character.description = expected_description
+                    character.backstory = expected_description
+                    needs_update = True
+                
+                if needs_update:
+                    self.db.commit()
+            else:
+                self.logger.debug("Character file sync disabled via config - skipping file-based updates for individual character")
             
             return transform_character_to_response(character)
         except Exception as e:
@@ -208,6 +218,8 @@ class CharacterService:
                 personality_traits=character_data.personalityTraits or {},  # Default to empty dict if None
                 category=character_data.category or (character_data.categories[0] if character_data.categories else 'original'),  # 向后兼容
                 gender=character_data.gender,
+                age=character_data.age,
+                nsfw_level=character_data.nsfwLevel or 0,
                 conversation_style=character_data.conversationStyle,
                 is_public=character_data.isPublic,
                 created_by=user_id
@@ -276,6 +288,10 @@ class CharacterService:
         # Check NSFW level
         if data.nsfwLevel is not None and (data.nsfwLevel < 0 or data.nsfwLevel > 3):
             return ValidationResult(False, "NSFW level must be between 0 and 3")
+        
+        # Check age if provided
+        if data.age is not None and (data.age < 1 or data.age > 200):
+            return ValidationResult(False, "Age must be between 1 and 200")
         
         # Check backstory length if provided
         if data.backstory and len(data.backstory) > 3000:
@@ -418,6 +434,8 @@ class CharacterService:
             character.personality_traits = character_data.personalityTraits or {}
             character.category = character_data.category
             character.gender = character_data.gender
+            character.age = character_data.age
+            character.nsfw_level = character_data.nsfwLevel or 0
             character.conversation_style = character_data.conversationStyle
             character.is_public = character_data.isPublic
             

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, Numeric
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, Numeric, CheckConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -71,6 +71,8 @@ class Character(Base):
     gender = Column(String(100), nullable=True)
     conversation_style = Column(String(255), nullable=True)
     is_public = Column(Boolean, default=True)
+    age = Column(Integer, nullable=True, CheckConstraint('age >= 1 AND age <= 200', name='check_age_range'))           # Character age (1-200 range)
+    nsfw_level = Column(Integer, default=0, CheckConstraint('nsfw_level >= 0 AND nsfw_level <= 3', name='check_nsfw_level_range'))        # NSFW level (0-3 range)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=func.now())
     
