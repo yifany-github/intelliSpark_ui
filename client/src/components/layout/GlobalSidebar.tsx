@@ -70,7 +70,7 @@ export default function GlobalSidebar() {
             title={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
           >
             {isCollapsed ? (
-              <Menu className="w-5 h-5 text-gray-400" />
+              <Menu className="w-6 h-6 text-gray-400" />
             ) : (
               <ChevronLeft className="w-5 h-5 text-gray-400" />
             )}
@@ -111,14 +111,14 @@ export default function GlobalSidebar() {
             <button
               key={item.id}
               onClick={() => navigateToPath(item.path)}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-3' : 'space-x-4 px-3'} py-2.5 rounded-xl transition-all duration-200 group ${
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2 py-3' : 'space-x-4 px-3 py-2.5'} rounded-xl transition-all duration-200 group ${
                 isRouteActive(item.path)
                   ? 'bg-gray-100/10 text-white font-medium' 
                   : 'text-gray-300 hover:bg-gray-100/5 hover:text-gray-100'
               }`}
               title={isCollapsed ? t(item.label) : undefined}
             >
-              <item.icon className={`w-5 h-5 transition-colors ${
+              <item.icon className={`${isCollapsed ? 'w-6 h-6' : 'w-5 h-5'} transition-colors ${
                 isRouteActive(item.path) 
                   ? 'text-white' 
                   : 'text-gray-400 group-hover:text-gray-200'
@@ -143,17 +143,17 @@ export default function GlobalSidebar() {
             <button
               key={link.path}
               onClick={() => navigateToPath(link.path)}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-3' : 'space-x-4 px-3'} py-2 rounded-xl text-gray-400 hover:bg-gray-100/5 hover:text-gray-200 text-sm transition-all duration-200 group`}
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2 py-3' : 'space-x-4 px-3 py-2'} rounded-xl text-gray-400 hover:bg-gray-100/5 hover:text-gray-200 text-sm transition-all duration-200 group`}
               title={isCollapsed ? link.label : undefined}
             >
-              <link.icon className="w-4 h-4 group-hover:text-gray-200 transition-colors" />
+              <link.icon className={`${isCollapsed ? 'w-6 h-6' : 'w-4 h-4'} group-hover:text-gray-200 transition-colors`} />
               {!isCollapsed && <span className="font-normal">{link.label}</span>}
             </button>
           ))}
         </div>
         
         <div className={`flex ${isCollapsed ? 'justify-center' : 'space-x-2 px-3'} py-2`}>
-          <Smartphone className="w-4 h-4 text-gray-400" />
+          <Smartphone className={`${isCollapsed ? 'w-5 h-5' : 'w-4 h-4'} text-gray-400`} />
           {!isCollapsed && (
             <>
               <Twitter className="w-4 h-4 text-gray-400" />

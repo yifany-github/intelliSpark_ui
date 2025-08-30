@@ -62,7 +62,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange, withSi
 
   return (
     <div className={`bg-gray-800 border-b border-gray-700 w-full sticky top-0 z-30 ${
-      withSidebar ? (isCollapsed ? 'sm:ml-16' : 'sm:ml-64') : ''
+      withSidebar ? (isCollapsed ? 'sm:pl-16' : 'sm:pl-64') : ''
     }`}>
       <div className="flex items-center justify-between px-2 sm:px-4 py-3">
         {/* Left side */}
@@ -200,17 +200,6 @@ export default function TopNavigation({ searchQuery = '', onSearchChange, withSi
         </div>
       </div>
 
-      {/* Message limit indicator */}
-      {isAuthenticated && (
-        <div className="px-4 pb-3">
-          <div className="flex items-center space-x-2 text-sm text-gray-400">
-            <span>💬 {t('chatWithAICharacters')}</span>
-            <div className="ml-auto flex items-center space-x-2">
-              <span>🎯 {t('tokensLabel')}: {tokenLoading ? '...' : (tokenBalance?.balance ?? '?')}</span>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
