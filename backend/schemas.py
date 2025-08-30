@@ -63,7 +63,8 @@ class CharacterBase(BaseSchema):
     voiceStyle: str = Field(alias="voice_style")  # Map database field to frontend field
     traits: List[str]
     personalityTraits: Optional[Dict[str, int]] = Field(default=None, alias="personality_traits")  # Optional for backward compatibility
-    category: Optional[str] = None
+    category: Optional[str] = None  # 保持向后兼容
+    categories: Optional[List[str]] = Field(default=None, description="多个分类标签")  # 新增：多分类标签
     gender: Optional[str] = None
     nsfwLevel: Optional[int] = Field(default=None, ge=0, le=3, description="NSFW level from 0-3")
     conversationStyle: Optional[str] = Field(default=None, alias="conversation_style")

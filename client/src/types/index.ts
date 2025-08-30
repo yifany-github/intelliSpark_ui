@@ -19,6 +19,7 @@ export interface Character {
   voiceStyle: string;
   traits: string[];
   gender?: string;
+  category?: string;
   createdAt: string;
 }
 

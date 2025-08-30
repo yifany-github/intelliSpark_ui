@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import GlobalLayout from '@/components/layout/GlobalLayout';
 import CharacterCreationSuccess from '@/components/character-creation/CharacterCreationSuccess';
+import CategorySelector from '@/components/characters/CategorySelector';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -29,7 +30,8 @@ interface CharacterFormData {
   backstory: string;         // ✅ Form field: Character Description textarea
   traits: string[];          // ✅ Form field: Dynamic trait badges
   avatar: string | null;     // ✅ Form field: Avatar upload
-  category: string;          // ✅ Form field: Category dropdown
+  category: string;          // ✅ Form field: Primary category (backwards compatibility)
+  categories: string[];      // ✅ New field: Multiple category tags
   gender: string;            // ✅ Form field: Gender dropdown
   isPublic: boolean;         // ✅ Form field: Make Public switch
   isNsfw: boolean;          // ✅ Form field: NSFW Content switch
@@ -52,6 +54,7 @@ const ImprovedCreateCharacterPage = () => {
     traits: [],
     avatar: '/assets/characters_img/Elara.jpeg',
     category: 'original',
+    categories: [], // 新增：多分类标签
     gender: 'female',
     isPublic: true,
     isNsfw: false
@@ -149,6 +152,7 @@ const ImprovedCreateCharacterPage = () => {
       traits: [],
       avatar: '/assets/characters_img/Elara.jpeg',
       category: 'original',
+      categories: [], // 重置多分类标签
       gender: 'female',
       isPublic: true,
       isNsfw: false
@@ -450,29 +454,27 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
           </div>
         </div>
 
+        {/* Character Categories */}
+        <div className="bg-card/50 rounded-lg p-6 space-y-6">
+          <h3 className="text-xl font-semibold border-b border-border pb-3">角色分类</h3>
+          
+          <CategorySelector
+            selectedCategories={formData.categories}
+            onCategoriesChange={(categories) => {
+              setFormData({ 
+                ...formData, 
+                categories,
+                // 同时更新单个category字段以保持向后兼容
+                category: categories.length > 0 ? categories[0] : 'original'
+              });
+            }}
+            maxSelections={5}
+          />
+        </div>
+
         {/* Character Settings */}
         <div className="bg-card/50 rounded-lg p-6 space-y-6">
           <h3 className="text-xl font-semibold border-b border-border pb-3">{t('characterSettings')}</h3>
-          
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">{t('category')}</Label>
-            <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
-              <SelectTrigger>
-                <SelectValue placeholder={t('selectCategory')} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="original">{t('original')}</SelectItem>
-                <SelectItem value="anime">{t('anime')}</SelectItem>
-                <SelectItem value="game">{t('game')}</SelectItem>
-                <SelectItem value="movie">{t('movie')}</SelectItem>
-                <SelectItem value="book">{t('book')}</SelectItem>
-                <SelectItem value="fantasy">{t('fantasy')}</SelectItem>
-                <SelectItem value="sci-fi">{t('sciFi')}</SelectItem>
-                <SelectItem value="romance">{t('romance')}</SelectItem>
-                <SelectItem value="action">{t('action')}</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex items-center justify-between p-4 rounded-lg border">
