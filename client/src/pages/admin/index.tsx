@@ -246,7 +246,6 @@ const AdminPage = () => {
 
   const characterUpdateMutation = useMutation({
     mutationFn: async ({ id, ...characterData }: Character) => {
-      console.log('Updating character with data:', characterData);
       const response = await fetch(`/api/admin/characters/${id}`, {
         method: "PUT",
         headers: {
@@ -257,11 +256,9 @@ const AdminPage = () => {
       });
       if (!response.ok) throw new Error("Failed to update character");
       const result = await response.json();
-      console.log('Update response:', result);
       return result;
     },
     onSuccess: (updatedCharacter) => {
-      console.log('Character update successful:', updatedCharacter);
       
       // Clear all related caches first
       queryClient.removeQueries({ queryKey: ["admin-characters"] });
@@ -681,7 +678,6 @@ const AdminPage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {filteredCharacters.map((character) => {
                 // Debug logging
-                console.log('Rendering character:', character.name, 'with avatar:', character.avatarUrl);
                 return (
                 <Card key={character.id} className="shadow-sm border-slate-200 hover:shadow-md transition-shadow">
                   <CardHeader className="pb-3">
@@ -701,7 +697,7 @@ const AdminPage = () => {
                                 target.nextElementSibling?.classList.remove('hidden');
                               }}
                               onLoad={() => {
-                                console.log('Image loaded successfully:', character.avatarUrl);
+;
                               }}
                             />
                           ) : null}
@@ -1279,6 +1275,10 @@ const AdminPage = () => {
 };
 
 
+// Validation functions
+const validateAge = (age: number): boolean => age >= 1 && age <= 200;
+const validateNSFWLevel = (level: number): boolean => level >= 0 && level <= 3;
+
 const CharacterForm = ({ character, onSubmit, onCancel }: {
   character: Character | null;
   onSubmit: (data: Omit<Character, "id" | "createdAt">) => void;
@@ -1325,6 +1325,26 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Client-side validation
+    if (formData.age && !validateAge(formData.age)) {
+      toast({
+        title: "❌ Validation Error",
+        description: "Age must be between 1 and 200",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    if (formData.nsfwLevel && !validateNSFWLevel(formData.nsfwLevel)) {
+      toast({
+        title: "❌ Validation Error", 
+        description: "NSFW Level must be between 0 and 3",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     onSubmit(formData);
   };
 
