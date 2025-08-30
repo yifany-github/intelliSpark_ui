@@ -13,7 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 
-const filterKeys = ['popular', 'recent', 'trending', 'new', 'following', 'editorChoice'] as const;
+const filterKeys = ['popular', 'trending', 'new', 'following', 'editorChoice'] as const;
 
 // 新的多层次分类体系
 interface CategoryGroup {
@@ -310,9 +310,25 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const sortedCharacters = [...tabFilteredCharacters].sort((a: Character, b: Character) => {
     switch (selectedFilter) {
       case 'popular':
-        return b.id - a.id; // Mock popularity sorting
-      case 'recent':
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        // Calculate popularity score based on multiple factors
+        const getPopularityScore = (char: Character) => {
+          const ageInDays = (Date.now() - new Date(char.createdAt).getTime()) / (1000 * 60 * 60 * 24);
+          const recencyBonus = Math.max(0, (30 - ageInDays) * 0.1); // Bonus for newer characters (up to 30 days)
+          
+          // Mock popularity calculation until we have real analytics data
+          // Higher ID = newer character, gets slight popularity boost
+          const mockPopularity = char.id * 0.01;
+          
+          // Characters with more traits are considered more detailed/popular
+          const traitBonus = char.traits.length * 0.5;
+          
+          // Longer backstories indicate more effort/quality
+          const backstoryBonus = (char.backstory?.length || 0) * 0.001;
+          
+          return mockPopularity + traitBonus + backstoryBonus + recencyBonus;
+        };
+        
+        return getPopularityScore(b) - getPopularityScore(a);
       case 'new':
         return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       default:
