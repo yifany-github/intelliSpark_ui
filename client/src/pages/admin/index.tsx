@@ -73,6 +73,12 @@ interface Character {
   personalityTraits: { [key: string]: number };
   category?: string;
   categories?: string[];  // 新增：多分类标签
+  gender?: string;
+  nsfwLevel?: number;
+  age?: number;
+  conversationStyle?: string;
+  isPublic?: boolean;
+  galleryEnabled?: boolean;
   createdAt: string;
   // Admin management fields
   isFeatured?: boolean;
@@ -1287,6 +1293,12 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
     personalityTraits: character?.personalityTraits || {},
     category: character?.category || "original",
     categories: character?.categories || [],  // 新增：多分类标签
+    gender: character?.gender || "",
+    nsfwLevel: character?.nsfwLevel || 0,
+    age: character?.age || undefined,
+    conversationStyle: character?.conversationStyle || "",
+    isPublic: character?.isPublic ?? true,
+    galleryEnabled: character?.galleryEnabled || false,
   });
 
   const [newTrait, setNewTrait] = useState("");
@@ -1302,6 +1314,12 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
       personalityTraits: character?.personalityTraits || {},
       category: character?.category || "original",
       categories: character?.categories || [],
+      gender: character?.gender || "",
+      nsfwLevel: character?.nsfwLevel || 0,
+      age: character?.age || undefined,
+      conversationStyle: character?.conversationStyle || "",
+      isPublic: character?.isPublic ?? true,
+      galleryEnabled: character?.galleryEnabled || false,
     });
   }, [character]);
 
@@ -1394,6 +1412,89 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
             maxSelections={5}
             className="bg-white border border-slate-300 rounded-lg p-4"
           />
+        </div>
+
+        {/* Gender Selection */}
+        <div className="space-y-2">
+          <Label htmlFor="gender" className="text-sm font-medium text-slate-900">Gender</Label>
+          <Select value={formData.gender || ""} onValueChange={(value) => setFormData({ ...formData, gender: value })}>
+            <SelectTrigger className="bg-white border-slate-300 text-slate-900">
+              <SelectValue placeholder="Select gender" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="male">Male</SelectItem>
+              <SelectItem value="female">Female</SelectItem>
+              <SelectItem value="non-binary">Non-binary</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+              <SelectItem value="unspecified">Unspecified</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* NSFW Level Selection */}
+        <div className="space-y-2">
+          <Label htmlFor="nsfwLevel" className="text-sm font-medium text-slate-900">NSFW Level</Label>
+          <Select value={formData.nsfwLevel?.toString() || "0"} onValueChange={(value) => setFormData({ ...formData, nsfwLevel: parseInt(value) })}>
+            <SelectTrigger className="bg-white border-slate-300 text-slate-900">
+              <SelectValue placeholder="Select NSFW level" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="0">0 - Safe</SelectItem>
+              <SelectItem value="1">1 - Mild</SelectItem>
+              <SelectItem value="2">2 - Moderate</SelectItem>
+              <SelectItem value="3">3 - Explicit</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Age Field */}
+        <div className="space-y-2">
+          <Label htmlFor="age" className="text-sm font-medium text-slate-900">Age (Optional)</Label>
+          <Input
+            id="age"
+            type="number"
+            min="1"
+            max="200"
+            value={formData.age || ""}
+            onChange={(e) => setFormData({ ...formData, age: e.target.value ? parseInt(e.target.value) : undefined })}
+            placeholder="Enter character age"
+            className="bg-white border-slate-300 text-slate-900"
+          />
+        </div>
+
+        {/* Conversation Style */}
+        <div className="space-y-2">
+          <Label htmlFor="conversationStyle" className="text-sm font-medium text-slate-900">Conversation Style</Label>
+          <Input
+            id="conversationStyle"
+            value={formData.conversationStyle || ""}
+            onChange={(e) => setFormData({ ...formData, conversationStyle: e.target.value })}
+            placeholder="Describe conversation style (e.g., formal, casual, playful)"
+            className="bg-white border-slate-300 text-slate-900"
+          />
+        </div>
+
+        {/* Character Settings Toggles */}
+        <div className="space-y-4">
+          <Label className="text-sm font-medium text-slate-900">Character Settings</Label>
+          <div className="space-y-3">
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="isPublic"
+                checked={formData.isPublic}
+                onCheckedChange={(checked) => setFormData({ ...formData, isPublic: checked as boolean })}
+              />
+              <Label htmlFor="isPublic" className="text-sm text-slate-700">Public Character (visible to all users)</Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="galleryEnabled"
+                checked={formData.galleryEnabled || false}
+                onCheckedChange={(checked) => setFormData({ ...formData, galleryEnabled: checked as boolean })}
+              />
+              <Label htmlFor="galleryEnabled" className="text-sm text-slate-700">Gallery Enabled (character can have multiple images)</Label>
+            </div>
+          </div>
         </div>
 
         <div className="space-y-3">
