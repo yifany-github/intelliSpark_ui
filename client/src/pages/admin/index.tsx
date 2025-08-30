@@ -653,8 +653,8 @@ const AdminPage = () => {
                       Add Character
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
+                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-white">
+                    <DialogHeader className="bg-white">
                       <DialogTitle className="text-xl text-slate-900">
                         {editingCharacter ? "Edit Character" : "Create New Character"}
                       </DialogTitle>
@@ -1051,8 +1051,8 @@ const AdminPage = () => {
                     Send Notification
                   </Button>
                 </DialogTrigger>
-                <DialogContent className="max-w-2xl">
-                  <DialogHeader>
+                <DialogContent className="max-w-2xl bg-white">
+                  <DialogHeader className="bg-white">
                     <DialogTitle className="text-xl text-slate-900">Send Notification</DialogTitle>
                   </DialogHeader>
                   <NotificationForm
@@ -1346,8 +1346,8 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
   };
 
   return (
-    <ScrollArea className="max-h-[70vh]">
-      <form onSubmit={handleSubmit} className="space-y-6 p-1">
+    <ScrollArea className="max-h-[70vh] bg-white">
+      <form onSubmit={handleSubmit} className="space-y-6 p-1 bg-white text-slate-900">
         <div className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="name" className="text-sm font-medium text-slate-900">Character Name</Label>
@@ -1570,8 +1570,8 @@ const NotificationForm = ({ form, setForm, users, onSubmit, onCancel, isLoading 
   };
 
   return (
-    <ScrollArea className="max-h-[70vh]">
-      <form onSubmit={handleSubmit} className="space-y-6 p-1">
+    <ScrollArea className="max-h-[70vh] bg-white">
+      <form onSubmit={handleSubmit} className="space-y-6 p-1 bg-white text-slate-900">
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
             <Label htmlFor="title" className="text-sm font-medium text-slate-900">Title</Label>
