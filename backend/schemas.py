@@ -73,10 +73,27 @@ class CharacterBase(BaseSchema):
 class CharacterCreate(CharacterBase):
     pass
 
+class CharacterAdminUpdate(BaseSchema):
+    """Schema for admin-only character updates"""
+    isFeatured: Optional[bool] = Field(default=None, alias="is_featured")
+    viewCount: Optional[int] = Field(default=None, alias="view_count") 
+    likeCount: Optional[int] = Field(default=None, alias="like_count")
+    chatCount: Optional[int] = Field(default=None, alias="chat_count")
+    trendingScore: Optional[float] = Field(default=None, alias="trending_score")
+    isPublic: Optional[bool] = Field(default=None, alias="is_public")
+
 class Character(CharacterBase):
     id: int
     createdBy: Optional[int] = Field(default=None, alias="created_by")
     createdAt: datetime = Field(alias="created_at")  # Map database field to frontend field
+    
+    # Admin management and analytics fields
+    isFeatured: bool = Field(default=False, alias="is_featured")
+    viewCount: int = Field(default=0, alias="view_count")
+    likeCount: int = Field(default=0, alias="like_count")
+    chatCount: int = Field(default=0, alias="chat_count")
+    trendingScore: float = Field(default=0.0, alias="trending_score")
+    lastActivity: Optional[datetime] = Field(default=None, alias="last_activity")
 
 # Chat schemas
 class ChatBase(BaseSchema):

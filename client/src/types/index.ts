@@ -21,6 +21,13 @@ export interface Character {
   gender?: string;
   category?: string;
   createdAt: string;
+  // Admin management and analytics fields
+  isFeatured?: boolean;
+  viewCount?: number;
+  likeCount?: number;
+  chatCount?: number;
+  trendingScore?: number;
+  lastActivity?: string;
 }
 
 export interface Chat {

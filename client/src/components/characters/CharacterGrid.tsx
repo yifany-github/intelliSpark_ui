@@ -380,9 +380,14 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
         
         return getFollowingScore(b) - getFollowingScore(a);
       case 'editorChoice':
-        // Mock editor's choice - prioritize high-quality, well-crafted characters
+        // Use real featured status from backend + quality fallback
         const getEditorScore = (char: Character) => {
-          // Content quality indicators
+          // Featured characters get top priority
+          if ((char as any).isFeatured) {
+            return 1000; // High priority for admin-featured characters
+          }
+          
+          // Fallback to quality-based scoring for non-featured characters
           const traitQuality = char.traits.length >= 3 ? char.traits.length * 2 : 0;
           const backstoryQuality = (char.backstory?.length || 0) >= 100 ? 
             Math.min((char.backstory?.length || 0) / 50, 20) : 0;

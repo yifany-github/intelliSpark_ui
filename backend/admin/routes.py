@@ -15,7 +15,7 @@ from database import get_db
 from models import Character, Chat, ChatMessage, User
 from schemas import (
     Character as CharacterSchema, 
-    MessageResponse, CharacterCreate
+    MessageResponse, CharacterCreate, CharacterAdminUpdate
 )
 from services.character_service import CharacterService, CharacterServiceError
 
@@ -162,6 +162,84 @@ async def delete_admin_character(
     except Exception as e:
         logger.error(f"Error deleting character {character_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete character")
+
+@router.patch("/characters/{character_id}/admin-settings")
+async def update_character_admin_settings(
+    character_id: int,
+    update_data: CharacterAdminUpdate,
+    db: Session = Depends(get_db),
+    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+):
+    """Update character admin-only settings (featured status, analytics, etc.)"""
+    try:
+        character = db.query(Character).filter(Character.id == character_id).first()
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
+        
+        # Update admin-controlled fields
+        update_dict = update_data.dict(exclude_unset=True, by_alias=True)
+        for field, value in update_dict.items():
+            if hasattr(character, field) and value is not None:
+                setattr(character, field, value)
+        
+        db.commit()
+        db.refresh(character)
+        
+        # Return updated character with proper field mapping
+        character_dict = {
+            "id": character.id,
+            "name": character.name,
+            "description": character.description,
+            "avatarUrl": character.avatar_url,
+            "backstory": character.backstory,
+            "voiceStyle": character.voice_style,
+            "traits": character.traits,
+            "category": character.category,
+            "gender": character.gender,
+            "isPublic": character.is_public,
+            "isFeatured": character.is_featured,
+            "viewCount": character.view_count,
+            "likeCount": character.like_count,
+            "chatCount": character.chat_count,
+            "trendingScore": float(character.trending_score),
+            "lastActivity": character.last_activity,
+            "createdAt": character.created_at,
+            "createdBy": character.created_by
+        }
+        
+        return character_dict
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating character admin settings {character_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update character admin settings")
+
+@router.post("/characters/{character_id}/toggle-featured")
+async def toggle_character_featured(
+    character_id: int,
+    db: Session = Depends(get_db),
+    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+):
+    """Toggle character featured status for Editor's Choice"""
+    try:
+        character = db.query(Character).filter(Character.id == character_id).first()
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
+        
+        # Toggle featured status
+        character.is_featured = not character.is_featured
+        db.commit()
+        
+        return {
+            "message": f"Character {'featured' if character.is_featured else 'unfeatured'} successfully",
+            "characterId": character_id,
+            "isFeatured": character.is_featured
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error toggling character featured status {character_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to toggle featured status")
 
 # ===== ADMIN CHARACTER STATS =====
 
