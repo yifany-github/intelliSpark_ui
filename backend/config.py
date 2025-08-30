@@ -30,6 +30,11 @@ class Settings(BaseSettings):
     # CORS settings
     allowed_origins: list = ["http://localhost:5173", "http://localhost:5174", "http://localhost:5000", "http://localhost:3000"]
     
+    # Character System Configuration
+    enable_hardcoded_character_loading: bool = False  # Default disabled
+    enable_character_file_sync: bool = False          # Default disabled
+    enable_startup_character_sync: bool = False       # Default disabled
+    
     class Config:
         env_file = ".env"
         case_sensitive = False
