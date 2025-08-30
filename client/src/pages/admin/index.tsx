@@ -97,6 +97,8 @@ const AdminPage = () => {
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [showCharacterDialog, setShowCharacterDialog] = useState(false);
+  const [editingAnalytics, setEditingAnalytics] = useState<Character | null>(null);
+  const [showAnalyticsDialog, setShowAnalyticsDialog] = useState(false);
   const [selectedItems, setSelectedItems] = useState<number[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
@@ -308,6 +310,30 @@ const AdminPage = () => {
         title: `✅ Character ${data.isFeatured ? 'added to' : 'removed from'} Editor's Choice`,
         className: "border-green-200 bg-green-50"
       });
+    },
+  });
+
+  const analyticsUpdateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const response = await fetch(`/api/admin/characters/${id}/admin-settings`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) throw new Error("Failed to update analytics");
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-characters"] });
+      toast({ 
+        title: "✅ Analytics data updated successfully",
+        className: "border-green-200 bg-green-50"
+      });
+      setEditingAnalytics(null);
+      setShowAnalyticsDialog(false);
     },
   });
 
@@ -669,6 +695,110 @@ const AdminPage = () => {
                     />
                   </DialogContent>
                 </Dialog>
+                
+                {/* Analytics Edit Dialog */}
+                <Dialog open={showAnalyticsDialog} onOpenChange={setShowAnalyticsDialog}>
+                  <DialogContent className="max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="text-xl text-slate-900 flex items-center">
+                        <BarChart3 className="w-5 h-5 mr-2 text-purple-600" />
+                        Edit Analytics Data
+                      </DialogTitle>
+                    </DialogHeader>
+                    {editingAnalytics && (
+                      <div className="space-y-4 py-4">
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label htmlFor="viewCount" className="text-sm font-medium">View Count</Label>
+                            <Input
+                              id="viewCount"
+                              type="number"
+                              min="0"
+                              defaultValue={editingAnalytics.viewCount || 0}
+                              onChange={(e) => {
+                                const value = parseInt(e.target.value) || 0;
+                                setEditingAnalytics({ ...editingAnalytics, viewCount: value });
+                              }}
+                              className="text-center"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="chatCount" className="text-sm font-medium">Chat Count</Label>
+                            <Input
+                              id="chatCount"
+                              type="number"
+                              min="0"
+                              defaultValue={editingAnalytics.chatCount || 0}
+                              onChange={(e) => {
+                                const value = parseInt(e.target.value) || 0;
+                                setEditingAnalytics({ ...editingAnalytics, chatCount: value });
+                              }}
+                              className="text-center"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="likeCount" className="text-sm font-medium">Like Count</Label>
+                            <Input
+                              id="likeCount"
+                              type="number"
+                              min="0"
+                              defaultValue={editingAnalytics.likeCount || 0}
+                              onChange={(e) => {
+                                const value = parseInt(e.target.value) || 0;
+                                setEditingAnalytics({ ...editingAnalytics, likeCount: value });
+                              }}
+                              className="text-center"
+                            />
+                          </div>
+                          <div className="space-y-2">
+                            <Label htmlFor="trendingScore" className="text-sm font-medium">Trending Score</Label>
+                            <Input
+                              id="trendingScore"
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              defaultValue={editingAnalytics.trendingScore || 0}
+                              onChange={(e) => {
+                                const value = parseFloat(e.target.value) || 0;
+                                setEditingAnalytics({ ...editingAnalytics, trendingScore: value });
+                              }}
+                              className="text-center"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="flex justify-end space-x-2 pt-4 border-t">
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setShowAnalyticsDialog(false);
+                              setEditingAnalytics(null);
+                            }}
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            onClick={() => {
+                              analyticsUpdateMutation.mutate({
+                                id: editingAnalytics.id,
+                                data: {
+                                  viewCount: editingAnalytics.viewCount,
+                                  chatCount: editingAnalytics.chatCount,
+                                  likeCount: editingAnalytics.likeCount,
+                                  trendingScore: editingAnalytics.trendingScore,
+                                }
+                              });
+                            }}
+                            disabled={analyticsUpdateMutation.isPending}
+                            className="bg-purple-600 hover:bg-purple-700"
+                          >
+                            {analyticsUpdateMutation.isPending ? "Updating..." : "Update Analytics"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
               </div>
             </div>
 
@@ -724,14 +854,28 @@ const AdminPage = () => {
                             setShowCharacterDialog(true);
                           }}
                           className="h-8 w-8 p-0 hover:bg-blue-100"
+                          title="Edit Character"
                         >
                           <Edit className="w-4 h-4 text-blue-600" />
                         </Button>
                         <Button
                           size="sm"
                           variant="ghost"
+                          onClick={() => {
+                            setEditingAnalytics(character);
+                            setShowAnalyticsDialog(true);
+                          }}
+                          className="h-8 w-8 p-0 hover:bg-purple-100"
+                          title="Edit Analytics Data"
+                        >
+                          <BarChart3 className="w-4 h-4 text-purple-600" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
                           onClick={() => characterDeleteMutation.mutate(character.id)}
                           className="h-8 w-8 p-0 hover:bg-red-100"
+                          title="Delete Character"
                         >
                           <Trash2 className="w-4 h-4 text-red-600" />
                         </Button>

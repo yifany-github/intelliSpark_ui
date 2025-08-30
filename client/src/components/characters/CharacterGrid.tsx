@@ -86,6 +86,75 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const [isCategoryExpanded, setIsCategoryExpanded] = useState(false);
   const [visibleCategoriesCount, setVisibleCategoriesCount] = useState(6);
   const { navigateToPath, navigateToLogin } = useNavigation();
+
+  // Helper function to detect NSFW content in character
+  const isCharacterNSFW = (character: Character): boolean => {
+    const nsfwKeywords = ['nsfw', 'adult', '成人', '性', '娇羞', '淫', '魅惑', '撩人', '敏感', '情色', '欲望', '肉体', '呻吟', '诱惑', '性感'];
+    
+    // Check traits for NSFW content
+    const hasNsfwTrait = character.traits.some((trait: string) => 
+      nsfwKeywords.some(keyword => trait.toLowerCase().includes(keyword.toLowerCase()))
+    );
+    
+    // Check description for NSFW content
+    const description = character.description || '';
+    const hasNsfwDescription = nsfwKeywords.some(keyword => 
+      description.toLowerCase().includes(keyword.toLowerCase())
+    );
+    
+    // Check backstory for NSFW content
+    const backstory = character.backstory || '';
+    const hasNsfwBackstory = nsfwKeywords.some(keyword => 
+      backstory.toLowerCase().includes(keyword.toLowerCase())
+    );
+    
+    return hasNsfwTrait || hasNsfwDescription || hasNsfwBackstory;
+  };
+
+  // Helper function to check if character is featured by admin
+  const isCharacterFeatured = (character: Character): boolean => {
+    // Check if character has isFeatured field from backend analytics
+    return !!(character as any).isFeatured;
+  };
+
+  // Helper function to format numbers for display (1000 -> 1K, 1500 -> 1.5K)
+  const formatNumber = (num: number): string => {
+    if (num < 1000) {
+      return num.toString();
+    } else if (num < 10000) {
+      return `${(num / 1000).toFixed(1)}K`;
+    } else if (num < 1000000) {
+      return `${Math.floor(num / 1000)}K`;
+    } else {
+      return `${(num / 1000000).toFixed(1)}M`;
+    }
+  };
+
+  // Helper function to get real character analytics data
+  const getCharacterAnalytics = (character: Character) => {
+    const charAnalytics = character as any;
+    return {
+      viewCount: charAnalytics.viewCount || 0,
+      chatCount: charAnalytics.chatCount || 0,
+      likeCount: charAnalytics.likeCount || 0,
+      trendingScore: charAnalytics.trendingScore || 0.0
+    };
+  };
+
+  // Helper function to calculate rating from likes and interactions
+  const getCharacterRating = (character: Character): number => {
+    const analytics = getCharacterAnalytics(character);
+    const totalInteractions = analytics.viewCount + analytics.chatCount;
+    
+    // Base rating calculation: more likes and interactions = higher rating
+    if (totalInteractions === 0) return 4.0; // Default rating for new characters
+    
+    const likeRatio = analytics.likeCount / Math.max(totalInteractions * 0.1, 1); // Assume ~10% like rate is good
+    const baseRating = Math.min(4.0 + likeRatio, 5.0); // Cap at 5.0
+    
+    // Round to 1 decimal place
+    return Math.round(baseRating * 10) / 10;
+  };
   
   const { setSelectedCharacter } = useRolePlay();
   const { isAuthenticated } = useAuth();
@@ -696,13 +765,15 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                 
-                {/* Premium quality indicator */}
-                <div className="absolute top-3 left-3">
-                  <div className="flex items-center space-x-1 bg-black/60 backdrop-blur-sm px-2 py-1 rounded-full">
-                    <Crown className="w-3 h-3 text-brand-secondary" />
-                    <span className="text-xs text-brand-primary font-medium">HD</span>
+                {/* Featured character indicator - only show for admin-featured characters */}
+                {isCharacterFeatured(character) && (
+                  <div className="absolute top-3 left-3 animate-pulse">
+                    <div className="flex items-center justify-center space-x-1 bg-gradient-to-r from-yellow-400 via-yellow-500 to-amber-500 px-3 py-1.5 rounded-full shadow-lg shadow-yellow-500/50 border-2 border-yellow-300 h-8">
+                      <Crown className="w-4 h-4 text-amber-900 drop-shadow-sm" />
+                      <span className="text-xs text-amber-900 font-black tracking-wide drop-shadow-sm leading-none">精选</span>
+                    </div>
                   </div>
-                </div>
+                )}
                 
                 {/* Top-right indicators and actions */}
                 <div className="absolute top-3 right-3 flex items-center space-x-2">
@@ -716,15 +787,18 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                       }
                     }}
                     aria-label={`${isFavorite(character.id) ? 'Remove' : 'Add'} ${character.name} to favorites`}
-                    className={`p-1.5 bg-black/60 backdrop-blur-sm rounded-full hover:bg-black/80 transition-all duration-200 ${
+                    className={`w-8 h-8 bg-black/60 backdrop-blur-sm rounded-full hover:bg-black/80 transition-all duration-200 flex items-center justify-center ${
                       isFavorite(character.id) ? 'text-brand-secondary' : 'text-white hover:text-brand-secondary'
                     }`}
                   >
                     <Star className={`w-4 h-4 ${isFavorite(character.id) ? 'fill-current' : ''}`} />
                   </button>
-                  <div className="bg-brand-secondary/90 backdrop-blur-sm px-2 py-1 rounded-full">
-                    <span className="text-xs text-zinc-900 font-semibold">18+</span>
-                  </div>
+                  {/* NSFW indicator - only show for characters with adult content */}
+                  {isCharacterNSFW(character) && (
+                    <div className="w-8 h-8 bg-red-500/90 backdrop-blur-sm rounded-full border border-red-400/50 flex items-center justify-center">
+                      <span className="text-xs text-white font-bold leading-none">18+</span>
+                    </div>
+                  )}
                 </div>
                 {/* Removed overlay trait chips to avoid duplication with content area */}
                 {/* Advanced hover overlay system */}
@@ -810,15 +884,46 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 </div>
               </div>
               <div className="p-4 space-y-3">
-                {/* Character name with status */}
+                {/* Character name with meaningful status */}
                 <div className="flex items-center justify-between">
                   <h3 className="font-bold text-lg text-content-primary group-hover:text-brand-secondary transition-colors truncate">
                     {character.name}
                   </h3>
-                  <div className="flex items-center space-x-1">
-                    <div className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
-                    <span className="text-xs text-content-tertiary font-medium">{t('available')}</span>
-                  </div>
+                  {/* Show activity level based on real data instead of confusing "online" status */}
+                  {(() => {
+                    const analytics = getCharacterAnalytics(character);
+                    const totalActivity = analytics.viewCount + analytics.chatCount;
+                    
+                    if (isCharacterFeatured(character)) {
+                      return (
+                        <div className="flex items-center space-x-1">
+                          <Crown className="w-3 h-3 text-yellow-500" />
+                          <span className="text-xs text-yellow-500 font-medium">官方推荐</span>
+                        </div>
+                      );
+                    } else if (totalActivity > 100) {
+                      return (
+                        <div className="flex items-center space-x-1">
+                          <div className="w-2 h-2 bg-green-400 rounded-full" />
+                          <span className="text-xs text-green-400 font-medium">热门</span>
+                        </div>
+                      );
+                    } else if (totalActivity > 10) {
+                      return (
+                        <div className="flex items-center space-x-1">
+                          <div className="w-2 h-2 bg-blue-400 rounded-full" />
+                          <span className="text-xs text-blue-400 font-medium">活跃</span>
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div className="flex items-center space-x-1">
+                          <div className="w-2 h-2 bg-gray-400 rounded-full" />
+                          <span className="text-xs text-gray-400 font-medium">新角色</span>
+                        </div>
+                      );
+                    }
+                  })()}
                 </div>
                 
                 {/* Voice style and description */}
@@ -849,24 +954,26 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   </div>
                 )}
                 
-                {/* Professional engagement metrics */}
+                {/* Real-time engagement metrics from backend analytics */}
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center space-x-3">
                     <div className="flex items-center space-x-1">
                       <Star className="w-3 h-3 text-brand-secondary fill-current" />
-                      <span className="text-content-secondary font-medium">4.9</span>
+                      <span className="text-content-secondary font-medium">
+                        {getCharacterRating(character)}
+                      </span>
                     </div>
                     <div className="flex items-center space-x-1">
                       <MessageCircle className="w-3 h-3 text-content-tertiary" />
                       <span className="text-content-tertiary">
-                        {character.id < 5 ? '2.1K' : character.id < 10 ? '1.8K' : '954'}
+                        {formatNumber(getCharacterAnalytics(character).chatCount)}
                       </span>
                     </div>
                   </div>
                   <div className="flex items-center space-x-1">
                     <Eye className="w-3 h-3 text-content-tertiary" />
                     <span className="text-content-tertiary">
-                      {character.id < 5 ? '12K' : character.id < 10 ? '8.5K' : '3.2K'}
+                      {formatNumber(getCharacterAnalytics(character).viewCount)}
                     </span>
                   </div>
                 </div>
