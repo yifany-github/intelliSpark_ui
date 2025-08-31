@@ -747,7 +747,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-105"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
-                    target.src = '/assets/characters_img/defaults/placeholder.jpg';
+                    target.src = '/assets/characters_img/Elara.jpeg';
                     target.onerror = null; // Prevent infinite loop
                   }}
                   loading="lazy"

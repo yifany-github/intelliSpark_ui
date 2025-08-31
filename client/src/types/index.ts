@@ -18,8 +18,15 @@ export interface Character {
   description?: string;
   voiceStyle: string;
   traits: string[];
+  personalityTraits?: { [key: string]: number };
   gender?: string;
   category?: string;
+  categories?: string[];  // Multi-category tags from Issue #146
+  age?: number;           // Age field from Issue #146
+  nsfwLevel?: number;     // NSFW level from Issue #146
+  conversationStyle?: string;  // Conversation style from Issue #146
+  isPublic?: boolean;     // Public/private toggle from Issue #146
+  galleryEnabled?: boolean; // Gallery feature toggle from Issue #146
   createdAt: string;
   // Admin management and analytics fields
   isFeatured?: boolean;

@@ -157,7 +157,17 @@ class AIServiceBase(ABC):
         """
         if not character:
             return None
-        
+
+        # Respect config: optionally disable any hardcoded character loading entirely
+        try:
+            from config import settings
+            if not getattr(settings, 'enable_hardcoded_character_loading', False):
+                self.logger.debug("Hardcoded character loading disabled via config - using dynamic prompts")
+                return None
+        except Exception:
+            # If settings import fails, be safe and do not load hardcoded characters
+            return None
+
         # Auto-discover characters from prompts/characters/ directory
         from utils.character_discovery import discover_character_files
         
@@ -205,7 +215,15 @@ class AIServiceBase(ABC):
         """
         if not character:
             return False
-            
+        
+        # Respect config: optionally disable any hardcoded character detection entirely
+        try:
+            from config import settings
+            if not getattr(settings, 'enable_hardcoded_character_loading', False):
+                return False
+        except Exception:
+            return False
+
         from utils.character_discovery import discover_character_files
         
         try:

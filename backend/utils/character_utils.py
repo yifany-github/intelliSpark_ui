@@ -53,8 +53,11 @@ def transform_character_to_response(character: Character) -> Dict[str, Any]:
         "traits": character.traits,
         "category": character.category,
         "gender": character.gender,
+        "age": character.age,
+        "nsfwLevel": character.nsfw_level,
         "conversationStyle": character.conversation_style,  # snake_case to camelCase
         "isPublic": character.is_public,  # snake_case to camelCase
+        "galleryEnabled": getattr(character, 'gallery_enabled', False),
         "createdBy": character.created_by,  # snake_case to camelCase
         "createdAt": character.created_at.isoformat() + "Z" if character.created_at else None,  # ISO format
         # Admin management and analytics fields
