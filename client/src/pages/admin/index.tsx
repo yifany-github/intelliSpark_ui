@@ -66,6 +66,7 @@ interface AdminStats {
 interface Character {
   id: number;
   name: string;
+  description?: string;  // Added missing description field
   avatarUrl: string;
   backstory: string;
   voiceStyle: string;
@@ -1430,6 +1431,7 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
 }) => {
   const [formData, setFormData] = useState({
     name: character?.name || "",
+    description: character?.description || "",  // Added missing description field
     avatarUrl: character?.avatarUrl || "",
     backstory: character?.backstory || "",
     voiceStyle: character?.voiceStyle || "",
@@ -1451,6 +1453,7 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
   useEffect(() => {
     setFormData({
       name: character?.name || "",
+      description: character?.description || "",  // Added missing description field
       avatarUrl: character?.avatarUrl || "",
       backstory: character?.backstory || "",
       voiceStyle: character?.voiceStyle || "",
@@ -1520,6 +1523,18 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
               placeholder="Enter character name"
+              className="bg-white border-slate-300 text-slate-900"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="description" className="text-sm font-medium text-slate-900">Description</Label>
+            <Input
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Brief description of the character (minimum 10 characters)"
               className="bg-white border-slate-300 text-slate-900"
               required
             />
