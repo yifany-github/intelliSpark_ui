@@ -392,12 +392,12 @@ export function GalleryManagement({
         <ImageIcon className="h-4 w-4 text-slate-600" />
         <span className="text-sm font-medium text-slate-900">Gallery Management</span>
         {isCreationMode && pendingImages.length > 0 && (
-          <Badge variant="outline" className="text-xs">
+          <Badge className="text-xs bg-slate-200 text-slate-800 border border-slate-300">
             {pendingImages.length} pending
           </Badge>
         )}
         {galleryData && (
-          <Badge variant="outline" className="text-xs">
+          <Badge className="text-xs bg-slate-200 text-slate-800 border border-slate-300">
             {galleryData.total_images} images
           </Badge>
         )}
@@ -407,7 +407,10 @@ export function GalleryManagement({
           <div className="p-4 bg-slate-50 rounded-lg border">
             <div className="flex items-center justify-between mb-2">
               <span className="text-sm font-medium text-slate-900">Gallery Status</span>
-              <Badge variant={galleryData.gallery_enabled ? "default" : "secondary"}>
+              <Badge className={galleryData.gallery_enabled 
+                ? "bg-green-100 text-green-800 border border-green-200" 
+                : "bg-slate-200 text-slate-700 border border-slate-300"
+              }>
                 {galleryData.gallery_enabled ? "Active" : "Inactive"}
               </Badge>
             </div>
@@ -421,7 +424,7 @@ export function GalleryManagement({
             {galleryData.categories.length > 1 && (
               <div className="mt-2 flex flex-wrap gap-1">
                 {galleryData.categories.map(category => (
-                  <Badge key={category} variant="outline" className="text-xs">
+                  <Badge key={category} className="text-xs bg-slate-100 text-slate-800 border border-slate-200">
                     {category}
                   </Badge>
                 ))}
@@ -511,33 +514,39 @@ export function GalleryManagement({
             <Progress value={uploadProgress} className="w-full" />
           )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="upload-category" className="text-sm font-medium text-slate-900">Category</Label>
-              <Select value={uploadCategory} onValueChange={setUploadCategory}>
-                <SelectTrigger className="bg-white border-slate-300 text-slate-900">
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {GALLERY_CATEGORIES.map(category => (
-                    <SelectItem key={category.value} value={category.value}>
-                      {category.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="upload-alt-text" className="text-sm font-medium text-slate-900">Alt Text (Optional)</Label>
-              <Input
-                id="upload-alt-text"
-                value={uploadAltText}
-                onChange={(e) => setUploadAltText(e.target.value)}
-                placeholder="Describe the image"
-                className="bg-white border-slate-300 text-slate-900"
-              />
-            </div>
-          </div>
+          {/* Metadata inputs only affect immediate uploads (editing mode) */}
+          {!isCreationMode && (
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="upload-category" className="text-sm font-medium text-slate-900">Category</Label>
+                  <Select value={uploadCategory} onValueChange={setUploadCategory}>
+                    <SelectTrigger className="bg-white border-slate-300 text-slate-900">
+                      <SelectValue placeholder="Select category" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GALLERY_CATEGORIES.map(category => (
+                        <SelectItem key={category.value} value={category.value}>
+                          {category.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="upload-alt-text" className="text-sm font-medium text-slate-900">Alt Text (Optional)</Label>
+                  <Input
+                    id="upload-alt-text"
+                    value={uploadAltText}
+                    onChange={(e) => setUploadAltText(e.target.value)}
+                    placeholder="Describe the image"
+                    className="bg-white border-slate-300 text-slate-900"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-slate-500">Tip: Category and alt text apply to images uploaded immediately. For queued images added during creation, you can edit metadata after saving the character.</p>
+            </>
+          )}
         </div>
 
         {/* Gallery Grid - Only show in editing mode */}

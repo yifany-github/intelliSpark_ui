@@ -1595,6 +1595,7 @@ const CharacterForm = ({ character, onSubmit, onCancel, authHeaders }: {
           </div>
           
           <ImageSelector
+            authHeaders={authHeaders}
             value={formData.avatarUrl}
             onChange={(url) => setFormData({ ...formData, avatarUrl: url })}
             assetType="characters"
