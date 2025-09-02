@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import UploadFile, File, Form, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
@@ -18,6 +19,8 @@ from schemas import (
     MessageResponse, CharacterCreate, CharacterAdminUpdate
 )
 from services.character_service import CharacterService, CharacterServiceError
+from services.upload_service import UploadService
+from services.character_gallery_service import CharacterGalleryService
 
 # Login request schema
 class LoginRequest(BaseModel):
@@ -107,6 +110,124 @@ async def create_admin_character(
     except Exception as e:
         logger.error(f"Error creating character: {e}")
         raise HTTPException(status_code=500, detail="Failed to create character")
+
+@router.get("/characters/{character_id}/gallery")
+async def get_admin_character_gallery(
+    character_id: int,
+    db: Session = Depends(get_db),
+    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+):
+    """Get character gallery data (admin context)"""
+    try:
+        gallery_service = CharacterGalleryService(db)
+        # Admin management should list only DB-backed gallery images (no avatar injection)
+        return await gallery_service.get_character_gallery(character_id, include_avatar_in_images=False)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get character gallery: {str(e)}")
+
+@router.post("/characters/{character_id}/gallery/images")
+async def admin_upload_gallery_image(
+    request: Request,
+    character_id: int,
+    file: UploadFile = File(...),
+    category: str = Form("general"),
+    is_primary: bool = Form(False),
+    alt_text: str = Form(None),
+    db: Session = Depends(get_db),
+    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+):
+    """Upload a gallery image (admin context, uses admin token)"""
+    try:
+        upload_service = UploadService()
+        success, upload_data, error = await upload_service.process_avatar_upload(
+            file, user_id=0, request=request, upload_type="character_gallery", character_id=character_id
+        )
+        if not success:
+            raise HTTPException(status_code=400, detail=error)
+
+        gallery_service = CharacterGalleryService(db)
+        image_data = {
+            "image_url": upload_data["avatarUrl"],
+            "alt_text": alt_text or f"Gallery image for character {character_id}",
+            "category": category,
+            "file_size": upload_data.get("size"),
+            "dimensions": upload_data.get("dimensions"),
+            "file_format": upload_data.get("filename", "").split(".")[-1].lower() if "." in upload_data.get("filename", "") else None
+        }
+
+        # uploaded_by=None to avoid FK issues in admin context
+        ok, gallery_image_data, svc_err = await gallery_service.add_gallery_image(
+            character_id, image_data, uploaded_by=None, is_primary=is_primary
+        )
+        if not ok:
+            raise HTTPException(status_code=400, detail=svc_err)
+
+        return {
+            "message": "Gallery image uploaded successfully",
+            "image": gallery_image_data,
+            "upload_info": upload_data
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Gallery image upload failed: {str(e)}")
+
+@router.put("/characters/{character_id}/gallery/images/{image_id}/primary")
+async def admin_set_primary_gallery_image(
+    character_id: int,
+    image_id: int,
+    db: Session = Depends(get_db),
+    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+):
+    """Set primary gallery image (admin context)"""
+    try:
+        gallery_service = CharacterGalleryService(db)
+        ok, err = await gallery_service.update_primary_image(character_id, image_id)
+        if not ok:
+            raise HTTPException(status_code=400, detail=err)
+        return {"message": f"Image {image_id} set as primary for character {character_id}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to set primary image: {str(e)}")
+
+@router.delete("/characters/{character_id}/gallery/images/{image_id}")
+async def admin_delete_gallery_image(
+    character_id: int,
+    image_id: int,
+    db: Session = Depends(get_db),
+    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+):
+    """Delete a gallery image (admin context, soft delete)"""
+    try:
+        gallery_service = CharacterGalleryService(db)
+        ok, err = await gallery_service.delete_gallery_image(character_id, image_id)
+        if not ok:
+            raise HTTPException(status_code=400, detail=err)
+        return {"message": f"Gallery image {image_id} deleted successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete gallery image: {str(e)}")
+
+@router.put("/characters/{character_id}/gallery/reorder")
+async def admin_reorder_gallery_images(
+    character_id: int,
+    image_order: list[dict],
+    db: Session = Depends(get_db),
+    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+):
+    """Reorder gallery images (admin context)"""
+    try:
+        gallery_service = CharacterGalleryService(db)
+        ok, err = await gallery_service.reorder_gallery_images(character_id, image_order)
+        if not ok:
+            raise HTTPException(status_code=400, detail=err)
+        return {"message": "Gallery images reordered successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reorder gallery images: {str(e)}")
 
 @router.put("/characters/{character_id}")
 async def update_admin_character(

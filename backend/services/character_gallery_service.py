@@ -43,7 +43,7 @@ class CharacterGalleryService:
         self.upload_service = UploadService()
         self.gallery_base_path = Path(__file__).parent.parent.parent / "attached_assets" / "character_galleries"
     
-    async def get_character_gallery(self, character_id: int) -> Dict[str, Any]:
+    async def get_character_gallery(self, character_id: int, include_avatar_in_images: bool = False) -> Dict[str, Any]:
         """
         Get complete gallery data for a character
         
@@ -74,14 +74,55 @@ class CharacterGalleryService:
                 asc(CharacterGalleryImage.created_at)
             ).all()
             
+            # Determine primary/profile image
+            primary = await self._get_primary_image(gallery_images, character)
+
+            # Format images
+            formatted_images = [await self._format_gallery_image(img) for img in gallery_images]
+
+            # Optionally ensure avatar/primary is first (for user gallery display),
+            # but do not inject into admin lists to avoid non-DB items
+            if include_avatar_in_images:
+                # Force profile to be the character avatar if available
+                if character.avatar_url:
+                    primary = {
+                        "id": None,
+                        "url": character.avatar_url,
+                        "thumbnail_url": None,
+                        "alt_text": f"{character.name} character image",
+                        "category": "portrait",
+                        "display_order": 0,
+                        "is_primary": True,
+                        "file_size": None,
+                        "dimensions": None,
+                        "file_format": None,
+                        "created_at": None,
+                        "is_gallery_image": False
+                    }
+
+                # Ensure avatar/primary is first in images for user-facing gallery
+                
+                if primary.get("id") is not None:
+                    # Primary is a real gallery image — move it to front
+                    try:
+                        idx = next(i for i, img in enumerate(formatted_images) if img.get("id") == primary.get("id"))
+                        if idx != 0:
+                            formatted_images.insert(0, formatted_images.pop(idx))
+                    except StopIteration:
+                        pass
+                else:
+                    # Primary is avatar fallback; inject as first if not duplicate by URL
+                    if not any(img.get("url") == primary.get("url") for img in formatted_images):
+                        formatted_images.insert(0, primary)
+
             # Format gallery response
             gallery_data = {
                 "character_id": character_id,
                 "character_name": character.name,
                 "total_images": len(gallery_images),
                 "gallery_enabled": character.gallery_enabled or len(gallery_images) > 1,
-                "primary_image": await self._get_primary_image(gallery_images, character),
-                "images": [await self._format_gallery_image(img) for img in gallery_images],
+                "primary_image": primary,
+                "images": formatted_images,
                 "categories": await self._get_image_categories(gallery_images),
                 "last_updated": character.gallery_updated_at.isoformat() + "Z" if character.gallery_updated_at else None,
                 "fallback_avatar": character.avatar_url  # Backward compatibility
@@ -121,7 +162,7 @@ class CharacterGalleryService:
             if not character:
                 return False, {}, f"Character with ID {character_id} not found"
             
-            # If setting as primary, unset other primary images
+            # If caller requested primary, unset others
             if is_primary:
                 await self._unset_primary_images(character_id)
             
@@ -394,7 +435,7 @@ class CharacterGalleryService:
             character.gallery_enabled = active_images_count > 0
             character.gallery_primary_image = primary_image.image_url if primary_image else None
             character.gallery_updated_at = datetime.utcnow()
-            
+
             self.db.commit()
     
     async def get_gallery_stats(self) -> Dict[str, Any]:

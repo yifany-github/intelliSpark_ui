@@ -124,7 +124,8 @@ async def get_character_gallery(
     """Get character gallery data with all images"""
     try:
         gallery_service = CharacterGalleryService(db)
-        gallery_data = await gallery_service.get_character_gallery(character_id)
+        # For user-facing gallery, ensure avatar/profile appears first in images
+        gallery_data = await gallery_service.get_character_gallery(character_id, include_avatar_in_images=True)
         return gallery_data
         
     except Exception as e:

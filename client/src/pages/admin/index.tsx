@@ -14,7 +14,9 @@ import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Progress } from "@/components/ui/progress";
 import { ImageSelector } from "@/components/admin/ImageSelector";
+import { GalleryManagement } from "@/components/admin/GalleryManagement";
 import CategorySelector from "@/components/characters/CategorySelector";
 import {
   Users,
@@ -685,11 +687,58 @@ const AdminPage = () => {
                     </DialogHeader>
                     <CharacterForm
                       character={editingCharacter}
-                      onSubmit={(data) => {
+                      authHeaders={authHeaders}
+                      onSubmit={(data, pendingImages) => {
                         if (editingCharacter) {
                           characterUpdateMutation.mutate({ ...data, id: editingCharacter.id, createdAt: editingCharacter.createdAt });
                         } else {
-                          characterCreateMutation.mutate(data);
+                          // For creation, we need to create character then upload images
+                          const createWithGallery = async () => {
+                            try {
+                              const response = await fetch("/api/admin/characters", {
+                                method: "POST",
+                                headers: {
+                                  "Content-Type": "application/json",
+                                  ...authHeaders,
+                                },
+                                body: JSON.stringify(data),
+                              });
+                              if (!response.ok) throw new Error("Failed to create character");
+                              const createdCharacter = await response.json();
+                              
+                              // Upload pending gallery images
+                              if (pendingImages && pendingImages.length > 0) {
+                                for (const image of pendingImages) {
+                                  const formData = new FormData();
+                                  formData.append('file', image);
+                                  formData.append('category', 'general');
+                                  formData.append('is_primary', 'false');
+                                  
+                                  const uploadResponse = await fetch(`/api/admin/characters/${createdCharacter.id}/gallery/images`, {
+                                    method: 'POST',
+                                    headers: authHeaders,
+                                    body: formData,
+                                  });
+                                  if (!uploadResponse.ok) {
+                                    const errorText = await uploadResponse.text();
+                                    console.error('Failed to upload gallery image:', uploadResponse.status, errorText);
+                                    throw new Error(`Gallery upload failed: ${errorText}`);
+                                  } else {
+                                    console.log('Gallery image uploaded successfully');
+                                  }
+                                }
+                              }
+                              
+                              // Refresh data
+                              queryClient.invalidateQueries({ queryKey: ["admin-characters"] });
+                              queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+                              setShowCharacterDialog(false);
+                              
+                            } catch (error) {
+                              console.error('Character creation failed:', error);
+                            }
+                          };
+                          createWithGallery();
                         }
                       }}
                       onCancel={() => {
@@ -1424,10 +1473,11 @@ const AdminPage = () => {
 const validateAge = (age: number): boolean => age >= 1 && age <= 200;
 const validateNSFWLevel = (level: number): boolean => level >= 0 && level <= 3;
 
-const CharacterForm = ({ character, onSubmit, onCancel }: {
+const CharacterForm = ({ character, onSubmit, onCancel, authHeaders }: {
   character: Character | null;
-  onSubmit: (data: Omit<Character, "id" | "createdAt">) => void;
+  onSubmit: (data: Omit<Character, "id" | "createdAt">, pendingImages?: File[]) => void;
   onCancel: () => void;
+  authHeaders: Record<string, string>;
 }) => {
   const [formData, setFormData] = useState({
     name: character?.name || "",
@@ -1446,6 +1496,8 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
     isPublic: character?.isPublic ?? true,
     galleryEnabled: character?.galleryEnabled || false,
   });
+  
+  const [pendingGalleryImages, setPendingGalleryImages] = useState<File[]>([]);
 
   const [newTrait, setNewTrait] = useState("");
 
@@ -1468,6 +1520,8 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
       isPublic: character?.isPublic ?? true,
       galleryEnabled: character?.galleryEnabled || false,
     });
+    // Clear pending images when switching characters
+    setPendingGalleryImages([]);
   }, [character]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -1492,7 +1546,7 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
       return;
     }
     
-    onSubmit(formData);
+    onSubmit(formData, pendingGalleryImages);
   };
 
   const addTrait = () => {
@@ -1546,6 +1600,31 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
             assetType="characters"
             label="Character Avatar"
             required
+          />
+        </div>
+
+        {/* Gallery Settings - Right after avatar since they're both image-related */}
+        <div className="space-y-4">
+          <div className="flex items-center space-x-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+            <Checkbox
+              id="galleryEnabled"
+              checked={formData.galleryEnabled || false}
+              onCheckedChange={(checked) => setFormData({ ...formData, galleryEnabled: checked as boolean })}
+              className="border-slate-300"
+            />
+            <Label htmlFor="galleryEnabled" className="text-sm font-medium text-slate-700">
+              Enable Gallery (character can have multiple images)
+            </Label>
+          </div>
+          
+          <GalleryManagement 
+            characterId={character?.id || 0}
+            galleryEnabled={formData.galleryEnabled || false}
+            onGalleryChange={(enabled) => setFormData({ ...formData, galleryEnabled: enabled })}
+            authHeaders={authHeaders}
+            isCreationMode={!character?.id}
+            pendingImages={pendingGalleryImages}
+            onPendingImagesChange={setPendingGalleryImages}
           />
         </div>
 
@@ -1664,14 +1743,6 @@ const CharacterForm = ({ character, onSubmit, onCancel }: {
                 onCheckedChange={(checked) => setFormData({ ...formData, isPublic: checked as boolean })}
               />
               <Label htmlFor="isPublic" className="text-sm text-slate-700">Public Character (visible to all users)</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="galleryEnabled"
-                checked={formData.galleryEnabled || false}
-                onCheckedChange={(checked) => setFormData({ ...formData, galleryEnabled: checked as boolean })}
-              />
-              <Label htmlFor="galleryEnabled" className="text-sm text-slate-700">Gallery Enabled (character can have multiple images)</Label>
             </div>
           </div>
         </div>
