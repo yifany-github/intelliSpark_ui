@@ -4,6 +4,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Dict, Any
+from pydantic import BaseModel
 import logging
 import os
 from datetime import datetime
@@ -147,7 +148,8 @@ async def admin_upload_gallery_image(
 
         gallery_service = CharacterGalleryService(db)
         image_data = {
-            "image_url": upload_data["avatarUrl"],
+            "image_url": upload_data.get("url") or upload_data.get("avatarUrl"),
+            "thumbnail_url": upload_data.get("thumbnailUrl"),
             "alt_text": alt_text or f"Gallery image for character {character_id}",
             "category": category,
             "file_size": upload_data.get("size"),
@@ -213,7 +215,7 @@ async def admin_delete_gallery_image(
 @router.put("/characters/{character_id}/gallery/reorder")
 async def admin_reorder_gallery_images(
     character_id: int,
-    image_order: list[dict],
+    image_order: List[Dict[str, int]],
     db: Session = Depends(get_db),
     _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
 ):

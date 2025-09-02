@@ -49,7 +49,10 @@ class CharacterGalleryService:
         
         Args:
             character_id: ID of the character
-            
+            include_avatar_in_images: When True, ensures the character avatar appears as
+                the first image in the returned images list (user-facing views). When False,
+                returns only DB-backed gallery images in their stored order (admin views).
+        
         Returns:
             Dictionary containing gallery data and images
             

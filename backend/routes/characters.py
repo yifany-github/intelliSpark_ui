@@ -14,6 +14,7 @@ Routes:
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
 from typing import List
+from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -163,7 +164,8 @@ async def upload_gallery_image(
         gallery_service = CharacterGalleryService(db)
         
         image_data = {
-            "image_url": upload_data["avatarUrl"],
+            "image_url": upload_data.get("url") or upload_data.get("avatarUrl"),
+            "thumbnail_url": upload_data.get("thumbnailUrl"),
             "alt_text": alt_text or f"Gallery image for character {character_id}",
             "category": category,
             "file_size": upload_data.get("size"),
@@ -244,10 +246,14 @@ async def delete_gallery_image(
         raise HTTPException(status_code=500, detail=f"Failed to delete gallery image: {str(e)}")
 
 
+class ImageOrderItem(BaseModel):
+    image_id: int
+    display_order: int
+
 @router.put("/{character_id}/gallery/reorder")
 async def reorder_gallery_images(
     character_id: int,
-    image_order: List[dict],  # [{"image_id": 1, "display_order": 0}, ...]
+    image_order: List[ImageOrderItem],  # Validated payload
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -258,7 +264,9 @@ async def reorder_gallery_images(
     
     try:
         gallery_service = CharacterGalleryService(db)
-        success, error = await gallery_service.reorder_gallery_images(character_id, image_order)
+        # Convert to list[dict] for service compatibility
+        payload = [item.dict() for item in image_order]
+        success, error = await gallery_service.reorder_gallery_images(character_id, payload)
         
         if not success:
             raise HTTPException(status_code=400, detail=error)

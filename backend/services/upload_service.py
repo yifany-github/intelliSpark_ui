@@ -21,7 +21,7 @@ import aiofiles
 import logging
 from slowapi.util import get_remote_address
 
-from utils.file_validation import comprehensive_image_validation
+from utils.file_validation import comprehensive_image_validation, resize_image_if_needed
 
 
 class UploadServiceError(Exception):
@@ -131,16 +131,36 @@ class UploadService:
                 self.security_logger.error(f"File upload verification failed: {file_path}")
                 raise HTTPException(status_code=500, detail="File upload verification failed")
             
+            # Generate a thumbnail (small preview) for grids
+            thumbnail_url = None
+            try:
+                thumb_content, _ = resize_image_if_needed(processed_content, max_size=256)
+                thumb_stem = file_path.stem
+                thumb_ext = file_path.suffix
+                thumb_filename = f"{thumb_stem}_thumb{thumb_ext}"
+                thumb_path = upload_dir / thumb_filename
+                async with aiofiles.open(thumb_path, 'wb') as tf:
+                    await tf.write(thumb_content)
+                if thumb_path.exists() and thumb_path.stat().st_size > 0:
+                    thumbnail_url = f"/assets/{self._get_asset_path(upload_type, character_id)}/{thumb_filename}"
+            except Exception:
+                # Non-fatal if thumbnail generation fails
+                thumbnail_url = None
+
             # Generate response data
             asset_url = f"/assets/{self._get_asset_path(upload_type, character_id)}/{secure_filename}"
             
             response_data = {
                 'avatarUrl': asset_url,
+                'url': asset_url,  # Alias for clarity in non-avatar contexts
                 'filename': secure_filename,
                 'size': len(processed_content),
                 'dimensions': f"{dimensions[0]}x{dimensions[1]}",
                 'message': 'Upload successful'
             }
+
+            if thumbnail_url:
+                response_data['thumbnailUrl'] = thumbnail_url
             
             # Add optimization info if resized
             if was_resized and validation_result.get('warnings'):
