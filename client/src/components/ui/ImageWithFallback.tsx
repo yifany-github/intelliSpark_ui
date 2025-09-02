@@ -71,7 +71,7 @@ const ImageWithFallback = ({
           onLoad={handleLoad}
         />
       )}
-      <AvatarFallback className="bg-gradient-to-r from-primary/40 to-accent/40 text-white font-medium">
+      <AvatarFallback className="bg-slate-200 text-slate-800 font-medium">
         {isLoading && showSpinner ? (
           <Loader2 className="h-4 w-4 animate-spin" />
         ) : (

@@ -14,6 +14,7 @@ Routes:
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
 from typing import List
+from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
@@ -24,6 +25,7 @@ from services.upload_service import UploadService
 from services.character_gallery_service import CharacterGalleryService
 from schemas import Character as CharacterSchema, CharacterCreate
 from models import User
+from routes.admin import is_admin
 
 # Create router with prefix and tags
 router = APIRouter(prefix="/characters", tags=["characters"])
@@ -123,7 +125,8 @@ async def get_character_gallery(
     """Get character gallery data with all images"""
     try:
         gallery_service = CharacterGalleryService(db)
-        gallery_data = await gallery_service.get_character_gallery(character_id)
+        # For user-facing gallery, ensure avatar/profile appears first in images
+        gallery_data = await gallery_service.get_character_gallery(character_id, include_avatar_in_images=True)
         return gallery_data
         
     except Exception as e:
@@ -144,8 +147,9 @@ async def upload_gallery_image(
 ):
     """Upload new image to character gallery (admin only)"""
     try:
-        # Check admin permissions (for now, any authenticated user can add gallery images)
-        # TODO: Add proper admin role checking
+        # Admin authorization required for gallery management
+        if not is_admin(current_user):
+            raise HTTPException(status_code=403, detail="Admin access required for gallery management")
         
         # Process image upload
         upload_service = UploadService()
@@ -160,7 +164,8 @@ async def upload_gallery_image(
         gallery_service = CharacterGalleryService(db)
         
         image_data = {
-            "image_url": upload_data["avatarUrl"],
+            "image_url": upload_data.get("url") or upload_data.get("avatarUrl"),
+            "thumbnail_url": upload_data.get("thumbnailUrl"),
             "alt_text": alt_text or f"Gallery image for character {character_id}",
             "category": category,
             "file_size": upload_data.get("size"),
@@ -194,7 +199,11 @@ async def set_primary_gallery_image(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Set a gallery image as the primary image"""
+    """Set a gallery image as the primary image (admin only)"""
+    # Admin authorization required
+    if not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Admin access required for gallery management")
+    
     try:
         gallery_service = CharacterGalleryService(db)
         success, error = await gallery_service.update_primary_image(character_id, image_id)
@@ -217,7 +226,11 @@ async def delete_gallery_image(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Delete a gallery image (soft delete)"""
+    """Delete a gallery image (soft delete, admin only)"""
+    # Admin authorization required
+    if not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Admin access required for gallery management")
+    
     try:
         gallery_service = CharacterGalleryService(db)
         success, error = await gallery_service.delete_gallery_image(character_id, image_id)
@@ -233,17 +246,27 @@ async def delete_gallery_image(
         raise HTTPException(status_code=500, detail=f"Failed to delete gallery image: {str(e)}")
 
 
+class ImageOrderItem(BaseModel):
+    image_id: int
+    display_order: int
+
 @router.put("/{character_id}/gallery/reorder")
 async def reorder_gallery_images(
     character_id: int,
-    image_order: List[dict],  # [{"image_id": 1, "display_order": 0}, ...]
+    image_order: List[ImageOrderItem],  # Validated payload
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Reorder gallery images"""
+    """Reorder gallery images (admin only)"""
+    # Admin authorization required
+    if not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Admin access required for gallery management")
+    
     try:
         gallery_service = CharacterGalleryService(db)
-        success, error = await gallery_service.reorder_gallery_images(character_id, image_order)
+        # Convert to list[dict] for service compatibility
+        payload = [item.dict() for item in image_order]
+        success, error = await gallery_service.reorder_gallery_images(character_id, payload)
         
         if not success:
             raise HTTPException(status_code=400, detail=error)
@@ -261,7 +284,11 @@ async def get_gallery_stats(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get overall gallery statistics (admin endpoint)"""
+    """Get overall gallery statistics (admin only)"""
+    # Admin authorization required
+    if not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Admin access required for gallery management")
+    
     try:
         gallery_service = CharacterGalleryService(db)
         stats = await gallery_service.get_gallery_stats()

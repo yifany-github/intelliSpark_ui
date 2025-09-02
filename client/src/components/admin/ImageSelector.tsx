@@ -18,6 +18,7 @@ interface ImageAsset {
 }
 
 interface ImageSelectorProps {
+  authHeaders: Record<string, string>;
   value: string;
   onChange: (url: string) => void;
   assetType?: 'characters';
@@ -26,6 +27,7 @@ interface ImageSelectorProps {
 }
 
 export function ImageSelector({ 
+  authHeaders,
   value, 
   onChange, 
   assetType = 'characters', 
@@ -40,13 +42,8 @@ export function ImageSelector({
   const { data: imagesData, isLoading, error } = useQuery({
     queryKey: ['admin-images', assetType],
     queryFn: async () => {
-      const token = localStorage.getItem('adminToken');
-      if (!token) throw new Error('No admin token');
-
       const response = await fetch(`/api/admin/assets/images?asset_type=${assetType}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
+        headers: authHeaders,
       });
 
       if (!response.ok) {
@@ -123,14 +120,14 @@ export function ImageSelector({
             </Button>
           </DialogTrigger>
           
-          <DialogContent className="max-w-4xl max-h-[90vh] flex flex-col">
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden bg-white text-slate-900 flex flex-col">
             <DialogHeader>
               <DialogTitle className="text-xl text-slate-900">
                 Select {assetType} Image
               </DialogTitle>
             </DialogHeader>
             
-            <div className="space-y-4 flex-1 overflow-hidden">
+            <div className="space-y-4 flex-1 overflow-y-auto pr-2">
               {/* Manual URL Input */}
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-slate-900">Manual URL</Label>
@@ -168,8 +165,8 @@ export function ImageSelector({
               
               {/* Image Grid */}
               {!isLoading && !error && (
-                <div className="flex-1 min-h-0">
-                  <ScrollArea className="h-full">
+                <div>
+                  <ScrollArea>
                     {filteredImages.length === 0 ? (
                       <div className="flex flex-col items-center justify-center py-8 text-slate-500">
                         <Image className="w-12 h-12 mb-2 text-slate-400" />
@@ -179,7 +176,7 @@ export function ImageSelector({
                         </p>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-2">
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-2 pb-6">
                         {filteredImages.map((image) => (
                         <Card
                           key={image.filename}
@@ -264,7 +261,7 @@ export function ImageSelector({
               )}
             </div>
             
-            <div className="flex justify-end space-x-2 mt-4 pt-4 border-t border-slate-200 bg-white">
+            <div className="flex justify-end space-x-2 mt-4 pt-4 border-t border-slate-200 bg-white sticky bottom-0">
               <Button
                 type="button"
                 variant="outline"
