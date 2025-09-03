@@ -439,10 +439,11 @@ class CharacterService:
             character.name = character_data.name
             character.description = character_data.description
             character.avatar_url = character_data.avatarUrl
-            # Mirror persona prompt to backstory if backstory omitted
+            # Backstory handling: preserve existing unless an explicit backstory is provided
             if character_data.backstory and character_data.backstory.strip():
                 character.backstory = character_data.backstory
-            elif getattr(character_data, 'personaPrompt', None):
+            elif getattr(character_data, 'personaPrompt', None) and (not character.backstory or not character.backstory.strip()):
+                # Only mirror persona → backstory if current backstory is empty
                 character.backstory = character_data.personaPrompt
             character.persona_prompt = character_data.personaPrompt
             character.voice_style = character_data.voiceStyle

@@ -72,6 +72,20 @@ class CharacterBase(BaseSchema):
     conversationStyle: Optional[str] = Field(default=None, alias="conversation_style")
     isPublic: bool = Field(default=True, alias="is_public")
 
+    # Sanitize persona/backstory to prevent XSS if rendered by clients
+    @validator('backstory', pre=True)
+    def sanitize_backstory(cls, v):
+        if v is None:
+            return v
+        # Strip all HTML tags for safety
+        return bleach.clean(v, tags=[], strip=True).strip()
+
+    @validator('personaPrompt', pre=True)
+    def sanitize_persona(cls, v):
+        if v is None:
+            return v
+        return bleach.clean(v, tags=[], strip=True).strip()
+
 class CharacterCreate(CharacterBase):
     pass
 
