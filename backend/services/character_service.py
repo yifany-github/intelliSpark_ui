@@ -207,12 +207,19 @@ class CharacterService:
                 # 去重
                 enhanced_traits = list(set(enhanced_traits))
 
+            # Determine persona/backstory values
+            backstory_value = character_data.backstory
+            if (not backstory_value or backstory_value.strip() == "") and getattr(character_data, 'personaPrompt', None):
+                # Mirror persona prompt to backstory for compatibility
+                backstory_value = character_data.personaPrompt
+
             # Create character in database
             character = Character(
                 name=character_data.name,
                 description=character_data.description,
                 avatar_url=character_data.avatarUrl,
-                backstory=character_data.backstory,
+                backstory=backstory_value,
+                persona_prompt=character_data.personaPrompt,
                 voice_style=character_data.voiceStyle,
                 traits=enhanced_traits,  # 包含分类标签的扩展traits
                 personality_traits=character_data.personalityTraits or {},  # Default to empty dict if None
@@ -296,6 +303,10 @@ class CharacterService:
         # Check backstory length if provided
         if data.backstory and len(data.backstory) > 3000:
             return ValidationResult(False, "Backstory must be less than 3000 characters")
+
+        # Persona prompt length constraint (server-side enforcement to match UI guidance)
+        if getattr(data, 'personaPrompt', None) and len(data.personaPrompt) > 5000:
+            return ValidationResult(False, "Persona prompt must be less than or equal to 5000 characters")
         
         # Check traits length if provided
         if data.traits and len(data.traits) > 1000:
@@ -428,7 +439,13 @@ class CharacterService:
             character.name = character_data.name
             character.description = character_data.description
             character.avatar_url = character_data.avatarUrl
-            character.backstory = character_data.backstory
+            # Backstory handling: preserve existing unless an explicit backstory is provided
+            if character_data.backstory and character_data.backstory.strip():
+                character.backstory = character_data.backstory
+            elif getattr(character_data, 'personaPrompt', None) and (not character.backstory or not character.backstory.strip()):
+                # Only mirror persona → backstory if current backstory is empty
+                character.backstory = character_data.personaPrompt
+            character.persona_prompt = character_data.personaPrompt
             character.voice_style = character_data.voiceStyle
             character.traits = character_data.traits
             character.personality_traits = character_data.personalityTraits or {}

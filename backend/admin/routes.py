@@ -22,6 +22,7 @@ from schemas import (
 from services.character_service import CharacterService, CharacterServiceError
 from services.upload_service import UploadService
 from services.character_gallery_service import CharacterGalleryService
+from services.prompt_engine import create_prompt_preview
 
 # Login request schema
 class LoginRequest(BaseModel):
@@ -111,6 +112,8 @@ async def create_admin_character(
     except Exception as e:
         logger.error(f"Error creating character: {e}")
         raise HTTPException(status_code=500, detail="Failed to create character")
+
+# Note: Prompt preview endpoint is defined later with extended functionality
 
 @router.get("/characters/{character_id}/gallery")
 async def get_admin_character_gallery(
@@ -564,3 +567,64 @@ async def upload_asset_image(
     except Exception as e:
         logger.error(f"Error uploading image: {e}")
         raise HTTPException(status_code=500, detail="Failed to upload image")
+
+# ===== PERSONA PROMPT PREVIEW ENDPOINT =====
+
+@router.get("/characters/{character_id}/prompt")
+async def get_character_prompt_preview(
+    character_id: int,
+    preview: bool = True,
+    chat_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+):
+    """
+    Get compiled prompt preview for a character.
+    
+    Returns compiled system text, token estimate, and metadata about which fields were used.
+    This endpoint shows exactly what the LLM will see when chatting with this character.
+    """
+    try:
+        # Get character from database
+        character = db.query(Character).filter(Character.id == character_id).first()
+        if not character:
+            raise HTTPException(status_code=404, detail="Character not found")
+        
+        # Optional: Get sample chat context if chat_id provided
+        sample_chat = None
+        if chat_id:
+            chat_messages = db.query(ChatMessage).filter(
+                ChatMessage.chat_id == chat_id
+            ).order_by(ChatMessage.timestamp.desc()).limit(10).all()
+            sample_chat = list(reversed(chat_messages))  # Chronological order
+        
+        # Generate prompt preview using PromptEngine
+        from services.prompt_engine import create_prompt_preview
+        from prompts.system import SYSTEM_PROMPT
+        
+        preview_result = create_prompt_preview(
+            character=character,
+            sample_chat=sample_chat,
+            system_prompt=SYSTEM_PROMPT
+        )
+        
+        return {
+            "character_id": character_id,
+            "character_name": character.name,
+            "system_text": preview_result["system_text"],
+            "token_counts": preview_result["token_counts"],
+            "used_fields": preview_result["used_fields"],
+            "validation_warnings": preview_result.get("validation_warnings", []),
+            "preview_info": preview_result["preview_info"],
+            "sections": preview_result.get("sections", {}),
+            "sample_context": {
+                "messages_count": len(sample_chat) if sample_chat else 0,
+                "chat_id": chat_id
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error generating prompt preview for character {character_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate prompt preview")

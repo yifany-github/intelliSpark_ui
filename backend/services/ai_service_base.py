@@ -131,19 +131,35 @@ class AIServiceBase(ABC):
         hardcoded_prompt = self._load_hardcoded_character(character)
         if hardcoded_prompt:
             return hardcoded_prompt
-        
-        # Fallback to dynamic character generation
-        elif character:
+
+        # Prefer PromptEngine for user-created characters with persona/backstory
+        if character and (getattr(character, 'persona_prompt', None) or getattr(character, 'backstory', None)):
+            try:
+                # For now, use the existing system prompt (NSFW) until Issue #156 wires SAFE/NSFW selection upstream
+                from prompts.system import SYSTEM_PROMPT
+                from services.prompt_engine import PromptEngine
+                engine = PromptEngine(system_prompt=SYSTEM_PROMPT)
+                compiled = engine.compile(character)
+                return {
+                    "persona_prompt": compiled.get("system_text", ""),
+                    "few_shot_contents": [],
+                    "use_cache": True,
+                    "use_few_shot": False
+                }
+            except Exception as e:
+                self.logger.warning(f"PromptEngine unavailable/failed, falling back to enhancer: {e}")
+
+        # Fallback to dynamic enhancer
+        if character:
             from utils.character_prompt_enhancer import CharacterPromptEnhancer
             enhancer = CharacterPromptEnhancer()
             return enhancer.enhance_dynamic_prompt(character)
-        
-        # No character fallback
-        else:
-            return {
-                "persona_prompt": "",
-                "few_shot_contents": []
-            }
+
+        # No character provided
+        return {
+            "persona_prompt": "",
+            "few_shot_contents": []
+        }
     
     def _load_hardcoded_character(self, character: Character) -> Optional[dict]:
         """

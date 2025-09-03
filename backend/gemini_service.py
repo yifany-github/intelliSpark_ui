@@ -45,10 +45,26 @@ class GeminiService:
         if hardcoded_prompt:
             return hardcoded_prompt
         
-        # Fallback to dynamic character generation
+        # NEW: Use PromptEngine if persona_prompt or backstory is available
+        elif character and (character.persona_prompt or character.backstory):
+            from services.prompt_engine import PromptEngine
+            engine = PromptEngine(system_prompt=SYSTEM_PROMPT)
+            compiled = engine.compile(character)
+            logger.info(f"🎭 Using PromptEngine for character: {character.name} (source: {compiled['used_fields']['persona_source']})")
+            
+            # Convert PromptEngine output to expected format for cache creation
+            return {
+                "persona_prompt": compiled["system_text"],
+                "few_shot_contents": [],  # PromptEngine is few-shot agnostic
+                "use_cache": True,  # Allow caching of PromptEngine output
+                "use_few_shot": False  # No few-shot examples from PromptEngine
+            }
+        
+        # Fallback to legacy enhancer for characters without persona/backstory
         elif character:
             from utils.character_prompt_enhancer import CharacterPromptEnhancer
             enhancer = CharacterPromptEnhancer()
+            logger.info(f"🎭 Fallback to CharacterPromptEnhancer for character: {character.name}")
             return enhancer.enhance_dynamic_prompt(character)
         
         # No character fallback

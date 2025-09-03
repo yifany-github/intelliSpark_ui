@@ -60,6 +60,7 @@ class CharacterBase(BaseSchema):
     description: Optional[str] = None
     avatarUrl: Optional[str] = Field(default=None, alias="avatar_url")  # Map database field to frontend field
     backstory: str
+    personaPrompt: Optional[str] = Field(default=None, alias="persona_prompt", description="Optional persona prompt that overrides backstory for LLM")
     voiceStyle: str = Field(alias="voice_style")  # Map database field to frontend field
     traits: List[str]
     personalityTraits: Optional[Dict[str, int]] = Field(default=None, alias="personality_traits")  # Optional for backward compatibility
@@ -70,6 +71,20 @@ class CharacterBase(BaseSchema):
     age: Optional[int] = Field(None, ge=1, le=200, description="Character age (1-200)")
     conversationStyle: Optional[str] = Field(default=None, alias="conversation_style")
     isPublic: bool = Field(default=True, alias="is_public")
+
+    # Sanitize persona/backstory to prevent XSS if rendered by clients
+    @validator('backstory', pre=True)
+    def sanitize_backstory(cls, v):
+        if v is None:
+            return v
+        # Strip all HTML tags for safety
+        return bleach.clean(v, tags=[], strip=True).strip()
+
+    @validator('personaPrompt', pre=True)
+    def sanitize_persona(cls, v):
+        if v is None:
+            return v
+        return bleach.clean(v, tags=[], strip=True).strip()
 
 class CharacterCreate(CharacterBase):
     pass

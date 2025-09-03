@@ -49,6 +49,7 @@ def transform_character_to_response(character: Character) -> Dict[str, Any]:
         "description": character.description,
         "avatarUrl": ensure_avatar_url(character),  # Always guaranteed valid URL
         "backstory": character.backstory,
+        "personaPrompt": getattr(character, 'persona_prompt', None),
         "voiceStyle": character.voice_style,  # snake_case to camelCase
         "traits": character.traits,
         "category": character.category,
