@@ -8,7 +8,8 @@ from models import Character
 logger = logging.getLogger(__name__)
 
 class CharacterPromptEnhancer:
-    def __init__(self):
+    def __init__(self, system_prompt: str = None):
+        self.system_prompt = system_prompt  # Store system prompt if provided
         self.few_shots_path = os.path.join(os.path.dirname(__file__), '..', 'prompts', 'generic_few_shots.json')
         self._load_generic_examples()
     
