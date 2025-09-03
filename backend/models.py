@@ -64,6 +64,7 @@ class Character(Base):
     description = Column(Text, nullable=True)  # Short description
     avatar_url = Column(String(500), nullable=True)  # Keep for backward compatibility
     backstory = Column(Text, nullable=False)
+    persona_prompt = Column(Text, nullable=True)  # Optional persona prompt that overrides backstory for LLM
     voice_style = Column(String(500), nullable=False)
     traits = Column(JSON, nullable=False)  # List of strings
     personality_traits = Column(JSON, nullable=True)  # Deprecated - keeping for backward compatibility

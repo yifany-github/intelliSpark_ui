@@ -282,7 +282,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       const matchesName = character.name.toLowerCase().includes(query);
-      const matchesDescription = (character.description || character.backstory || '').toLowerCase().includes(query);
+      const matchesDescription = (character.description || '').toLowerCase().includes(query);
       const matchesTraits = character.traits.some((trait: string) => trait.toLowerCase().includes(query));
       
       if (!matchesName && !matchesDescription && !matchesTraits) {
@@ -307,9 +307,8 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
         
         // 检查描述和背景故事
         const description = (character.description || '').toLowerCase();
-        const backstory = (character.backstory || '').toLowerCase();
         const matchesDescription = keywords.some(keyword => 
-          description.includes(keyword.toLowerCase()) || backstory.includes(keyword.toLowerCase())
+          description.includes(keyword.toLowerCase())
         );
         
         // 只要有一个匹配就通过
@@ -738,7 +737,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
               }}
               tabIndex={0}
               role="button"
-              aria-label={`Select character ${character.name}. ${character.description || character.backstory}`}
+              aria-label={`Select character ${character.name}. ${character.description || ''}`}
             >
               <div className="relative w-full aspect-[3/4] overflow-hidden bg-surface-tertiary">
                 <img
@@ -885,7 +884,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   
                   {/* Character description - always visible */}
                   <p className="text-xs text-content-tertiary line-clamp-2 leading-relaxed">
-                    {character.description || character.backstory}
+                    {character.description}
                   </p>
                 </div>
                 

@@ -46,7 +46,8 @@ import {
   Zap,
   Target,
   Bell,
-  Send
+  Send,
+  AlertTriangle
 } from "lucide-react";
 
 interface AdminStats {
@@ -71,6 +72,7 @@ interface Character {
   description?: string;  // Added missing description field
   avatarUrl: string;
   backstory: string;
+  personaPrompt?: string;  // Optional persona prompt that overrides backstory for LLM
   voiceStyle: string;
   traits: string[];
   personalityTraits: { [key: string]: number };
@@ -121,6 +123,8 @@ const AdminPage = () => {
     target: "all",
     userIds: [] as number[]
   });
+  const [showPromptPreview, setShowPromptPreview] = useState(false);
+  const [promptPreviewData, setPromptPreviewData] = useState<any>(null);
 
   const queryClient = useQueryClient();
 
@@ -688,6 +692,10 @@ const AdminPage = () => {
                     <CharacterForm
                       character={editingCharacter}
                       authHeaders={authHeaders}
+                      onPromptPreview={(previewData) => {
+                        setPromptPreviewData(previewData);
+                        setShowPromptPreview(true);
+                      }}
                       onSubmit={(data, pendingImages) => {
                         if (editingCharacter) {
                           characterUpdateMutation.mutate({ ...data, id: editingCharacter.id, createdAt: editingCharacter.createdAt });
@@ -846,6 +854,96 @@ const AdminPage = () => {
                             className="bg-purple-600 hover:bg-purple-700"
                           >
                             {analyticsUpdateMutation.isPending ? "Updating..." : "Update Analytics"}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
+                
+                {/* Prompt Preview Dialog */}
+                <Dialog open={showPromptPreview} onOpenChange={setShowPromptPreview}>
+                  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white text-slate-900">
+                    <DialogHeader className="bg-white">
+                      <DialogTitle className="text-xl text-slate-900 flex items-center">
+                        <FileCode className="w-5 h-5 mr-2 text-blue-600" />
+                        Prompt Preview: {promptPreviewData?.character_name || "Character"}
+                      </DialogTitle>
+                    </DialogHeader>
+                    {promptPreviewData && (
+                      <div className="space-y-6 py-4">
+                        {/* Header Info */}
+                        <div className="grid grid-cols-2 gap-4">
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-slate-900">Persona Source</Label>
+                            <Badge variant="outline" className={
+                              promptPreviewData.used_fields?.persona_source === 'persona_prompt' 
+                                ? "bg-green-100 text-green-700 border-green-300"
+                                : "bg-blue-100 text-blue-700 border-blue-300"
+                            }>
+                              {promptPreviewData.used_fields?.persona_source === 'persona_prompt' ? 'Persona Prompt' : 'Backstory'}
+                            </Badge>
+                          </div>
+                          <div className="space-y-2">
+                            <Label className="text-sm font-medium text-slate-900">Token Estimate</Label>
+                            <div className="text-2xl font-bold text-slate-700">
+                              ~{promptPreviewData.token_counts?.total_tokens || 0} tokens
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Warnings */}
+                        {promptPreviewData.validation_warnings && promptPreviewData.validation_warnings.length > 0 && (
+                          <Alert className="border-yellow-200 bg-yellow-50">
+                            <AlertTriangle className="w-4 h-4 text-yellow-600" />
+                            <AlertDescription className="text-yellow-800">
+                              <strong>Warnings:</strong>
+                              <ul className="mt-2 list-disc list-inside">
+                                {promptPreviewData.validation_warnings.map((warning: string, index: number) => (
+                                  <li key={index}>{warning}</li>
+                                ))}
+                              </ul>
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        
+                        {/* Persona/System Preview */}
+                        <div className="space-y-3">
+                          <Label className="text-sm font-medium text-slate-900">Compiled Prompt (Persona Focus)</Label>
+                          <div className="bg-slate-100 border border-slate-300 rounded-lg p-4 font-mono text-sm text-slate-800 max-h-96 overflow-y-auto">
+                            <pre className="whitespace-pre-wrap text-slate-900">{promptPreviewData.sections?.persona || promptPreviewData.system_text}</pre>
+                          </div>
+                          <p className="text-xs text-slate-600">
+                            Preview prioritizes the persona section. System prompt may be applied at runtime.
+                          </p>
+                        </div>
+                        
+                        {/* Metadata */}
+                        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                          <Label className="text-sm font-medium text-slate-900">Metadata</Label>
+                          <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
+                            <div>
+                              <span className="font-medium text-slate-700">Character Name:</span> {promptPreviewData.used_fields?.name}
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-700">Gender:</span> {promptPreviewData.used_fields?.gender || "Not specified"}
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-700">System Tokens:</span> ~{promptPreviewData.token_counts?.system_tokens || 0}
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-700">Context Tokens:</span> ~{promptPreviewData.token_counts?.messages_tokens || 0}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Close Button */}
+                        <div className="flex justify-end pt-4 border-t">
+                          <Button
+                            onClick={() => setShowPromptPreview(false)}
+                            className="bg-slate-600 hover:bg-slate-700 text-white"
+                          >
+                            Close Preview
                           </Button>
                         </div>
                       </div>
@@ -1473,17 +1571,19 @@ const AdminPage = () => {
 const validateAge = (age: number): boolean => age >= 1 && age <= 200;
 const validateNSFWLevel = (level: number): boolean => level >= 0 && level <= 3;
 
-const CharacterForm = ({ character, onSubmit, onCancel, authHeaders }: {
+const CharacterForm = ({ character, onSubmit, onCancel, authHeaders, onPromptPreview }: {
   character: Character | null;
   onSubmit: (data: Omit<Character, "id" | "createdAt">, pendingImages?: File[]) => void;
   onCancel: () => void;
   authHeaders: Record<string, string>;
+  onPromptPreview: (previewData: any) => void;
 }) => {
   const [formData, setFormData] = useState({
     name: character?.name || "",
     description: character?.description || "",  // Added missing description field
     avatarUrl: character?.avatarUrl || "",
     backstory: character?.backstory || "",
+    personaPrompt: character?.personaPrompt || character?.backstory || "",  // Prefer persona; fallback to backstory for editing
     voiceStyle: character?.voiceStyle || "",
     traits: character?.traits || [],
     personalityTraits: character?.personalityTraits || {},
@@ -1508,6 +1608,7 @@ const CharacterForm = ({ character, onSubmit, onCancel, authHeaders }: {
       description: character?.description || "",  // Added missing description field
       avatarUrl: character?.avatarUrl || "",
       backstory: character?.backstory || "",
+      personaPrompt: character?.personaPrompt || character?.backstory || "",  // Prefer persona; fallback to backstory for editing
       voiceStyle: character?.voiceStyle || "",
       traits: character?.traits || [],
       personalityTraits: character?.personalityTraits || {},
@@ -1545,8 +1646,13 @@ const CharacterForm = ({ character, onSubmit, onCancel, authHeaders }: {
       });
       return;
     }
+    // Mirror personaPrompt to backstory to satisfy backend expectations
+    const submitData = {
+      ...formData,
+      backstory: formData.personaPrompt || formData.backstory || "",
+    };
     
-    onSubmit(formData, pendingGalleryImages);
+    onSubmit(submitData as any, pendingGalleryImages);
   };
 
   const addTrait = () => {
@@ -1629,17 +1735,112 @@ const CharacterForm = ({ character, onSubmit, onCancel, authHeaders }: {
           />
         </div>
 
+        {/* Backstory removed for MVP: persona prompt is the single authoring field. */}
+
         <div className="space-y-2">
-          <Label htmlFor="backstory" className="text-sm font-medium text-slate-900">Backstory</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="personaPrompt" className="text-sm font-medium text-slate-900">Persona Prompt (LLM)</Label>
+            <div className="flex items-center gap-2">
+              <span className={`text-xs ${formData.personaPrompt.length > 2000 ? 'text-yellow-600' : 'text-slate-500'}`}>
+                {formData.personaPrompt.length} / 5000 chars
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="text-xs px-2 py-1 h-auto border-slate-300 text-slate-700 bg-white hover:bg-slate-50"
+                onClick={async () => {
+                  // Prefer live form content so edits are previewed without saving
+                  const localPersona = (formData.personaPrompt || "").trim();
+                  if (localPersona.length > 0 || !character?.id) {
+                    const localText = localPersona || "No persona prompt provided";
+                    const mockPreview = {
+                      system_text: localText,
+                      token_counts: { 
+                        system_tokens: Math.ceil(localText.length / 4),
+                        total_tokens: Math.ceil(localText.length / 4)
+                      },
+                      used_fields: {
+                        persona_source: localPersona.length > 0 ? "persona_prompt" : "backstory",
+                        name: formData.name,
+                        gender: formData.gender
+                      },
+                      sections: { persona: localText },
+                      validation_warnings: [],
+                      character_name: formData.name
+                    };
+                    onPromptPreview(mockPreview);
+                    return;
+                  }
+
+                  // If no unsaved changes and character exists, fetch server-compiled preview
+                  try {
+                    const response = await fetch(`/api/admin/characters/${character.id}/prompt?preview=true`, {
+                      headers: authHeaders,
+                    });
+                    if (response.ok) {
+                      const previewData = await response.json();
+                      onPromptPreview(previewData);
+                    } else {
+                      const localText = localPersona || "No persona prompt provided";
+                      const mockPreview = {
+                        system_text: localText,
+                        token_counts: { 
+                          system_tokens: Math.ceil(localText.length / 4),
+                          total_tokens: Math.ceil(localText.length / 4)
+                        },
+                        used_fields: {
+                          persona_source: localPersona.length > 0 ? "persona_prompt" : "backstory",
+                          name: formData.name,
+                          gender: formData.gender
+                        },
+                        sections: { persona: localText },
+                        validation_warnings: [],
+                        character_name: formData.name
+                      };
+                      onPromptPreview(mockPreview);
+                    }
+                  } catch (error) {
+                    console.error('Failed to generate preview:', error);
+                    const localText = localPersona || "No persona prompt provided";
+                    const mockPreview = {
+                      system_text: localText,
+                      token_counts: { 
+                        system_tokens: Math.ceil(localText.length / 4),
+                        total_tokens: Math.ceil(localText.length / 4)
+                      },
+                      used_fields: {
+                        persona_source: localPersona.length > 0 ? "persona_prompt" : "backstory",
+                        name: formData.name,
+                        gender: formData.gender
+                      },
+                      sections: { persona: localText },
+                      validation_warnings: [],
+                      character_name: formData.name
+                    };
+                    onPromptPreview(mockPreview);
+                  }
+                }}
+              >
+                Preview
+              </Button>
+            </div>
+          </div>
           <Textarea
-            id="backstory"
-            value={formData.backstory}
-            onChange={(e) => setFormData({ ...formData, backstory: e.target.value })}
-            placeholder="Describe the character's background, history, and motivations..."
-            className="bg-white border-slate-300 text-slate-900"
-            rows={4}
-            required
+            id="personaPrompt"
+            value={formData.personaPrompt}
+            onChange={(e) => setFormData({ ...formData, personaPrompt: e.target.value })}
+            placeholder="Optional: Define how the AI should behave as this character. If empty, backstory will be used for the LLM..."
+            className={`bg-white border-slate-300 text-slate-900 ${formData.personaPrompt.length > 2000 ? 'border-yellow-400' : ''}`}
+            rows={6}
           />
+          <div className="text-xs text-slate-600">
+            <p><strong>When to use:</strong> Provide explicit instructions for the AI's personality and behavior.</p>
+            <p><strong>When empty:</strong> The backstory above will be used as the persona prompt.</p>
+            {formData.personaPrompt.length > 2000 && (
+              <p className="text-yellow-600 font-medium">⚠ Warning: Long prompts may affect performance. Consider keeping under 2000 characters.</p>
+            )}
+          </div>
         </div>
 
         <div className="space-y-2">

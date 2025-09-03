@@ -60,6 +60,7 @@ class CharacterBase(BaseSchema):
     description: Optional[str] = None
     avatarUrl: Optional[str] = Field(default=None, alias="avatar_url")  # Map database field to frontend field
     backstory: str
+    personaPrompt: Optional[str] = Field(default=None, alias="persona_prompt", description="Optional persona prompt that overrides backstory for LLM")
     voiceStyle: str = Field(alias="voice_style")  # Map database field to frontend field
     traits: List[str]
     personalityTraits: Optional[Dict[str, int]] = Field(default=None, alias="personality_traits")  # Optional for backward compatibility

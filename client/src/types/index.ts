@@ -15,6 +15,7 @@ export interface Character {
   avatarUrl: string;
   image?: string;
   backstory: string;
+  personaPrompt?: string;
   description?: string;
   voiceStyle: string;
   traits: string[];
