@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Toggle } from "@/components/ui/toggle";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "@/hooks/use-toast";
@@ -1891,20 +1892,36 @@ const CharacterForm = ({ character, onSubmit, onCancel, authHeaders, onPromptPre
           </Select>
         </div>
 
-        {/* NSFW Level Selection */}
+        {/* NSFW Toggle (Binary, Vertical, Colored) */}
         <div className="space-y-2">
-          <Label htmlFor="nsfwLevel" className="text-sm font-medium text-slate-900">NSFW Level</Label>
-          <Select value={formData.nsfwLevel?.toString() || "0"} onValueChange={(value) => setFormData({ ...formData, nsfwLevel: parseInt(value) })}>
-            <SelectTrigger className="bg-white border-slate-300 text-slate-900">
-              <SelectValue placeholder="Select NSFW level" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="0">0 - Safe</SelectItem>
-              <SelectItem value="1">1 - Mild</SelectItem>
-              <SelectItem value="2">2 - Moderate</SelectItem>
-              <SelectItem value="3">3 - Explicit</SelectItem>
-            </SelectContent>
-          </Select>
+          <Label className="text-sm font-medium text-slate-900">NSFW Content</Label>
+          <div className="grid grid-cols-1 gap-2">
+            <Toggle
+              pressed={(formData.nsfwLevel || 0) === 0}
+              onPressedChange={() => setFormData({ ...formData, nsfwLevel: 0 })}
+              className={`w-full rounded-md px-4 py-2 text-sm border transition-all flex items-center
+                ${(formData.nsfwLevel || 0) === 0
+                  ? 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-300 shadow-md shadow-emerald-200'
+                  : 'bg-white text-slate-900 border-slate-300 hover:bg-emerald-50'}
+              `}
+            >
+              <Shield className="w-4 h-4 mr-2" />
+              SAFE — Family-friendly prompt
+            </Toggle>
+            <Toggle
+              pressed={(formData.nsfwLevel || 0) > 0}
+              onPressedChange={() => setFormData({ ...formData, nsfwLevel: 1 })}
+              className={`w-full rounded-md px-4 py-2 text-sm border transition-all flex items-center
+                ${(formData.nsfwLevel || 0) > 0
+                  ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white border-rose-700 ring-2 ring-rose-300 shadow-md shadow-rose-200'
+                  : 'bg-white text-slate-900 border-slate-300 hover:bg-rose-50'}
+              `}
+            >
+              <AlertTriangle className="w-4 h-4 mr-2" />
+              NSFW — Adult-oriented prompt
+            </Toggle>
+          </div>
+          <p className="text-xs text-slate-600">Choose SAFE (blue) or NSFW (red). Only one can be active.</p>
         </div>
 
         {/* Age Field */}

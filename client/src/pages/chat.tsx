@@ -540,7 +540,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                   />
                   <div className="text-center">
                     <h4 className="font-semibold text-lg mb-2">{character?.name}</h4>
-                    <p className="text-sm text-gray-300 mb-4">{character?.backstory}</p>
+                    <p className="text-sm text-gray-300 mb-4">{character?.description}</p>
                   </div>
                   <div className="flex flex-wrap gap-2 justify-center">
                     {character?.traits?.map((trait, index) => (
@@ -587,7 +587,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
               {/* Description */}
               <div className="mb-4">
                 <p className="text-sm text-gray-300 leading-relaxed">
-                  {character?.backstory}
+                  {character?.description}
                 </p>
               </div>
 

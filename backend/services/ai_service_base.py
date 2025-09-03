@@ -135,10 +135,11 @@ class AIServiceBase(ABC):
         # Prefer PromptEngine for user-created characters with persona/backstory
         if character and (getattr(character, 'persona_prompt', None) or getattr(character, 'backstory', None)):
             try:
-                # For now, use the existing system prompt (NSFW) until Issue #156 wires SAFE/NSFW selection upstream
-                from prompts.system import SYSTEM_PROMPT
+                # Select SAFE/NSFW system prompt via binary toggle (Issue #156)
+                from utils.prompt_selector import select_system_prompt
                 from services.prompt_engine import PromptEngine
-                engine = PromptEngine(system_prompt=SYSTEM_PROMPT)
+                selected_system_prompt, prompt_type = select_system_prompt(character)
+                engine = PromptEngine(system_prompt=selected_system_prompt)
                 compiled = engine.compile(character)
                 return {
                     "persona_prompt": compiled.get("system_text", ""),
@@ -152,7 +153,12 @@ class AIServiceBase(ABC):
         # Fallback to dynamic enhancer
         if character:
             from utils.character_prompt_enhancer import CharacterPromptEnhancer
-            enhancer = CharacterPromptEnhancer()
+            try:
+                from utils.prompt_selector import select_system_prompt
+                selected_system_prompt, _ = select_system_prompt(character)
+            except Exception:
+                selected_system_prompt = None
+            enhancer = CharacterPromptEnhancer(system_prompt=selected_system_prompt)
             return enhancer.enhance_dynamic_prompt(character)
 
         # No character provided
