@@ -21,6 +21,7 @@ import PaymentPage from "@/pages/payment";
 import NotificationsPage from "@/pages/notifications";
 import FAQPage from "@/pages/faq";
 import AboutPage from "@/pages/about";
+import MyCharactersPage from "@/pages/my-characters";
 import AuthModal from "@/components/auth/AuthModal";
 import TabNavigation from "@/components/layout/TabNavigation";
 import { RolePlayProvider, useRolePlay } from "@/contexts/RolePlayContext";
@@ -104,6 +105,11 @@ function MainApp() {
               <Route path="/create-character">
                 <ProtectedRoute>
                   <CreateCharacterPage />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/my-characters">
+                <ProtectedRoute>
+                  <MyCharactersPage />
                 </ProtectedRoute>
               </Route>
               <Route path="/chat-preview" component={ChatPreviewPage} />

@@ -333,6 +333,7 @@ export type TranslationKey =
   | 'characterWhispers'
   | 'characterPerforms'
   | 'createCharacter'
+  | 'myCharacters'
   | 'hide'
   | 'show'
   | 'basicInfo'
@@ -1270,6 +1271,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     favorites: 'Favorites',
     discover: 'Discover',
     createCharacter: 'Create Character',
+    myCharacters: 'My Characters',
     aboutUs: 'About Us',
     faq: 'FAQ',
     blog: 'Blog',
@@ -1918,6 +1920,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     favorites: '收藏',
     discover: '发现',
     createCharacter: '创建角色',
+    myCharacters: '我的角色',
     aboutUs: '关于我们',
     faq: '常见问题',
     blog: '博客',

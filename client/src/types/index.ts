@@ -28,6 +28,7 @@ export interface Character {
   conversationStyle?: string;  // Conversation style from Issue #146
   isPublic?: boolean;     // Public/private toggle from Issue #146
   galleryEnabled?: boolean; // Gallery feature toggle from Issue #146
+  createdBy?: number;     // User ID of character creator (for ownership checks)
   createdAt: string;
   // Admin management and analytics fields
   isFeatured?: boolean;
