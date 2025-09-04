@@ -1570,7 +1570,8 @@ const AdminPage = () => {
 
 // Validation functions
 const validateAge = (age: number): boolean => age >= 1 && age <= 200;
-const validateNSFWLevel = (level: number): boolean => level >= 0 && level <= 3;
+// NSFW is binary (SAFE=0, NSFW=1)
+const validateNSFWLevel = (level: number): boolean => level === 0 || level === 1;
 
 const CharacterForm = ({ character, onSubmit, onCancel, authHeaders, onPromptPreview }: {
   character: Character | null;
@@ -1639,10 +1640,11 @@ const CharacterForm = ({ character, onSubmit, onCancel, authHeaders, onPromptPre
       return;
     }
     
-    if (formData.nsfwLevel && !validateNSFWLevel(formData.nsfwLevel)) {
+    // NSFW is a binary toggle; enforce 0 or 1 if necessary (defensive)
+    if (formData.nsfwLevel !== undefined && !validateNSFWLevel(formData.nsfwLevel)) {
       toast({
         title: "❌ Validation Error", 
-        description: "NSFW Level must be between 0 and 3",
+        description: "Invalid NSFW value. Choose SAFE or NSFW.",
         variant: "destructive",
       });
       return;
