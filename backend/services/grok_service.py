@@ -19,6 +19,7 @@ from typing import List, Dict, Any, Optional, Tuple
 from models import Character, ChatMessage
 from .ai_service_base import AIServiceBase, AIServiceError
 from prompts.system import SYSTEM_PROMPT
+from utils.prompt_selector import select_system_prompt
 from prompts.character_templates import OPENING_LINE_TEMPLATE
 import logging
 import asyncio
@@ -155,7 +156,7 @@ class GrokService(AIServiceBase):
             character_prompt = self._get_character_prompt(character)
             
             # Create opening line prompt
-            system_message = self._build_system_message(character_prompt)
+            system_message = self._build_system_message(character_prompt, character)
             user_message = f"Generate an engaging opening line for {character.name}. Stay in character and create an immersive first impression."
             
             messages = [
@@ -203,7 +204,7 @@ class GrokService(AIServiceBase):
         grok_messages = []
         
         # Add system message with character context
-        system_message = self._build_system_message(character_prompt)
+        system_message = self._build_system_message(character_prompt, character)
         grok_messages.append({"role": "system", "content": system_message})
         
         # Add few-shot examples as conversation history
@@ -228,7 +229,7 @@ class GrokService(AIServiceBase):
         
         return grok_messages
     
-    def _build_system_message(self, character_prompt: dict) -> str:
+    def _build_system_message(self, character_prompt: dict, character: Optional[Character] = None) -> str:
         """
         Build system message from character prompt
         
@@ -240,8 +241,14 @@ class GrokService(AIServiceBase):
         """
         system_parts = []
         
-        # Add base system prompt
-        system_parts.append(SYSTEM_PROMPT)
+        # Add base system prompt selected via SAFE/NSFW toggle
+        try:
+            selected_system_prompt, prompt_type = select_system_prompt(character)  # defaults to SAFE when character is None
+            self.logger.info(f"🧭 Grok using {prompt_type} system prompt")
+            system_parts.append(selected_system_prompt)
+        except Exception:
+            # Fallback to original NSFW system prompt if selection fails
+            system_parts.append(SYSTEM_PROMPT)
         
         # Add character persona
         persona_prompt = character_prompt.get("persona_prompt", "")

@@ -4,6 +4,7 @@ from config import settings
 from models import Character, ChatMessage
 from prompts.system import SYSTEM_PROMPT
 from prompts.character_templates import DYNAMIC_CHARACTER_TEMPLATE, OPENING_LINE_TEMPLATE
+from utils.prompt_selector import select_system_prompt, get_prompt_type
 from cache_components import SystemInstructionBuilder, ContentFormatConverter, CacheManager
 from typing import List, Optional, Dict
 import logging
@@ -48,30 +49,39 @@ class GeminiService:
         # NEW: Use PromptEngine if persona_prompt or backstory is available
         elif character and (character.persona_prompt or character.backstory):
             from services.prompt_engine import PromptEngine
-            engine = PromptEngine(system_prompt=SYSTEM_PROMPT)
+            # Use selected system prompt based on character's NSFW level
+            selected_system_prompt, prompt_type = select_system_prompt(character)
+            engine = PromptEngine(system_prompt=selected_system_prompt)
             compiled = engine.compile(character)
-            logger.info(f"🎭 Using PromptEngine for character: {character.name} (source: {compiled['used_fields']['persona_source']})")
+            logger.info(f"🎭 Using PromptEngine for character: {character.name} (source: {compiled['used_fields']['persona_source']}, prompt_type: {prompt_type})")
             
             # Convert PromptEngine output to expected format for cache creation
             return {
                 "persona_prompt": compiled["system_text"],
                 "few_shot_contents": [],  # PromptEngine is few-shot agnostic
                 "use_cache": True,  # Allow caching of PromptEngine output
-                "use_few_shot": False  # No few-shot examples from PromptEngine
+                "use_few_shot": False,  # No few-shot examples from PromptEngine
+                "prompt_type": prompt_type  # Include prompt type for preview
             }
         
         # Fallback to legacy enhancer for characters without persona/backstory
         elif character:
             from utils.character_prompt_enhancer import CharacterPromptEnhancer
-            enhancer = CharacterPromptEnhancer()
-            logger.info(f"🎭 Fallback to CharacterPromptEnhancer for character: {character.name}")
-            return enhancer.enhance_dynamic_prompt(character)
+            # Get selected system prompt and pass to enhancer
+            selected_system_prompt, prompt_type = select_system_prompt(character)
+            enhancer = CharacterPromptEnhancer(system_prompt=selected_system_prompt)
+            logger.info(f"🎭 Fallback to CharacterPromptEnhancer for character: {character.name} (prompt_type: {prompt_type})")
+            result = enhancer.enhance_dynamic_prompt(character)
+            result["prompt_type"] = prompt_type  # Add prompt type for preview
+            return result
         
         # No character fallback
         else:
+            _, prompt_type = select_system_prompt(None)  # Will return SAFE
             return {
                 "persona_prompt": "",
-                "few_shot_contents": []
+                "few_shot_contents": [],
+                "prompt_type": prompt_type
             }
     
     def _load_hardcoded_character(self, character: Character) -> Optional[dict]:
@@ -98,12 +108,14 @@ class GeminiService:
                 # Validate required attributes exist
                 if hasattr(module, 'PERSONA_PROMPT') and hasattr(module, 'FEW_SHOT_EXAMPLES'):
                     # Respect character-specific control flags
+                    _, prompt_type = select_system_prompt(character)  # Apply binary NSFW logic to hardcoded characters too
                     character_data = {
                         "persona_prompt": module.PERSONA_PROMPT,
                         "few_shot_contents": module.FEW_SHOT_EXAMPLES,
                         # NEW: Control flags for cache and few-shot behavior
                         "use_cache": getattr(module, 'USE_CACHE', True),
                         "use_few_shot": getattr(module, 'USE_FEW_SHOT', True),
+                        "prompt_type": prompt_type  # Include prompt type for preview
                     }
                     
                     logger.debug(f"Loaded character {character.name}: cache={character_data['use_cache']}, few_shot={character_data['use_few_shot']}")
@@ -159,7 +171,7 @@ class GeminiService:
                 logger.info("🎭 No character specified, using default prompt")
             
             # Create cache for this conversation context if not exists
-            cache = await self._create_or_get_cache(character_prompt)
+            cache = await self._create_or_get_cache(character_prompt, character)
             
             # Manage conversation length to stay within token limits
             managed_messages = self._manage_conversation_length(messages)
@@ -173,8 +185,9 @@ class GeminiService:
             # If cache creation failed, fall back to direct API call without cache
             if cache is None:
                 logger.warning("⚠️ No cache available, using direct API call with system prompt")
-                # Create system prompt for direct call
-                system_instruction = f"system_prompt: {SYSTEM_PROMPT}\n"
+                # Create system prompt for direct call using selected system prompt
+                selected_system_prompt, _ = select_system_prompt(character)
+                system_instruction = f"system_prompt: {selected_system_prompt}\n"
                 if character_prompt.get("persona_prompt"):
                     system_instruction += f"persona prompt: {character_prompt['persona_prompt']}"
                 
@@ -224,7 +237,7 @@ class GeminiService:
             logger.error(f"Error generating Gemini response: {e}")
             return self._simulate_response(character, messages), {"tokens_used": 1}
     
-    async def _create_or_get_cache(self, character_prompt: dict):
+    async def _create_or_get_cache(self, character_prompt: dict, character: Character = None):
         """
         Create or get cached content using separated responsibilities.
         
@@ -244,8 +257,11 @@ class GeminiService:
             logger.info("Character configured to skip cache, using direct API")
             return None  # Triggers existing fallback path (lines 152-165)
         
+        # Get the selected system prompt for this character
+        selected_system_prompt, _ = select_system_prompt(character)
+        
         # Initialize components with their specific responsibilities
-        instruction_builder = SystemInstructionBuilder(SYSTEM_PROMPT)
+        instruction_builder = SystemInstructionBuilder(selected_system_prompt)
         format_converter = ContentFormatConverter()
         cache_manager = CacheManager(self.client, self.model_name, logger)
         
@@ -500,7 +516,7 @@ class GeminiService:
             opening_prompt = OPENING_LINE_TEMPLATE.format(character_name=character.name)
             
             # Create or get cache
-            cache = await self._create_or_get_cache(character_prompt)
+            cache = await self._create_or_get_cache(character_prompt, character)
             
             # Generate opening line using new API
             

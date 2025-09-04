@@ -23,6 +23,7 @@ from .ai_service_base import AIServiceBase, AIServiceError
 from prompts.system import SYSTEM_PROMPT
 from prompts.character_templates import OPENING_LINE_TEMPLATE
 from cache_components import SystemInstructionBuilder, ContentFormatConverter, CacheManager
+from utils.prompt_selector import select_system_prompt
 import logging
 import os
 import asyncio
@@ -91,8 +92,8 @@ class GeminiService(AIServiceBase):
             else:
                 self.logger.info("🎭 No character specified, using default prompt")
             
-            # Create cache for this conversation context if not exists
-            cache = await self._create_or_get_cache(character_prompt)
+            # Create cache for this conversation context if not exists (with selected system prompt)
+            cache = await self._create_or_get_cache(character_prompt, character)
             
             # Manage conversation length to stay within token limits
             managed_messages = self._manage_conversation_length(messages)
@@ -106,8 +107,10 @@ class GeminiService(AIServiceBase):
             # If cache creation failed, fall back to direct API call without cache
             if cache is None:
                 self.logger.warning("⚠️ No cache available, using direct API call with system prompt")
-                # Create system prompt for direct call
-                system_instruction = f"system_prompt: {SYSTEM_PROMPT}\n"
+                # Create system prompt for direct call using selected SAFE/NSFW prompt
+                selected_system_prompt, prompt_type = select_system_prompt(character)
+                self.logger.info(f"🧭 Using {prompt_type} system prompt for direct call")
+                system_instruction = f"system_prompt: {selected_system_prompt}\n"
                 if character_prompt.get("persona_prompt"):
                     system_instruction += f"persona prompt: {character_prompt['persona_prompt']}"
                 
@@ -181,8 +184,8 @@ class GeminiService(AIServiceBase):
             # Create opening line prompt using template
             opening_prompt = OPENING_LINE_TEMPLATE.format(character_name=character.name)
             
-            # Create or get cache
-            cache = await self._create_or_get_cache(character_prompt)
+            # Create or get cache with selected SAFE/NSFW system prompt
+            cache = await self._create_or_get_cache(character_prompt, character)
             
             # Generate opening line using new API
             if cache:
@@ -194,8 +197,9 @@ class GeminiService(AIServiceBase):
                     )
                 )
             else:
-                # Fallback without cache
-                system_instruction = f"system_prompt: {SYSTEM_PROMPT}\n"
+                # Fallback without cache using selected SAFE/NSFW system prompt
+                selected_system_prompt, _ = select_system_prompt(character)
+                system_instruction = f"system_prompt: {selected_system_prompt}\n"
                 if character_prompt.get("persona_prompt"):
                     system_instruction += f"persona prompt: {character_prompt['persona_prompt']}"
                 
@@ -220,7 +224,7 @@ class GeminiService(AIServiceBase):
     
     # PRIVATE METHODS - Gemini-specific implementations
     
-    async def _create_or_get_cache(self, character_prompt: dict):
+    async def _create_or_get_cache(self, character_prompt: dict, character: Optional[Character] = None):
         """
         Create or get cached content using separated responsibilities.
         
@@ -234,8 +238,16 @@ class GeminiService(AIServiceBase):
             self.logger.info("Character configured to skip cache, using direct API")
             return None
 
+        # Select SAFE/NSFW system prompt for this character
+        try:
+            selected_system_prompt, prompt_type = select_system_prompt(character)
+            self.logger.info(f"🧭 Using {prompt_type} system prompt for cache/instructions")
+        except Exception:
+            # Fallback to NSFW prompt constant if selection fails
+            selected_system_prompt, prompt_type = SYSTEM_PROMPT, "NSFW"
+
         # Initialize components with their specific responsibilities
-        instruction_builder = SystemInstructionBuilder(SYSTEM_PROMPT)
+        instruction_builder = SystemInstructionBuilder(selected_system_prompt)
         format_converter = ContentFormatConverter()
         cache_manager = CacheManager(self.client, self.model_name, self.logger)
         

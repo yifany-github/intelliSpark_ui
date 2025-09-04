@@ -598,19 +598,23 @@ async def get_character_prompt_preview(
             ).order_by(ChatMessage.timestamp.desc()).limit(10).all()
             sample_chat = list(reversed(chat_messages))  # Chronological order
         
-        # Generate prompt preview using PromptEngine
+        # Generate prompt preview using PromptEngine with selected system prompt
         from services.prompt_engine import create_prompt_preview
-        from prompts.system import SYSTEM_PROMPT
+        from utils.prompt_selector import select_system_prompt, get_prompt_type
+        
+        # Get appropriate system prompt based on character's NSFW level
+        selected_system_prompt, prompt_type = select_system_prompt(character)
         
         preview_result = create_prompt_preview(
             character=character,
             sample_chat=sample_chat,
-            system_prompt=SYSTEM_PROMPT
+            system_prompt=selected_system_prompt
         )
         
         return {
             "character_id": character_id,
             "character_name": character.name,
+            "prompt_type": prompt_type,  # Include which system prompt was used
             "system_text": preview_result["system_text"],
             "token_counts": preview_result["token_counts"],
             "used_fields": preview_result["used_fields"],

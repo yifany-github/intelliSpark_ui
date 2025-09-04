@@ -87,27 +87,24 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const [visibleCategoriesCount, setVisibleCategoriesCount] = useState(6);
   const { navigateToPath, navigateToLogin } = useNavigation();
 
-  // Helper function to detect NSFW content in character
+  // Helper function to detect NSFW content in character (primary: explicit flag; secondary: keyword heuristic)
   const isCharacterNSFW = (character: Character): boolean => {
+    // Prefer explicit flag from backend
+    if ((character.nsfwLevel || 0) > 0) return true;
+
+    // Fallback heuristic for legacy data with no nsfwLevel set
     const nsfwKeywords = ['nsfw', 'adult', '成人', '性', '娇羞', '淫', '魅惑', '撩人', '敏感', '情色', '欲望', '肉体', '呻吟', '诱惑', '性感'];
-    
-    // Check traits for NSFW content
     const hasNsfwTrait = character.traits.some((trait: string) => 
       nsfwKeywords.some(keyword => trait.toLowerCase().includes(keyword.toLowerCase()))
     );
-    
-    // Check description for NSFW content
     const description = character.description || '';
     const hasNsfwDescription = nsfwKeywords.some(keyword => 
       description.toLowerCase().includes(keyword.toLowerCase())
     );
-    
-    // Check backstory for NSFW content
     const backstory = character.backstory || '';
     const hasNsfwBackstory = nsfwKeywords.some(keyword => 
       backstory.toLowerCase().includes(keyword.toLowerCase())
     );
-    
     return hasNsfwTrait || hasNsfwDescription || hasNsfwBackstory;
   };
 
@@ -330,30 +327,10 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     
     // NSFW filter
     if (!nsfwEnabled) {
-      // When NSFW is disabled, only show SFW content
-      const nsfwKeywords = ['nsfw', 'adult', '成人', '性', '娇羞', '淫', '魅惑', '撩人', '敏感', '情色', '欲望', '肉体', '呻吟'];
-      
-      // Check traits for NSFW content
-      const hasNsfwTrait = character.traits.some((trait: string) => 
-        nsfwKeywords.some(keyword => trait.toLowerCase().includes(keyword.toLowerCase()))
-      );
-      
-      // Check description for NSFW content
-      const description = character.description || '';
-      const hasNsfwDescription = nsfwKeywords.some(keyword => 
-        description.toLowerCase().includes(keyword.toLowerCase())
-      );
-      
-      // Check backstory for NSFW content
-      const backstory = character.backstory || '';
-      const hasNsfwBackstory = nsfwKeywords.some(keyword => 
-        backstory.toLowerCase().includes(keyword.toLowerCase())
-      );
-      
-      // Exclude characters with any NSFW content when NSFW is disabled
-      if (hasNsfwTrait || hasNsfwDescription || hasNsfwBackstory) {
-        return false;
-      }
+      // Hide characters explicitly marked NSFW
+      if ((character.nsfwLevel || 0) > 0) return false;
+      // For legacy data without nsfwLevel, fall back to heuristic
+      if (isCharacterNSFW(character)) return false;
     }
     
     // Gender filter

@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
+import { Toggle } from '@/components/ui/toggle';
 import { X } from 'lucide-react';
 
 enum CreationStep {
@@ -26,15 +27,16 @@ enum CreationStep {
 }
 
 interface CharacterFormData {
-  name: string;              // ✅ Form field: Character Name input
-  backstory: string;         // ✅ Form field: Character Description textarea
-  traits: string[];          // ✅ Form field: Dynamic trait badges
-  avatar: string | null;     // ✅ Form field: Avatar upload
-  category: string;          // ✅ Form field: Primary category (backwards compatibility)
-  categories: string[];      // ✅ New field: Multiple category tags
-  gender: string;            // ✅ Form field: Gender dropdown
-  isPublic: boolean;         // ✅ Form field: Make Public switch
-  isNsfw: boolean;          // ✅ Form field: NSFW Content switch
+  name: string;              // ✅ Character name
+  description: string;       // ✅ Short public description
+  personaPrompt: string;     // ✅ LLM persona/backstory prompt
+  traits: string[];          // ✅ Dynamic trait badges
+  avatar: string | null;     // ✅ Avatar upload
+  category: string;          // ✅ Primary category (backwards compatibility)
+  categories: string[];      // ✅ Multiple category tags
+  gender: string;            // ✅ Gender dropdown
+  isPublic: boolean;         // ✅ Make Public switch
+  isNsfw: boolean;           // ✅ NSFW Content switch (binary)
   // Note: voiceStyle and conversationStyle are not form fields, set as defaults in API call
 }
 
@@ -50,7 +52,8 @@ const ImprovedCreateCharacterPage = () => {
   const [createdCharacter, setCreatedCharacter] = useState<Character | null>(null);
   const [formData, setFormData] = useState<CharacterFormData>({
     name: '',
-    backstory: '',
+    description: '',
+    personaPrompt: '',
     traits: [],
     avatar: '/assets/characters_img/Elara.jpeg',
     category: 'original',
@@ -70,15 +73,20 @@ const ImprovedCreateCharacterPage = () => {
 
       const response = await apiRequest("POST", "/api/characters", {
         name: characterData.name,
-        description: characterData.backstory, // Use backstory as description
+        description: characterData.description, // Public description for cards/lists
         avatarUrl: characterData.avatar,
-        backstory: characterData.backstory,
+        // LLM persona/backstory: prefer explicit personaPrompt, fallback to empty
+        personaPrompt: characterData.personaPrompt || '',
+        // Fallback: if personaPrompt is empty, mirror description into backstory for better LLM behavior
+        backstory: characterData.personaPrompt || characterData.description || '',
         voiceStyle: "casual", // Default voice style since not in form
         traits: characterData.traits,
         category: characterData.category,
+        categories: characterData.categories,
         gender: characterData.gender,
         conversationStyle: "detailed", // Default conversation style since not in form
         isPublic: characterData.isPublic,
+        nsfwLevel: characterData.isNsfw ? 1 : 0,
       });
       
       if (!response.ok) {
@@ -148,7 +156,8 @@ const ImprovedCreateCharacterPage = () => {
     setCreatedCharacter(null);
     setFormData({
       name: '',
-      backstory: '',
+      description: '',
+      personaPrompt: '',
       traits: [],
       avatar: '/assets/characters_img/Elara.jpeg',
       category: 'original',
@@ -347,17 +356,31 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="backstory" className="text-sm font-medium">{t('characterDescription')}</Label>
+            <Label htmlFor="description" className="text-sm font-medium">{t('characterDescription') || 'Description'}</Label>
             <Textarea
-              id="backstory"
-              value={formData.backstory}
-              onChange={(e) => setFormData({ ...formData, backstory: e.target.value })}
-              placeholder={t('characterDescriptionPlaceholder')}
-              rows={5}
+              id="description"
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder={t('characterDescriptionPlaceholder') || 'Brief public description shown on cards and lists'}
+              rows={4}
               required
             />
             <p className="text-xs text-muted-foreground">
-              {t('characterDescriptionHelp')}
+              {t('characterDescriptionHelp') || 'A short summary for discovery and previews.'}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="personaPrompt" className="text-sm font-medium">Persona Prompt (LLM)</Label>
+            <Textarea
+              id="personaPrompt"
+              value={formData.personaPrompt}
+              onChange={(e) => setFormData({ ...formData, personaPrompt: e.target.value })}
+              placeholder={'Optional: Define how the AI should behave as this character. If empty, only the description is used.'}
+              rows={6}
+            />
+            <p className="text-xs text-muted-foreground">
+              This drives the AI’s behavior and backstory. You can leave it blank for a lightweight persona.
             </p>
           </div>
         </div>
@@ -488,15 +511,35 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
               />
             </div>
 
-            <div className="flex items-center justify-between p-4 rounded-lg border">
-              <div>
+            <div className="p-4 rounded-lg border">
+              <div className="mb-3">
                 <Label className="text-sm font-medium">{t('nsfwContent')}</Label>
                 <p className="text-xs text-muted-foreground">{t('enableMatureContent')}</p>
               </div>
-              <Switch
-                checked={formData.isNsfw}
-                onCheckedChange={(checked) => setFormData({ ...formData, isNsfw: checked })}
-              />
+              <div className="grid grid-cols-1 gap-2">
+                <Toggle
+                  pressed={!formData.isNsfw}
+                  onPressedChange={() => setFormData({ ...formData, isNsfw: false })}
+                  className={`w-full rounded-md px-4 py-2 text-sm border transition-all flex items-center
+                    ${!formData.isNsfw
+                      ? 'bg-emerald-600 text-white border-emerald-600 ring-2 ring-emerald-300 shadow-md shadow-emerald-200'
+                      : 'bg-white text-slate-900 border-slate-300 hover:bg-emerald-50'}
+                  `}
+                >
+                  SAFE — Family-friendly prompt
+                </Toggle>
+                <Toggle
+                  pressed={formData.isNsfw}
+                  onPressedChange={() => setFormData({ ...formData, isNsfw: true })}
+                  className={`w-full rounded-md px-4 py-2 text-sm border transition-all flex items-center
+                    ${formData.isNsfw
+                      ? 'bg-gradient-to-r from-rose-600 to-rose-700 text-white border-rose-700 ring-2 ring-rose-300 shadow-md shadow-rose-200'
+                      : 'bg-white text-slate-900 border-slate-300 hover:bg-rose-50'}
+                  `}
+                >
+                  NSFW — Adult-oriented prompt
+                </Toggle>
+              </div>
             </div>
           </div>
         </div>
