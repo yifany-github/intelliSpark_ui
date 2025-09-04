@@ -23,7 +23,7 @@ from auth.routes import get_current_user
 from services.character_service import CharacterService, CharacterServiceError
 from services.upload_service import UploadService
 from services.character_gallery_service import CharacterGalleryService
-from schemas import Character as CharacterSchema, CharacterCreate
+from schemas import Character as CharacterSchema, CharacterCreate, CharacterUpdate
 from models import User
 from routes.admin import is_admin
 
@@ -277,6 +277,109 @@ async def reorder_gallery_images(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to reorder gallery images: {str(e)}")
+
+
+# User Character Management Routes
+
+@router.get("/users/me")
+async def get_my_characters(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get characters created by the current user"""
+    try:
+        service = CharacterService(db)
+        characters = await service.get_user_characters(current_user.id)
+        return characters
+    except CharacterServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{character_id}")
+async def update_character(
+    character_id: int,
+    character_data: CharacterUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Update character (owner or admin only)"""
+    try:
+        service = CharacterService(db)
+        success, character, error = await service.update_character(
+            character_id, character_data, current_user.id, is_admin(current_user)
+        )
+        
+        if not success:
+            if error == "Character not found":
+                raise HTTPException(status_code=404, detail=error)
+            elif "can only edit" in error or "can only modify" in error:
+                raise HTTPException(status_code=403, detail=error)
+            else:
+                raise HTTPException(status_code=400, detail=error)
+        
+        return character
+    except HTTPException:
+        raise
+    except CharacterServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.put("/{character_id}/publish")
+async def toggle_character_publish(
+    character_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Toggle character public/private status (owner or admin only)"""
+    try:
+        service = CharacterService(db)
+        success, character, error = await service.toggle_character_publish(
+            character_id, current_user.id, is_admin(current_user)
+        )
+        
+        if not success:
+            if error == "Character not found":
+                raise HTTPException(status_code=404, detail=error)
+            elif "can only" in error:
+                raise HTTPException(status_code=403, detail=error)
+            else:
+                raise HTTPException(status_code=400, detail=error)
+        
+        return character
+    except HTTPException:
+        raise
+    except CharacterServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/{character_id}")
+async def delete_character(
+    character_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Delete character (owner or admin only)"""
+    try:
+        service = CharacterService(db)
+        success, error = await service.delete_character(
+            character_id, current_user.id, is_admin(current_user)
+        )
+        
+        if not success:
+            if error == "Character not found":
+                raise HTTPException(status_code=404, detail=error)
+            elif "can only delete" in error:
+                raise HTTPException(status_code=403, detail=error)
+            elif "Cannot delete character" in error:
+                raise HTTPException(status_code=400, detail=error)
+            else:
+                raise HTTPException(status_code=500, detail=error)
+        
+        return {"message": f"Character {character_id} deleted successfully"}
+    except HTTPException:
+        raise
+    except CharacterServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/gallery/stats")

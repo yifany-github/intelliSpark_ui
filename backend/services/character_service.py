@@ -331,40 +331,221 @@ class CharacterService:
     async def update_character(
         self, 
         character_id: int, 
-        character_data: CharacterCreate, 
-        user_id: int
+        character_data, 
+        user_id: int,
+        is_admin: bool = False
     ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
         """
-        Update existing character (future implementation)
+        Update existing character with ownership validation
         
         Args:
             character_id: ID of character to update
             character_data: Updated character data
             user_id: ID of user making the update
+            is_admin: Whether the user is an admin (bypasses ownership checks)
             
         Returns:
             (success, character_data, error_message)
         """
-        # TODO: Implement character updates with ownership validation
-        return False, {}, "Character updates not yet implemented"
+        try:
+            # Get the character
+            character = self.db.query(Character).filter(Character.id == character_id).first()
+            if not character:
+                return False, {}, "Character not found"
+            
+            # Check ownership (owner or admin)
+            if not is_admin and character.created_by != user_id:
+                return False, {}, "You can only edit characters you created"
+            
+            # Validate required fields if provided
+            if hasattr(character_data, 'name') and character_data.name is not None:
+                if len(character_data.name.strip()) < 2:
+                    return False, {}, "Character name must be at least 2 characters"
+                character.name = character_data.name.strip()
+            
+            if hasattr(character_data, 'description') and character_data.description is not None:
+                if len(character_data.description.strip()) < 10:
+                    return False, {}, "Description must be at least 10 characters"
+                character.description = character_data.description.strip()
+            
+            if hasattr(character_data, 'personaPrompt') and character_data.personaPrompt is not None:
+                if len(character_data.personaPrompt) > 5000:
+                    return False, {}, "Persona prompt must be 5000 characters or less"
+                character.persona_prompt = character_data.personaPrompt
+                # Update backstory if not explicitly provided
+                if not (hasattr(character_data, 'backstory') and character_data.backstory):
+                    character.backstory = character_data.personaPrompt
+            
+            if hasattr(character_data, 'backstory') and character_data.backstory is not None:
+                character.backstory = character_data.backstory
+                
+            if hasattr(character_data, 'avatarUrl') and character_data.avatarUrl is not None:
+                character.avatar_url = character_data.avatarUrl
+                
+            if hasattr(character_data, 'voiceStyle') and character_data.voiceStyle is not None:
+                character.voice_style = character_data.voiceStyle
+                
+            if hasattr(character_data, 'traits') and character_data.traits is not None:
+                character.traits = character_data.traits
+                
+            if hasattr(character_data, 'category') and character_data.category is not None:
+                character.category = character_data.category
+                
+            if hasattr(character_data, 'gender') and character_data.gender is not None:
+                character.gender = character_data.gender
+                
+            if hasattr(character_data, 'age') and character_data.age is not None:
+                if character_data.age < 1 or character_data.age > 200:
+                    return False, {}, "Age must be between 1 and 200"
+                character.age = character_data.age
+                
+            if hasattr(character_data, 'nsfwLevel') and character_data.nsfwLevel is not None:
+                if character_data.nsfwLevel not in [0, 1]:
+                    return False, {}, "NSFW level must be 0 or 1"
+                character.nsfw_level = character_data.nsfwLevel
+                
+            if hasattr(character_data, 'conversationStyle') and character_data.conversationStyle is not None:
+                character.conversation_style = character_data.conversationStyle
+                
+            if hasattr(character_data, 'isPublic') and character_data.isPublic is not None:
+                character.is_public = character_data.isPublic
+            
+            self.db.commit()
+            self.db.refresh(character)
+            
+            # Transform for API response
+            response_data = transform_character_to_response(character)
+            
+            self.logger.info(f"Character updated successfully: {character.id} by user {user_id}")
+            return True, response_data, None
+            
+        except Exception as e:
+            self.logger.error(f"Error updating character {character_id}: {e}")
+            self.db.rollback()
+            return False, {}, f"Character update failed: {e}"
     
     async def delete_character(
         self, 
         character_id: int, 
-        user_id: int
+        user_id: int,
+        is_admin: bool = False
     ) -> Tuple[bool, Optional[str]]:
         """
-        Delete character (future implementation)
+        Delete character with ownership validation
         
         Args:
             character_id: ID of character to delete
             user_id: ID of user requesting deletion
+            is_admin: Whether the user is an admin (bypasses ownership checks)
             
         Returns:
             (success, error_message)
         """
-        # TODO: Implement character deletion with ownership validation
-        return False, "Character deletion not yet implemented"
+        try:
+            # Get the character
+            character = self.db.query(Character).filter(Character.id == character_id).first()
+            if not character:
+                return False, "Character not found"
+            
+            # Check ownership (owner or admin)
+            if not is_admin and character.created_by != user_id:
+                return False, "You can only delete characters you created"
+            
+            # Check for dependent chats by other users (safety check)
+            from models import Chat
+            other_user_chats = self.db.query(Chat).filter(
+                Chat.character_id == character_id,
+                Chat.user_id != user_id
+            ).count()
+            
+            if other_user_chats > 0:
+                return False, "Cannot delete character - other users have active chats with this character. Consider unpublishing instead."
+            
+            # Safe to delete - remove own chats first
+            from models import ChatMessage
+            own_chats = self.db.query(Chat).filter(
+                Chat.character_id == character_id,
+                Chat.user_id == user_id
+            ).all()
+            
+            # Delete chat messages and chats
+            for chat in own_chats:
+                self.db.query(ChatMessage).filter(ChatMessage.chat_id == chat.id).delete()
+                self.db.delete(chat)
+            
+            # Delete the character
+            self.db.delete(character)
+            self.db.commit()
+            
+            self.logger.info(f"Character deleted: {character_id} by user {user_id} (deleted {len(own_chats)} associated chats)")
+            return True, None
+            
+        except Exception as e:
+            self.logger.error(f"Error deleting character {character_id}: {e}")
+            self.db.rollback()
+            return False, f"Character deletion failed: {e}"
+    
+    async def get_user_characters(self, user_id: int) -> List[Dict[str, Any]]:
+        """
+        Get all characters created by a specific user
+        
+        Args:
+            user_id: ID of the user
+            
+        Returns:
+            List of character dictionaries created by the user
+        """
+        try:
+            characters = self.db.query(Character).filter(Character.created_by == user_id).all()
+            return transform_character_list_to_response(characters)
+        except Exception as e:
+            self.logger.error(f"Error fetching user characters for user {user_id}: {e}")
+            raise CharacterServiceError(f"Failed to fetch user characters: {e}")
+    
+    async def toggle_character_publish(
+        self, 
+        character_id: int, 
+        user_id: int,
+        is_admin: bool = False
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+        """
+        Toggle character public/private status
+        
+        Args:
+            character_id: ID of character to toggle
+            user_id: ID of user making the request
+            is_admin: Whether the user is an admin (bypasses ownership checks)
+            
+        Returns:
+            (success, character_data, error_message)
+        """
+        try:
+            # Get the character
+            character = self.db.query(Character).filter(Character.id == character_id).first()
+            if not character:
+                return False, {}, "Character not found"
+            
+            # Check ownership (owner or admin)
+            if not is_admin and character.created_by != user_id:
+                return False, {}, "You can only modify characters you created"
+            
+            # Toggle public status
+            character.is_public = not character.is_public
+            
+            self.db.commit()
+            self.db.refresh(character)
+            
+            # Transform for API response
+            response_data = transform_character_to_response(character)
+            
+            status = "published" if character.is_public else "unpublished"
+            self.logger.info(f"Character {status}: {character.id} by user {user_id}")
+            return True, response_data, None
+            
+        except Exception as e:
+            self.logger.error(f"Error toggling publish status for character {character_id}: {e}")
+            self.db.rollback()
+            return False, {}, f"Failed to toggle publish status: {e}"
     
     # Admin-specific operations
     async def get_admin_character_stats(self) -> Dict[str, Any]:

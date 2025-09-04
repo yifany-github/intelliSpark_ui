@@ -89,6 +89,45 @@ class CharacterBase(BaseSchema):
 class CharacterCreate(CharacterBase):
     pass
 
+class CharacterUpdate(BaseSchema):
+    """Schema for user character updates (owner or admin only)"""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    avatarUrl: Optional[str] = Field(default=None, alias="avatar_url")
+    backstory: Optional[str] = None
+    personaPrompt: Optional[str] = Field(default=None, alias="persona_prompt")
+    voiceStyle: Optional[str] = Field(default=None, alias="voice_style")
+    traits: Optional[List[str]] = None
+    category: Optional[str] = None
+    gender: Optional[str] = None
+    age: Optional[int] = Field(None, ge=1, le=200, description="Character age (1-200)")
+    nsfwLevel: Optional[int] = Field(default=None, ge=0, le=1, description="NSFW level (0 or 1 only)")
+    conversationStyle: Optional[str] = Field(default=None, alias="conversation_style")
+    isPublic: Optional[bool] = Field(default=None, alias="is_public")
+    
+    # Sanitize and validate string fields
+    @validator('name', 'description', 'backstory', 'personaPrompt', 'voiceStyle', 'category', 'gender', 'conversationStyle', pre=True)
+    def sanitize_string_fields(cls, v):
+        if v is not None:
+            # Strip HTML and clean input for security
+            sanitized = bleach.clean(str(v), tags=[], strip=True).strip()
+            return sanitized if sanitized else None
+        return v
+    
+    # Validate description length
+    @validator('description')
+    def validate_description(cls, v):
+        if v is not None and len(v.strip()) < 10:
+            raise ValueError("Description must be at least 10 characters")
+        return v
+    
+    # Validate persona prompt length
+    @validator('personaPrompt')
+    def validate_persona_prompt(cls, v):
+        if v is not None and len(v) > 5000:
+            raise ValueError("Persona prompt must be 5000 characters or less")
+        return v
+
 class CharacterAdminUpdate(BaseSchema):
     """Schema for admin-only character updates"""
     isFeatured: Optional[bool] = Field(default=None, alias="is_featured")

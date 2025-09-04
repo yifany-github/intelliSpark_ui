@@ -1,6 +1,8 @@
-import { X, Star, MessageCircle, Heart, Crown } from 'lucide-react';
+import { X, Star, MessageCircle, Heart, Crown, Edit } from 'lucide-react';
 import { Character } from '@/types';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { Link } from 'wouter';
 
 interface CharacterPreviewModalProps {
   character: Character | null;
@@ -20,8 +22,12 @@ export default function CharacterPreviewModal({
   isFavorite
 }: CharacterPreviewModalProps) {
   const { t } = useLanguage();
+  const { user } = useAuth();
   
   if (!isOpen || !character) return null;
+  
+  // Check if current user is the owner of this character
+  const isOwner = user && character.createdBy === user.id;
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -100,17 +106,29 @@ export default function CharacterPreviewModal({
 
           {/* Actions */}
           <div className="flex items-center justify-between p-6 border-t border-gray-700">
-            <button
-              onClick={() => onToggleFavorite(character.id)}
-              className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
-                isFavorite 
-                  ? 'bg-yellow-600 hover:bg-yellow-700 text-white' 
-                  : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
-              }`}
-            >
-              <Star className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} />
-              <span>{isFavorite ? t('removeFromFavorites') : t('addToFavorites')}</span>
-            </button>
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => onToggleFavorite(character.id)}
+                className={`flex items-center space-x-2 px-4 py-2 rounded-lg transition-colors ${
+                  isFavorite 
+                    ? 'bg-yellow-600 hover:bg-yellow-700 text-white' 
+                    : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+              >
+                <Star className={`w-4 h-4 ${isFavorite ? 'fill-current' : ''}`} />
+                <span>{isFavorite ? t('removeFromFavorites') : t('addToFavorites')}</span>
+              </button>
+              
+              {/* Owner-only edit button */}
+              {isOwner && (
+                <Link to={`/character/${character.id}/edit`}>
+                  <button className="flex items-center space-x-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors">
+                    <Edit className="w-4 h-4" />
+                    <span>Edit</span>
+                  </button>
+                </Link>
+              )}
+            </div>
 
             <button
               onClick={() => onStartChat(character)}
