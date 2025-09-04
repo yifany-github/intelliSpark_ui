@@ -105,6 +105,15 @@ class CharacterUpdate(BaseSchema):
     conversationStyle: Optional[str] = Field(default=None, alias="conversation_style")
     isPublic: Optional[bool] = Field(default=None, alias="is_public")
     
+    # Sanitize and validate string fields
+    @validator('name', 'description', 'backstory', 'personaPrompt', 'voiceStyle', 'category', 'gender', 'conversationStyle', pre=True)
+    def sanitize_string_fields(cls, v):
+        if v is not None:
+            # Strip HTML and clean input for security
+            sanitized = bleach.clean(str(v), tags=[], strip=True).strip()
+            return sanitized if sanitized else None
+        return v
+    
     # Validate description length
     @validator('description')
     def validate_description(cls, v):
