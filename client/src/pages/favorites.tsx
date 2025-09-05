@@ -9,12 +9,14 @@ import { apiRequest } from '@/lib/queryClient';
 import GlobalLayout from '@/components/layout/GlobalLayout';
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { useToast } from '@/hooks/use-toast';
 
 const FavoritesPage = () => {
   const { location, navigateToPath, navigateToHome } = useNavigation();
   const { setSelectedCharacter } = useRolePlay();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const { t } = useLanguage();
+  const { toast } = useToast();
   const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -125,7 +127,9 @@ const FavoritesPage = () => {
   };
 
   const handleFavoriteToggle = (characterId: number) => {
+    const willFavorite = !isFavorite(characterId);
     toggleFavorite(characterId);
+    toast({ title: willFavorite ? '已收藏' : '已取消收藏' });
   };
 
   const handlePreviewOpen = (character: Character) => {
@@ -155,7 +159,12 @@ const FavoritesPage = () => {
           alt={character.name}
           className="w-full h-48 sm:h-56 md:h-64 object-cover group-hover:brightness-110 transition-all duration-200"
         />
-        <div className="absolute top-2 right-2">
+        <div className="absolute top-2 right-2 z-20 flex items-center space-x-2">
+          {(character.nsfwLevel || 0) > 0 && (
+            <div className="w-8 h-8 bg-red-500/90 backdrop-blur-sm rounded-full border border-red-400/50 flex items-center justify-center">
+              <span className="text-xs text-white font-bold leading-none">18+</span>
+            </div>
+          )}
           <button 
             onClick={(e) => {
               e.stopPropagation();
@@ -176,8 +185,8 @@ const FavoritesPage = () => {
           </div>
         </div>
         {/* Hover overlay */}
-        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-          <div className="flex space-x-2">
+        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center pointer-events-none">
+          <div className="flex space-x-2 pointer-events-auto">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
@@ -224,11 +233,18 @@ const FavoritesPage = () => {
       className={`bg-gray-800 rounded-lg p-4 hover:bg-gray-750 transition-all duration-200 cursor-pointer group flex items-center space-x-4 ${isCreatingChat ? 'opacity-50 pointer-events-none' : ''}`}
       onClick={() => !isCreatingChat && handleCharacterClick(character)}
     >
-      <img
-        src={character.avatarUrl}
-        alt={character.name}
-        className="w-16 h-16 rounded-full object-cover"
-      />
+      <div className="relative">
+        <img
+          src={character.avatarUrl}
+          alt={character.name}
+          className="w-16 h-16 rounded-full object-cover"
+        />
+        {(character.nsfwLevel || 0) > 0 && (
+          <div className="absolute -top-2 -right-2 w-6 h-6 bg-red-500/90 rounded-full border border-red-400/50 flex items-center justify-center">
+            <span className="text-[10px] text-white font-bold leading-none">18+</span>
+          </div>
+        )}
+      </div>
       <div className="flex-1">
         <h3 className="font-semibold text-white mb-1 group-hover:text-blue-400 transition-colors">{character.name}</h3>
         <p className="text-sm text-gray-400 mb-2 line-clamp-2">{character.description || character.backstory}</p>

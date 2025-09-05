@@ -89,6 +89,7 @@ export function GalleryManagement({
   const [uploadAltText, setUploadAltText] = useState<string>('');
   const [dragActive, setDragActive] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
+  const [uploadingFiles, setUploadingFiles] = useState<{ name: string; preview: string; progress: number }[]>([]);
   const [bulkCategory, setBulkCategory] = useState<string>('');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -133,6 +134,20 @@ export function GalleryManagement({
       toast({ title: 'Success', description: 'Image uploaded successfully' });
       setUploadAltText('');
       setUploadProgress(0);
+      // Mark first in-queue uploading file as complete and remove after a delay
+      setUploadingFiles((prev) => {
+        if (prev.length === 0) return prev;
+        const idx = prev.findIndex(f => f.progress < 100);
+        if (idx === -1) return prev;
+        const next = prev.slice();
+        next[idx] = { ...next[idx], progress: 100 };
+        const previewToRevoke = next[idx].preview;
+        setTimeout(() => {
+          URL.revokeObjectURL(previewToRevoke);
+          setUploadingFiles((curr) => curr.filter((_, i) => i !== idx));
+        }, 700);
+        return next;
+      });
     },
     onError: (error: Error) => {
       toast({ 
@@ -141,6 +156,11 @@ export function GalleryManagement({
         variant: 'destructive'
       });
       setUploadProgress(0);
+      setUploadingFiles((prev) => {
+        if (prev.length === 0) return prev;
+        URL.revokeObjectURL(prev[0].preview);
+        return prev.slice(1);
+      });
     }
   });
 
@@ -286,6 +306,9 @@ export function GalleryManagement({
       formData.append('alt_text', uploadAltText || `${galleryData?.character_name || 'Character'} gallery image`);
       formData.append('is_primary', 'false');
 
+      // Show local preview while uploading
+      const objectUrl = URL.createObjectURL(file);
+      setUploadingFiles((prev) => [...prev, { name: file.name, preview: objectUrl, progress: 10 }]);
       setUploadProgress(10);
       await uploadMutation.mutateAsync(formData);
     }
@@ -433,42 +456,7 @@ export function GalleryManagement({
           </div>
         )}
 
-        {/* Creation Mode - Show Pending Images */}
-        {isCreationMode && pendingImages.length > 0 && (
-          <div className="space-y-4">
-            <Label className="text-sm font-medium text-slate-900">Pending Gallery Images</Label>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {pendingImages.map((file, index) => (
-                <div key={index} className="relative group">
-                  <div className="aspect-square rounded-lg overflow-hidden border-2 border-slate-200 bg-slate-100">
-                    <div className="w-full h-full flex items-center justify-center">
-                      <ImageIcon className="h-8 w-8 text-slate-400" />
-                    </div>
-                    <div className="absolute top-2 right-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (onPendingImagesChange) {
-                            onPendingImagesChange(pendingImages.filter((_, i) => i !== index));
-                          }
-                        }}
-                        className="bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center text-xs hover:bg-red-600"
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                  <p className="mt-1 text-xs text-slate-600 truncate" title={file.name}>
-                    {file.name}
-                  </p>
-                  <p className="text-xs text-slate-400">
-                    {(file.size / 1024 / 1024).toFixed(1)}MB
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* creation-mode pending previews handled below with real image previews */}
 
         {/* Upload Interface */}
         <div className="space-y-4">
@@ -548,6 +536,55 @@ export function GalleryManagement({
             </>
           )}
         </div>
+
+        {/* Uploading Previews */}
+        {uploadingFiles.length > 0 && !isCreationMode && (
+          <div className="mt-4 space-y-2">
+            <h4 className="text-sm font-medium text-slate-700">Uploading...</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {uploadingFiles.map((f, idx) => (
+                <div key={`${f.name}-${idx}`} className="relative">
+                  <div className="aspect-square rounded-lg overflow-hidden border-2 border-slate-200">
+                    <img src={f.preview} alt={f.name} className="w-full h-full object-cover opacity-90" />
+                  </div>
+                  <div className="absolute inset-0 flex items-end p-2">
+                    <Progress value={f.progress} className="w-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Pending images preview (creation mode) */}
+        {isCreationMode && pendingImages && pendingImages.length > 0 && (
+          <div className="mt-4 space-y-2">
+            <h4 className="text-sm font-medium text-slate-700">Pending Images ({pendingImages.length})</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              {pendingImages.map((file, idx) => {
+                const url = URL.createObjectURL(file);
+                return (
+                  <div key={`${file.name}-${idx}`} className="relative group">
+                    <div className="aspect-square rounded-lg overflow-hidden border-2 border-slate-200">
+                      <img src={url} alt={file.name} className="w-full h-full object-cover" onLoad={() => URL.revokeObjectURL(url)} />
+                    </div>
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition" />
+                    <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition">
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => onPendingImagesChange && onPendingImagesChange(pendingImages.filter((_, i) => i !== idx))}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-slate-500">These images will be uploaded when you save the character.</p>
+          </div>
+        )}
 
         {/* Gallery Grid - Only show in editing mode */}
         {!isCreationMode && (isLoading ? (

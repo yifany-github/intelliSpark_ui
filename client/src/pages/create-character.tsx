@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Toggle } from '@/components/ui/toggle';
-import { X } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 
 enum CreationStep {
   FORM = 'form',
@@ -87,6 +87,7 @@ const ImprovedCreateCharacterPage = () => {
         conversationStyle: "detailed", // Default conversation style since not in form
         isPublic: characterData.isPublic,
         nsfwLevel: characterData.isNsfw ? 1 : 0,
+        age: characterData.isNsfw ? 18 : undefined,
       });
       
       if (!response.ok) {
@@ -552,6 +553,7 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
             {t('cancel')}
           </Button>
           <Button type="submit" disabled={isLoading} size="lg" className="min-w-[200px]">
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isLoading ? t('creatingCharacter') : t('createCharacter')}
           </Button>
         </div>

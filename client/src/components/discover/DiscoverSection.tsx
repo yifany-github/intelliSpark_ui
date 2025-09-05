@@ -12,6 +12,7 @@ import { useNavigation } from '@/contexts/NavigationContext';
 import { apiRequest } from '@/lib/queryClient';
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 import { createRecommendationEngine } from '@/lib/recommendationEngine';
+import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 
 const DiscoverSection = () => {
@@ -19,6 +20,7 @@ const DiscoverSection = () => {
   const { setSelectedCharacter } = useRolePlay();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const { t } = useLanguage();
+  const { toast } = useToast();
   const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
@@ -66,7 +68,12 @@ const DiscoverSection = () => {
   };
 
   const handleFavoriteToggle = (characterId: number) => {
+    const willFavorite = !isFavorite(characterId);
     toggleFavorite(characterId);
+    toast({
+      title: willFavorite ? '已收藏' : '已取消收藏',
+      description: willFavorite ? '已添加到收藏列表' : '已从收藏列表移除',
+    });
   };
 
   const handlePreviewOpen = (character: Character) => {
@@ -161,12 +168,19 @@ const DiscoverSection = () => {
             size === 'large' ? 'h-64' : 'h-48'
           }`}
         />
-        <div className="absolute top-2 right-2">
+        <div className="absolute top-2 right-2 z-20 flex items-center space-x-2">
+          {(character.nsfwLevel || 0) > 0 && (
+            <div className="w-8 h-8 bg-red-500/90 backdrop-blur-sm rounded-full border border-red-400/50 flex items-center justify-center">
+              <span className="text-xs text-white font-bold leading-none">18+</span>
+            </div>
+          )}
           <button 
             onClick={(e) => {
               e.stopPropagation();
               handleFavoriteToggle(character.id);
             }}
+            title={isFavorite(character.id) ? '取消收藏' : '收藏'}
+            aria-label={isFavorite(character.id) ? '取消收藏' : '收藏'}
             className={`p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors ${
               isFavorite(character.id) ? 'text-yellow-400' : 'text-white'
             }`}
@@ -184,8 +198,8 @@ const DiscoverSection = () => {
           </div>
         </div>
         {/* Hover overlay */}
-        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center">
-          <div className="flex space-x-2">
+        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center pointer-events-none">
+          <div className="flex space-x-2 pointer-events-auto">
             <button 
               onClick={(e) => {
                 e.stopPropagation();
