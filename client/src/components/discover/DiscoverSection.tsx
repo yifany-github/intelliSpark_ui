@@ -34,26 +34,7 @@ const DiscoverSection = () => {
     gcTime: 10 * 60 * 1000,
   });
 
-  // Lightweight skeleton while loading
-  if (isLoading) {
-    return (
-      <div className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6">
-        {["精选角色","趋势角色","新上架"].map((title, idx) => (
-          <section key={idx} className="mb-8">
-            <div className="flex items-center justify-between mb-4">
-              <div className="h-6 w-40 bg-gray-700 rounded" />
-              <div className="h-8 w-20 bg-gray-700 rounded" />
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {[0,1,2].map(i => (
-                <div key={i} className="h-40 bg-gray-800 rounded-xl border border-gray-700 animate-pulse" />
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-    );
-  }
+  // Lightweight skeleton will render within the main layout to preserve hook order
 
   // State for category filtering and layout
   const [selectedCategory, setSelectedCategory] = useState('All');
@@ -309,6 +290,25 @@ const DiscoverSection = () => {
           </div>
         </div>
       </div>
+
+      {/* Loading skeleton while fetching */}
+      {isLoading && (
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2" aria-live="polite">
+          {[0,1,2].map((_, idx) => (
+            <section key={idx} className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <div className="h-6 w-40 bg-gray-700 rounded" />
+                <div className="h-8 w-20 bg-gray-700 rounded" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[0,1,2].map(i => (
+                  <div key={i} className="h-40 bg-gray-800 rounded-xl border border-gray-700 animate-pulse" />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
 
       {/* Featured Characters */}
       {filteredSections.featured.length > 0 && (
