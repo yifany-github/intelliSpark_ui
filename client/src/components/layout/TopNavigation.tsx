@@ -62,9 +62,7 @@ export default function TopNavigation({ searchQuery = '', onSearchChange, withSi
   }, []);
 
   return (
-    <div className={`bg-gray-800 border-b border-gray-700 w-full sticky top-0 z-30 ${
-      withSidebar ? (isCollapsed ? 'sm:pl-16' : 'sm:pl-64') : ''
-    }`}>
+    <div className={`bg-gray-800 border-b border-gray-700 w-full sticky top-0 z-30`}>
       <div className="flex items-center justify-between px-2 sm:px-4 py-3">
         {/* Left side */}
         <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
