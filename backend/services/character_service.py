@@ -487,15 +487,15 @@ class CharacterService:
                 self.db.query(ChatMessage).filter(ChatMessage.chat_id == chat.id).delete()
                 self.db.delete(chat)
             
-            # Filesystem cleanup (gallery + avatar) before DB delete
+            # Delete the character (commit first, then cleanup files)
+            self.db.delete(character)
+            self.db.commit()
+            # Cleanup files after successful commit to avoid orphaning DB on cleanup failures
             try:
                 await self._cleanup_character_files(character)
             except Exception as fs_err:
-                self.logger.warning(f"Filesystem cleanup failed for character {character_id}: {fs_err}")
-
-            # Delete the character
-            self.db.delete(character)
-            self.db.commit()
+                # Non-fatal: we prefer a consistent DB state and can run a later purge
+                self.logger.warning(f"Post-commit filesystem cleanup failed for character {character_id}: {fs_err}")
             
             self.logger.info(f"Character deleted: {character_id} by user {user_id} (deleted {len(own_chats)} associated chats)")
             return True, None
@@ -703,15 +703,13 @@ class CharacterService:
                 
                 self.logger.info(f"Deleted {len(dependent_chats)} dependent chats for character {character_id}")
             
-            # Filesystem cleanup (gallery + avatar) before DB delete
+            # Now delete the character (commit first, then cleanup files)
+            self.db.delete(character)
+            self.db.commit()
             try:
                 await self._cleanup_character_files(character)
             except Exception as fs_err:
-                self.logger.warning(f"Filesystem cleanup failed for character {character_id}: {fs_err}")
-
-            # Now safe to delete the character
-            self.db.delete(character)
-            self.db.commit()
+                self.logger.warning(f"Post-commit filesystem cleanup failed for character {character_id}: {fs_err}")
             
             self.logger.info(f"Admin deleted character: {character_id} and {len(dependent_chats)} associated chats")
             return True, None
