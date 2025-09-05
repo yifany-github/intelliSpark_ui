@@ -149,6 +149,12 @@ class Character(CharacterBase):
     chatCount: int = Field(default=0, alias="chat_count")
     trendingScore: float = Field(default=0.0, alias="trending_score")
     lastActivity: Optional[datetime] = Field(default=None, alias="last_activity")
+    
+    # Soft delete fields (Issue #162)
+    isDeleted: Optional[bool] = Field(default=False, alias="is_deleted")
+    deletedAt: Optional[datetime] = Field(default=None, alias="deleted_at")
+    deletedBy: Optional[int] = Field(default=None, alias="deleted_by")
+    deleteReason: Optional[str] = Field(default=None, alias="delete_reason")
 
 # Chat schemas
 class ChatBase(BaseSchema):

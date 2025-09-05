@@ -22,6 +22,7 @@ import NotificationsPage from "@/pages/notifications";
 import FAQPage from "@/pages/faq";
 import AboutPage from "@/pages/about";
 import MyCharactersPage from "@/pages/my-characters";
+import EditCharacterPage from "@/pages/edit-character";
 import AuthModal from "@/components/auth/AuthModal";
 import TabNavigation from "@/components/layout/TabNavigation";
 import { RolePlayProvider, useRolePlay } from "@/contexts/RolePlayContext";
@@ -111,6 +112,13 @@ function MainApp() {
                 <ProtectedRoute>
                   <MyCharactersPage />
                 </ProtectedRoute>
+              </Route>
+              <Route path="/character/:id/edit">
+                {params => (
+                  <ProtectedRoute>
+                    <EditCharacterPage characterId={params.id} />
+                  </ProtectedRoute>
+                )}
               </Route>
               <Route path="/chat-preview" component={ChatPreviewPage} />
               <Route path="/chats">

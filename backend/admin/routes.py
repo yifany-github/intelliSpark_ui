@@ -74,13 +74,14 @@ async def admin_login(request: LoginRequest):
 
 @router.get("/characters")
 async def get_admin_characters(
+    include_deleted: bool = False,
     db: Session = Depends(get_db),
     _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
 ):
-    """Get all characters for admin (includes private characters)"""
+    """Get all characters for admin (includes private characters; optionally include deleted)"""
     try:
         service = CharacterService(db, admin_context=True)
-        return await service.get_all_characters(include_private=True)
+        return await service.get_all_characters(include_private=True, include_deleted=include_deleted)
     except CharacterServiceError as e:
         logger.error(f"Character service error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -265,13 +266,25 @@ async def update_admin_character(
 @router.delete("/characters/{character_id}")
 async def delete_admin_character(
     character_id: int,
+    force: bool = False,
+    reason: str = None,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    creds: HTTPAuthorizationCredentials = Depends(verify_admin_token)
 ):
-    """Delete a character (admin context)"""
+    """Delete a character (admin context)
+    - Default: soft delete with optional reason
+    - force=true: hard delete (irreversible)
+    """
     try:
         service = CharacterService(db, admin_context=True)
-        success, error = await service.admin_delete_character(character_id)
+        if force:
+            success, error = await service.admin_delete_character(character_id)
+            action = "hard-deleted"
+        else:
+            # creds subject is not mapped; rely on admin token presence, deleted_by left null or 0
+            admin_user_id = None
+            success, error = await service.admin_soft_delete_character(character_id, admin_user_id or 0, reason)
+            action = "soft-deleted"
         
         if not success:
             if error == "Character not found":
@@ -279,7 +292,7 @@ async def delete_admin_character(
             else:
                 raise HTTPException(status_code=400, detail=error)
         
-        return {"message": "Character deleted successfully"}
+        return {"message": f"Character {action} successfully"}
     except HTTPException:
         raise
     except CharacterServiceError as e:
@@ -288,6 +301,47 @@ async def delete_admin_character(
     except Exception as e:
         logger.error(f"Error deleting character {character_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to delete character")
+
+@router.post("/characters/{character_id}/restore")
+async def restore_admin_character(
+    character_id: int,
+    db: Session = Depends(get_db),
+    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+):
+    """Restore a soft-deleted character (admin only)"""
+    try:
+        service = CharacterService(db, admin_context=True)
+        success, error = await service.admin_restore_character(character_id)
+        if not success:
+            if error == "Character not found":
+                raise HTTPException(status_code=404, detail=error)
+            else:
+                raise HTTPException(status_code=400, detail=error)
+        return {"message": "Character restored successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error restoring character {character_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to restore character")
+
+@router.get("/characters/{character_id}/impact")
+async def get_character_impact(
+    character_id: int,
+    db: Session = Depends(get_db),
+    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+):
+    """Get impact summary before deletion (admin only)"""
+    try:
+        service = CharacterService(db, admin_context=True)
+        success, impact, error = await service.get_character_impact(character_id)
+        if not success:
+            raise HTTPException(status_code=400, detail=error)
+        return impact
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error getting impact for character {character_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get character impact")
 
 @router.patch("/characters/{character_id}/admin-settings")
 async def update_character_admin_settings(

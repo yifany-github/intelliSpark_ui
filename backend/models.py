@@ -91,6 +91,12 @@ class Character(Base):
     gallery_images_count = Column(Integer, default=0)          # Total number of gallery images
     gallery_updated_at = Column(DateTime, nullable=True)       # Last gallery update timestamp
     
+    # Soft delete fields (Issue #162)
+    is_deleted = Column(Boolean, default=False, index=True)
+    deleted_at = Column(DateTime, nullable=True)
+    deleted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    delete_reason = Column(Text, nullable=True)
+    
     # Table-level constraints
     __table_args__ = (
         CheckConstraint('age >= 1 AND age <= 200', name='check_age_range'),
@@ -100,6 +106,7 @@ class Character(Base):
     # Relationships
     chats = relationship("Chat", back_populates="character")
     creator = relationship("User", foreign_keys=[created_by])
+    deleted_by_user = relationship("User", foreign_keys=[deleted_by])
     gallery_images = relationship("CharacterGalleryImage", back_populates="character", cascade="all, delete-orphan")
 
 class Chat(Base):

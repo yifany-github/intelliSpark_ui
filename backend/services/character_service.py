@@ -41,7 +41,7 @@ class CharacterService:
         self.admin_context = admin_context
         self.logger = logging.getLogger(__name__)
     
-    async def get_all_characters(self, include_private: bool = None) -> List[Dict[str, Any]]:
+    async def get_all_characters(self, include_private: bool = None, include_deleted: bool = False) -> List[Dict[str, Any]]:
         """
         Get all characters with proper transformation
         
@@ -57,6 +57,9 @@ class CharacterService:
         """
         try:
             query = self.db.query(Character)
+            # Exclude soft-deleted characters by default (allow admin override)
+            if not include_deleted:
+                query = query.filter(Character.is_deleted == False)
             
             # Determine if we should include private characters
             if include_private is None:
@@ -139,7 +142,7 @@ class CharacterService:
             CharacterServiceError: If database operation fails
         """
         try:
-            character = self.db.query(Character).filter(Character.id == character_id).first()
+            character = self.db.query(Character).filter(Character.id == character_id, Character.is_deleted == False).first()
             if not character:
                 return None
             
@@ -300,6 +303,11 @@ class CharacterService:
         if data.age is not None and (data.age < 1 or data.age > 200):
             return ValidationResult(False, "Age must be between 1 and 200")
         
+        # Age requirement for NSFW characters
+        if (data.nsfwLevel or 0) > 0:
+            if data.age is None or data.age < 18:
+                return ValidationResult(False, "NSFW characters must have age 18 or above")
+        
         # Check backstory length if provided
         if data.backstory and len(data.backstory) > 3000:
             return ValidationResult(False, "Backstory must be less than 3000 characters")
@@ -410,6 +418,12 @@ class CharacterService:
             if hasattr(character_data, 'isPublic') and character_data.isPublic is not None:
                 character.is_public = character_data.isPublic
             
+            # Enforce age >= 18 when NSFW is enabled (effective values)
+            effective_nsfw = character_data.nsfwLevel if hasattr(character_data, 'nsfwLevel') and character_data.nsfwLevel is not None else character.nsfw_level
+            effective_age = character_data.age if hasattr(character_data, 'age') and character_data.age is not None else character.age
+            if (effective_nsfw or 0) > 0 and (effective_age is None or effective_age < 18):
+                return False, {}, "NSFW characters must have age 18 or above"
+
             self.db.commit()
             self.db.refresh(character)
             
@@ -473,6 +487,12 @@ class CharacterService:
                 self.db.query(ChatMessage).filter(ChatMessage.chat_id == chat.id).delete()
                 self.db.delete(chat)
             
+            # Filesystem cleanup (gallery + avatar) before DB delete
+            try:
+                await self._cleanup_character_files(character)
+            except Exception as fs_err:
+                self.logger.warning(f"Filesystem cleanup failed for character {character_id}: {fs_err}")
+
             # Delete the character
             self.db.delete(character)
             self.db.commit()
@@ -496,7 +516,10 @@ class CharacterService:
             List of character dictionaries created by the user
         """
         try:
-            characters = self.db.query(Character).filter(Character.created_by == user_id).all()
+            characters = self.db.query(Character).filter(
+                Character.created_by == user_id,
+                Character.is_deleted == False
+            ).all()
             return transform_character_list_to_response(characters)
         except Exception as e:
             self.logger.error(f"Error fetching user characters for user {user_id}: {e}")
@@ -653,13 +676,8 @@ class CharacterService:
     
     async def admin_delete_character(self, character_id: int) -> Tuple[bool, Optional[str]]:
         """
-        Admin-only character deletion (bypasses ownership checks)
-        
-        Args:
-            character_id: ID of character to delete
-            
-        Returns:
-            (success, error_message)
+        Admin-only character deletion (legacy hard delete)
+        Prefer using admin_soft_delete_character unless force deletion is required.
         """
         if not self.admin_context:
             raise CharacterServiceError("Admin access required for character deletion")
@@ -685,6 +703,12 @@ class CharacterService:
                 
                 self.logger.info(f"Deleted {len(dependent_chats)} dependent chats for character {character_id}")
             
+            # Filesystem cleanup (gallery + avatar) before DB delete
+            try:
+                await self._cleanup_character_files(character)
+            except Exception as fs_err:
+                self.logger.warning(f"Filesystem cleanup failed for character {character_id}: {fs_err}")
+
             # Now safe to delete the character
             self.db.delete(character)
             self.db.commit()
@@ -696,6 +720,101 @@ class CharacterService:
             self.logger.error(f"Error deleting character {character_id}: {e}")
             self.db.rollback()
             return False, f"Character deletion failed: {e}"
+
+    async def _cleanup_character_files(self, character) -> None:
+        """Remove character gallery directory and avatar file from attached_assets.
+
+        This only runs for hard deletes. Soft-deleted characters retain files.
+        """
+        from pathlib import Path
+        import shutil
+        base_assets = Path(__file__).parent.parent.parent / "attached_assets"
+
+        # Remove gallery directory: attached_assets/character_galleries/character_{id}
+        try:
+            gallery_dir = base_assets / "character_galleries" / f"character_{character.id}"
+            if gallery_dir.exists() and gallery_dir.is_dir():
+                shutil.rmtree(gallery_dir)
+                self.logger.info(f"Removed gallery directory for character {character.id}: {gallery_dir}")
+        except Exception as e:
+            self.logger.warning(f"Failed to remove gallery dir for character {character.id}: {e}")
+
+        # Remove avatar file if it's a local asset under /assets/user_characters_img/
+        try:
+            if character.avatar_url and str(character.avatar_url).startswith('/assets/user_characters_img/'):
+                rel = str(character.avatar_url).replace('/assets/', '')
+                avatar_path = base_assets / rel
+                if avatar_path.exists() and avatar_path.is_file():
+                    avatar_path.unlink()
+                    self.logger.info(f"Removed avatar file for character {character.id}: {avatar_path}")
+        except Exception as e:
+            self.logger.warning(f"Failed to remove avatar file for character {character.id}: {e}")
+
+    async def admin_soft_delete_character(self, character_id: int, admin_user_id: int, reason: Optional[str] = None) -> Tuple[bool, Optional[str]]:
+        """
+        Soft delete a character (mark as deleted without removing data)
+        """
+        try:
+            character = self.db.query(Character).filter(Character.id == character_id).first()
+            if not character:
+                return False, "Character not found"
+
+            # Mark as deleted and unpublish
+            from datetime import datetime
+            character.is_deleted = True
+            character.deleted_at = datetime.utcnow()
+            character.deleted_by = admin_user_id
+            character.delete_reason = reason
+            character.is_public = False
+
+            self.db.commit()
+            self.logger.info(f"Soft-deleted character {character_id} by admin {admin_user_id}")
+            return True, None
+        except Exception as e:
+            self.logger.error(f"Error soft-deleting character {character_id}: {e}")
+            self.db.rollback()
+            return False, f"Soft delete failed: {e}"
+
+    async def admin_restore_character(self, character_id: int) -> Tuple[bool, Optional[str]]:
+        """Restore a soft-deleted character"""
+        try:
+            character = self.db.query(Character).filter(Character.id == character_id).first()
+            if not character:
+                return False, "Character not found"
+            if not character.is_deleted:
+                return False, "Character is not deleted"
+
+            character.is_deleted = False
+            character.deleted_at = None
+            character.deleted_by = None
+            character.delete_reason = None
+            # Do not auto-publish; let admin choose visibility explicitly
+
+            self.db.commit()
+            self.logger.info(f"Restored character {character_id}")
+            return True, None
+        except Exception as e:
+            self.logger.error(f"Error restoring character {character_id}: {e}")
+            self.db.rollback()
+            return False, f"Restore failed: {e}"
+
+    async def get_character_impact(self, character_id: int) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+        """Return counts of users, chats, and messages referencing this character"""
+        try:
+            from models import Chat, ChatMessage
+            # Number of distinct users with chats for this character
+            distinct_users = self.db.query(Chat.user_id).filter(Chat.character_id == character_id).distinct().count()
+            chats_count = self.db.query(Chat).filter(Chat.character_id == character_id).count()
+            # Messages count via join
+            messages_count = self.db.query(ChatMessage).join(Chat, ChatMessage.chat_id == Chat.id).filter(Chat.character_id == character_id).count()
+            return True, {
+                "users_with_chats": distinct_users,
+                "chats_count": chats_count,
+                "messages_count": messages_count
+            }, None
+        except Exception as e:
+            self.logger.error(f"Error computing impact for character {character_id}: {e}")
+            return False, {}, f"Failed to compute impact: {e}"
     
     async def sync_all_discovered_characters(self) -> Dict[str, Any]:
         """
