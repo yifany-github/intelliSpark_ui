@@ -47,22 +47,16 @@ export default function GlobalSidebar() {
   const bottomLinks = [
     { icon: HelpCircle, label: t('aboutUs'), path: '/about' },
     { icon: FileText, label: t('faq'), path: '/faq' },
-    { icon: FileText, label: t('blog'), path: '/blog' },
+    // Blog is reserved for later; hide to avoid dead link for now
   ];
 
   return (
     <div className={`${isCollapsed ? 'w-16' : 'w-64'} bg-gray-800 border-r border-gray-700 h-screen fixed left-0 top-0 z-40 transition-all duration-300 flex flex-col hidden sm:flex`}>
       <div className="p-4 flex-1 min-h-0">
-        {/* Header with Home Navigation */}
+        {/* Header with Home Navigation (avoid duplicating brand with TopNavigation) */}
         <div className="flex items-center justify-between mb-6">
           {!isCollapsed && (
-            <button
-              onClick={navigateToHome}
-              className="text-lg font-bold text-white hover:text-brand-primary transition-colors cursor-pointer"
-              title="Go to Home"
-            >
-              ProductInsightAI
-            </button>
+            <span className="text-sm text-gray-400" aria-hidden="true">&nbsp;</span>
           )}
           <button
             onClick={toggleCollapsed}
