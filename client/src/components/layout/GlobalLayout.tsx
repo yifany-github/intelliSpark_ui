@@ -9,6 +9,8 @@ interface GlobalLayoutProps {
   showSidebar?: boolean;
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
+  hideSearch?: boolean;
+  contentTopPadding?: boolean; // add or remove top padding below top nav
 }
 
 export default function GlobalLayout({ 
@@ -16,7 +18,9 @@ export default function GlobalLayout({
   showTopNav = true, 
   showSidebar = true,
   searchQuery,
-  onSearchChange 
+  onSearchChange,
+  hideSearch,
+  contentTopPadding = true
 }: GlobalLayoutProps) {
   const { isCollapsed } = useNavigation();
 
@@ -27,10 +31,11 @@ export default function GlobalLayout({
           searchQuery={searchQuery} 
           onSearchChange={onSearchChange}
           withSidebar={showSidebar}
+          hideSearch={hideSearch}
         />
       )}
       {showSidebar && <GlobalSidebar />}
-      <div className={`flex-1 overflow-auto ${showSidebar ? (isCollapsed ? 'sm:pl-16' : 'sm:pl-64') : ''} ${showTopNav ? 'pt-2' : ''}`}>
+      <div className={`flex-1 overflow-auto ${showSidebar ? (isCollapsed ? 'sm:pl-16' : 'sm:pl-64') : ''} ${showTopNav && contentTopPadding ? 'pt-2' : ''}`}>
         {children}
       </div>
     </div>

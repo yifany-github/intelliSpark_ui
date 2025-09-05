@@ -36,6 +36,8 @@ const DiscoverSection = () => {
     gcTime: 10 * 60 * 1000,
   });
 
+  // Lightweight skeleton will render within the main layout to preserve hook order
+
   // State for category filtering and layout
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [viewMode, setViewMode] = useState<'grid' | 'masonry'>('masonry');
@@ -303,10 +305,30 @@ const DiscoverSection = () => {
         </div>
       </div>
 
+      {/* Loading skeleton while fetching */}
+      {isLoading && (
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2" aria-live="polite">
+          {[0,1,2].map((_, idx) => (
+            <section key={idx} className="mb-8">
+              <div className="flex items-center justify-between mb-4">
+                <div className="h-6 w-40 bg-gray-700 rounded" />
+                <div className="h-8 w-20 bg-gray-700 rounded" />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {[0,1,2].map(i => (
+                  <div key={i} className="h-40 bg-gray-800 rounded-xl border border-gray-700 animate-pulse" />
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
+      )}
+
       {/* Featured Characters */}
       {filteredSections.featured.length > 0 && (
         <section>
-          <div className="flex items-center space-x-2 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-2">
             <Crown className="w-5 h-5 text-yellow-400" />
             <h2 className="text-xl font-semibold text-white">{t('featuredCharacters')}</h2>
             <span className="text-sm text-gray-400">{t('handpickedSelections')}</span>
@@ -315,6 +337,13 @@ const DiscoverSection = () => {
                 {selectedCategory}
               </span>
             )}
+            </div>
+            <button
+              onClick={() => navigateToPath('/characters')}
+              className="px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-200"
+            >
+              {t('viewAll') || '查看全部'}
+            </button>
           </div>
           <div className={viewMode === 'masonry' 
             ? "columns-1 md:columns-2 gap-4 space-y-4" 
@@ -332,7 +361,8 @@ const DiscoverSection = () => {
       {/* Trending This Week */}
       {filteredSections.trending.length > 0 && (
         <section>
-          <div className="flex items-center space-x-2 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-2">
             <TrendingUp className="w-5 h-5 text-pink-400" />
             <h2 className="text-xl font-semibold text-white">{t('trendingThisWeek')}</h2>
             <span className="text-sm text-gray-400">{t('hotPicksCommunity')}</span>
@@ -341,6 +371,13 @@ const DiscoverSection = () => {
                 {selectedCategory}
               </span>
             )}
+            </div>
+            <button
+              onClick={() => navigateToPath('/characters')}
+              className="px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-200"
+            >
+              {t('viewAll') || '查看全部'}
+            </button>
           </div>
           <div className={viewMode === 'masonry' 
             ? "columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4" 
@@ -358,7 +395,8 @@ const DiscoverSection = () => {
       {/* New Arrivals */}
       {filteredSections.new.length > 0 && (
         <section>
-          <div className="flex items-center space-x-2 mb-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-2">
             <Zap className="w-5 h-5 text-green-400" />
             <h2 className="text-xl font-semibold text-white">{t('newArrivals')}</h2>
             <span className="text-sm text-gray-400">{t('freshCharactersAdded')}</span>
@@ -367,6 +405,13 @@ const DiscoverSection = () => {
                 {selectedCategory}
               </span>
             )}
+            </div>
+            <button
+              onClick={() => navigateToPath('/characters')}
+              className="px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-200"
+            >
+              {t('viewAll') || '查看全部'}
+            </button>
           </div>
           <div className={viewMode === 'masonry' 
             ? "columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4" 

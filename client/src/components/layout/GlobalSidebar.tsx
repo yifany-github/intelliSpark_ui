@@ -47,34 +47,20 @@ export default function GlobalSidebar() {
   const bottomLinks = [
     { icon: HelpCircle, label: t('aboutUs'), path: '/about' },
     { icon: FileText, label: t('faq'), path: '/faq' },
-    { icon: FileText, label: t('blog'), path: '/blog' },
+    // Blog is reserved for later; hide to avoid dead link for now
   ];
 
   return (
-    <div className={`${isCollapsed ? 'w-16' : 'w-64'} bg-gray-800 border-r border-gray-700 h-screen fixed left-0 top-0 z-40 transition-all duration-300 flex flex-col hidden sm:flex`}>
+    <div 
+      className={`${isCollapsed ? 'w-16' : 'w-64'} bg-gray-800 border-r border-gray-700 fixed left-0 top-14 z-20 transition-all duration-300 flex flex-col hidden sm:flex`}
+      style={{ height: 'calc(100vh - 56px)' }}
+    >
       <div className="p-4 flex-1 min-h-0">
-        {/* Header with Home Navigation */}
+        {/* Header spacer (branding handled in TopNavigation) */}
         <div className="flex items-center justify-between mb-6">
           {!isCollapsed && (
-            <button
-              onClick={navigateToHome}
-              className="text-lg font-bold text-white hover:text-brand-primary transition-colors cursor-pointer"
-              title="Go to Home"
-            >
-              ProductInsightAI
-            </button>
+            <span className="text-sm text-gray-400" aria-hidden="true">&nbsp;</span>
           )}
-          <button
-            onClick={toggleCollapsed}
-            className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
-            title={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
-          >
-            {isCollapsed ? (
-              <Menu className="w-6 h-6 text-gray-400" />
-            ) : (
-              <ChevronLeft className="w-5 h-5 text-gray-400" />
-            )}
-          </button>
         </div>
 
         {/* User Profile */}

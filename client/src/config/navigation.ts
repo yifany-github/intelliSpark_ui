@@ -87,8 +87,8 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     path: '/payment',
     icon: Coins,
     requiresAuth: true,
-    showInSidebar: true,
-    showInTopNav: true,
+    showInSidebar: false,
+    showInTopNav: false,
     showInMobileTab: true
   },
   {
@@ -97,7 +97,7 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     path: '/profile',
     icon: User,
     requiresAuth: true,
-    showInSidebar: true,
+    showInSidebar: false,
     showInTopNav: true,
     showInMobileTab: true
   },
@@ -107,8 +107,8 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     path: '/notifications',
     icon: Bell,
     requiresAuth: true,
-    showInSidebar: true,
-    showInTopNav: true,
+    showInSidebar: false,
+    showInTopNav: false,
     showInMobileTab: false
   },
   {
@@ -117,7 +117,7 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     path: '/settings',
     icon: Settings,
     requiresAuth: true,
-    showInSidebar: true,
+    showInSidebar: false,
     showInTopNav: false,
     showInMobileTab: false
   }

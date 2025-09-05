@@ -1,4 +1,4 @@
-import { Search, ChevronDown, MessageCircle, User, Settings, LogOut, LogIn, Bell, Crown } from 'lucide-react';
+import { Search, ChevronDown, MessageCircle, User, Settings, LogOut, LogIn, Bell, Crown, Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useNavigation } from '@/contexts/NavigationContext';
@@ -12,9 +12,10 @@ interface TopNavigationProps {
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   withSidebar?: boolean;
+  hideSearch?: boolean;
 }
 
-export default function TopNavigation({ searchQuery = '', onSearchChange, withSidebar = true }: TopNavigationProps) {
+export default function TopNavigation({ searchQuery = '', onSearchChange, withSidebar = true, hideSearch = false }: TopNavigationProps) {
   const { user, isAuthenticated, logout } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const { 
@@ -23,7 +24,8 @@ export default function TopNavigation({ searchQuery = '', onSearchChange, withSi
     navigateToLogin, 
     navigateToPath,
     getTopNavItems,
-    isCollapsed 
+    isCollapsed,
+    toggleCollapsed
   } = useNavigation();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -61,12 +63,19 @@ export default function TopNavigation({ searchQuery = '', onSearchChange, withSi
   }, []);
 
   return (
-    <div className={`bg-gray-800 border-b border-gray-700 w-full sticky top-0 z-30 ${
-      withSidebar ? (isCollapsed ? 'sm:pl-16' : 'sm:pl-64') : ''
-    }`}>
+    <div className={`bg-gray-800 border-b border-gray-700 w-full sticky top-0 z-30`}>
       <div className="flex items-center justify-between px-2 sm:px-4 py-3">
         {/* Left side */}
         <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
+          {/* Sidebar toggle (desktop only) */}
+          <button
+            onClick={toggleCollapsed}
+            className="hidden sm:inline-flex items-center justify-center p-2 rounded-lg hover:bg-gray-700/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <Menu className="w-5 h-5 text-gray-300" />
+          </button>
           <button 
             onClick={navigateToHome}
             className="flex items-center space-x-2 group transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-opacity-50 rounded-lg p-1 hover:bg-gray-700/50"
@@ -95,17 +104,19 @@ export default function TopNavigation({ searchQuery = '', onSearchChange, withSi
             </span>
           </button>
           
-          {/* Search Bar */}
-          <div className="relative flex-1 max-w-md mx-2 sm:mx-4">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder={t('searchCharacters')}
-              value={searchQuery}
-              onChange={(e) => onSearchChange?.(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 text-white placeholder-gray-400"
-            />
-          </div>
+          {/* Search Bar (hideable) */}
+          {!hideSearch && (
+            <div className="relative flex-1 max-w-md mx-2 sm:mx-4">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder={t('searchCharacters')}
+                value={searchQuery}
+                onChange={(e) => onSearchChange?.(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 text-white placeholder-gray-400"
+              />
+            </div>
+          )}
         </div>
 
         {/* Right side */}
