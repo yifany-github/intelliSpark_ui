@@ -12,9 +12,10 @@ interface TopNavigationProps {
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
   withSidebar?: boolean;
+  hideSearch?: boolean;
 }
 
-export default function TopNavigation({ searchQuery = '', onSearchChange, withSidebar = true }: TopNavigationProps) {
+export default function TopNavigation({ searchQuery = '', onSearchChange, withSidebar = true, hideSearch = false }: TopNavigationProps) {
   const { user, isAuthenticated, logout } = useAuth();
   const { language, setLanguage, t } = useLanguage();
   const { 
@@ -95,17 +96,19 @@ export default function TopNavigation({ searchQuery = '', onSearchChange, withSi
             </span>
           </button>
           
-          {/* Search Bar */}
-          <div className="relative flex-1 max-w-md mx-2 sm:mx-4">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder={t('searchCharacters')}
-              value={searchQuery}
-              onChange={(e) => onSearchChange?.(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 text-white placeholder-gray-400"
-            />
-          </div>
+          {/* Search Bar (hideable) */}
+          {!hideSearch && (
+            <div className="relative flex-1 max-w-md mx-2 sm:mx-4">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder={t('searchCharacters')}
+                value={searchQuery}
+                onChange={(e) => onSearchChange?.(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg focus:outline-none focus:border-blue-500 text-white placeholder-gray-400"
+              />
+            </div>
+          )}
         </div>
 
         {/* Right side */}

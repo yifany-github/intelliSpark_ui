@@ -9,6 +9,7 @@ interface GlobalLayoutProps {
   showSidebar?: boolean;
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
+  hideSearch?: boolean;
 }
 
 export default function GlobalLayout({ 
@@ -16,7 +17,8 @@ export default function GlobalLayout({
   showTopNav = true, 
   showSidebar = true,
   searchQuery,
-  onSearchChange 
+  onSearchChange,
+  hideSearch
 }: GlobalLayoutProps) {
   const { isCollapsed } = useNavigation();
 
@@ -27,6 +29,7 @@ export default function GlobalLayout({
           searchQuery={searchQuery} 
           onSearchChange={onSearchChange}
           withSidebar={showSidebar}
+          hideSearch={hideSearch}
         />
       )}
       {showSidebar && <GlobalSidebar />}
