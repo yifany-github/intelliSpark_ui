@@ -334,16 +334,6 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       if (isCharacterNSFW(character)) return false;
     }
     
-    // Gender filter
-    if (genderFilter !== 'all') {
-      if (!character.gender) {
-        return false; // Exclude characters with no gender specified
-      }
-      if (character.gender.toLowerCase() !== genderFilter.toLowerCase()) {
-        return false; // Exclude characters that don't match selected gender
-      }
-    }
-    
     return true;
   });
 
@@ -741,7 +731,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   <div className="absolute top-3 left-3 animate-pulse">
                     <div className="flex items-center justify-center space-x-1 bg-gradient-to-r from-yellow-400 via-yellow-500 to-amber-500 px-3 py-1.5 rounded-full shadow-lg shadow-yellow-500/50 border-2 border-yellow-300 h-8">
                       <Crown className="w-4 h-4 text-amber-900 drop-shadow-sm" />
-                      <span className="text-xs text-amber-900 font-black tracking-wide drop-shadow-sm leading-none">精选</span>
+                      <span className="text-xs text-amber-900 font-black tracking-wide drop-shadow-sm leading-none">{t('featured')}</span>
                     </div>
                   </div>
                 )}
@@ -835,7 +825,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                       return (
                         <div className="flex items-center space-x-1">
                           <div className="w-2 h-2 bg-green-400 rounded-full" />
-                          <span className="text-xs text-green-400 font-medium">热门</span>
+                          <span className="text-xs text-green-400 font-medium">{t('popular')}</span>
                         </div>
                       );
                     } else if (totalActivity > 10) {

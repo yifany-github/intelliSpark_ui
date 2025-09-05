@@ -141,7 +141,9 @@ export function GalleryManagement({
         if (idx === -1) return prev;
         const next = prev.slice();
         next[idx] = { ...next[idx], progress: 100 };
+        const previewToRevoke = next[idx].preview;
         setTimeout(() => {
+          URL.revokeObjectURL(previewToRevoke);
           setUploadingFiles((curr) => curr.filter((_, i) => i !== idx));
         }, 700);
         return next;
@@ -154,7 +156,11 @@ export function GalleryManagement({
         variant: 'destructive'
       });
       setUploadProgress(0);
-      setUploadingFiles((prev) => prev.slice(1));
+      setUploadingFiles((prev) => {
+        if (prev.length === 0) return prev;
+        URL.revokeObjectURL(prev[0].preview);
+        return prev.slice(1);
+      });
     }
   });
 
@@ -560,7 +566,7 @@ export function GalleryManagement({
                 return (
                   <div key={`${file.name}-${idx}`} className="relative group">
                     <div className="aspect-square rounded-lg overflow-hidden border-2 border-slate-200">
-                      <img src={url} alt={file.name} className="w-full h-full object-cover" />
+                      <img src={url} alt={file.name} className="w-full h-full object-cover" onLoad={() => URL.revokeObjectURL(url)} />
                     </div>
                     <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition" />
                     <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition">
