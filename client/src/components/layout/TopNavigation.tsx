@@ -1,4 +1,4 @@
-import { Search, ChevronDown, MessageCircle, User, Settings, LogOut, LogIn, Bell, Crown } from 'lucide-react';
+import { Search, ChevronDown, MessageCircle, User, Settings, LogOut, LogIn, Bell, Crown, Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useNavigation } from '@/contexts/NavigationContext';
@@ -24,7 +24,8 @@ export default function TopNavigation({ searchQuery = '', onSearchChange, withSi
     navigateToLogin, 
     navigateToPath,
     getTopNavItems,
-    isCollapsed 
+    isCollapsed,
+    toggleCollapsed
   } = useNavigation();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -66,6 +67,15 @@ export default function TopNavigation({ searchQuery = '', onSearchChange, withSi
       <div className="flex items-center justify-between px-2 sm:px-4 py-3">
         {/* Left side */}
         <div className="flex items-center space-x-2 sm:space-x-4 flex-1 min-w-0">
+          {/* Sidebar toggle (desktop only) */}
+          <button
+            onClick={toggleCollapsed}
+            className="hidden sm:inline-flex items-center justify-center p-2 rounded-lg hover:bg-gray-700/50 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+            title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            <Menu className="w-5 h-5 text-gray-300" />
+          </button>
           <button 
             onClick={navigateToHome}
             className="flex items-center space-x-2 group transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-amber-400 focus:ring-opacity-50 rounded-lg p-1 hover:bg-gray-700/50"

@@ -56,22 +56,11 @@ export default function GlobalSidebar() {
       style={{ height: 'calc(100vh - 56px)' }}
     >
       <div className="p-4 flex-1 min-h-0">
-        {/* Header with Home Navigation (avoid duplicating brand with TopNavigation) */}
+        {/* Header spacer (branding handled in TopNavigation) */}
         <div className="flex items-center justify-between mb-6">
           {!isCollapsed && (
             <span className="text-sm text-gray-400" aria-hidden="true">&nbsp;</span>
           )}
-          <button
-            onClick={toggleCollapsed}
-            className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
-            title={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
-          >
-            {isCollapsed ? (
-              <Menu className="w-6 h-6 text-gray-400" />
-            ) : (
-              <ChevronLeft className="w-5 h-5 text-gray-400" />
-            )}
-          </button>
         </div>
 
         {/* User Profile */}
