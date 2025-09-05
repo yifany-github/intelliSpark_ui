@@ -33,6 +33,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Link } from "wouter";
+import GlobalLayout from "@/components/layout/GlobalLayout";
 
 interface Character {
   id: number;
@@ -141,50 +142,26 @@ export default function MyCharactersPage() {
       : <Badge variant="outline">Private</Badge>;
   };
 
-  if (isLoading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">My Characters</h1>
-        <div className="text-center">Loading your characters...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold mb-8">My Characters</h1>
-        <div className="text-center text-red-500">
-          Error loading characters: {(error as Error).message}
-        </div>
-      </div>
-    );
-  }
-
-  return (
+  const content = (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">My Characters</h1>
+        <h1 className="text-3xl font-bold text-white">My Characters</h1>
         <Link to="/create-character">
-          <Button>
-            Create New Character
-          </Button>
+          <Button className="bg-blue-600 hover:bg-blue-700 text-white">Create New Character</Button>
         </Link>
       </div>
 
       {characters.length === 0 ? (
-        <div className="text-center py-12">
-          <div className="text-gray-500 mb-4">You haven't created any characters yet.</div>
+        <div className="text-center py-12 text-white">
+          <div className="text-slate-300 mb-4">You haven't created any characters yet.</div>
           <Link to="/create-character">
-            <Button>
-              Create Your First Character
-            </Button>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white">Create Your First Character</Button>
           </Link>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {characters.map((character: Character) => (
-            <Card key={character.id} className="hover:shadow-lg transition-shadow">
+            <Card key={character.id} className="hover:shadow-lg transition-shadow bg-zinc-900 border border-zinc-800 text-white">
               {/* Image thumbnail similar to main Characters page */}
               <div className="relative w-full aspect-[3/4] overflow-hidden bg-surface-tertiary">
                 <img
@@ -208,7 +185,7 @@ export default function MyCharactersPage() {
               <CardHeader className="pb-3">
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <CardTitle className="text-lg mb-2">{character.name}</CardTitle>
+                    <CardTitle className="text-lg mb-2 text-white">{character.name}</CardTitle>
                     <div className="flex flex-wrap gap-2 mb-3">
                       {getVisibilityBadge(character.isPublic)}
                       {getNSFWBadge(character.nsfwLevel)}
@@ -217,7 +194,12 @@ export default function MyCharactersPage() {
                   </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="text-white hover:bg-white/10 rounded-full"
+                        aria-label="Open character actions"
+                      >
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -261,15 +243,15 @@ export default function MyCharactersPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  <p className="text-sm text-gray-600 line-clamp-3">
+                  <p className="text-sm text-slate-300 line-clamp-3">
                     {character.description}
                   </p>
                   
-                  <div className="flex items-center gap-4 text-xs text-gray-500">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {formatDate(character.createdAt)}
-                    </div>
+                    <div className="flex items-center gap-4 text-xs text-slate-400">
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        {formatDate(character.createdAt)}
+                      </div>
                     {character.chatCount > 0 && (
                       <div className="flex items-center gap-1">
                         <MessageCircle className="h-3 w-3" />
@@ -327,4 +309,26 @@ export default function MyCharactersPage() {
       </AlertDialog>
     </div>
   );
+
+  if (isLoading) {
+    return (
+      <GlobalLayout>
+        <div className="container mx-auto px-4 py-8 text-slate-900">Loading your characters...</div>
+      </GlobalLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <GlobalLayout>
+        <div className="container mx-auto px-4 py-8 text-red-600">Error loading characters: {(error as Error).message}</div>
+      </GlobalLayout>
+    );
+  }
+
+  return <GlobalLayout>{content}</GlobalLayout>;
 }
+
+// Return with app shell
+// Keep loading/error states within the same consistent layout
+// (Declared outside to minimize diff, but we can inline in function scope)

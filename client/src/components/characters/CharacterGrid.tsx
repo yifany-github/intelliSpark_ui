@@ -5,6 +5,7 @@ import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield, Heart, Share, Messa
 import { Character } from '@/types';
 import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
+// useToast imported above
 import CharacterPreviewModal from './CharacterPreviewModal';
 import TraitChips from '@/components/characters/TraitChips';
 import { useNavigation } from '@/contexts/NavigationContext';
@@ -465,7 +466,12 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   };
 
   const handleFavoriteToggle = (characterId: number) => {
+    const willFavorite = !isFavorite(characterId);
     toggleFavorite(characterId);
+    toast({
+      title: willFavorite ? '已收藏' : '已取消收藏',
+      description: willFavorite ? '已添加到收藏列表' : '已从收藏列表移除',
+    });
   };
 
   const handlePreviewOpen = (character: Character) => {
@@ -629,7 +635,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 <div className="absolute top-3 left-3">
                   <div className="w-12 h-6 bg-surface-secondary/60 rounded-full" />
                 </div>
-                <div className="absolute top-3 right-3 flex items-center space-x-2">
+                <div className="absolute top-3 right-3 z-20 flex items-center space-x-2">
                   <div className="w-6 h-6 bg-surface-secondary/60 rounded-full" />
                 </div>
               </div>
@@ -751,7 +757,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                         console.error('Failed to toggle favorite:', error);
                       }
                     }}
-                    aria-label={`${isFavorite(character.id) ? 'Remove' : 'Add'} ${character.name} to favorites`}
+                    aria-label={`${isFavorite(character.id) ? '取消收藏' : '收藏'} ${character.name}`}
                     className={`w-8 h-8 bg-black/60 backdrop-blur-sm rounded-full hover:bg-black/80 transition-all duration-200 flex items-center justify-center ${
                       isFavorite(character.id) ? 'text-brand-secondary' : 'text-white hover:text-brand-secondary'
                     }`}
@@ -767,8 +773,8 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 </div>
                 {/* Removed overlay trait chips to avoid duplication with content area */}
                 {/* Simplified hover overlay - dual action layout */}
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4">
-                  <div className="w-full space-y-2">
+                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4 pointer-events-none">
+                  <div className="w-full space-y-2 pointer-events-auto">
                     {/* Primary action - Start Chat */}
                     <button 
                       onClick={(e) => {
