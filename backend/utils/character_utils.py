@@ -61,6 +61,11 @@ def transform_character_to_response(character: Character) -> Dict[str, Any]:
         "galleryEnabled": getattr(character, 'gallery_enabled', False),
         "createdBy": character.created_by,  # snake_case to camelCase
         "createdAt": character.created_at.isoformat() + "Z" if character.created_at else None,  # ISO format
+        # Soft delete fields for admin visibility
+        "isDeleted": getattr(character, 'is_deleted', False),
+        "deletedAt": character.deleted_at.isoformat() + "Z" if getattr(character, 'deleted_at', None) else None,
+        "deletedBy": getattr(character, 'deleted_by', None),
+        "deleteReason": getattr(character, 'delete_reason', None),
         # Admin management and analytics fields
         "isFeatured": character.is_featured,
         "viewCount": character.view_count,

@@ -24,7 +24,7 @@ ALLOWED_MIME_TYPES = {
 
 # Maximum allowed dimensions (in pixels)
 MAX_DIMENSION = 4096
-MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB per image
 OPTIMIZE_THRESHOLD = 1024  # Auto-resize images larger than 1024px
 
 
@@ -214,6 +214,35 @@ def validate_file_size(file_size: int) -> Tuple[bool, Optional[str]]:
     return True, None
 
 
+def _recompress_jpeg_to_target_size(image: Image.Image, target_size: int, start_quality: int = 85, min_quality: int = 60) -> Optional[bytes]:
+    """Try to recompress a JPEG image to be under target_size by reducing quality."""
+    quality = start_quality
+    while quality >= min_quality:
+        buf = io.BytesIO()
+        try:
+            image.save(buf, format='JPEG', quality=quality, optimize=True)
+        except Exception:
+            return None
+        data = buf.getvalue()
+        if len(data) <= target_size:
+            return data
+        quality -= 10
+    return None
+
+
+def _convert_to_webp_under_target(image: Image.Image, target_size: int, quality: int = 80) -> Optional[bytes]:
+    """Try converting to WebP to reduce size under target."""
+    try:
+        buf = io.BytesIO()
+        image.save(buf, format='WEBP', quality=quality, method=6)
+        data = buf.getvalue()
+        if len(data) <= target_size:
+            return data
+    except Exception:
+        return None
+    return None
+
+
 def comprehensive_image_validation(file_content: bytes, declared_mime_type: str, filename: str) -> dict:
     """
     Perform comprehensive validation of uploaded image file.
@@ -237,19 +266,13 @@ def comprehensive_image_validation(file_content: bytes, declared_mime_type: str,
         'was_resized': False
     }
     
-    # 1. File size validation
-    size_valid, size_error = validate_file_size(len(file_content))
-    if not size_valid:
-        result['errors'].append(size_error)
-        return result
-    
-    # 2. File type validation
+    # 1. File type validation (validate early to avoid processing bad files)
     type_valid, type_error = validate_image_file(file_content, declared_mime_type)
     if not type_valid:
         result['errors'].append(type_error)
         return result
     
-    # 3. Image dimension validation
+    # 2. Image dimension validation
     dim_valid, dim_error, dimensions = validate_image_dimensions(file_content)
     if not dim_valid:
         result['errors'].append(dim_error)
@@ -257,7 +280,7 @@ def comprehensive_image_validation(file_content: bytes, declared_mime_type: str,
     
     result['dimensions'] = dimensions
     
-    # 4. Image optimization (resize if needed)
+    # 3. Image optimization (resize if needed)
     if dimensions and (dimensions[0] > OPTIMIZE_THRESHOLD or dimensions[1] > OPTIMIZE_THRESHOLD):
         try:
             optimized_content, new_dimensions = resize_image_if_needed(file_content)
@@ -267,6 +290,37 @@ def comprehensive_image_validation(file_content: bytes, declared_mime_type: str,
             result['warnings'].append(f"Image resized from {dimensions[0]}x{dimensions[1]} to {new_dimensions[0]}x{new_dimensions[1]} for optimization")
         except Exception as e:
             result['warnings'].append(f"Could not optimize image: {str(e)}")
+
+    # 4. File size validation AFTER optimization
+    # If still too large, attempt gentle recompression where possible
+    final_size = len(result['processed_content'])
+    size_valid, size_error = validate_file_size(final_size)
+    if not size_valid:
+        try:
+            img = Image.open(io.BytesIO(result['processed_content']))
+            fmt = (img.format or '').upper()
+            recompressed: Optional[bytes] = None
+            if fmt == 'JPEG' or declared_mime_type == 'image/jpeg':
+                recompressed = _recompress_jpeg_to_target_size(img, MAX_FILE_SIZE)
+            elif fmt in ('PNG', 'WEBP', 'GIF'):
+                # Try converting to WebP to reduce size
+                recompressed = _convert_to_webp_under_target(img, MAX_FILE_SIZE, quality=80)
+                if recompressed:
+                    # Update filename extension to .webp
+                    filename = os.path.splitext(filename or 'upload')[0] + '.webp'
+            if recompressed:
+                result['processed_content'] = recompressed
+                result['dimensions'] = img.size
+                result['was_resized'] = True
+                final_size = len(recompressed)
+                size_valid, size_error = validate_file_size(final_size)
+        except Exception:
+            # If recompression fails, keep original error
+            pass
+    
+    if not size_valid:
+        result['errors'].append(size_error)
+        return result
     
     # 5. Generate secure filename
     result['secure_filename'] = sanitize_filename(filename)

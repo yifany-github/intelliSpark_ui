@@ -48,7 +48,8 @@ import {
   Target,
   Bell,
   Send,
-  AlertTriangle
+  AlertTriangle,
+  Loader2
 } from "lucide-react";
 
 interface AdminStats {
@@ -93,6 +94,12 @@ interface Character {
   chatCount?: number;
   trendingScore?: number;
   lastActivity?: string;
+  // Soft delete fields (admin-only)
+  isDeleted?: boolean;
+  deletedAt?: string | null;
+  deletedBy?: number | null;
+  deleteReason?: string | null;
+  createdBy?: number | null;
 }
 
 interface User {
@@ -126,6 +133,8 @@ const AdminPage = () => {
   });
   const [showPromptPreview, setShowPromptPreview] = useState(false);
   const [promptPreviewData, setPromptPreviewData] = useState<any>(null);
+  const [isCreatingCharacter, setIsCreatingCharacter] = useState(false);
+  const [showDeleted, setShowDeleted] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -160,7 +169,7 @@ const AdminPage = () => {
       toast({ 
         title: "✅ Login successful", 
         description: "Welcome to ProductInsightAI Admin Panel",
-        className: "border-green-200 bg-green-50"
+        className: "bg-green-600 text-white border-green-500"
       });
     },
     onError: () => {
@@ -185,7 +194,7 @@ const AdminPage = () => {
     toast({ 
       title: "Logged out", 
       description: "You have been logged out successfully",
-      className: "border-blue-200 bg-blue-50"
+      className: "bg-blue-600 text-white border-blue-500"
     });
   };
 
@@ -204,9 +213,9 @@ const AdminPage = () => {
 
 
   const { data: characters = [], refetch: refetchCharacters } = useQuery<Character[]>({
-    queryKey: ["admin-characters"],
+    queryKey: ["admin-characters", showDeleted],
     queryFn: async () => {
-      const response = await fetch("/api/admin/characters", {
+      const response = await fetch(`/api/admin/characters?include_deleted=${showDeleted ? 'true' : 'false'}` , {
         headers: authHeaders,
       });
       if (!response.ok) throw new Error("Failed to fetch characters");
@@ -279,7 +288,7 @@ const AdminPage = () => {
       
       toast({ 
         title: "✅ Character updated successfully",
-        className: "border-green-200 bg-green-50"
+        className: "bg-green-600 text-white border-green-500"
       });
       setEditingCharacter(null);
       setShowCharacterDialog(false);
@@ -300,7 +309,7 @@ const AdminPage = () => {
       queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
       toast({ 
         title: "✅ Character deleted successfully",
-        className: "border-green-200 bg-green-50"
+        className: "bg-green-600 text-white border-green-500"
       });
     },
   });
@@ -651,6 +660,18 @@ const AdminPage = () => {
                     className="pl-10 w-64 bg-white border-slate-300 text-slate-900"
                   />
                 </div>
+                <label className="flex items-center text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    className="mr-2"
+                    checked={showDeleted}
+                    onChange={(e) => {
+                      setShowDeleted(e.target.checked);
+                      queryClient.invalidateQueries({ queryKey: ["admin-characters"] });
+                    }}
+                  />
+                  Show Deleted
+                </label>
                 <Select value={categoryFilter} onValueChange={setCategoryFilter}>
                   <SelectTrigger className="w-48 bg-white border-slate-300 text-slate-900">
                     <div className="flex items-center">
@@ -690,64 +711,63 @@ const AdminPage = () => {
                         {editingCharacter ? "Edit Character" : "Create New Character"}
                       </DialogTitle>
                     </DialogHeader>
+                    {editingCharacter && (
+                      <div className="text-xs text-slate-600 -mt-2 mb-2">
+                        Created by: {editingCharacter.createdBy ? `User #${editingCharacter.createdBy}` : 'System'}
+                      </div>
+                    )}
                     <CharacterForm
                       character={editingCharacter}
                       authHeaders={authHeaders}
+                      submitting={isCreatingCharacter || characterUpdateMutation.isPending}
                       onPromptPreview={(previewData) => {
                         setPromptPreviewData(previewData);
                         setShowPromptPreview(true);
                       }}
-                      onSubmit={(data, pendingImages) => {
+                      onSubmit={async (data, pendingImages) => {
                         if (editingCharacter) {
                           characterUpdateMutation.mutate({ ...data, id: editingCharacter.id, createdAt: editingCharacter.createdAt });
                         } else {
-                          // For creation, we need to create character then upload images
-                          const createWithGallery = async () => {
-                            try {
-                              const response = await fetch("/api/admin/characters", {
-                                method: "POST",
-                                headers: {
-                                  "Content-Type": "application/json",
-                                  ...authHeaders,
-                                },
-                                body: JSON.stringify(data),
-                              });
-                              if (!response.ok) throw new Error("Failed to create character");
-                              const createdCharacter = await response.json();
-                              
-                              // Upload pending gallery images
-                              if (pendingImages && pendingImages.length > 0) {
-                                for (const image of pendingImages) {
-                                  const formData = new FormData();
-                                  formData.append('file', image);
-                                  formData.append('category', 'general');
-                                  formData.append('is_primary', 'false');
-                                  
-                                  const uploadResponse = await fetch(`/api/admin/characters/${createdCharacter.id}/gallery/images`, {
-                                    method: 'POST',
-                                    headers: authHeaders,
-                                    body: formData,
-                                  });
-                                  if (!uploadResponse.ok) {
-                                    const errorText = await uploadResponse.text();
-                                    console.error('Failed to upload gallery image:', uploadResponse.status, errorText);
-                                    throw new Error(`Gallery upload failed: ${errorText}`);
-                                  } else {
-                                    console.log('Gallery image uploaded successfully');
-                                  }
+                          setIsCreatingCharacter(true);
+                          try {
+                            const response = await fetch("/api/admin/characters", {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                                ...authHeaders,
+                              },
+                              body: JSON.stringify(data),
+                            });
+                            if (!response.ok) throw new Error("Failed to create character");
+                            const createdCharacter = await response.json();
+
+                            if (pendingImages && pendingImages.length > 0) {
+                              for (const image of pendingImages) {
+                                const formData = new FormData();
+                                formData.append('file', image);
+                                formData.append('category', 'general');
+                                formData.append('is_primary', 'false');
+                                const uploadResponse = await fetch(`/api/admin/characters/${createdCharacter.id}/gallery/images`, {
+                                  method: 'POST',
+                                  headers: authHeaders,
+                                  body: formData,
+                                });
+                                if (!uploadResponse.ok) {
+                                  const errorText = await uploadResponse.text();
+                                  throw new Error(`Gallery upload failed: ${errorText}`);
                                 }
                               }
-                              
-                              // Refresh data
-                              queryClient.invalidateQueries({ queryKey: ["admin-characters"] });
-                              queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
-                              setShowCharacterDialog(false);
-                              
-                            } catch (error) {
-                              console.error('Character creation failed:', error);
                             }
-                          };
-                          createWithGallery();
+
+                            queryClient.invalidateQueries({ queryKey: ["admin-characters"] });
+                            queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+                            setShowCharacterDialog(false);
+                            toast({ title: "✅ Character created" });
+                          } catch (error: any) {
+                            toast({ title: "Creation failed", description: error?.message || 'Please try again', variant: 'destructive' });
+                          } finally {
+                            setIsCreatingCharacter(false);
+                          }
                         }
                       }}
                       onCancel={() => {
@@ -984,7 +1004,12 @@ const AdminPage = () => {
                             <Users className="w-6 h-6 text-slate-400" />
                           </div>
                         </div>
-                        <CardTitle className="text-lg text-slate-900">{character.name}</CardTitle>
+                        <div className="flex flex-col">
+                          <CardTitle className="text-lg text-slate-900">{character.name}</CardTitle>
+                          <div className="text-xs text-slate-500 mt-1">
+                            Created by: {character.createdBy ? `User #${character.createdBy}` : 'System'}
+                          </div>
+                        </div>
                       </div>
                       <div className="flex gap-1">
                         {/* Featured Status Toggle */}
@@ -1021,19 +1046,70 @@ const AdminPage = () => {
                         >
                           <BarChart3 className="w-4 h-4 text-purple-600" />
                         </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => characterDeleteMutation.mutate(character.id)}
-                          className="h-8 w-8 p-0 hover:bg-red-100"
-                          title="Delete Character"
-                        >
-                          <Trash2 className="w-4 h-4 text-red-600" />
-                        </Button>
+                        {character.isDeleted ? (
+                          <>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={async () => {
+                                const res = await fetch(`/api/admin/characters/${character.id}/restore`, { method: 'POST', headers: authHeaders });
+                                if (res.ok) {
+                                  queryClient.invalidateQueries({ queryKey: ["admin-characters"] });
+                                  toast({ title: "✅ Character restored", className: "bg-green-600 text-white border-green-500" });
+                                } else {
+                                  toast({ title: "Restore failed", variant: "destructive" });
+                                }
+                              }}
+                              className="h-8 w-auto px-2 hover:bg-green-100"
+                              title="Restore Character"
+                            >
+                              Restore
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={async () => {
+                                const ok = window.confirm("This will permanently delete this character and its files. This action cannot be undone. Continue?");
+                                if (!ok) return;
+                                const res = await fetch(`/api/admin/characters/${character.id}?force=true`, { method: 'DELETE', headers: authHeaders });
+                                if (res.ok) {
+                                  queryClient.invalidateQueries({ queryKey: ["admin-characters"] });
+                                  queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
+                                  toast({ title: "🗑️ Character hard-deleted", className: "bg-red-600 text-white border-red-500" });
+                                } else {
+                                  const text = await res.text();
+                                  toast({ title: "Hard delete failed", description: text, variant: "destructive" });
+                                }
+                              }}
+                              className="h-8 w-auto px-2 hover:bg-red-100 text-red-600"
+                              title="Hard Delete (permanent)"
+                            >
+                              Hard Delete
+                            </Button>
+                          </>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => characterDeleteMutation.mutate(character.id)}
+                            className="h-8 w-8 p-0 hover:bg-red-100"
+                            title="Delete Character"
+                          >
+                            <Trash2 className="w-4 h-4 text-red-600" />
+                          </Button>
+                        )}
                       </div>
                     </div>
                   </CardHeader>
                   <CardContent>
+                    {character.isDeleted && (
+                      <div className="mb-2">
+                        <Badge variant="destructive">Deleted (Soft)</Badge>
+                        {character.deleteReason && (
+                          <span className="ml-2 text-xs text-slate-500">Reason: {character.deleteReason}</span>
+                        )}
+                      </div>
+                    )}
                     <p className="text-sm text-slate-600 mb-4 line-clamp-3">
                       {character.backstory}
                     </p>
@@ -1573,12 +1649,13 @@ const validateAge = (age: number): boolean => age >= 1 && age <= 200;
 // NSFW is binary (SAFE=0, NSFW=1)
 const validateNSFWLevel = (level: number): boolean => level === 0 || level === 1;
 
-const CharacterForm = ({ character, onSubmit, onCancel, authHeaders, onPromptPreview }: {
+const CharacterForm = ({ character, onSubmit, onCancel, authHeaders, onPromptPreview, submitting = false }: {
   character: Character | null;
   onSubmit: (data: Omit<Character, "id" | "createdAt">, pendingImages?: File[]) => void;
   onCancel: () => void;
   authHeaders: Record<string, string>;
   onPromptPreview: (previewData: any) => void;
+  submitting?: boolean;
 }) => {
   const [formData, setFormData] = useState({
     name: character?.name || "",
@@ -1648,6 +1725,16 @@ const CharacterForm = ({ character, onSubmit, onCancel, authHeaders, onPromptPre
         variant: "destructive",
       });
       return;
+    }
+    if ((formData.nsfwLevel || 0) > 0) {
+      if (!formData.age || formData.age < 18) {
+        toast({
+          title: "❌ Validation Error",
+          description: "NSFW characters must have age 18 or above",
+          variant: "destructive",
+        });
+        return;
+      }
     }
     // Mirror personaPrompt to backstory to satisfy backend expectations
     const submitData = {
@@ -1824,6 +1911,7 @@ const CharacterForm = ({ character, onSubmit, onCancel, authHeaders, onPromptPre
                     onPromptPreview(mockPreview);
                   }
                 }}
+              disabled={submitting}
               >
                 Preview
               </Button>
@@ -2000,11 +2088,12 @@ const CharacterForm = ({ character, onSubmit, onCancel, authHeaders, onPromptPre
         </div>
 
         <div className="flex justify-end gap-3 pt-4">
-          <Button type="button" variant="outline" onClick={onCancel} className="text-slate-700 border-slate-300 bg-white hover:bg-slate-50">
+          <Button type="button" variant="outline" onClick={onCancel} className="text-slate-700 border-slate-300 bg-white hover:bg-slate-50" disabled={submitting}>
             Cancel
           </Button>
-          <Button type="submit" className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white">
-            {character ? "Update Character" : "Create Character"}
+          <Button type="submit" disabled={submitting} className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white">
+            {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {character ? (submitting ? "Updating..." : "Update Character") : (submitting ? "Creating..." : "Create Character")}
           </Button>
         </div>
       </form>

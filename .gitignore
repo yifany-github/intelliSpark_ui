@@ -297,3 +297,11 @@ demo_*/
 attached_assets/user_characters_img/*.png
 attached_assets/user_characters_img/*.jpg
 attached_assets/user_characters_img/*.jpeg
+
+# Gallery and other runtime assets (whole directories)
+attached_assets/character_galleries/
+attached_assets/chat_images/
+attached_assets/user_profiles/
+
+# Local AI/tooling artifacts
+.claude/
