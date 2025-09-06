@@ -40,16 +40,16 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Add CORS middleware to allow frontend requests
-allowed_origins = [
-    "http://localhost:5173", 
-    "http://localhost:5174", 
-    "http://localhost:5000", 
-    "http://localhost:3000"
-]
-
-# Add production origins from environment
+# In production, restrict to ALLOWED_ORIGINS only. Use localhost defaults only when not configured.
 if settings.allowed_origins:
-    allowed_origins.extend(settings.allowed_origins.split(","))
+    allowed_origins = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
+else:
+    allowed_origins = [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:5000",
+        "http://localhost:3000",
+    ]
 
 app.add_middleware(
     CORSMiddleware,
