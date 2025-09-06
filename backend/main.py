@@ -21,6 +21,7 @@ from payment.routes import router as payment_router
 from routes.user_preferences import router as preferences_router
 from notifications_routes import router as notifications_router
 from database import init_db
+from config import settings
 
 # Create FastAPI app
 app = FastAPI(
@@ -30,14 +31,29 @@ app = FastAPI(
 )
 
 # Initialize rate limiter
-limiter = Limiter(key_func=get_remote_address)
+# If REDIS_URL is provided, use Redis-backed storage for rate limits; otherwise use in-memory
+if settings.redis_url:
+    limiter = Limiter(key_func=get_remote_address, storage_uri=settings.redis_url)
+else:
+    limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Add CORS middleware to allow frontend requests
+allowed_origins = [
+    "http://localhost:5173", 
+    "http://localhost:5174", 
+    "http://localhost:5000", 
+    "http://localhost:3000"
+]
+
+# Add production origins from environment
+if settings.allowed_origins:
+    allowed_origins.extend(settings.allowed_origins.split(","))
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:5000", "http://localhost:3000"],  # Add Vite dev server port
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -77,9 +93,13 @@ if assets_path.exists():
     app.mount("/assets", StaticFiles(directory=str(assets_path)), name="assets")
 
 # Mount client build files (for production) - LAST priority
-client_dist_path = parent_dir / "dist"
-if client_dist_path.exists():
-    app.mount("/", StaticFiles(directory=str(client_dist_path), html=True), name="client")
+# Prefer Vite's default output at dist/public (used by Cloudflare Pages too)
+client_dist_public = parent_dir / "dist" / "public"
+client_dist_root = parent_dir / "dist"
+if client_dist_public.exists():
+    app.mount("/", StaticFiles(directory=str(client_dist_public), html=True), name="client")
+elif client_dist_root.exists():
+    app.mount("/", StaticFiles(directory=str(client_dist_root), html=True), name="client")
 
 @app.on_event("startup")
 async def startup_event():

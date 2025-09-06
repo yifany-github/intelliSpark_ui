@@ -22,13 +22,16 @@ class Settings(BaseSettings):
     
     # Voice/Audio settings
     eleven_lab_api: Optional[str] = None
-    
+
     # App settings
     app_name: str = "ProductInsightAI Backend"
     debug: bool = True
     
-    # CORS settings
-    allowed_origins: list = ["http://localhost:5173", "http://localhost:5174", "http://localhost:5000", "http://localhost:3000"]
+    # Redis settings (optional, used for rate limiting storage)
+    redis_url: Optional[str] = None
+    
+    # CORS settings - can be comma-separated string for production
+    allowed_origins: Optional[str] = None  # e.g., "https://yourdomain.com,https://www.yourdomain.com"
     
     # Character System Configuration
     enable_hardcoded_character_loading: bool = False  # Default disabled
@@ -68,6 +71,8 @@ def validate_settings():
     print(f"Firebase API Key present: {'Yes' if settings.firebase_api_key else 'No'}")
     print(f"Secret Key present: {'Yes' if settings.secret_key else 'No'}")
     print(f"Stripe Secret Key present: {'Yes' if settings.stripe_secret_key else 'No'}")
+    if settings.redis_url:
+        print("Redis URL detected: using Redis-backed rate limiting if configured in app")
 
 # Call validation on import
 validate_settings()
