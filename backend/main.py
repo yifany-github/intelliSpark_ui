@@ -93,10 +93,20 @@ if assets_path.exists():
     app.mount("/assets", StaticFiles(directory=str(assets_path)), name="assets")
 
 # Mount client build files (for production) - LAST priority
-# Prefer Vite's default output at dist/public (used by Cloudflare Pages too)
+# Resolution order:
+# 1) Explicit path via CLIENT_STATIC_DIR (for container deployments)
+# 2) Local bundled directory at backend/client_static
+# 3) Repo-level dist/public or dist
+client_static_env = os.getenv("CLIENT_STATIC_DIR")
+backend_local_static = Path(__file__).parent / "client_static"
 client_dist_public = parent_dir / "dist" / "public"
 client_dist_root = parent_dir / "dist"
-if client_dist_public.exists():
+
+if client_static_env and Path(client_static_env).exists():
+    app.mount("/", StaticFiles(directory=client_static_env, html=True), name="client")
+elif backend_local_static.exists():
+    app.mount("/", StaticFiles(directory=str(backend_local_static), html=True), name="client")
+elif client_dist_public.exists():
     app.mount("/", StaticFiles(directory=str(client_dist_public), html=True), name="client")
 elif client_dist_root.exists():
     app.mount("/", StaticFiles(directory=str(client_dist_root), html=True), name="client")

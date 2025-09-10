@@ -64,10 +64,28 @@ def validate_settings():
     if not settings.secret_key:
         raise ValueError("SECRET_KEY is required for JWT authentication")
     
-    # Database configuration logging
+    # Database configuration logging (mask sensitive parts)
     db_type = "PostgreSQL (Supabase)" if settings.database_url.startswith("postgresql") else "SQLite (Development)"
     print(f"Database: {db_type}")
-    print(f"Database URL: {settings.database_url}")
+    try:
+        from urllib.parse import urlsplit, urlunsplit
+        if settings.database_url.startswith("postgresql"):
+            parts = urlsplit(settings.database_url)
+            netloc = parts.netloc
+            userinfo, at, hostport = netloc.partition("@")
+            if at:
+                user, colon, _pwd = userinfo.partition(":")
+                masked_userinfo = f"{user}{colon}***"
+                masked_netloc = f"{masked_userinfo}@{hostport}"
+            else:
+                masked_netloc = netloc
+            masked_url = urlunsplit((parts.scheme, masked_netloc, parts.path, parts.query, parts.fragment))
+            print(f"Database URL: {masked_url}")
+        else:
+            print(f"Database URL: {settings.database_url}")
+    except Exception:
+        # Fallback to non-masked if parsing fails
+        print(f"Database URL: {settings.database_url}")
     print(f"Debug mode: {settings.debug}")
     print(f"Gemini API Key present: {'Yes' if settings.gemini_api_key else 'No'}")
     print(f"Grok API Key present: {'Yes' if settings.grok_api_key else 'No'}")
