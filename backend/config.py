@@ -64,6 +64,9 @@ def validate_settings():
     if not settings.secret_key:
         raise ValueError("SECRET_KEY is required for JWT authentication")
     
+    # Database configuration logging
+    db_type = "PostgreSQL (Supabase)" if settings.database_url.startswith("postgresql") else "SQLite (Development)"
+    print(f"Database: {db_type}")
     print(f"Database URL: {settings.database_url}")
     print(f"Debug mode: {settings.debug}")
     print(f"Gemini API Key present: {'Yes' if settings.gemini_api_key else 'No'}")
