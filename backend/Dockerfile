@@ -29,6 +29,9 @@ USER appuser
 # Expose port
 EXPOSE 8000
 
+# Set default client static dir (if present)
+ENV CLIENT_STATIC_DIR=/app/client_static
+
 # Health check
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
     CMD python -c "import requests; requests.get('http://localhost:8000/api/health')" || exit 1
