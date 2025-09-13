@@ -1,4 +1,4 @@
-import { Home, MessageSquare, Heart, Search, Plus, Coins, User, Bell, Settings, Users } from 'lucide-react';
+import { Home, MessageSquare, Heart, Search, Plus, Coins, User, Bell, Settings, Users, BookOpen } from 'lucide-react';
 import { TranslationKey } from '@/contexts/LanguageContext';
 
 export interface NavigationItem {
@@ -57,6 +57,15 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     label: 'discover',
     path: '/discover',
     icon: Search,
+    showInSidebar: true,
+    showInTopNav: false,
+    showInMobileTab: false
+  },
+  {
+    id: 'story',
+    label: 'storytelling',
+    path: '/story',
+    icon: BookOpen,
     showInSidebar: true,
     showInTopNav: false,
     showInMobileTab: false
