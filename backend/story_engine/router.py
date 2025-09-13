@@ -58,7 +58,8 @@ def create_session(body: CreateSessionBody, db: Session = Depends(get_db)):
     requires = rt.requires_generation(scene) if scene else False
     safe_next = (scene.meta.get("safeNext") if (scene and scene.meta) else None)
     flags = state.player.flags or {}
-    rels = [{"npcId": k[4:], "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
+    npc_names = {n.id: n.name for n in pack.npcs}
+    rels = [{"npcId": k[4:], "name": npc_names.get(k[4:], k[4:]), "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
     history = state.history[-20:] if state.history else []
     return {"sessionId": sid, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels}
 
@@ -82,7 +83,8 @@ def get_session(session_id: int, db: Session = Depends(get_db)):
     requires = rt.requires_generation(scene) if scene else False
     safe_next = (scene.meta.get("safeNext") if (scene and scene.meta) else None)
     flags = st.player.flags or {}
-    rels = [{"npcId": k[4:], "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
+    npc_names = {n.id: n.name for n in pack.npcs}
+    rels = [{"npcId": k[4:], "name": npc_names.get(k[4:], k[4:]), "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
     history = st.history[-20:] if st.history else []
     return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels}
 
@@ -115,7 +117,8 @@ def apply_choice(session_id: int, body: ChoiceBody, db: Session = Depends(get_db
     requires = rt.requires_generation(next_scene) if next_scene else False
     safe_next = (next_scene.meta.get("safeNext") if (next_scene and next_scene.meta) else None)
     flags = st.player.flags or {}
-    rels = [{"npcId": k[4:], "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
+    npc_names = {n.id: n.name for n in pack.npcs}
+    rels = [{"npcId": k[4:], "name": npc_names.get(k[4:], k[4:]), "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
     history = st.history[-20:] if st.history else []
     return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels}
 
@@ -149,7 +152,8 @@ def skip_restricted(session_id: int, body: SkipBody, db: Session = Depends(get_d
     requires = rt.requires_generation(scene) if scene else False
     safe_next = (scene.meta.get("safeNext") if (scene and scene.meta) else None)
     flags = st.player.flags or {}
-    rels = [{"npcId": k[4:], "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
+    npc_names = {n.id: n.name for n in pack.npcs}
+    rels = [{"npcId": k[4:], "name": npc_names.get(k[4:], k[4:]), "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
     history = st.history[-20:] if st.history else []
     return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels}
 

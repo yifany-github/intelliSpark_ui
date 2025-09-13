@@ -1,17 +1,17 @@
 import React from 'react';
 
-interface Relation { npcId: string; value: number }
+interface Relation { npcId: string; name?: string; value: number }
 interface Props { relations?: Relation[] }
 
 const clamp = (v:number) => Math.max(-100, Math.min(100, v));
 
-const RelationRow: React.FC<Relation> = ({ npcId, value }) => {
+const RelationRow: React.FC<Relation> = ({ npcId, name, value }) => {
   const v = clamp(value);
   const pos = v > 0; const width = Math.abs(v);
   return (
     <div className="mb-2">
       <div className="text-xs text-gray-300 mb-1 flex justify-between">
-        <span>{npcId}</span>
+        <span>{name || npcId}</span>
         <span className={pos ? 'text-emerald-400' : 'text-rose-400'}>{v}</span>
       </div>
       <div className="h-2 bg-gray-800 rounded overflow-hidden">

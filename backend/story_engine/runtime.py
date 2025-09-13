@@ -86,6 +86,11 @@ class StoryRuntime:
         # check conditions
         if not self.evaluate_conditions(sel.conditions, state):
             return None
+        # log user choice into history
+        try:
+            state.history.append({"role": "user", "content": f"选择：{sel.text}"})
+        except Exception:
+            pass
         # apply effects
         self.apply_effects(sel.effects, state)
         # jump to next scene
