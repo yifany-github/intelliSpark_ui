@@ -96,7 +96,14 @@ class StoryRuntime:
         # jump to next scene
         if sel.next_scene_id:
             state.current_scene_id = sel.next_scene_id
-        return self.get_scene(state.current_scene_id)
+        next_scene = self.get_scene(state.current_scene_id)
+        # system narration after choice
+        try:
+            title = next_scene.title if next_scene else state.current_scene_id
+            state.history.append({"role": "system", "content": f"你选择了『{sel.text}』，进入场景「{title}」。"})
+        except Exception:
+            pass
+        return next_scene
 
     # --- Generation (prototype) ---
     def requires_generation(self, scene: Optional[Scene]) -> bool:
@@ -113,7 +120,11 @@ class StoryRuntime:
         payload = build_multi_speaker_prompt(self.pack, state, scene) if scene else {}
         # Append a placeholder assistant line to history for now
         line = "【原型】生成了一句对白。"
-        state.history.append({"role": "assistant", "content": line})
+        # record as assistant; optionally tag speaker via current scene
+        entry = {"role": "assistant", "content": line}
+        if scene and scene.speaker:
+            entry["speakerId"] = scene.speaker
+        state.history.append(entry)  # type: ignore
         return line
 
     def resolve_auto_scenes(self, state: SessionState) -> Scene:

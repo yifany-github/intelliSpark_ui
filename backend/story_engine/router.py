@@ -61,7 +61,8 @@ def create_session(body: CreateSessionBody, db: Session = Depends(get_db)):
     npc_names = {n.id: n.name for n in pack.npcs}
     rels = [{"npcId": k[4:], "name": npc_names.get(k[4:], k[4:]), "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
     history = state.history[-20:] if state.history else []
-    return {"sessionId": sid, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels}
+    npcs = [{"id": n.id, "name": n.name, "avatarUrl": n.avatar_url} for n in pack.npcs]
+    return {"sessionId": sid, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels, "npcs": npcs}
 
 
 @router.get("/sessions/{session_id}")
@@ -86,7 +87,8 @@ def get_session(session_id: int, db: Session = Depends(get_db)):
     npc_names = {n.id: n.name for n in pack.npcs}
     rels = [{"npcId": k[4:], "name": npc_names.get(k[4:], k[4:]), "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
     history = st.history[-20:] if st.history else []
-    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels}
+    npcs = [{"id": n.id, "name": n.name, "avatarUrl": n.avatar_url} for n in pack.npcs]
+    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels, "npcs": npcs}
 
 
 class ChoiceBody(BaseModel):
@@ -120,7 +122,8 @@ def apply_choice(session_id: int, body: ChoiceBody, db: Session = Depends(get_db
     npc_names = {n.id: n.name for n in pack.npcs}
     rels = [{"npcId": k[4:], "name": npc_names.get(k[4:], k[4:]), "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
     history = st.history[-20:] if st.history else []
-    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels}
+    npcs = [{"id": n.id, "name": n.name, "avatarUrl": n.avatar_url} for n in pack.npcs]
+    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels, "npcs": npcs}
 
 
 class SkipBody(BaseModel):
@@ -155,7 +158,8 @@ def skip_restricted(session_id: int, body: SkipBody, db: Session = Depends(get_d
     npc_names = {n.id: n.name for n in pack.npcs}
     rels = [{"npcId": k[4:], "name": npc_names.get(k[4:], k[4:]), "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
     history = st.history[-20:] if st.history else []
-    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels}
+    npcs = [{"id": n.id, "name": n.name, "avatarUrl": n.avatar_url} for n in pack.npcs]
+    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels, "npcs": npcs}
 
 
 @router.post("/sessions/{session_id}/generate")
