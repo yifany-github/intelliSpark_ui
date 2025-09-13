@@ -3,7 +3,8 @@
     "id": "huangrong",
     "name": "黄蓉",
     "traits": ["聪慧", "俏皮", "机敏"],
-    "backstory": "丐帮帮主之女，聪慧过人，喜机巧。"
+    "backstory": "丐帮帮主之女，聪慧过人，喜机巧。",
+    "avatar_url": "/assets/characters_img/黄蓉1.png"
   },
   {
     "id": "jia_jiangjun",
@@ -12,4 +13,3 @@
     "backstory": "负责驻地治安的将军。"
   }
 ]
-
