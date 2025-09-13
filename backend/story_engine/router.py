@@ -57,7 +57,10 @@ def create_session(body: CreateSessionBody, db: Session = Depends(get_db)):
         scene_out = scene.model_dump() if scene else None
     requires = rt.requires_generation(scene) if scene else False
     safe_next = (scene.meta.get("safeNext") if (scene and scene.meta) else None)
-    return {"sessionId": sid, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next}
+    flags = state.player.flags or {}
+    rels = [{"npcId": k[4:], "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
+    history = state.history[-20:] if state.history else []
+    return {"sessionId": sid, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels}
 
 
 @router.get("/sessions/{session_id}")
@@ -78,7 +81,10 @@ def get_session(session_id: int, db: Session = Depends(get_db)):
         scene_out = scene.model_dump() if scene else None
     requires = rt.requires_generation(scene) if scene else False
     safe_next = (scene.meta.get("safeNext") if (scene and scene.meta) else None)
-    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next}
+    flags = st.player.flags or {}
+    rels = [{"npcId": k[4:], "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
+    history = st.history[-20:] if st.history else []
+    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels}
 
 
 class ChoiceBody(BaseModel):
@@ -108,7 +114,10 @@ def apply_choice(session_id: int, body: ChoiceBody, db: Session = Depends(get_db
         scene_out = next_scene.model_dump() if next_scene else None
     requires = rt.requires_generation(next_scene) if next_scene else False
     safe_next = (next_scene.meta.get("safeNext") if (next_scene and next_scene.meta) else None)
-    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next}
+    flags = st.player.flags or {}
+    rels = [{"npcId": k[4:], "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
+    history = st.history[-20:] if st.history else []
+    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels}
 
 
 class SkipBody(BaseModel):
@@ -139,7 +148,10 @@ def skip_restricted(session_id: int, body: SkipBody, db: Session = Depends(get_d
         scene_out = scene.model_dump() if scene else None
     requires = rt.requires_generation(scene) if scene else False
     safe_next = (scene.meta.get("safeNext") if (scene and scene.meta) else None)
-    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next}
+    flags = st.player.flags or {}
+    rels = [{"npcId": k[4:], "value": int(v)} for k, v in flags.items() if isinstance(k, str) and k.startswith("rel_")]
+    history = st.history[-20:] if st.history else []
+    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next, "history": history, "relations": rels}
 
 
 @router.post("/sessions/{session_id}/generate")

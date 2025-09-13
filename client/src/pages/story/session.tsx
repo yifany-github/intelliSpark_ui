@@ -2,6 +2,8 @@ import { useEffect } from "react";
 import { useRoute } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import GlobalLayout from "@/components/layout/GlobalLayout";
+import StoryChat from "@/components/story/StoryChat";
+import RelationshipHUD from "@/components/story/RelationshipHUD";
 import { Button } from "@/components/ui/button";
 
 const StorySessionPage = () => {
@@ -75,12 +77,7 @@ const StorySessionPage = () => {
           <div className="space-y-6">
             <div>
               {scene.title && (<h2 className="text-lg font-semibold mb-2">{scene.title}</h2>)}
-              {scene.speaker && (
-                <div className="text-sm text-gray-300 mb-1">发言者：{scene.speaker}</div>
-              )}
-              {scene.text && (
-                <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 leading-relaxed">{scene.text}</div>
-              )}
+              <StoryChat history={(data?.history as any[]) || []} scene={scene} />
               {data?.restricted && (
                 <div className="text-xs text-amber-400 mt-2 flex items-center justify-between">
                   <span>NSFW 关闭，当前场景内容已隐藏</span>
@@ -93,6 +90,8 @@ const StorySessionPage = () => {
                 </div>
               )}
             </div>
+
+            <RelationshipHUD relations={data?.relations as any} />
 
             {Array.isArray(scene.choices) && scene.choices.length > 0 && !data?.restricted && (
               <div>
