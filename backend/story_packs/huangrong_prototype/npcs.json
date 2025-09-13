@@ -1,0 +1,15 @@
+[
+  {
+    "id": "huangrong",
+    "name": "黄蓉",
+    "traits": ["聪慧", "俏皮", "机敏"],
+    "backstory": "丐帮帮主之女，聪慧过人，喜机巧。"
+  },
+  {
+    "id": "jia_jiangjun",
+    "name": "贾将军",
+    "traits": ["严肃", "多疑"],
+    "backstory": "负责驻地治安的将军。"
+  }
+]
+
