@@ -27,8 +27,19 @@ const StoryIndexPage = () => {
       return res.json();
     },
     onSuccess: (data: any) => {
+      try { localStorage.setItem('last_story_session', String(data.sessionId)); } catch {}
       navigateToPath(`/story/${data.sessionId}`);
     },
+  });
+
+  const { data: sessions } = useQuery<{ sessions: {id:number; packId:string; updatedAt:string|null}[] }>({
+    queryKey: ["/api/story/sessions"],
+    queryFn: async () => {
+      const res = await fetch("/api/story/sessions");
+      if (!res.ok) throw new Error("Failed to load sessions");
+      return res.json();
+    },
+    staleTime: 10_000,
   });
 
   return (
@@ -65,10 +76,37 @@ const StoryIndexPage = () => {
             )}
           </div>
         )}
+
+        {/* Continue last session */}
+        <div className="mt-8">
+          <h2 className="text-lg font-semibold mb-3">继续</h2>
+          <div className="space-y-2">
+            {(() => {
+              const last = typeof window !== 'undefined' ? localStorage.getItem('last_story_session') : null;
+              if (last) {
+                return (
+                  <div className="flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg p-3">
+                    <div className="text-sm text-gray-300">最近会话 ID: {last}</div>
+                    <Button variant="outline" onClick={() => navigateToPath(`/story/${last}`)}>继续</Button>
+                  </div>
+                );
+              }
+              if (sessions && sessions.sessions.length > 0) {
+                const s = sessions.sessions[0];
+                return (
+                  <div className="flex items-center justify-between bg-gray-800 border border-gray-700 rounded-lg p-3">
+                    <div className="text-sm text-gray-300">{s.packId} · #{s.id}</div>
+                    <Button variant="outline" onClick={() => navigateToPath(`/story/${s.id}`)}>继续</Button>
+                  </div>
+                );
+              }
+              return <div className="text-sm text-gray-500">暂无历史会话</div>;
+            })()}
+          </div>
+        </div>
       </div>
     </GlobalLayout>
   );
 };
 
 export default StoryIndexPage;
-

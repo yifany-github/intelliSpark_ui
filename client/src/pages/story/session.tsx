@@ -8,7 +8,7 @@ const StorySessionPage = () => {
   const [, params] = useRoute("/story/:id");
   const sessionId = params?.id;
 
-  const { data, isLoading, error, refetch } = useQuery<{ sessionId: number; scene: any }>({
+  const { data, isLoading, error, refetch } = useQuery<{ sessionId: number; scene: any; restricted?: boolean }>({
     queryKey: ["/api/story/sessions", sessionId],
     enabled: !!sessionId,
     queryFn: async () => {
@@ -62,9 +62,12 @@ const StorySessionPage = () => {
               {scene.text && (
                 <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 leading-relaxed">{scene.text}</div>
               )}
+              {data?.restricted && (
+                <div className="text-xs text-amber-400 mt-2">NSFW 关闭，当前场景内容已隐藏</div>
+              )}
             </div>
 
-            {Array.isArray(scene.choices) && scene.choices.length > 0 && (
+            {Array.isArray(scene.choices) && scene.choices.length > 0 && !data?.restricted && (
               <div>
                 <div className="text-sm text-gray-400 mb-2">选择：</div>
                 <div className="grid sm:grid-cols-2 gap-2">
@@ -84,4 +87,3 @@ const StorySessionPage = () => {
 };
 
 export default StorySessionPage;
-
