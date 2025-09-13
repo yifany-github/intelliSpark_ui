@@ -46,10 +46,11 @@
               }
             }
           },
+          "next_scene_id": { "type": "string" },
+          "effects": { "type": "array", "items": { "type": "object" } },
           "meta": { "type": "object" }
         }
       }
     }
   }
 }
-

@@ -46,7 +46,8 @@ def create_session(body: CreateSessionBody, db: Session = Depends(get_db)):
     svc = StoryService(db)
     sid = svc.create_session(user_id=state.user_id, pack=pack, state=state)
     state.session_id = str(sid)
-    scene = rt.get_scene(state.current_scene_id)
+    # resolve auto scenes
+    scene = rt.resolve_auto_scenes(state)
     # NSFW filter
     restricted = False
     if scene and not is_scene_allowed(scene, state.nsfw_mode):
@@ -55,7 +56,8 @@ def create_session(body: CreateSessionBody, db: Session = Depends(get_db)):
     else:
         scene_out = scene.model_dump() if scene else None
     requires = rt.requires_generation(scene) if scene else False
-    return {"sessionId": sid, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires}
+    safe_next = (scene.meta.get("safeNext") if (scene and scene.meta) else None)
+    return {"sessionId": sid, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next}
 
 
 @router.get("/sessions/{session_id}")
@@ -67,7 +69,7 @@ def get_session(session_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Session not found")
     pack = loader.load_pack(st.pack_id)
     rt = StoryRuntime(pack)
-    scene = rt.get_scene(st.current_scene_id)
+    scene = rt.resolve_auto_scenes(st)
     restricted = False
     if scene and not is_scene_allowed(scene, st.nsfw_mode):
         restricted = True
@@ -75,7 +77,8 @@ def get_session(session_id: int, db: Session = Depends(get_db)):
     else:
         scene_out = scene.model_dump() if scene else None
     requires = rt.requires_generation(scene) if scene else False
-    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires}
+    safe_next = (scene.meta.get("safeNext") if (scene and scene.meta) else None)
+    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next}
 
 
 class ChoiceBody(BaseModel):
@@ -94,6 +97,8 @@ def apply_choice(session_id: int, body: ChoiceBody, db: Session = Depends(get_db
     next_scene = rt.choose(st, body.choiceId)
     if not next_scene:
         raise HTTPException(status_code=400, detail="Invalid choice or conditions not met")
+    # resolve auto scenes post-choice
+    next_scene = rt.resolve_auto_scenes(st)
     svc.save_session(session_id, st)
     restricted = False
     if next_scene and not is_scene_allowed(next_scene, st.nsfw_mode):
@@ -102,7 +107,39 @@ def apply_choice(session_id: int, body: ChoiceBody, db: Session = Depends(get_db
     else:
         scene_out = next_scene.model_dump() if next_scene else None
     requires = rt.requires_generation(next_scene) if next_scene else False
-    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires}
+    safe_next = (next_scene.meta.get("safeNext") if (next_scene and next_scene.meta) else None)
+    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next}
+
+
+class SkipBody(BaseModel):
+    targetSceneId: str | None = None
+
+
+@router.post("/sessions/{session_id}/skip")
+def skip_restricted(session_id: int, body: SkipBody, db: Session = Depends(get_db)):
+    loader = PackLoader(Path(__file__).parent.parent / "story_packs")
+    svc = StoryService(db)
+    st = svc.load_session(session_id)
+    if not st:
+        raise HTTPException(status_code=404, detail="Session not found")
+    pack = loader.load_pack(st.pack_id)
+    rt = StoryRuntime(pack)
+    scene = rt.get_scene(st.current_scene_id)
+    target = body.targetSceneId or (scene.meta.get("safeNext") if scene and scene.meta else None)
+    if not target:
+        raise HTTPException(status_code=400, detail="No safe target provided")
+    st.current_scene_id = target
+    scene = rt.resolve_auto_scenes(st)
+    svc.save_session(session_id, st)
+    restricted = False
+    if scene and not is_scene_allowed(scene, st.nsfw_mode):
+        restricted = True
+        scene_out = {"id": scene.id, "type": scene.type, "title": scene.title, "speaker": scene.speaker, "text": "此场景包含受限内容 (NSFW 已关闭)", "choices": []}
+    else:
+        scene_out = scene.model_dump() if scene else None
+    requires = rt.requires_generation(scene) if scene else False
+    safe_next = (scene.meta.get("safeNext") if (scene and scene.meta) else None)
+    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires, "restrictedSafeNext": safe_next}
 
 
 @router.post("/sessions/{session_id}/generate")

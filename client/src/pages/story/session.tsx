@@ -36,13 +36,23 @@ const StorySessionPage = () => {
   const { mutate: generate, isPending: isGenerating } = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/story/sessions/${sessionId}/generate`, { method: 'POST' });
-      if (!res.ok) throw new Error('Failed to generate');
+      if (!res.ok) {
+        if (res.status === 402) {
+          const payload = await res.json().catch(() => ({}));
+          throw new Error('需要代币以生成对白');
+        }
+        throw new Error('Failed to generate');
+      }
       return res.json();
     },
     onSuccess: () => refetch(),
+    onError: (e: any) => {
+      alert(e?.message || '生成失败');
+    }
   });
 
   const scene = data?.scene;
+  const safeNext = data?.restrictedSafeNext as string | undefined;
 
   return (
     <GlobalLayout showSidebar={false}>
@@ -72,7 +82,15 @@ const StorySessionPage = () => {
                 <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 leading-relaxed">{scene.text}</div>
               )}
               {data?.restricted && (
-                <div className="text-xs text-amber-400 mt-2">NSFW 关闭，当前场景内容已隐藏</div>
+                <div className="text-xs text-amber-400 mt-2 flex items-center justify-between">
+                  <span>NSFW 关闭，当前场景内容已隐藏</span>
+                  {safeNext && (
+                    <Button size="sm" variant="outline" onClick={async () => {
+                      await fetch(`/api/story/sessions/${sessionId}/skip`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ targetSceneId: safeNext }) });
+                      refetch();
+                    }}>跳过该段</Button>
+                  )}
+                </div>
               )}
             </div>
 

@@ -110,3 +110,23 @@ class StoryRuntime:
         line = "【原型】生成了一句对白。"
         state.history.append({"role": "assistant", "content": line})
         return line
+
+    def resolve_auto_scenes(self, state: SessionState) -> Scene:
+        """Auto-advance through event/auto scenes applying effects until reaching a playable scene."""
+        guard = 0
+        while guard < 20:
+            scene = self.get_scene(state.current_scene_id)
+            if not scene:
+                return None
+            if scene.type == "event":
+                # apply scene-level effects and jump
+                self.apply_effects(scene.effects, state)
+                if scene.next_scene_id:
+                    state.current_scene_id = scene.next_scene_id
+                    guard += 1
+                    continue
+                else:
+                    break
+            else:
+                break
+        return self.get_scene(state.current_scene_id)

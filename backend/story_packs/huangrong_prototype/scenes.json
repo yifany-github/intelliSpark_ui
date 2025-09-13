@@ -1,20 +1,15 @@
 [
   {
     "id": "scene_intro",
-    "type": "text",
+    "type": "choice",
     "title": "江南小镇",
     "speaker": "narrator",
     "text": "江南小镇，烟雨朦胧。你与黄蓉不期而遇。",
-    "meta": { "nsfwLevel": 0, "location": "小镇口" }
-  },
-  {
-    "id": "scene_choice_1",
-    "type": "choice",
-    "title": "初见抉择",
     "choices": [
       { "id": "greet", "text": "上前问候", "next_scene_id": "scene_greet" },
       { "id": "observe", "text": "在旁观察", "next_scene_id": "scene_observe" }
-    ]
+    ],
+    "meta": { "nsfwLevel": 0, "location": "小镇口" }
   },
   {
     "id": "scene_greet",
@@ -29,6 +24,12 @@
     "speaker": "narrator",
     "text": "你在不远处观察，贾将军率兵经过。",
     "meta": { "nsfwLevel": 0 }
+  },
+  {
+    "id": "scene_patrol_event",
+    "type": "event",
+    "effects": [ { "set_flag": { "saw_patrol": true } } ],
+    "next_scene_id": "scene_observe",
+    "meta": { "nsfwLevel": 0 }
   }
 ]
-
