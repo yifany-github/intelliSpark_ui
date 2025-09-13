@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Optional, Dict, Any, List
 from .models import StoryPack, SessionState, PlayerState, Scene, Choice
+from .prompt_builder import build_multi_speaker_prompt
 
 
 class StoryRuntime:
@@ -91,3 +92,21 @@ class StoryRuntime:
         if sel.next_scene_id:
             state.current_scene_id = sel.next_scene_id
         return self.get_scene(state.current_scene_id)
+
+    # --- Generation (prototype) ---
+    def requires_generation(self, scene: Optional[Scene]) -> bool:
+        if not scene:
+            return False
+        meta = scene.meta or {}
+        return bool(meta.get("generate"))
+
+    def generate_line(self, state: SessionState) -> str:
+        """Prototype generator: build prompt and return a placeholder line.
+        Later: call actual model service and append to history.
+        """
+        scene = self.get_scene(state.current_scene_id)
+        payload = build_multi_speaker_prompt(self.pack, state, scene) if scene else {}
+        # Append a placeholder assistant line to history for now
+        line = "【原型】生成了一句对白。"
+        state.history.append({"role": "assistant", "content": line})
+        return line

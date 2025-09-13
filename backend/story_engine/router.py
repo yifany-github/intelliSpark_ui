@@ -6,6 +6,7 @@ from .pack_loader import PackLoader
 from .runtime import StoryRuntime
 from .service import StoryService
 from .models import SessionState
+from payment.token_service import TokenService
 from .content_filter import is_scene_allowed
 from database import get_db
 
@@ -53,7 +54,8 @@ def create_session(body: CreateSessionBody, db: Session = Depends(get_db)):
         scene_out = {"id": scene.id, "type": scene.type, "title": scene.title, "speaker": scene.speaker, "text": "此场景包含受限内容 (NSFW 已关闭)", "choices": []}
     else:
         scene_out = scene.model_dump() if scene else None
-    return {"sessionId": sid, "scene": scene_out, "restricted": restricted}
+    requires = rt.requires_generation(scene) if scene else False
+    return {"sessionId": sid, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires}
 
 
 @router.get("/sessions/{session_id}")
@@ -72,7 +74,8 @@ def get_session(session_id: int, db: Session = Depends(get_db)):
         scene_out = {"id": scene.id, "type": scene.type, "title": scene.title, "speaker": scene.speaker, "text": "此场景包含受限内容 (NSFW 已关闭)", "choices": []}
     else:
         scene_out = scene.model_dump() if scene else None
-    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted}
+    requires = rt.requires_generation(scene) if scene else False
+    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires}
 
 
 class ChoiceBody(BaseModel):
@@ -98,7 +101,31 @@ def apply_choice(session_id: int, body: ChoiceBody, db: Session = Depends(get_db
         scene_out = {"id": next_scene.id, "type": next_scene.type, "title": next_scene.title, "speaker": next_scene.speaker, "text": "此场景包含受限内容 (NSFW 已关闭)", "choices": []}
     else:
         scene_out = next_scene.model_dump() if next_scene else None
-    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted}
+    requires = rt.requires_generation(next_scene) if next_scene else False
+    return {"sessionId": session_id, "scene": scene_out, "restricted": restricted, "requiresGeneration": requires}
+
+
+@router.post("/sessions/{session_id}/generate")
+def generate_turn(session_id: int, db: Session = Depends(get_db)):
+    loader = PackLoader(Path(__file__).parent.parent / "story_packs")
+    svc = StoryService(db)
+    st = svc.load_session(session_id)
+    if not st:
+        raise HTTPException(status_code=404, detail="Session not found")
+    pack = loader.load_pack(st.pack_id)
+    rt = StoryRuntime(pack)
+    scene = rt.get_scene(st.current_scene_id)
+    if not scene or not rt.requires_generation(scene):
+        raise HTTPException(status_code=400, detail="Scene does not require generation")
+
+    # Deduct 1 token for generation
+    token_service = TokenService(db)
+    if not token_service.deduct_tokens(user_id=st.user_id, amount=1, description="Story generation"):
+        raise HTTPException(status_code=402, detail="INSUFFICIENT_TOKENS")
+
+    content = rt.generate_line(st)
+    svc.save_session(session_id, st)
+    return {"sessionId": session_id, "content": content}
 
 
 @router.get("/sessions")

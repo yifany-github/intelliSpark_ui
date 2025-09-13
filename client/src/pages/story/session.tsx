@@ -8,7 +8,7 @@ const StorySessionPage = () => {
   const [, params] = useRoute("/story/:id");
   const sessionId = params?.id;
 
-  const { data, isLoading, error, refetch } = useQuery<{ sessionId: number; scene: any; restricted?: boolean }>({
+  const { data, isLoading, error, refetch } = useQuery<{ sessionId: number; scene: any; restricted?: boolean; requiresGeneration?: boolean }>({
     queryKey: ["/api/story/sessions", sessionId],
     enabled: !!sessionId,
     queryFn: async () => {
@@ -31,6 +31,15 @@ const StorySessionPage = () => {
     onSuccess: () => {
       refetch();
     },
+  });
+
+  const { mutate: generate, isPending: isGenerating } = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/story/sessions/${sessionId}/generate`, { method: 'POST' });
+      if (!res.ok) throw new Error('Failed to generate');
+      return res.json();
+    },
+    onSuccess: () => refetch(),
   });
 
   const scene = data?.scene;
@@ -75,6 +84,15 @@ const StorySessionPage = () => {
                     <Button key={c.id} disabled={isPending} onClick={() => choose(c.id)}>{c.text}</Button>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {data?.requiresGeneration && !data?.restricted && (
+              <div>
+                <div className="text-sm text-gray-400 mb-2">需要生成对白：</div>
+                <Button disabled={isGenerating} onClick={() => generate()}>
+                  {isGenerating ? '生成中…' : '生成对白'}
+                </Button>
               </div>
             )}
           </div>
