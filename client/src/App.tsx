@@ -21,6 +21,8 @@ import PaymentPage from "@/pages/payment";
 import NotificationsPage from "@/pages/notifications";
 import FAQPage from "@/pages/faq";
 import AboutPage from "@/pages/about";
+import StoryIndexPage from "@/pages/story/index";
+import StorySessionPage from "@/pages/story/session";
 import MyCharactersPage from "@/pages/my-characters";
 import EditCharacterPage from "@/pages/edit-character";
 import AuthModal from "@/components/auth/AuthModal";
@@ -166,6 +168,8 @@ function MainApp() {
                 </ProtectedRoute>
               </Route>
               <Route path="/admin" component={AdminPage} />
+              <Route path="/story" component={StoryIndexPage} />
+              <Route path="/story/:id" component={StorySessionPage} />
               <Route component={NotFound} />
             </Switch>
           </div>
