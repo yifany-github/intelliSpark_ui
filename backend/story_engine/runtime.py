@@ -1,7 +1,8 @@
 from __future__ import annotations
 from typing import Optional, Dict, Any, List
 from .models import StoryPack, SessionState, PlayerState, Scene, Choice
-from .prompt_builder import build_multi_speaker_prompt
+from .prompt_builder import build_multi_speaker_prompt, to_plaintext_prompt
+from .llm_client import generate_text_with_gemini
 
 
 class StoryRuntime:
@@ -118,8 +119,15 @@ class StoryRuntime:
         """
         scene = self.get_scene(state.current_scene_id)
         payload = build_multi_speaker_prompt(self.pack, state, scene) if scene else {}
-        # Append a placeholder assistant line to history for now
-        line = "【原型】生成了一句对白。"
+        # Try Gemini
+        line = None
+        try:
+            line = generate_text_with_gemini(to_plaintext_prompt(payload))
+        except Exception:
+            line = None
+        if not line:
+            # Fallback placeholder
+            line = "【原型】生成了一句对白。"
         # record as assistant; optionally tag speaker via current scene
         entry = {"role": "assistant", "content": line}
         if scene and scene.speaker:

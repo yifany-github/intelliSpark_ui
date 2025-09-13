@@ -31,3 +31,14 @@ def build_multi_speaker_prompt(pack: StoryPack, state: SessionState, scene: Scen
         "messages": messages,
     }
 
+
+def to_plaintext_prompt(payload: Dict[str, Any]) -> str:
+    """Flatten prompt payload into a plain text block for simple LLM calls."""
+    parts = [payload.get("system", "")] 
+    ctx = payload.get("context", {})
+    parts.append(f"[pack:{ctx.get('pack',{}).get('id','')}] nsfw={ctx.get('nsfw_mode', False)}")
+    for m in payload.get("messages", []):
+        role = m.get("role", "system")
+        content = m.get("content", "")
+        parts.append(f"{role}: {content}")
+    return "\n".join(parts)
