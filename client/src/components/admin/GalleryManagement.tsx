@@ -26,6 +26,8 @@ import {
   ImagePlus
 } from 'lucide-react';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
 interface GalleryImage {
   id: number;
   url: string;
@@ -100,7 +102,7 @@ export function GalleryManagement({
     queryKey: ['character-gallery', characterId],
     queryFn: async () => {
       // Use admin API endpoints in admin context
-      const response = await fetch(`/api/admin/characters/${characterId}/gallery`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/characters/${characterId}/gallery`, {
         headers: authHeaders,
       });
       
@@ -116,7 +118,7 @@ export function GalleryManagement({
   // Upload image mutation
   const uploadMutation = useMutation({
     mutationFn: async (formData: FormData) => {
-      const response = await fetch(`/api/admin/characters/${characterId}/gallery/images`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/characters/${characterId}/gallery/images`, {
         method: 'POST',
         headers: authHeaders,
         body: formData
@@ -167,7 +169,7 @@ export function GalleryManagement({
   // Set primary image mutation
   const setPrimaryMutation = useMutation({
     mutationFn: async (imageId: number) => {
-      const response = await fetch(`/api/admin/characters/${characterId}/gallery/images/${imageId}/primary`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/characters/${characterId}/gallery/images/${imageId}/primary`, {
         method: 'PUT',
         headers: authHeaders,
       });
@@ -194,7 +196,7 @@ export function GalleryManagement({
   // Delete image mutation
   const deleteMutation = useMutation({
     mutationFn: async (imageId: number) => {
-      const response = await fetch(`/api/admin/characters/${characterId}/gallery/images/${imageId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/characters/${characterId}/gallery/images/${imageId}`, {
         method: 'DELETE',
         headers: authHeaders,
       });
@@ -222,7 +224,7 @@ export function GalleryManagement({
   // Reorder images mutation  
   const reorderMutation = useMutation({
     mutationFn: async (imageOrder: { image_id: number; display_order: number }[]) => {
-      const response = await fetch(`/api/admin/characters/${characterId}/gallery/reorder`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/characters/${characterId}/gallery/reorder`, {
         method: 'PUT',
         headers: {
           ...authHeaders,
@@ -659,7 +661,7 @@ export function GalleryManagement({
 
                   <div className="aspect-square rounded-lg overflow-hidden border-2 border-slate-200 hover:border-slate-400 transition-all">
                     <img 
-                      src={image.thumbnail_url || image.url} 
+                      src={(image.thumbnail_url || image.url).startsWith('http') ? (image.thumbnail_url || image.url) : `${API_BASE_URL}${image.thumbnail_url || image.url}`} 
                       alt={image.alt_text || `Gallery image ${index + 1}`}
                       className="w-full h-full object-cover"
                       loading="lazy"

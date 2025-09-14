@@ -10,6 +10,7 @@ import GlobalLayout from '@/components/layout/GlobalLayout';
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 const FavoritesPage = () => {
   const { location, navigateToPath, navigateToHome } = useNavigation();
@@ -29,7 +30,7 @@ const FavoritesPage = () => {
   const { data: characters = [], isLoading, error } = useQuery<Character[]>({
     queryKey: ["/api/characters"],
     queryFn: async () => {
-      const response = await fetch('/api/characters');
+      const response = await apiRequest('GET', '/api/characters');
       if (!response.ok) throw new Error('Failed to fetch characters');
       return response.json();
     },
@@ -155,7 +156,7 @@ const FavoritesPage = () => {
     >
       <div className="relative">
         <img
-          src={character.avatarUrl}
+          src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}
           alt={character.name}
           className="w-full h-48 sm:h-56 md:h-64 object-cover group-hover:brightness-110 transition-all duration-200"
         />
@@ -235,7 +236,7 @@ const FavoritesPage = () => {
     >
       <div className="relative">
         <img
-          src={character.avatarUrl}
+          src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}
           alt={character.name}
           className="w-16 h-16 rounded-full object-cover"
         />

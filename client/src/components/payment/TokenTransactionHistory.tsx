@@ -30,6 +30,7 @@ import { Input } from '../ui/input';
 import { Skeleton } from '../ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { apiRequest } from '@/lib/queryClient';
 
 interface TokenTransaction {
   id: number;
@@ -63,12 +64,7 @@ const fetchTokenTransactions = async (
     ...(type && type !== 'all' && { type })
   });
 
-  const response = await fetch(`http://localhost:8000/api/payment/user/transactions?${params}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
+  const response = await apiRequest('GET', `/api/payment/user/transactions?${params}`);
 
   if (!response.ok) {
     throw new Error('Failed to fetch transaction history');

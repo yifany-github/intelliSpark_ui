@@ -10,6 +10,8 @@ import { Badge } from '@/components/ui/badge';
 import { Search, Image, Upload, Check, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
 interface ImageAsset {
   filename: string;
   name: string;
@@ -42,7 +44,7 @@ export function ImageSelector({
   const { data: imagesData, isLoading, error } = useQuery({
     queryKey: ['admin-images', assetType],
     queryFn: async () => {
-      const response = await fetch(`/api/admin/assets/images?asset_type=${assetType}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/assets/images?asset_type=${assetType}`, {
         headers: authHeaders,
       });
 
@@ -190,7 +192,7 @@ export function ImageSelector({
                           <CardContent className="p-3">
                             <div className="aspect-square bg-slate-100 rounded-lg mb-2 overflow-hidden relative">
                               <img
-                                src={image.url}
+                                src={image.url.startsWith('http') ? image.url : `${API_BASE_URL}${image.url}`}
                                 alt={image.name}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
@@ -241,7 +243,7 @@ export function ImageSelector({
                   <Label className="text-sm font-medium text-slate-900">Preview</Label>
                   <div className="w-20 h-20 bg-slate-100 rounded-lg overflow-hidden">
                     <img
-                      src={selectedImage}
+                      src={selectedImage?.startsWith('http') ? selectedImage : `${API_BASE_URL}${selectedImage}`}
                       alt="Preview"
                       className="w-full h-full object-cover"
                       onError={(e) => {
@@ -288,7 +290,7 @@ export function ImageSelector({
         <div className="mt-2">
           <div className="w-16 h-16 bg-slate-100 rounded-lg overflow-hidden">
             <img
-              src={value}
+              src={value?.startsWith('http') ? value : `${API_BASE_URL}${value}`}
               alt="Current image"
               className="w-full h-full object-cover"
               onError={(e) => {

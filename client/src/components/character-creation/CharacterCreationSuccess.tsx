@@ -3,6 +3,7 @@ import { Character } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useLanguage } from '@/contexts/LanguageContext';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 interface CharacterCreationSuccessProps {
   character: Character;
@@ -71,12 +72,12 @@ export default function CharacterCreationSuccess({
           <div className="bg-gray-800 rounded-lg p-4">
             <div className="flex items-center space-x-4">
               <img
-                src={character.avatarUrl || '/assets/characters_img/Elara.jpeg'}
+                src={(character.avatarUrl && (character.avatarUrl.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`)) || `${API_BASE_URL}/assets/characters_img/Elara.jpeg`}
                 alt={character.name}
                 className="w-16 h-16 rounded-full object-cover"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  target.src = '/assets/characters_img/Elara.jpeg';
+                  target.src = `${API_BASE_URL}/assets/characters_img/Elara.jpeg`;
                 }}
               />
               <div className="flex-1 text-left">

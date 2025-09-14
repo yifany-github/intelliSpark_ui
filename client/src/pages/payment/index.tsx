@@ -17,6 +17,8 @@ import { useNavigation } from '../../contexts/NavigationContext';
 import { ImprovedTokenBalance } from '../../components/payment/ImprovedTokenBalance';
 import GlobalLayout from '../../components/layout/GlobalLayout';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { apiRequest } from '@/lib/queryClient';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 // Initialize Stripe (you'll need to set your publishable key in environment variables)
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_key_here');
@@ -32,11 +34,10 @@ interface PricingTiers {
 }
 
 const fetchPricingTiers = async (): Promise<PricingTiers> => {
-  const response = await fetch('http://localhost:8000/api/payment/pricing-tiers');
-  if (!response.ok) {
-    throw new Error('Failed to fetch pricing tiers');
-  }
-  return response.json();
+  // Use env-configured base URL
+  const res = await fetch(`${API_BASE_URL}/api/payment/pricing-tiers`);
+  if (!res.ok) throw new Error('Failed to fetch pricing tiers');
+  return res.json();
 };
 
 const createPaymentIntent = async (tier: string) => {
@@ -45,20 +46,9 @@ const createPaymentIntent = async (tier: string) => {
     throw new Error('No authentication token found');
   }
 
-  const response = await fetch('http://localhost:8000/api/payment/create-payment-intent', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ tier, amount: 0 }), // amount is determined by backend
-  });
-
-  if (!response.ok) {
-    throw new Error('Failed to create payment intent');
-  }
-
-  return response.json();
+  const res = await apiRequest('POST', '/api/payment/create-payment-intent', { tier, amount: 0 });
+  if (!res.ok) throw new Error('Failed to create payment intent');
+  return res.json();
 };
 
 const PaymentForm: React.FC<{ 
