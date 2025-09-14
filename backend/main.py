@@ -7,6 +7,7 @@ from slowapi.errors import RateLimitExceeded
 import os
 from pathlib import Path
 from dotenv import load_dotenv
+import base64
 
 # Load environment variables from .env file
 load_dotenv()
@@ -89,9 +90,32 @@ app.include_router(payment_router)
 app.include_router(notifications_router)
 
 # Mount static files (attached_assets)
-assets_path = parent_dir / "attached_assets"
+# Smart path resolution for both local development and production
+fly_volume_path = Path("/app/attached_assets")
+local_dev_path = parent_dir.parent / "attached_assets"
+
+# Check for deployment environment
+is_deployed = (
+    os.getenv('FLY_APP_NAME') is not None or 
+    Path('/.dockerenv').exists() or
+    fly_volume_path.exists()
+)
+
+if is_deployed and fly_volume_path.exists():
+    # Use Fly.io volume in production
+    assets_path = fly_volume_path
+elif local_dev_path.exists():
+    # Use local development path
+    assets_path = local_dev_path
+else:
+    # Fallback - try both paths
+    assets_path = fly_volume_path if fly_volume_path.exists() else local_dev_path
+
 if assets_path.exists():
     app.mount("/assets", StaticFiles(directory=str(assets_path)), name="assets")
+    print(f"[STARTUP] Mounted static assets from: {assets_path}")
+else:
+    print(f"[STARTUP] WARNING: Assets directory not found at {assets_path}")
 
 # Mount client build files (for production) - LAST priority
 # Resolution order:
@@ -117,7 +141,32 @@ async def startup_event():
     """Initialize database and conditionally sync discovered characters on startup"""
     from config import settings
     import logging
-    
+
+    # Ensure default assets exist (prevents 404 for seeded defaults)
+    try:
+        chars_dir = assets_path / "characters_img"
+        users_dir = assets_path / "user_characters_img"
+        galleries_dir = assets_path / "character_galleries"
+        chars_dir.mkdir(parents=True, exist_ok=True)
+        users_dir.mkdir(parents=True, exist_ok=True)
+        galleries_dir.mkdir(parents=True, exist_ok=True)
+
+        # Minimal 1x1 JPEG placeholder for Elara.jpeg if missing
+        elara_path = chars_dir / "Elara.jpeg"
+        if not elara_path.exists():
+            placeholder_jpeg_b64 = (
+                b"/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////wAARCAAQABADASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/xAAdEAACAQQDAAAAAAAAAAAAAAABAgMABAURIVFx/8QAFAEBAAAAAAAAAAAAAAAAAAAABP/EABYRAAMAAAAAAAAAAAAAAAAAAAABIf/aAAwDAQACEQMRAD8Aq0n5u8q5XQ2wVRk8iJuN3wV4XWkYk2H5m8a2m8Y0nVU8oXv1o2n3k0mWJ9LZ6bqgY1b0oE2P/Z"
+            )
+            try:
+                data = base64.b64decode(placeholder_jpeg_b64)
+                with open(elara_path, "wb") as f:
+                    f.write(data)
+            except Exception:
+                pass
+    except Exception:
+        # Non-fatal if asset initialization fails
+        pass
+
     await init_db()
     
     # Only sync if explicitly enabled via config
