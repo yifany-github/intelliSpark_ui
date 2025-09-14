@@ -15,6 +15,7 @@ Features:
 from typing import List, Optional, Tuple, Dict, Any
 from sqlalchemy.orm import Session
 import logging
+import os
 
 from models import Character
 from schemas import CharacterCreate
@@ -726,7 +727,21 @@ class CharacterService:
         """
         from pathlib import Path
         import shutil
-        base_assets = Path(__file__).parent.parent.parent / "attached_assets"
+        # Path resolution: prioritize Fly.io volume, fallback to local development
+        fly_volume_path = Path("/app/attached_assets")
+        local_dev_path = Path(__file__).parent.parent.parent / "attached_assets"
+        
+        # Check for deployment environment
+        is_deployed = (
+            os.getenv('FLY_APP_NAME') is not None or 
+            Path('/.dockerenv').exists() or
+            fly_volume_path.exists()
+        )
+        
+        if is_deployed and fly_volume_path.exists():
+            base_assets = fly_volume_path
+        else:
+            base_assets = local_dev_path
 
         # Remove gallery directory: attached_assets/character_galleries/character_{id}
         try:

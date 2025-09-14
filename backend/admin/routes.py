@@ -564,9 +564,21 @@ async def get_asset_images(
 ):
     """Get available images from attached_assets directory"""
     try:
-        # Get the project root directory (go up from backend/admin to project root)
-        current_dir = Path(__file__).resolve().parent.parent.parent
-        assets_dir = current_dir / "attached_assets"
+        # Path resolution: prioritize Fly.io volume, fallback to local development
+        fly_volume_path = Path("/app/attached_assets")
+        local_dev_path = Path(__file__).resolve().parent.parent.parent / "attached_assets"
+        
+        # Check for deployment environment
+        is_deployed = (
+            os.getenv('FLY_APP_NAME') is not None or 
+            Path('/.dockerenv').exists() or
+            fly_volume_path.exists()
+        )
+        
+        if is_deployed and fly_volume_path.exists():
+            assets_dir = fly_volume_path
+        else:
+            assets_dir = local_dev_path
         
         if asset_type == "characters":
             image_dir = assets_dir / "characters_img"
@@ -607,19 +619,30 @@ async def get_asset_images(
 
 @router.post("/assets/images/upload")
 async def upload_asset_image(
-    # This is a placeholder for future file upload functionality
-    # In a real implementation, you would handle file uploads here
+    request: Request,
+    file: UploadFile = File(...),
     _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
 ):
-    """Upload image to attached_assets directory (placeholder)"""
+    """Upload an admin-curated character image to /attached_assets/characters_img.
+
+    Returns a JSON with url (under /assets/characters_img/...), filename, size, etc.
+    """
     try:
-        # This is a placeholder for file upload functionality
-        # You would typically use FastAPI's File and UploadFile here
-        return {
-            "message": "File upload functionality not yet implemented. Please manually place images in /attached_assets/characters_img/ directory."
-        }
+        upload_service = UploadService()
+        # Use special upload type to target characters_img directory
+        success, data, error = await upload_service.process_avatar_upload(
+            file=file,
+            user_id=0,  # system/admin
+            request=request,
+            upload_type="admin_character_asset",
+        )
+        if not success:
+            raise HTTPException(status_code=400, detail=error)
+        return data
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Error uploading image: {e}")
+        logger.error(f"Error uploading admin asset image: {e}")
         raise HTTPException(status_code=500, detail="Failed to upload image")
 
 # ===== PERSONA PROMPT PREVIEW ENDPOINT =====
