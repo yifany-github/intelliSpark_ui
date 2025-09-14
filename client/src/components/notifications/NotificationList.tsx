@@ -18,6 +18,7 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { NotificationItem } from './NotificationItem';
+import { apiRequest } from '@/lib/queryClient';
 
 interface Notification {
   id: number;
@@ -70,7 +71,6 @@ export const NotificationList: React.FC<NotificationListProps> = ({
   } = useQuery({
     queryKey: ['notifications', page, typeFilter, unreadOnly],
     queryFn: async () => {
-      const token = localStorage.getItem('auth_token');
       const params = new URLSearchParams({
         skip: (page * maxItems).toString(),
         limit: maxItems.toString(),
@@ -78,17 +78,8 @@ export const NotificationList: React.FC<NotificationListProps> = ({
         ...(typeFilter !== 'all' && { type_filter: typeFilter })
       });
 
-      const response = await fetch(`http://localhost:8000/api/notifications?${params}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch notifications');
-      }
-
+      const response = await apiRequest('GET', `/api/notifications?${params}`);
+      if (!response.ok) throw new Error('Failed to fetch notifications');
       const data = await response.json();
       if (data.length < maxItems) {
         setHasMore(false);
@@ -104,18 +95,8 @@ export const NotificationList: React.FC<NotificationListProps> = ({
   const { data: stats } = useQuery({
     queryKey: ['notificationStats'],
     queryFn: async () => {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch('http://localhost:8000/api/notifications/stats', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch notification stats');
-      }
-
+      const response = await apiRequest('GET', '/api/notifications/stats');
+      if (!response.ok) throw new Error('Failed to fetch notification stats');
       return response.json();
     },
     enabled: !!user,
@@ -125,19 +106,8 @@ export const NotificationList: React.FC<NotificationListProps> = ({
   // Mark notification as read
   const markAsReadMutation = useMutation({
     mutationFn: async (notificationId: number) => {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`http://localhost:8000/api/notifications/${notificationId}/read`, {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to mark notification as read');
-      }
-
+      const response = await apiRequest('PATCH', `/api/notifications/${notificationId}/read`);
+      if (!response.ok) throw new Error('Failed to mark notification as read');
       return response.json();
     },
     onSuccess: () => {
@@ -149,19 +119,8 @@ export const NotificationList: React.FC<NotificationListProps> = ({
   // Mark all as read
   const markAllAsReadMutation = useMutation({
     mutationFn: async () => {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch('http://localhost:8000/api/notifications/read-all', {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to mark all notifications as read');
-      }
-
+      const response = await apiRequest('PATCH', '/api/notifications/read-all');
+      if (!response.ok) throw new Error('Failed to mark all notifications as read');
       return response.json();
     },
     onSuccess: () => {
@@ -173,19 +132,8 @@ export const NotificationList: React.FC<NotificationListProps> = ({
   // Delete notification
   const deleteNotificationMutation = useMutation({
     mutationFn: async (notificationId: number) => {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch(`http://localhost:8000/api/notifications/${notificationId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete notification');
-      }
-
+      const response = await apiRequest('DELETE', `/api/notifications/${notificationId}`);
+      if (!response.ok) throw new Error('Failed to delete notification');
       return response.json();
     },
     onSuccess: () => {

@@ -52,6 +52,8 @@ import {
   Loader2
 } from "lucide-react";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
 interface AdminStats {
   totals: {
     users: number;
@@ -152,7 +154,7 @@ const AdminPage = () => {
 
   const loginMutation = useMutation({
     mutationFn: async (password: string) => {
-      const response = await fetch("/api/admin/login", {
+      const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password }),
@@ -201,7 +203,7 @@ const AdminPage = () => {
   const { data: stats, refetch: refetchStats } = useQuery<AdminStats>({
     queryKey: ["admin-stats"],
     queryFn: async () => {
-      const response = await fetch("/api/admin/stats", {
+      const response = await fetch(`${API_BASE_URL}/api/admin/stats`, {
         headers: authHeaders,
       });
       if (!response.ok) throw new Error("Failed to fetch stats");
@@ -215,7 +217,7 @@ const AdminPage = () => {
   const { data: characters = [], refetch: refetchCharacters } = useQuery<Character[]>({
     queryKey: ["admin-characters", showDeleted],
     queryFn: async () => {
-      const response = await fetch(`/api/admin/characters?include_deleted=${showDeleted ? 'true' : 'false'}` , {
+      const response = await fetch(`${API_BASE_URL}/api/admin/characters?include_deleted=${showDeleted ? 'true' : 'false'}` , {
         headers: authHeaders,
       });
       if (!response.ok) throw new Error("Failed to fetch characters");
@@ -227,7 +229,7 @@ const AdminPage = () => {
   const { data: users = [], refetch: refetchUsers } = useQuery<User[]>({
     queryKey: ["admin-users"],
     queryFn: async () => {
-      const response = await fetch("/api/admin/users", {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users`, {
         headers: authHeaders,
       });
       if (!response.ok) throw new Error("Failed to fetch users");
@@ -241,7 +243,7 @@ const AdminPage = () => {
 
   const characterCreateMutation = useMutation({
     mutationFn: async (characterData: Omit<Character, "id" | "createdAt">) => {
-      const response = await fetch("/api/admin/characters", {
+      const response = await fetch(`${API_BASE_URL}/api/admin/characters`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -265,7 +267,7 @@ const AdminPage = () => {
 
   const characterUpdateMutation = useMutation({
     mutationFn: async ({ id, ...characterData }: Character) => {
-      const response = await fetch(`/api/admin/characters/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/characters/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -297,7 +299,7 @@ const AdminPage = () => {
 
   const characterDeleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      const response = await fetch(`/api/admin/characters/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/characters/${id}`, {
         method: "DELETE",
         headers: authHeaders,
       });
@@ -317,7 +319,7 @@ const AdminPage = () => {
   // Toggle featured status mutation
   const toggleFeaturedMutation = useMutation({
     mutationFn: async (characterId: number) => {
-      const response = await fetch(`/api/admin/characters/${characterId}/toggle-featured`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/characters/${characterId}/toggle-featured`, {
         method: "POST",
         headers: authHeaders,
       });
@@ -335,7 +337,7 @@ const AdminPage = () => {
 
   const analyticsUpdateMutation = useMutation({
     mutationFn: async ({ id, data }: { id: number; data: any }) => {
-      const response = await fetch(`/api/admin/characters/${id}/admin-settings`, {
+      const response = await fetch(`${API_BASE_URL}/api/admin/characters/${id}/admin-settings`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -387,7 +389,7 @@ const AdminPage = () => {
       userIds?: number[];
     }) => {
       const endpoint = notificationData.target === "all" ? "bulk" : "";
-      const response = await fetch(`/api/notifications/admin/${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}/api/notifications/admin/${endpoint}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -730,7 +732,7 @@ const AdminPage = () => {
                         } else {
                           setIsCreatingCharacter(true);
                           try {
-                            const response = await fetch("/api/admin/characters", {
+                            const response = await fetch(`${API_BASE_URL}/api/admin/characters`, {
                               method: "POST",
                               headers: {
                                 "Content-Type": "application/json",
@@ -747,7 +749,7 @@ const AdminPage = () => {
                                 formData.append('file', image);
                                 formData.append('category', 'general');
                                 formData.append('is_primary', 'false');
-                                const uploadResponse = await fetch(`/api/admin/characters/${createdCharacter.id}/gallery/images`, {
+                                const uploadResponse = await fetch(`${API_BASE_URL}/api/admin/characters/${createdCharacter.id}/gallery/images`, {
                                   method: 'POST',
                                   headers: authHeaders,
                                   body: formData,
@@ -986,7 +988,7 @@ const AdminPage = () => {
                           {character.avatarUrl ? (
                             <img
                               key={`${character.id}-${character.avatarUrl}-${Date.now()}`}
-                              src={`${character.avatarUrl}?v=${Date.now()}`}
+                              src={`${character.avatarUrl.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}?v=${Date.now()}`}
                               alt={character.name}
                               className="w-full h-full object-cover"
                               onError={(e) => {
@@ -1052,7 +1054,7 @@ const AdminPage = () => {
                               size="sm"
                               variant="ghost"
                               onClick={async () => {
-                                const res = await fetch(`/api/admin/characters/${character.id}/restore`, { method: 'POST', headers: authHeaders });
+                                const res = await fetch(`${API_BASE_URL}/api/admin/characters/${character.id}/restore`, { method: 'POST', headers: authHeaders });
                                 if (res.ok) {
                                   queryClient.invalidateQueries({ queryKey: ["admin-characters"] });
                                   toast({ title: "✅ Character restored", className: "bg-green-600 text-white border-green-500" });
@@ -1071,7 +1073,7 @@ const AdminPage = () => {
                               onClick={async () => {
                                 const ok = window.confirm("This will permanently delete this character and its files. This action cannot be undone. Continue?");
                                 if (!ok) return;
-                                const res = await fetch(`/api/admin/characters/${character.id}?force=true`, { method: 'DELETE', headers: authHeaders });
+                                const res = await fetch(`${API_BASE_URL}/api/admin/characters/${character.id}?force=true`, { method: 'DELETE', headers: authHeaders });
                                 if (res.ok) {
                                   queryClient.invalidateQueries({ queryKey: ["admin-characters"] });
                                   queryClient.invalidateQueries({ queryKey: ["admin-stats"] });
@@ -1865,7 +1867,7 @@ const CharacterForm = ({ character, onSubmit, onCancel, authHeaders, onPromptPre
 
                   // If no unsaved changes and character exists, fetch server-compiled preview
                   try {
-                    const response = await fetch(`/api/admin/characters/${character.id}/prompt?preview=true`, {
+                    const response = await fetch(`${API_BASE_URL}/api/admin/characters/${character.id}/prompt?preview=true`, {
                       headers: authHeaders,
                     });
                     if (response.ok) {

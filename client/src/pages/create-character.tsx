@@ -20,6 +20,7 @@ import { Slider } from '@/components/ui/slider';
 import { Switch } from '@/components/ui/switch';
 import { Toggle } from '@/components/ui/toggle';
 import { X, Loader2 } from 'lucide-react';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 enum CreationStep {
   FORM = 'form',
@@ -393,12 +394,12 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading }: {
           <div className="flex items-center gap-6">
             <div className="w-24 h-24 rounded-full overflow-hidden bg-gray-200 flex items-center justify-center">
               <img
-                src={formData.avatar || '/assets/characters_img/Elara.jpeg'}
+                src={(formData.avatar && (formData.avatar.startsWith('http') ? formData.avatar : `${API_BASE_URL}${formData.avatar}`)) || `${API_BASE_URL}/assets/characters_img/Elara.jpeg`}
                 alt={t('characterAvatar')}
                 className="w-full h-full object-cover"
                 onError={(e) => {
                   const target = e.target as HTMLImageElement;
-                  target.src = '/assets/characters_img/Elara.jpeg';
+                  target.src = `${API_BASE_URL}/assets/characters_img/Elara.jpeg`;
                 }}
               />
             </div>

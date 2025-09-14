@@ -18,6 +18,7 @@ import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { apiRequest } from '@/lib/queryClient';
 
 interface TokenUsageStats {
   total_purchased: number;
@@ -44,12 +45,7 @@ const fetchTokenUsageStats = async (): Promise<TokenUsageStats> => {
     throw new Error('No authentication token found');
   }
 
-  const response = await fetch('http://localhost:8000/api/payment/user/stats', {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
+  const response = await apiRequest('GET', '/api/payment/user/stats');
 
   if (!response.ok) {
     throw new Error('Failed to fetch usage statistics');

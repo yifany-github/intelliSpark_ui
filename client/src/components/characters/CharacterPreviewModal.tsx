@@ -3,6 +3,7 @@ import { Character } from '@/types';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Link } from 'wouter';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 interface CharacterPreviewModalProps {
   character: Character | null;
@@ -50,7 +51,7 @@ export default function CharacterPreviewModal({
               {/* Character Image */}
               <div className="flex-shrink-0">
                 <img
-                  src={character.avatarUrl}
+                  src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}
                   alt={character.name}
                   className="w-64 h-80 object-cover rounded-lg"
                 />

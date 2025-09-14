@@ -10,6 +10,7 @@ import { apiRequest } from '@/lib/queryClient';
 import GlobalLayout from '@/components/layout/GlobalLayout';
 import { useNavigation } from '@/contexts/NavigationContext';
 import type { Character } from '@/types';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 interface EditCharacterPageProps {
   characterId: string;
@@ -128,7 +129,7 @@ export default function EditCharacterPage({ characterId }: EditCharacterPageProp
         <div className="space-y-6 bg-card/50 rounded-lg p-6">
           <h3 className="text-xl font-semibold border-b border-border pb-3 text-white">Basic Information</h3>
           <div className="flex items-center gap-6">
-            <img src={formData.avatarUrl || '/assets/characters_img/Elara.jpeg'} alt="avatar" className="w-20 h-20 rounded object-cover" />
+            <img src={(formData.avatarUrl && (formData.avatarUrl.startsWith('http') ? formData.avatarUrl : `${API_BASE_URL}${formData.avatarUrl}`)) || `${API_BASE_URL}/assets/characters_img/Elara.jpeg`} alt="avatar" className="w-20 h-20 rounded object-cover" />
             <div>
               <input
                 ref={fileInputRef}

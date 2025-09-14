@@ -13,6 +13,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 const filterKeys = ['popular', 'trending', 'new', 'following', 'editorChoice'] as const;
 
@@ -204,7 +205,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const { data: characters = [], isLoading, error } = useQuery<Character[]>({
     queryKey: ["/api/characters"],
     queryFn: async () => {
-      const response = await fetch('/api/characters');
+      const response = await apiRequest('GET', '/api/characters');
       if (!response.ok) throw new Error('Failed to fetch characters');
       return response.json();
     },
@@ -714,12 +715,12 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
             >
               <div className="relative w-full aspect-[3/4] overflow-hidden bg-surface-tertiary">
                 <img
-                  src={character.avatarUrl}
+                  src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}
                   alt={`${character.name} character avatar`}
                   className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-105"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
-                    target.src = '/assets/characters_img/Elara.jpeg';
+                    target.src = `${API_BASE_URL}/assets/characters_img/Elara.jpeg`;
                     target.onerror = null; // Prevent infinite loop
                   }}
                   loading="lazy"

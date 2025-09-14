@@ -13,6 +13,7 @@ import { apiRequest } from '@/lib/queryClient';
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 import { createRecommendationEngine } from '@/lib/recommendationEngine';
 import { useToast } from '@/hooks/use-toast';
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 import { useLanguage } from '@/contexts/LanguageContext';
 
 const DiscoverSection = () => {
@@ -28,7 +29,7 @@ const DiscoverSection = () => {
   const { data: characters = [], isLoading, error } = useQuery<Character[]>({
     queryKey: ["/api/characters"],
     queryFn: async () => {
-      const response = await fetch('/api/characters');
+      const response = await apiRequest('GET', '/api/characters');
       if (!response.ok) throw new Error('Failed to fetch characters');
       return response.json();
     },
@@ -164,7 +165,7 @@ const DiscoverSection = () => {
     >
       <div className="relative">
         <img
-          src={character.avatarUrl}
+          src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}
           alt={character.name}
           className={`w-full object-cover group-hover:brightness-110 transition-all duration-200 ${
             size === 'large' ? 'h-64' : 'h-48'

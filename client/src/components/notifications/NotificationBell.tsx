@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { NotificationItem } from './NotificationItem';
+import { apiRequest } from '@/lib/queryClient';
 
 interface NotificationBellProps {
   className?: string;
@@ -23,19 +24,9 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
   const { data: stats } = useQuery({
     queryKey: ['notificationStats'],
     queryFn: async () => {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch('http://localhost:8000/api/notifications/stats', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch notification stats');
-      }
-
-      return response.json();
+      const res = await apiRequest('GET', '/api/notifications/stats');
+      if (!res.ok) throw new Error('Failed to fetch notification stats');
+      return res.json();
     },
     enabled: !!user,
     staleTime: 30000,
@@ -46,19 +37,9 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
   const { data: recentNotifications = [] } = useQuery({
     queryKey: ['recentNotifications'],
     queryFn: async () => {
-      const token = localStorage.getItem('auth_token');
-      const response = await fetch('http://localhost:8000/api/notifications?limit=5', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch recent notifications');
-      }
-
-      return response.json();
+      const res = await apiRequest('GET', '/api/notifications?limit=5');
+      if (!res.ok) throw new Error('Failed to fetch recent notifications');
+      return res.json();
     },
     enabled: !!user && isOpen,
     staleTime: 30000,

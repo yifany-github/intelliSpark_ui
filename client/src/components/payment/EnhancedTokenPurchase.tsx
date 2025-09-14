@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface PricingTier {
@@ -38,12 +39,7 @@ const fetchPricingTiers = async (): Promise<PricingTier[]> => {
     throw new Error('No authentication token found');
   }
 
-  const response = await fetch('http://localhost:8000/api/payment/pricing-tiers', {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-  });
+  const response = await apiRequest('GET', '/api/payment/pricing-tiers');
 
   if (!response.ok) {
     throw new Error('Failed to fetch pricing tiers');
@@ -58,14 +54,7 @@ const createPaymentIntent = async (tierId: string) => {
     throw new Error('No authentication token found');
   }
 
-  const response = await fetch('http://localhost:8000/api/payment/create-payment-intent', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ tier_id: tierId }),
-  });
+  const response = await apiRequest('POST', '/api/payment/create-payment-intent', { tier_id: tierId });
 
   if (!response.ok) {
     throw new Error('Failed to create payment intent');

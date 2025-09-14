@@ -165,12 +165,12 @@ export default function MyCharactersPage() {
               {/* Image thumbnail similar to main Characters page */}
               <div className="relative w-full aspect-[3/4] overflow-hidden bg-surface-tertiary">
                 <img
-                  src={character.avatarUrl || '/assets/characters_img/Elara.jpeg'}
+                  src={(character.avatarUrl && (character.avatarUrl.startsWith('http') ? character.avatarUrl : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${character.avatarUrl}`)) || `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/assets/characters_img/Elara.jpeg`}
                   alt={`${character.name} avatar`}
                   className="w-full h-full object-cover transition-all duration-500"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
-                    target.src = '/assets/characters_img/Elara.jpeg';
+                    target.src = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/assets/characters_img/Elara.jpeg`;
                     (target as any).onerror = null;
                   }}
                   loading="lazy"

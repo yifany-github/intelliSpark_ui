@@ -14,6 +14,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { ChevronLeft, ChevronRight, Maximize2, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 
 // Types
 interface GalleryImage {
@@ -66,10 +67,8 @@ export const CharacterGallery: React.FC<CharacterGalleryProps> = ({
   } = useQuery<GalleryData>({
     queryKey: ['character-gallery', characterId],
     queryFn: async () => {
-      const response = await fetch(`/api/characters/${characterId}/gallery`);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch gallery: ${response.status}`);
-      }
+      const response = await apiRequest('GET', `/api/characters/${characterId}/gallery`);
+      if (!response.ok) throw new Error(`Failed to fetch gallery: ${response.status}`);
       return response.json();
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
@@ -231,7 +230,7 @@ export const CharacterGallery: React.FC<CharacterGalleryProps> = ({
         {/* Main Image */}
         <div className="relative w-full aspect-[9/16] bg-gray-100 rounded-lg overflow-hidden shadow-sm">
           <img
-            src={currentImage.url}
+            src={currentImage.url.startsWith('http') ? currentImage.url : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${currentImage.url}`}
             alt={currentImage.alt_text}
             className={`w-full h-full object-cover transition-opacity duration-300 ${
               imageLoadErrors.has(currentImage.id) ? 'opacity-0' : 'opacity-100'
@@ -352,7 +351,7 @@ export const CharacterGallery: React.FC<CharacterGalleryProps> = ({
           {/* Full Screen Image Container */}
           <div className="relative max-w-5xl max-h-full w-full">
             <img
-              src={currentImage.url}
+              src={currentImage.url.startsWith('http') ? currentImage.url : `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}${currentImage.url}`}
               alt={currentImage.alt_text}
               className="max-w-full max-h-full object-contain mx-auto block"
               onClick={(e) => e.stopPropagation()}
