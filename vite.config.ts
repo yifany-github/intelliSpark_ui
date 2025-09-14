@@ -1,8 +1,10 @@
-import { defineConfig } from "vite";
+import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
 import path from "path";
 
-export default defineConfig(async () => {
+export default defineConfig(async ({ mode }) => {
+  // Load env file based on `mode` in the current working directory.
+  const env = loadEnv(mode, process.cwd(), '');
   const plugins = [react()];
   
   // Only load Replit plugins in Replit environment
@@ -37,12 +39,12 @@ export default defineConfig(async () => {
     server: {
       proxy: {
         "/api": {
-          target: "http://localhost:8000",
+          target: env.VITE_API_BASE_URL || "http://localhost:8000",
           changeOrigin: true,
           secure: false,
         },
         "/assets": {
-          target: "http://localhost:8000",
+          target: env.VITE_API_BASE_URL || "http://localhost:8000",
           changeOrigin: true,
           secure: false,
         },

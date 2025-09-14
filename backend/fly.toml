@@ -44,3 +44,8 @@ primary_region = "iad"
 [metrics]
   port = 8000
   path = "/api/health"
+
+# Mount volume for persistent assets storage
+[[mounts]]
+  source = "assets_data"
+  destination = "/app/attached_assets"

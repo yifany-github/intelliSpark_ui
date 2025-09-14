@@ -75,7 +75,8 @@ async def add_security_headers(request: Request, call_next):
     return response
 
 # Get the parent directory to access attached_assets
-parent_dir = Path(__file__).parent.parent
+# In Docker, main.py is in /app/, so parent is /app/ (where attached_assets is mounted)
+parent_dir = Path(__file__).parent
 
 # Include API routes FIRST (highest priority for authentication)
 app.include_router(characters_router, prefix="/api")
