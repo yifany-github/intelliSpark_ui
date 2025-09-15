@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc, asc
 from pathlib import Path
 import logging
+import os
 import asyncio
 from datetime import datetime
 
@@ -41,7 +42,23 @@ class CharacterGalleryService:
         self.db = db
         self.logger = logging.getLogger(__name__)
         self.upload_service = UploadService()
-        self.gallery_base_path = Path(__file__).parent.parent.parent / "attached_assets" / "character_galleries"
+        # Path resolution: prioritize Fly.io volume, fallback to local development
+        fly_volume_path = Path("/app/attached_assets")
+        local_dev_path = Path(__file__).parent.parent.parent / "attached_assets"
+        
+        # Check for deployment environment
+        is_deployed = (
+            os.getenv('FLY_APP_NAME') is not None or 
+            Path('/.dockerenv').exists() or
+            fly_volume_path.exists()
+        )
+        
+        if is_deployed and fly_volume_path.exists():
+            base_assets = fly_volume_path
+        else:
+            base_assets = local_dev_path
+        
+        self.gallery_base_path = base_assets / "character_galleries"
     
     async def get_character_gallery(self, character_id: int, include_avatar_in_images: bool = False) -> Dict[str, Any]:
         """

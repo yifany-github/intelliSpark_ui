@@ -19,6 +19,7 @@ from fastapi import UploadFile, Request, HTTPException
 from pathlib import Path
 import aiofiles
 import logging
+import os
 from slowapi.util import get_remote_address
 
 from utils.file_validation import comprehensive_image_validation, resize_image_if_needed
@@ -35,7 +36,27 @@ class UploadService:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.security_logger = logging.getLogger('security')
-        self.upload_base_dir = Path(__file__).parent.parent.parent / "attached_assets"
+        # Path resolution: prioritize Fly.io volume, fallback to local development
+        fly_volume_path = Path("/app/attached_assets")
+        local_dev_path = Path(__file__).parent.parent.parent / "attached_assets"
+        
+        # Check for deployment environment (Fly.io/Docker)
+        is_deployed = (
+            os.getenv('FLY_APP_NAME') is not None or 
+            Path('/.dockerenv').exists() or
+            fly_volume_path.exists()
+        )
+        
+        if is_deployed and fly_volume_path.exists():
+            # Use Fly.io volume in production
+            self.upload_base_dir = fly_volume_path
+        elif local_dev_path.exists():
+            # Use local development path
+            self.upload_base_dir = local_dev_path
+        else:
+            # Create local directory if it doesn't exist (development setup)
+            local_dev_path.mkdir(parents=True, exist_ok=True)
+            self.upload_base_dir = local_dev_path
     
     async def process_avatar_upload(
         self, 
@@ -188,7 +209,9 @@ class UploadService:
             'character_avatar': 'user_characters_img',
             'character_gallery': f'character_galleries/character_{character_id}' if character_id else 'character_galleries',
             'chat_image': 'chat_images', 
-            'user_profile': 'user_profiles'
+            'user_profile': 'user_profiles',
+            # Admin-curated character images for reuse across characters
+            'admin_character_asset': 'characters_img'
         }
         
         subdir = upload_dirs.get(upload_type, 'general')
@@ -200,7 +223,8 @@ class UploadService:
             'character_avatar': 'user_characters_img',
             'character_gallery': f'character_galleries/character_{character_id}' if character_id else 'character_galleries',
             'chat_image': 'chat_images',
-            'user_profile': 'user_profiles'
+            'user_profile': 'user_profiles',
+            'admin_character_asset': 'characters_img'
         }
         
         return asset_paths.get(upload_type, 'general')

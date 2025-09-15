@@ -40,6 +40,9 @@ export function ImageSelector({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedImage, setSelectedImage] = useState<string>(value);
   const [manualUrl, setManualUrl] = useState(value);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const { data: imagesData, isLoading, error } = useQuery({
     queryKey: ['admin-images', assetType],
@@ -71,6 +74,83 @@ export function ImageSelector({
   const handleConfirm = () => {
     onChange(selectedImage);
     setIsOpen(false);
+  };
+
+  const handleFileUpload = async (file: File) => {
+    setIsUploading(true);
+    setUploadError(null);
+    
+    // Validate file size (10MB limit)
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError('File size must be less than 10MB');
+      setIsUploading(false);
+      return;
+    }
+    
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Please select a valid image file');
+      setIsUploading(false);
+      return;
+    }
+    
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetch(`${API_BASE_URL}/api/admin/assets/images/upload`, {
+        method: 'POST',
+        headers: authHeaders,
+        body: form,
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || 'Upload failed');
+      }
+      const data = await res.json();
+      // data.url is under /assets/characters_img/...
+      const absolute = data.url?.startsWith('http') ? data.url : `${API_BASE_URL}${data.url}`;
+      setSelectedImage(absolute);
+      setManualUrl(absolute);
+      
+      toast({ 
+        title: '✅ Upload successful', 
+        description: `Image uploaded: ${file.name}`,
+        className: "bg-green-600 text-white border-green-500"
+      });
+      
+      // Refresh list
+      // @ts-ignore - useQuery is wired to key ['admin-images', assetType]
+      // We rely on dialog re-open or manual refetch by closing/opening. Keep it simple.
+    } catch (e: any) {
+      setUploadError(e?.message || 'Upload failed');
+      toast({ title: 'Upload failed', description: e?.message || 'Try a different image', variant: 'destructive' });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const files = Array.from(e.dataTransfer.files);
+    const imageFile = files.find(file => file.type.startsWith('image/'));
+    
+    if (imageFile) {
+      handleFileUpload(imageFile);
+    } else {
+      setUploadError('Please drop a valid image file');
+    }
   };
 
   const handleManualUrlChange = (url: string) => {
@@ -225,15 +305,70 @@ export function ImageSelector({
                 </div>
               )}
               
-              {/* Upload Info */}
-              <div className="bg-slate-50 p-3 rounded-lg">
-                <div className="flex items-center text-sm text-slate-600">
-                  <Upload className="w-4 h-4 mr-2" />
-                  <span>
-                    To add new images, place them in the <code className="bg-slate-200 px-1 rounded">
-                      /attached_assets/{assetType}_img/
-                    </code> directory
-                  </span>
+              {/* Upload new image (Admin) */}
+              <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-4 rounded-lg border-2 border-dashed border-blue-300">
+                <div className="flex items-center text-sm font-medium text-blue-700 mb-3">
+                  <Upload className="w-5 h-5 mr-2" />
+                  <span>Upload New Character Image</span>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-center w-full">
+                    <label 
+                      className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg cursor-pointer transition-all duration-200 ${
+                        isDragOver 
+                          ? 'border-purple-400 bg-purple-100 scale-105' 
+                          : isUploading 
+                            ? 'border-blue-400 bg-blue-100' 
+                            : 'border-blue-300 bg-blue-50 hover:bg-blue-100'
+                      }`}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                    >
+                      <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                        {isUploading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+                            <p className="text-sm text-blue-600 font-medium">Uploading...</p>
+                          </>
+                        ) : isDragOver ? (
+                          <>
+                            <Upload className="w-8 h-8 mb-2 text-purple-600 animate-bounce" />
+                            <p className="text-sm text-purple-600 font-medium">Drop your image here!</p>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-8 h-8 mb-2 text-blue-500" />
+                            <p className="mb-2 text-sm text-blue-600 font-medium">
+                              <span className="font-semibold">Click to upload</span> or drag and drop
+                            </p>
+                            <p className="text-xs text-blue-500">PNG, JPG, JPEG, GIF, WEBP (MAX. 10MB)</p>
+                          </>
+                        )}
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={isUploading}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFileUpload(file);
+                        }}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                  {isUploading && (
+                    <div className="flex items-center justify-center text-blue-600">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                      <span className="text-sm">Uploading...</span>
+                    </div>
+                  )}
+                  {uploadError && (
+                    <div className="text-xs text-red-600 bg-red-50 p-2 rounded border border-red-200">
+                      ❌ {uploadError}
+                    </div>
+                  )}
                 </div>
               </div>
               
