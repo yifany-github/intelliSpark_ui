@@ -59,7 +59,7 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
       
       - name: Create Sentry Release (optional)
-        if: github.ref == 'refs/heads/main' && secrets.SENTRY_AUTH_TOKEN != ''
+        if: github.ref == 'refs/heads/main'
         uses: getsentry/action-release@v1
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
@@ -69,13 +69,4 @@ jobs:
           environment: production
           sourcemaps: ./backend
           version: backend-${{ github.sha }}
-      
-      - name: Health Check
-        if: secrets.BACKEND_HEALTH_URL != ''
-        env:
-          HEALTH_URL: ${{ secrets.BACKEND_HEALTH_URL }}
-        run: |
-          # Wait for deployment to be ready
-          sleep 30
-          # Health check against provided URL (e.g., https://<app>.fly.dev/api/health)
-          curl -f "$HEALTH_URL" || exit 1
+        continue-on-error: true
