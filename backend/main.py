@@ -203,7 +203,7 @@ async def startup_event():
 @app.get("/api/health")
 async def health():
     """Health check endpoint"""
-    return {"status": "healthy"}
+    return {"status": "healthy", "timestamp": "2025-09-19"}
 
 @app.get("/api/debug/routes")
 async def debug_routes():
