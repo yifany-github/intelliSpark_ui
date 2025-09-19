@@ -35,6 +35,13 @@ export default defineConfig(async ({ mode }) => {
     build: {
       outDir: path.resolve(import.meta.dirname, "dist/public"),
       emptyOutDir: true,
+      rollupOptions: {
+        onwarn(warning, warn) {
+          // Ignore TypeScript warnings during build
+          if (warning.code === 'TYPESCRIPT_ERROR') return;
+          warn(warning);
+        }
+      }
     },
     server: {
       proxy: {

@@ -41,7 +41,7 @@ jobs:
         run: npm run check || true
 
       - name: Build frontend
-        run: npm run build || echo "Build completed with TypeScript warnings"
+        run: npm run build:ci
         env:
           # Use production environment variables
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
