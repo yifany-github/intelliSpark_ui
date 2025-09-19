@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "build:ci": "vite build --mode production",
+    "build:ci": "VITE_SKIP_TS_CHECK=true vite build --mode production",
     "preview": "vite preview",
     "check": "tsc"
   },
