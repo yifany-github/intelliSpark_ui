@@ -63,9 +63,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   } = useQuery<ChatMessage[]>({
     queryKey: [`/api/chats/${chatId}/messages`],
     enabled: !!chatId && !isCreatingChat,
-    refetchInterval: (data) => {
-      // Poll for messages if we have a chat but no messages yet (opening line being generated)
-      return (!data || data.length === 0) && chat ? 2000 : false;
+    refetchInterval: (query) => {
+      const currentData = query.state.data as ChatMessage[] | undefined;
+      return (!currentData || currentData.length === 0) && Boolean(chat) ? 2000 : false;
     }
   });
   
@@ -78,17 +78,20 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: isCreatingChat && !!creatingCharacterId,
   });
   
+  const numericChatId = chatId ? parseInt(chatId, 10) : null;
+  const characterIdFromChat = chat?.characterId ?? chat?.character_id ?? null;
+  
   // Fallback character fetch if not found in enriched chats
   const {
     data: fallbackCharacter,
     isLoading: isLoadingFallbackCharacter
-  } = useQuery({
-    queryKey: [`/api/characters/${chat?.character_id}`],
-    enabled: !!chat?.character_id && !chats.find(c => c.id === parseInt(chatId || '0'))?.character,
+  } = useQuery<Character>({
+    queryKey: [`/api/characters/${characterIdFromChat}`],
+    enabled: Boolean(characterIdFromChat) && !chats.find(c => c.id === (numericChatId ?? -1))?.character,
   });
 
   // Get character data from the enriched chats list with fallback, or from creating state
-  const character = useMemo(() => {
+  const character = useMemo<Character | null>(() => {
     // ✅ PRIORITY 1: If in creating state, use selectedCharacter from RolePlayContext (immediately available)
     if (isCreatingChat && selectedCharacter) {
       return selectedCharacter;
@@ -100,10 +103,19 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     }
     
     // Regular chat - use existing logic
-    const foundCharacter = chats.find(c => c.id === parseInt(chatId || '0'))?.character;
+    const foundCharacter = chats.find(c => c.id === (numericChatId ?? -1))?.character;
     
     if (foundCharacter) {
-      return foundCharacter;
+      return {
+        id: foundCharacter.id,
+        name: foundCharacter.name,
+        avatarUrl: foundCharacter.avatarUrl,
+        backstory: "",
+        voiceStyle: "",
+        traits: [],
+        createdAt: new Date().toISOString(),
+        description: "",
+      } as Character;
     }
     
     if (fallbackCharacter) {
@@ -111,7 +123,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     }
     
     return null;
-  }, [chats, chatId, fallbackCharacter, isCreatingChat, creatingCharacter, selectedCharacter]);
+  }, [chats, numericChatId, fallbackCharacter, isCreatingChat, creatingCharacter, selectedCharacter]);
   
   const isLoadingCharacter = isLoadingChats || isLoadingFallbackCharacter || (isCreatingChat && !selectedCharacter && isLoadingCreatingCharacter);
   
@@ -145,7 +157,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
           id: Date.now(), // temporary ID
           content: `Error: ${errorMessage}`,
           role: "system",
-          chatId: parseInt(chatId || "0"),
+          chatId: numericChatId ?? 0,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
@@ -186,7 +198,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
           id: Date.now(), // temporary ID
           content: `Error: ${errorMessage}`,
           role: "system",
-          chatId: parseInt(chatId || "0"),
+          chatId: numericChatId ?? 0,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
@@ -350,7 +362,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             <div className="p-4">
               <h3 className="text-sm text-gray-400 mb-3">{t('recentConversations')}</h3>
               <div className="space-y-2">
-                {chats.filter(c => c.id !== parseInt(chatId || '0')).map((chat) => (
+                {chats.filter(c => c.id !== (numericChatId ?? -1)).map((chat) => (
                   <Link 
                     key={chat.id} 
                     href={`/chat/${chat.id}`}

@@ -1,0 +1,18 @@
+roles:
+  - id: doraemon
+    name: 哆啦A梦
+    traits: ["冷静", "器械丰富", "护短"]
+    inventory: ["竹蜻蜓", "任意门", "缩小灯"]
+    promptTags: ["gadget_user", "caring"]
+
+  - id: nobita
+    name: 大雄
+    traits: ["胆小", "善良", "时常紧张"]
+    inventory: []
+    promptTags: ["clumsy", "lucky"]
+
+  - id: shizuka
+    name: 静香
+    traits: ["温柔", "细心", "理性"]
+    inventory: ["手电筒"]
+    promptTags: ["empathetic", "careful"]

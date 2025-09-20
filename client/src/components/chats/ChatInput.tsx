@@ -14,9 +14,11 @@ import { Smile, Paperclip, Send, Slash, Palette } from 'lucide-react';
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
   isLoading: boolean;
+  disabled?: boolean;
+  placeholder?: string;
 }
 
-const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
+const ChatInput = ({ onSendMessage, isLoading, disabled = false, placeholder }: ChatInputProps) => {
   const [message, setMessage] = useState('');
   const { toast } = useToast();
   const { t } = useLanguage();
@@ -81,10 +83,10 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
 
   return (
     <div className="p-3 border-t border-secondary bg-background sticky bottom-0">
-      <div className="flex items-center bg-secondary rounded-2xl px-3 py-2">
+      <div className={`flex items-center rounded-2xl px-3 py-2 ${disabled ? 'bg-secondary/40 cursor-not-allowed' : 'bg-secondary'}`}>
         <Popover>
           <PopoverTrigger asChild>
-            <button className="text-gray-400 mr-3">
+            <button className="text-gray-400 mr-3" disabled={disabled}>
               <Smile className="h-5 w-5" />
             </button>
           </PopoverTrigger>
@@ -108,21 +110,22 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={t('typeMessage')}
-          className="flex-grow bg-transparent border-0 focus:outline-none text-white resize-none max-h-24"
+          placeholder={placeholder || t('typeMessage')}
+          className={`flex-grow bg-transparent border-0 focus:outline-none text-white resize-none max-h-24 ${disabled ? 'opacity-60' : ''}`}
           rows={1}
+          disabled={disabled}
         />
         
-        <button className="ml-3 text-gray-400">
+        <button className="ml-3 text-gray-400" disabled={disabled}>
           <Paperclip className="h-5 w-5" />
         </button>
         
         <button 
-          className={`ml-3 w-8 h-8 ${isLoading ? 'bg-secondary' : 'bg-primary'} rounded-full flex items-center justify-center text-white ${
-            isLoading ? 'animate-pulse' : 'hover:bg-accent transition-colors'
+          className={`ml-3 w-8 h-8 ${isLoading || disabled ? 'bg-secondary' : 'bg-primary'} rounded-full flex items-center justify-center text-white ${
+            isLoading || disabled ? 'opacity-70 cursor-not-allowed' : 'hover:bg-accent transition-colors'
           }`}
           onClick={handleSend}
-          disabled={isLoading || !message.trim()}
+          disabled={isLoading || disabled || !message.trim()}
         >
           <Send className="h-4 w-4" />
         </button>
@@ -154,7 +157,7 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
           
           <Popover>
             <PopoverTrigger asChild>
-              <button className="flex items-center">
+             <button className="flex items-center">
                 <Palette className="h-4 w-4 mr-1" /> {t('tone')}
               </button>
             </PopoverTrigger>
@@ -175,7 +178,7 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
           </Popover>
         </div>
         
-        <div>{t('markdownSupported')}</div>
+       <div>{t('markdownSupported')}</div>
       </div>
     </div>
   );

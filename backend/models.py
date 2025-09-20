@@ -53,6 +53,7 @@ class User(Base):
     chats = relationship("Chat", back_populates="user")
     token_balance = relationship("UserToken", back_populates="user", uselist=False)
     token_transactions = relationship("TokenTransaction", back_populates="user")
+    story_sessions = relationship("StorySession", back_populates="user")
     notifications = relationship("Notification", back_populates="user")
 
 
@@ -198,6 +199,34 @@ class NotificationTemplate(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+
+class StorySession(Base):
+    __tablename__ = "story_sessions"
+
+    id = Column(UniversalUUID(), primary_key=True, default=uuid.uuid4, index=True)
+    story_id = Column(String(255), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    user_role = Column(String(100), nullable=True)
+    state = Column(JSON, nullable=False)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=False)
+
+    user = relationship("User", back_populates="story_sessions")
+    logs = relationship("StoryLog", back_populates="session", cascade="all, delete-orphan")
+
+
+class StoryLog(Base):
+    __tablename__ = "story_logs"
+
+    id = Column(UniversalUUID(), primary_key=True, default=uuid.uuid4, index=True)
+    session_id = Column(UniversalUUID(), ForeignKey("story_sessions.id", ondelete="CASCADE"), nullable=False, index=True)
+    kind = Column(String(50), nullable=False)
+    actor = Column(String(100), nullable=True)
+    payload = Column(JSON, nullable=True)
+    created_at = Column(DateTime, default=func.now(), nullable=False)
+
+    session = relationship("StorySession", back_populates="logs")
 
 
 class CharacterGalleryImage(Base):

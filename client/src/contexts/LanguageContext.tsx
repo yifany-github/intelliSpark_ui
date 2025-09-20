@@ -474,6 +474,28 @@ export type TranslationKey =
   | 'detailedResponses'
   | 'conciseResponses'
   | 'storytelling'
+  | 'stories'
+  | 'multiRoleStories'
+  | 'loadingStories'
+  | 'noStoriesFound'
+  | 'selectRole'
+  | 'roleSelected'
+  | 'backToStories'
+  | 'startStory'
+  | 'sessionStarted'
+  | 'failedToStartSession'
+  | 'storySession'
+  | 'storyState'
+  | 'storyScene'
+  | 'storyTime'
+  | 'storyLocation'
+  | 'storyFlags'
+  | 'storyInventory'
+  | 'storyNarration'
+  | 'noNarrationYet'
+  | 'storyTurnPlaceholder'
+  | 'sendAction'
+  | 'storyTurnFailed'
   | 'interactive'
   | 'questionFocused'
   | 'analytical'
@@ -1223,6 +1245,28 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     detailedResponses: 'Detailed responses',
     conciseResponses: 'Concise responses',
     storytelling: 'Storytelling',
+    stories: 'Stories',
+    multiRoleStories: 'Multi-role stories',
+    loadingStories: 'Loading stories...',
+    noStoriesFound: 'No stories available yet',
+    selectRole: 'Select Role',
+    roleSelected: 'Selected',
+    backToStories: 'Back to Stories',
+    startStory: 'Start Story',
+    sessionStarted: 'Story session started',
+    failedToStartSession: 'Failed to start story session',
+    storySession: 'Story Session',
+    storyState: 'Story State',
+    storyScene: 'Scene',
+    storyTime: 'Time',
+    storyLocation: 'Location',
+    storyFlags: 'Flags',
+    storyInventory: 'Inventory',
+    storyNarration: 'Narration',
+    noNarrationYet: 'No narration yet — take the first action!',
+    storyTurnPlaceholder: 'Describe your action or dialogue to continue the story...',
+    sendAction: 'Send Action',
+    storyTurnFailed: 'Failed to submit story turn',
     interactive: 'Interactive',
     questionFocused: 'Question-focused',
     analytical: 'Analytical',
@@ -1872,6 +1916,28 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     detailedResponses: '详细回应',
     conciseResponses: '简洁回应',
     storytelling: '讲故事',
+    stories: '故事模式',
+    multiRoleStories: '多角色剧情',
+    loadingStories: '正在加载故事…',
+    noStoriesFound: '暂时没有可用的故事',
+    selectRole: '选择扮演角色',
+    roleSelected: '已选择',
+    backToStories: '返回故事列表',
+    startStory: '开始故事',
+    sessionStarted: '剧情会话已创建',
+    failedToStartSession: '创建剧情会话失败',
+    storySession: '剧情会话',
+    storyState: '当前状态',
+    storyScene: '场景',
+    storyTime: '时间',
+    storyLocation: '地点',
+    storyFlags: '剧情标记',
+    storyInventory: '角色道具',
+    storyNarration: '剧情叙述',
+    noNarrationYet: '暂无叙述，先行动试试看！',
+    storyTurnPlaceholder: '描述你的行动或对白，推动剧情前进…',
+    sendAction: '提交行动',
+    storyTurnFailed: '提交剧情行动失败',
     interactive: '互动式',
     questionFocused: '问题导向',
     analytical: '分析型',

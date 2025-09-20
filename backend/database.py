@@ -1,7 +1,7 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from config import settings
-from models import Base, User, Character, Chat, ChatMessage
+from models import Base, User, Character, Chat, ChatMessage, StorySession, StoryLog
 
 # Create database engine (simplified to sync-only for now)
 engine = create_engine(
@@ -9,6 +9,21 @@ engine = create_engine(
     connect_args={"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def ensure_story_table_schema():
+    """Drop legacy story tables that miss required columns."""
+    if not settings.database_url.startswith("sqlite"):
+        return
+
+    expected_columns = {"id", "story_id", "user_id", "user_role", "state", "created_at", "updated_at"}
+    with engine.begin() as conn:
+        result = conn.execute(text("PRAGMA table_info(story_sessions);"))
+        existing_columns = {row[1] for row in result}
+        if existing_columns and not expected_columns.issubset(existing_columns):
+            conn.execute(text("DROP TABLE IF EXISTS story_logs"))
+            conn.execute(text("DROP TABLE IF EXISTS story_sessions"))
+
 
 def get_db():
     """Dependency to get database session"""
@@ -20,6 +35,7 @@ def get_db():
         
 async def init_db():
     """Initialize database and create tables"""
+    ensure_story_table_schema()
     Base.metadata.create_all(bind=engine)
     
     # Create initial data

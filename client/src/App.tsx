@@ -23,6 +23,9 @@ import FAQPage from "@/pages/faq";
 import AboutPage from "@/pages/about";
 import MyCharactersPage from "@/pages/my-characters";
 import EditCharacterPage from "@/pages/edit-character";
+import StoriesPage from "@/pages/stories";
+import StorySessionPage from "@/pages/story-session";
+import StoryDetailPage from "@/pages/story-detail";
 import AuthModal from "@/components/auth/AuthModal";
 import TabNavigation from "@/components/layout/TabNavigation";
 import { RolePlayProvider, useRolePlay } from "@/contexts/RolePlayContext";
@@ -103,6 +106,25 @@ function MainApp() {
               <Route path="/about" component={AboutPage} />
               <Route path="/favorites" component={FavoritesPage} />
               <Route path="/discover" component={DiscoverPage} />
+              <Route path="/stories/:storyId">
+                {params => (
+                  <ProtectedRoute>
+                    <StoryDetailPage storyId={params.storyId} />
+                  </ProtectedRoute>
+                )}
+              </Route>
+              <Route path="/stories">
+                <ProtectedRoute>
+                  <StoriesPage />
+                </ProtectedRoute>
+              </Route>
+              <Route path="/stories/session/:sessionId">
+                {params => (
+                  <ProtectedRoute>
+                    <StorySessionPage sessionId={params.sessionId} />
+                  </ProtectedRoute>
+                )}
+              </Route>
               <Route path="/create-character">
                 <ProtectedRoute>
                   <CreateCharacterPage />

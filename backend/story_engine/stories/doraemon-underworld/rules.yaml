@@ -1,0 +1,12 @@
+checks:
+  perception:
+    dc: 50
+  luck:
+    dc: 55
+
+limits:
+  gadget_cooldown_seconds: 1
+
+safety:
+  content_rating: PG
+  minors_strict_mode: true

@@ -19,6 +19,7 @@ import { Progress } from "@/components/ui/progress";
 import { ImageSelector } from "@/components/admin/ImageSelector";
 import { GalleryManagement } from "@/components/admin/GalleryManagement";
 import CategorySelector from "@/components/characters/CategorySelector";
+import { StoryMetadata } from "@/types";
 import {
   Users,
   FileText,
@@ -49,7 +50,8 @@ import {
   Bell,
   Send,
   AlertTriangle,
-  Loader2
+  Loader2,
+  BookOpen
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -112,6 +114,13 @@ interface User {
   total_chats: number;
 }
 
+interface AdminStoryDetail {
+  metadata: StoryMetadata;
+  storyYaml: string;
+  rolesYaml: string;
+  rulesYaml?: string | null;
+}
+
 const AdminPage = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginPassword, setLoginPassword] = useState("");
@@ -137,6 +146,18 @@ const AdminPage = () => {
   const [promptPreviewData, setPromptPreviewData] = useState<any>(null);
   const [isCreatingCharacter, setIsCreatingCharacter] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [isStoryDialogOpen, setIsStoryDialogOpen] = useState(false);
+  const [editingStoryId, setEditingStoryId] = useState<string | null>(null);
+  const [isLoadingStoryDetail, setIsLoadingStoryDetail] = useState(false);
+  const [storyForm, setStoryForm] = useState({
+    id: "",
+    title: "",
+    locale: "",
+    coverImage: "",
+    storyYaml: "",
+    rolesYaml: "",
+    rulesYaml: "",
+  });
 
   const queryClient = useQueryClient();
 
@@ -150,6 +171,224 @@ const AdminPage = () => {
 
   const authHeaders = {
     Authorization: `Bearer ${authToken}`,
+  };
+
+  const {
+    data: adminStories = [],
+    isLoading: isLoadingStories,
+    isFetching: isFetchingStories,
+    error: storiesError,
+  } = useQuery<StoryMetadata[]>({
+    queryKey: ["admin-stories", authToken],
+    enabled: isAuthenticated && !!authToken,
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/stories`, {
+        headers: authHeaders,
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to fetch stories");
+      }
+      return response.json();
+    },
+  });
+
+  const resetStoryForm = () => {
+    setStoryForm({
+      id: "",
+      title: "",
+      locale: "",
+      coverImage: "",
+      storyYaml: "",
+      rolesYaml: "",
+      rulesYaml: "",
+    });
+    setEditingStoryId(null);
+  };
+
+  const createStoryMutation = useMutation({
+    mutationFn: async (body: any) => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/stories`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to create story");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Story created",
+        description: "New story pack has been saved",
+        className: "bg-green-600 text-white border-green-500",
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-stories"] });
+      setIsStoryDialogOpen(false);
+      resetStoryForm();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to create story",
+        description: error?.message || "Please check the YAML content and try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateStoryMutation = useMutation({
+    mutationFn: async ({ storyId, body }: { storyId: string; body: any }) => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/stories/${storyId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to update story");
+      }
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Story updated",
+        description: "Story pack changes have been saved",
+        className: "bg-blue-600 text-white border-blue-500",
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-stories"] });
+      setIsStoryDialogOpen(false);
+      resetStoryForm();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to update story",
+        description: error?.message || "Please check the YAML content and try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteStoryMutation = useMutation({
+    mutationFn: async (storyId: string) => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/stories/${storyId}`, {
+        method: "DELETE",
+        headers: authHeaders,
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to delete story");
+      }
+      return true;
+    },
+    onSuccess: () => {
+      toast({
+        title: "Story removed",
+        description: "The story pack has been deleted",
+        className: "bg-red-600 text-white border-red-500",
+      });
+      queryClient.invalidateQueries({ queryKey: ["admin-stories"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to delete story",
+        description: error?.message || "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const isSavingStory = createStoryMutation.isPending || updateStoryMutation.isPending;
+  const storiesErrorMessage = storiesError instanceof Error ? storiesError.message : null;
+
+  const handleOpenCreateStory = () => {
+    resetStoryForm();
+    setIsStoryDialogOpen(true);
+  };
+
+  const handleEditStory = async (storyId: string) => {
+    setEditingStoryId(storyId);
+    setIsStoryDialogOpen(true);
+    setIsLoadingStoryDetail(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/stories/${storyId}`, {
+        headers: authHeaders,
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || "Failed to load story");
+      }
+      const detail = (await response.json()) as AdminStoryDetail;
+      setStoryForm({
+        id: detail.metadata.id,
+        title: detail.metadata.title,
+        locale: detail.metadata.locale || "",
+        coverImage: detail.metadata.coverImage || "",
+        storyYaml: detail.storyYaml,
+        rolesYaml: detail.rolesYaml,
+        rulesYaml: detail.rulesYaml || "",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Failed to load story",
+        description: error?.message || "Please try again",
+        variant: "destructive",
+      });
+      setIsStoryDialogOpen(false);
+      resetStoryForm();
+    } finally {
+      setIsLoadingStoryDetail(false);
+    }
+  };
+
+  const handleStorySubmit = () => {
+    const trimmedId = storyForm.id.trim();
+    const trimmedTitle = storyForm.title.trim();
+    if (!editingStoryId && !trimmedId) {
+      toast({ title: "Story id required", description: "Please provide an identifier for the story." });
+      return;
+    }
+    if (!trimmedTitle) {
+      toast({ title: "Story title required", description: "Please provide a story title." });
+      return;
+    }
+    if (!storyForm.storyYaml.trim() || !storyForm.rolesYaml.trim()) {
+      toast({ title: "YAML required", description: "Both story.yaml and roles.yaml content are required." });
+      return;
+    }
+
+    const payloadBase: any = {
+      title: trimmedTitle,
+      locale: storyForm.locale.trim() || null,
+      coverImage: storyForm.coverImage.trim() || null,
+      storyYaml: storyForm.storyYaml,
+      rolesYaml: storyForm.rolesYaml,
+      rulesYaml: storyForm.rulesYaml,
+    };
+
+    if (editingStoryId) {
+      updateStoryMutation.mutate({ storyId: editingStoryId, body: payloadBase });
+    } else {
+      createStoryMutation.mutate({ id: trimmedId, ...payloadBase });
+    }
+  };
+
+  const handleDeleteStory = (storyId: string, title: string) => {
+    if (deleteStoryMutation.isPending) {
+      return;
+    }
+    const confirmed = window.confirm(`Delete story "${title}"? This action cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+    deleteStoryMutation.mutate(storyId);
   };
 
   const loginMutation = useMutation({
@@ -528,7 +767,7 @@ const AdminPage = () => {
 
       <div className="max-w-7xl mx-auto px-6 py-8">
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6 bg-white p-1 rounded-lg shadow-sm border border-slate-200">
+          <TabsList className="grid w-full grid-cols-7 bg-white p-1 rounded-lg shadow-sm border border-slate-200">
             <TabsTrigger value="overview" className="text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-blue-600 data-[state=active]:text-white">
               <BarChart3 className="w-4 h-4 mr-2" />
               Overview
@@ -536,6 +775,10 @@ const AdminPage = () => {
             <TabsTrigger value="characters" className="text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-blue-600 data-[state=active]:text-white">
               <Users className="w-4 h-4 mr-2" />
               Characters
+            </TabsTrigger>
+            <TabsTrigger value="stories" className="text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-blue-600 data-[state=active]:text-white">
+              <BookOpen className="w-4 h-4 mr-2" />
+              Stories
             </TabsTrigger>
             <TabsTrigger value="users" className="text-slate-700 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-blue-600 data-[state=active]:text-white">
               <Globe className="w-4 h-4 mr-2" />
@@ -1199,6 +1442,259 @@ const AdminPage = () => {
                 </CardContent>
               </Card>
             )}
+          </TabsContent>
+
+          <TabsContent value="stories" className="space-y-6">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Story Management</h2>
+                <p className="text-slate-600">Curate multi-role adventures and maintain story packs</p>
+              </div>
+              <div className="flex items-center gap-3">
+                {isFetchingStories && (
+                  <span className="flex items-center gap-2 text-sm text-slate-500">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Syncing
+                  </span>
+                )}
+                <Button
+                  onClick={handleOpenCreateStory}
+                  className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white"
+                >
+                  <Plus className="w-4 h-4 mr-2" />
+                  New Story
+                </Button>
+              </div>
+            </div>
+
+            {storiesErrorMessage && (
+              <Alert variant="destructive">
+                <AlertDescription>{storiesErrorMessage}</AlertDescription>
+              </Alert>
+            )}
+
+            {isLoadingStories ? (
+              <div className="flex items-center justify-center gap-2 rounded-xl border border-slate-800 bg-slate-900/60 px-4 py-6 text-slate-300">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                Loading stories...
+              </div>
+            ) : adminStories.length === 0 ? (
+              <Card className="shadow-sm border-slate-200">
+                <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+                  <BookOpen className="w-16 h-16 text-slate-300 mb-4" />
+                  <h3 className="text-lg font-semibold text-slate-700 mb-2">No stories yet</h3>
+                  <p className="text-slate-500 mb-4">
+                    Create your first multi-role story to power the storytelling experience.
+                  </p>
+                  <Button onClick={handleOpenCreateStory} className="bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create Story
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {adminStories.map((story) => (
+                  <Card key={story.id} className="border-slate-200 shadow-sm">
+                    <CardHeader className="flex flex-col space-y-2">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <CardTitle className="text-lg text-slate-900">{story.title}</CardTitle>
+                          <p className="text-xs text-slate-500">ID: {story.id}</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2 justify-end">
+                          {story.locale && (
+                            <Badge variant="outline" className="border-blue-200 text-blue-600">
+                              {story.locale}
+                            </Badge>
+                          )}
+                          <Badge variant="secondary" className="bg-slate-100 text-slate-700">
+                            <Users className="w-3 h-3 mr-1" />
+                            {story.roles.length} roles
+                          </Badge>
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {story.summary && (
+                        <p className="text-sm text-slate-600 line-clamp-3">{story.summary}</p>
+                      )}
+                      <div className="flex flex-wrap gap-2">
+                        {story.roles.slice(0, 3).map((role) => (
+                          <Badge key={role.id} variant="outline" className="border-slate-200 text-slate-600">
+                            {role.name}
+                          </Badge>
+                        ))}
+                        {story.roles.length > 3 && (
+                          <Badge variant="outline" className="border-slate-200 text-slate-600">
+                            +{story.roles.length - 3}
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-500">
+                        <span className="flex items-center gap-1">
+                          <BookOpen className="w-3 h-3" />
+                          Start: {story.startScene}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-slate-600 border-slate-300"
+                            onClick={() => handleEditStory(story.id)}
+                          >
+                            <Edit className="w-3 h-3 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => handleDeleteStory(story.id, story.title)}
+                            disabled={deleteStoryMutation.isPending && deleteStoryMutation.variables === story.id}
+                          >
+                            {deleteStoryMutation.isPending && deleteStoryMutation.variables === story.id ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-4 h-4" />
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            <Dialog
+              open={isStoryDialogOpen}
+              onOpenChange={(open) => {
+                setIsStoryDialogOpen(open);
+                if (!open) {
+                  setIsLoadingStoryDetail(false);
+                  resetStoryForm();
+                }
+              }}
+            >
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-slate-950 text-slate-100 border border-slate-700">
+                <DialogHeader>
+                  <DialogTitle className="text-xl text-slate-100">
+                    {editingStoryId ? "Edit Story" : "Create Story"}
+                  </DialogTitle>
+                </DialogHeader>
+                {isLoadingStoryDetail ? (
+                  <div className="flex items-center justify-center py-24 text-slate-500">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    <span className="ml-2">Loading story data...</span>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <Label htmlFor="story-id" className="text-slate-200">Story ID</Label>
+                        <Input
+                          id="story-id"
+                          placeholder="e.g. space-adventure"
+                          value={storyForm.id}
+                          onChange={(event) => setStoryForm((prev) => ({ ...prev, id: event.target.value }))}
+                          disabled={!!editingStoryId}
+                          className="mt-1 bg-slate-900 border-slate-700 text-slate-100"
+                        />
+                        <p className="mt-1 text-xs text-slate-400">Lowercase letters, numbers, hyphen or underscore.</p>
+                      </div>
+                      <div>
+                        <Label htmlFor="story-title" className="text-slate-200">Title</Label>
+                        <Input
+                          id="story-title"
+                          placeholder="Story title"
+                          value={storyForm.title}
+                          onChange={(event) => setStoryForm((prev) => ({ ...prev, title: event.target.value }))}
+                          className="mt-1 bg-slate-900 border-slate-700 text-slate-100"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="story-locale" className="text-slate-200">Locale</Label>
+                        <Input
+                          id="story-locale"
+                          placeholder="e.g. zh-CN"
+                          value={storyForm.locale}
+                          onChange={(event) => setStoryForm((prev) => ({ ...prev, locale: event.target.value }))}
+                          className="mt-1 bg-slate-900 border-slate-700 text-slate-100"
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="story-cover" className="text-slate-200">Cover Image</Label>
+                        <Input
+                          id="story-cover"
+                          placeholder="/assets/cover.jpg"
+                          value={storyForm.coverImage}
+                          onChange={(event) => setStoryForm((prev) => ({ ...prev, coverImage: event.target.value }))}
+                          className="mt-1 bg-slate-900 border-slate-700 text-slate-100"
+                        />
+                        <p className="mt-1 text-xs text-slate-400">Relative path or full URL for story card imagery.</p>
+                      </div>
+                    </div>
+
+                    <div>
+                      <Label htmlFor="story-yaml" className="text-slate-200">story.yaml</Label>
+                      <Textarea
+                        id="story-yaml"
+                        value={storyForm.storyYaml}
+                        onChange={(event) => setStoryForm((prev) => ({ ...prev, storyYaml: event.target.value }))}
+                        className="mt-1 font-mono min-h-[220px] bg-slate-900 border-slate-700 text-slate-100"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="roles-yaml" className="text-slate-200">roles.yaml</Label>
+                      <Textarea
+                        id="roles-yaml"
+                        value={storyForm.rolesYaml}
+                        onChange={(event) => setStoryForm((prev) => ({ ...prev, rolesYaml: event.target.value }))}
+                        className="mt-1 font-mono min-h-[180px] bg-slate-900 border-slate-700 text-slate-100"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="rules-yaml" className="text-slate-200">rules.yaml (optional)</Label>
+                      <Textarea
+                        id="rules-yaml"
+                        value={storyForm.rulesYaml}
+                        placeholder="# Optional rules"
+                        onChange={(event) => setStoryForm((prev) => ({ ...prev, rulesYaml: event.target.value }))}
+                        className="mt-1 font-mono min-h-[120px] bg-slate-900 border-slate-700 text-slate-100"
+                      />
+                    </div>
+
+                    <div className="flex justify-end gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                          setIsStoryDialogOpen(false);
+                          resetStoryForm();
+                        }}
+                        className="text-slate-300 border-slate-600"
+                        disabled={isSavingStory}
+                      >
+                        Cancel
+                      </Button>
+                      <Button onClick={handleStorySubmit} disabled={isSavingStory} className="bg-gradient-to-r from-purple-600 to-blue-600 text-white">
+                        {isSavingStory ? (
+                          <span className="flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Saving...
+                          </span>
+                        ) : (
+                          editingStoryId ? "Update Story" : "Create Story"
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           <TabsContent value="users" className="space-y-6">

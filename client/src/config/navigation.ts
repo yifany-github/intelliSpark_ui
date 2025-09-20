@@ -1,4 +1,4 @@
-import { Home, MessageSquare, Heart, Search, Plus, Coins, User, Bell, Settings, Users } from 'lucide-react';
+import { Home, MessageSquare, Heart, Search, Plus, Coins, User, Bell, Settings, Users, BookOpen } from 'lucide-react';
 import { TranslationKey } from '@/contexts/LanguageContext';
 
 export interface NavigationItem {
@@ -31,6 +31,16 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     showInSidebar: false, // Home covers this
     showInTopNav: false,
     showInMobileTab: true  // Primary mobile tab
+  },
+  {
+    id: 'stories',
+    label: 'stories',
+    path: '/stories',
+    icon: BookOpen,
+    requiresAuth: true,
+    showInSidebar: true,
+    showInTopNav: false,
+    showInMobileTab: false,
   },
   {
     id: 'chats',

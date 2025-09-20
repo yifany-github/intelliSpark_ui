@@ -426,10 +426,10 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
           
           // Fallback to quality-based scoring for non-featured characters
           const traitQuality = char.traits.length >= 3 ? char.traits.length * 2 : 0;
-          const backstoryQuality = (char.backstory?.length || 0) >= 100 ? 
-            Math.min((char.backstory?.length || 0) / 50, 20) : 0;
-          const descriptionQuality = (char.description?.length || 0) >= 50 ? 
-            Math.min((char.description?.length || 0) / 25, 15) : 0;
+          const backstoryQuality = (char.backstory?.length ?? 0) >= 100 ? 
+            Math.min((char.backstory?.length ?? 0) / 50, 20) : 0;
+          const descriptionQuality = (char.description?.length ?? 0) >= 50 ? 
+            Math.min((char.description?.length ?? 0) / 25, 15) : 0;
           
           // Bonus for diverse and interesting traits
           const diversityBonus = new Set(char.traits.map(t => t.toLowerCase())).size * 1.5;
@@ -439,7 +439,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
             char.name?.length > 2,
             char.backstory?.length > 50,
             char.traits.length >= 2,
-            char.description?.length > 30,
+            (char.description?.length ?? 0) > 30,
             char.gender
           ].filter(Boolean).length * 2;
           
@@ -732,7 +732,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                   <div className="absolute top-3 left-3 animate-pulse">
                     <div className="flex items-center justify-center space-x-1 bg-gradient-to-r from-yellow-400 via-yellow-500 to-amber-500 px-3 py-1.5 rounded-full shadow-lg shadow-yellow-500/50 border-2 border-yellow-300 h-8">
                       <Crown className="w-4 h-4 text-amber-900 drop-shadow-sm" />
-                      <span className="text-xs text-amber-900 font-black tracking-wide drop-shadow-sm leading-none">{t('featured')}</span>
+                      <span className="text-xs text-amber-900 font-black tracking-wide drop-shadow-sm leading-none">{t('featuredCharacters')}</span>
                     </div>
                   </div>
                 )}

@@ -149,14 +149,18 @@ export const CharacterGallery: React.FC<CharacterGalleryProps> = ({
 
   // Image error handling
   const handleImageError = (imageId: number) => {
-    setImageLoadErrors(prev => new Set([...prev, imageId]));
+    setImageLoadErrors(prev => {
+      const next = new Set(prev);
+      next.add(imageId);
+      return next;
+    });
   };
 
   const handleImageLoad = (imageId: number) => {
     setImageLoadErrors(prev => {
-      const newSet = new Set(prev);
-      newSet.delete(imageId);
-      return newSet;
+      const next = new Set(prev);
+      next.delete(imageId);
+      return next;
     });
   };
 

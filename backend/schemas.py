@@ -321,3 +321,53 @@ class AdminNotificationCreate(BaseSchema):
     action_type: Optional[str] = None
     action_data: Optional[Dict[str, Any]] = None
     expires_at: Optional[datetime] = None
+
+
+# Story engine schemas
+class StoryRoleSchema(BaseSchema):
+    id: str
+    name: str
+    traits: List[str] = Field(default_factory=list)
+    inventory: List[str] = Field(default_factory=list)
+
+
+class StoryMetadataSchema(BaseSchema):
+    id: str
+    title: str
+    locale: Optional[str] = None
+    startScene: str
+    summary: Optional[str] = None
+    coverImage: Optional[str] = None
+    roles: List[StoryRoleSchema]
+
+
+class StorySessionCreateRequest(BaseModel):
+    userRole: Optional[str] = None
+
+
+class StorySessionResponse(BaseSchema):
+    id: str
+    storyId: str
+    userRole: Optional[str] = None
+    state: Dict[str, Any]
+    createdAt: datetime
+    updatedAt: datetime
+    choices: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class StoryTurnRequest(BaseModel):
+    userRole: Optional[str] = None
+    text: str
+
+    @validator("text")
+    def validate_text(cls, value: str) -> str:
+        if not value or not value.strip():
+            raise ValueError("Text cannot be empty")
+        return value.strip()
+
+
+class StoryTurnResponse(BaseSchema):
+    state: Dict[str, Any]
+    narration: Optional[str] = None
+    actionsLog: List[Dict[str, Any]] = Field(default_factory=list)
+    choices: List[Dict[str, Any]] = Field(default_factory=list)

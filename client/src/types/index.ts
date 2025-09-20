@@ -43,6 +43,7 @@ export interface Chat {
   id: number;
   userId: number;
   characterId: number;
+  character_id?: number; // Legacy field from backend responses
   title: string;
   createdAt: string;
   updatedAt: string;
@@ -65,4 +66,44 @@ export interface EnrichedChat extends Chat {
     name: string;
     avatarUrl: string;
   } | null;
+}
+
+export interface StoryRole {
+  id: string;
+  name: string;
+  traits: string[];
+  inventory: string[];
+}
+
+export interface StoryMetadata {
+  id: string;
+  title: string;
+  locale?: string;
+  startScene: string;
+  summary?: string;
+  coverImage?: string;
+  roles: StoryRole[];
+}
+
+export interface StorySession {
+  id: string;
+  storyId: string;
+  userRole?: string;
+  state: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+  choices: StoryChoice[];
+}
+
+export interface StoryTurnResponse {
+  state: Record<string, any>;
+  narration?: string;
+  actionsLog: Record<string, any>[];
+  choices: StoryChoice[];
+}
+
+export interface StoryChoice {
+  id: string;
+  prompt: string;
+  goto?: string | null;
 }

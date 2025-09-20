@@ -1,0 +1,88 @@
+id: doraemon-underworld
+title: 哆啦A梦：新·大魔境（演示）
+locale: zh-CN
+coverImage: /assets/characters_img/Elara.jpeg
+start_scene: S1_opening
+variables:
+  time: Day1-Morning
+  location: 学校后空地
+flags:
+  met_miya: false
+  portal_opened: false
+scenes:
+  - id: S1_opening
+    title: 学校后空地
+    desc: 放学后大家在空地集合，天空微阴。
+    onEnter:
+      - timeAdvance: Day1-Morning
+    choices:
+      - id: talk_rumor
+        prompt: 与伙伴讨论今天的探险传闻
+        effects:
+          - setFlag:
+              met_miya: true
+        goto: S2_miya
+      - id: go_home
+        prompt: 各自回家，改天再聊
+        effects:
+          - timeAdvance: Evening
+        goto: S3_home
+
+  - id: S2_miya
+    title: 谜之少女
+    desc: 一位神秘少女请求帮助，提到“异世界入口”。
+    choices:
+      - id: open_portal
+        prompt: 尝试用任意门定位入口
+        when: "has('doraemon','任意门') and not flag('portal_opened')"
+        effects:
+          - setFlag:
+              portal_opened: true
+          - setLocation: 校园边缘
+        goto: S4_portal
+      - id: investigate_school
+        prompt: 先在校园周边调查线索
+        goto: S5_investigation
+
+  - id: S3_home
+    title: 回家路上
+    desc: 傍晚的街道安静，你在思索传闻真假。
+    choices:
+      - id: message_friends
+        prompt: 发消息给伙伴，约明早再见
+        effects:
+          - timeAdvance: Day2-Morning
+        goto: S1_opening
+
+  - id: S4_portal
+    title: 可疑的门
+    desc: 任意门通向幽暗空间，微风带着陌生气味。
+    choices:
+      - id: step_in
+        prompt: 小心翼翼进入门内
+        goto: S6_underworld_gate
+      - id: mark_and_retreat
+        prompt: 做好标记，先撤退准备
+        effects:
+          - setVar:
+              marked_portal: true
+        goto: S1_opening
+
+  - id: S5_investigation
+    title: 校园调查
+    desc: 你们在后门与排水沟附近搜寻可疑痕迹。
+    choices:
+      - id: follow_clue
+        prompt: 跟随微弱的脚印与划痕
+        goto: S4_portal
+      - id: ask_guard
+        prompt: 向门卫打听近期异常
+        goto: S1_opening
+
+  - id: S6_underworld_gate
+    title: 异界门廊
+    desc: 冰凉的空气扑面而来，远处隐约有微光。
+    choices:
+      - id: hold_together
+        prompt: 商量分工并保持队形前进
+        goto: S1_opening
