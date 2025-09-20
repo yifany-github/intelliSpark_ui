@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     
     # CORS settings - can be comma-separated string for production
     allowed_origins: Optional[str] = None  # e.g., "https://yourdomain.com,https://www.yourdomain.com"
+    allowed_origin_regex: Optional[str] = None  # Advanced pattern support e.g. "^https://.*\\.pages\\.dev$"
     
     # Character System Configuration
     enable_hardcoded_character_loading: bool = False  # Default disabled

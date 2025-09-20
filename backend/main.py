@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 import base64
+import re
 
 # Load environment variables from .env file
 load_dotenv()
@@ -42,8 +43,18 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Add CORS middleware to allow frontend requests
 # In production, restrict to ALLOWED_ORIGINS only. Use localhost defaults only when not configured.
+wildcard_patterns = []
+
 if settings.allowed_origins:
-    allowed_origins = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
+    raw_origins = [o.strip() for o in settings.allowed_origins.split(",") if o.strip()]
+    allowed_origins = []
+    for origin in raw_origins:
+        if "*" in origin:
+            # Convert wildcard syntax to a regex that FastAPI's CORS middleware understands
+            pattern = re.escape(origin).replace("\\*", ".*")
+            wildcard_patterns.append(f"^{pattern}$")
+        else:
+            allowed_origins.append(origin)
 else:
     allowed_origins = [
         "http://localhost:5173",
@@ -52,12 +63,24 @@ else:
         "http://localhost:3000",
     ]
 
+regex_parts = []
+if wildcard_patterns:
+    combined = "|".join(wildcard_patterns)
+    if combined:
+        regex_parts.append(f"({combined})")
+
+if settings.allowed_origin_regex:
+    regex_parts.append(f"({settings.allowed_origin_regex})")
+
+allowed_origin_regex = "|".join(regex_parts) if regex_parts else None
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    allow_origin_regex=allowed_origin_regex,
 )
 
 # Add security headers middleware for uploaded files
