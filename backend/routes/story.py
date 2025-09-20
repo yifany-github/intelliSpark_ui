@@ -44,7 +44,26 @@ def _ensure_session_owner(session: StorySession, user: User) -> None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
 
 
-def _session_to_dict(session: StorySession, choices: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+def _session_to_dict(
+    session: StorySession,
+    choices: Optional[List[Dict[str, Any]]] = None,
+    intro: Optional[Any] = None,
+) -> Dict[str, Any]:
+    state_data = session.state or {}
+    intro_background = None
+    intro_role = None
+
+    if intro is not None:
+        intro_background = getattr(intro, "background", None) or getattr(intro, "intro_narration", None)
+        intro_role = getattr(intro, "role_intro", None) or getattr(intro, "roleIntro", None)
+
+    if isinstance(state_data, dict):
+        variables = state_data.get("variables") if isinstance(state_data.get("variables"), dict) else {}
+        meta = variables.get("__meta") if isinstance(variables.get("__meta"), dict) else {}
+        stored_intro = meta.get("intro") if isinstance(meta.get("intro"), dict) else {}
+        intro_background = intro_background or stored_intro.get("background")
+        intro_role = intro_role or stored_intro.get("roleIntro")
+
     return {
         "id": str(session.id),
         "storyId": session.story_id,
@@ -53,6 +72,8 @@ def _session_to_dict(session: StorySession, choices: Optional[List[Dict[str, Any
         "createdAt": session.created_at,
         "updatedAt": session.updated_at,
         "choices": choices or [],
+        "introNarration": intro_background,
+        "roleIntro": intro_role,
     }
 
 
@@ -78,10 +99,11 @@ def create_story_session(
 ):
     service = _get_service(db)
     try:
-        session = service.create_session(
+        session, intro = service.create_session(
             story_id=story_id,
             user_id=current_user.id,
             user_role=payload.userRole or None,
+            user=current_user,
         )
     except StoryPackNotFound as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
@@ -89,7 +111,7 @@ def create_story_session(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
     choices = service.get_available_choices(session)
-    return StorySessionResponse.model_validate(_session_to_dict(session, choices))
+    return StorySessionResponse.model_validate(_session_to_dict(session, choices, intro))
 
 
 @router.get("/story-sessions/{session_id}", response_model=StorySessionResponse)

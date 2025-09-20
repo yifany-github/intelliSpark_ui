@@ -353,6 +353,8 @@ class StorySessionResponse(BaseSchema):
     createdAt: datetime
     updatedAt: datetime
     choices: List[Dict[str, Any]] = Field(default_factory=list)
+    introNarration: Optional[str] = None
+    roleIntro: Optional[str] = None
 
 
 class StoryTurnRequest(BaseModel):

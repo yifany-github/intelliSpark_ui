@@ -81,6 +81,8 @@ const StorySessionPage = ({ sessionId }: StorySessionPageProps) => {
   const state = session?.state ?? {};
   const flags = (state.flags ?? {}) as Record<string, boolean>;
   const inventories = (state.inventories ?? {}) as Record<string, string[]>;
+  const introNarration = session?.introNarration;
+  const roleIntro = session?.roleIntro;
 
   useEffect(() => {
     if (session?.choices) {
@@ -128,8 +130,8 @@ const StorySessionPage = ({ sessionId }: StorySessionPageProps) => {
         ) : null}
 
         {session && !isLoading && !isError ? (
-          <div className="grid gap-6 lg:grid-cols-[320px,1fr]">
-            <aside className="space-y-4">
+          <div className="grid gap-6 lg:grid-cols-[320px,1fr] lg:h-[calc(100vh-180px)] lg:overflow-hidden">
+            <aside className="space-y-4 lg:h-full lg:overflow-y-auto pr-1">
               <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5 shadow-sm shadow-black/30">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2 text-sm text-slate-300">
@@ -215,7 +217,7 @@ const StorySessionPage = ({ sessionId }: StorySessionPageProps) => {
               </div>
             </aside>
 
-            <section className="flex h-full flex-col rounded-2xl border border-slate-800 bg-slate-900/70 shadow-inner shadow-black/30">
+            <section className="flex h-full flex-col rounded-2xl border border-slate-800 bg-slate-900/70 shadow-inner shadow-black/30 lg:overflow-hidden">
               <div className="border-b border-slate-800 bg-slate-900/80 px-6 py-5">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
@@ -241,6 +243,22 @@ const StorySessionPage = ({ sessionId }: StorySessionPageProps) => {
 
               <ScrollArea className="flex-1 px-6 py-5">
                 <div className="space-y-4 text-sm text-slate-200">
+                  {(introNarration || roleIntro) && (
+                    <div className="space-y-3 rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                      {introNarration && (
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">{t("storytelling")}</p>
+                          <p className="leading-relaxed text-slate-100 whitespace-pre-line">{introNarration}</p>
+                        </div>
+                      )}
+                      {roleIntro && (
+                        <div>
+                          <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">{t("selectRole")}</p>
+                          <p className="leading-relaxed text-slate-200 whitespace-pre-line">{roleIntro}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   {turns.length === 0 ? (
                     <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 text-center">
                       <Sparkles className="mx-auto mb-3 h-6 w-6 text-blue-300" />
@@ -289,7 +307,7 @@ const StorySessionPage = ({ sessionId }: StorySessionPageProps) => {
                 </div>
               </ScrollArea>
 
-              <div className="space-y-4 border-t border-slate-800 bg-slate-900/80 px-6 py-5">
+              <div className="space-y-4 border-t border-slate-800 bg-slate-900/90 px-6 py-5 sticky bottom-0">
                 {choices.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {choices.map((choice) => (

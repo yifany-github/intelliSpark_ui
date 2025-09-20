@@ -29,6 +29,12 @@ class _LLMMessage:
     content: str
 
 
+@dataclass
+class SessionIntro:
+    background: Optional[str] = None
+    role_intro: Optional[str] = None
+
+
 class StoryServiceError(RuntimeError):
     """Generic story service failure."""
 
@@ -120,10 +126,28 @@ class StoryService:
         story_id: str,
         user_id: Optional[int],
         user_role: Optional[str],
-    ) -> StorySession:
+        user: Optional[User] = None,
+    ) -> Tuple[StorySession, SessionIntro]:
         pack = self.get_story(story_id)
         session_uuid = str(uuid.uuid4())
         state = self._initial_state(session_uuid, pack)
+
+        intro = self._generate_session_intro(
+            pack=pack,
+            state=state,
+            user_role=user_role,
+            user=user,
+        )
+
+        if intro.background or intro.role_intro:
+            meta = state.variables.get("__meta")
+            if not isinstance(meta, dict):
+                meta = {}
+            meta["intro"] = {
+                "background": intro.background,
+                "roleIntro": intro.role_intro,
+            }
+            state.variables["__meta"] = meta
 
         session = StorySession(
             id=session_uuid,
@@ -135,7 +159,19 @@ class StoryService:
         self.db.add(session)
         self.db.commit()
         self.db.refresh(session)
-        return session
+
+        if intro.background or intro.role_intro:
+            self.append_log(
+                session_id=session.id,
+                kind="INTRO",
+                actor="SYSTEM",
+                payload={
+                    "background": intro.background,
+                    "roleIntro": intro.role_intro,
+                },
+            )
+
+        return session, intro
 
     def get_session(self, session_id: str) -> StorySession:
         session = self.db.query(StorySession).filter(StorySession.id == session_id).first()
@@ -460,6 +496,43 @@ class StoryService:
         log.extend(ai_actions)
         return log
 
+    def _generate_session_intro(
+        self,
+        *,
+        pack: StoryPack,
+        state: WorldState,
+        user_role: Optional[str],
+        user: Optional[User],
+    ) -> SessionIntro:
+        try:
+            ai_manager = self._get_ai_manager()
+        except Exception as exc:
+            LOGGER.error("Failed to obtain AI model manager for session intro: %s", exc)
+            return SessionIntro()
+
+        if not ai_manager:
+            return SessionIntro()
+
+        role_id = user_role or (pack.roles[0].id if pack.roles else None)
+        available_choices = self._choice_summaries(pack, state)
+
+        try:
+            intro = self._run_async(
+                self._generate_session_intro_async(
+                    ai_manager=ai_manager,
+                    narrator=self._build_narrator_character(pack),
+                    pack=pack,
+                    state=state,
+                    user_role=role_id,
+                    available_choices=available_choices,
+                    user=user,
+                )
+            )
+            return intro or SessionIntro()
+        except Exception as exc:
+            LOGGER.error("Session intro AI call failed: %s", exc)
+            return SessionIntro()
+
     def _maybe_generate_ai_narration(
         self,
         *,
@@ -550,6 +623,82 @@ class StoryService:
             LOGGER.error("AI narration generation error: %s", exc)
             return None
 
+    async def _generate_session_intro_async(
+        self,
+        *,
+        ai_manager: AIModelManager,
+        narrator: Character,
+        pack: StoryPack,
+        state: WorldState,
+        user_role: Optional[str],
+        available_choices: List[Dict[str, Any]],
+        user: Optional[User],
+    ) -> SessionIntro:
+        filtered_variables = {
+            k: v for k, v in state.variables.items() if not str(k).startswith("__")
+        }
+
+        context = {
+            "story": {
+                "id": pack.id,
+                "title": pack.title,
+                "locale": pack.locale,
+            },
+            "scene": {
+                "id": state.scene_id,
+                "time": state.time,
+                "location": state.location,
+            },
+            "flags": state.flags,
+            "variables": filtered_variables,
+            "available_choices": available_choices,
+        }
+
+        context_text = json.dumps(context, ensure_ascii=False, indent=2)
+        background_prompt = (
+            "你是中文互动小说的旁白。请在 3 段以内，用沉浸式第三人称描绘当前故事的背景、"
+            "氛围与潜在冲突，并暗示玩家可以做出的行动方向。避免剧透后续剧情。\n\n"
+            f"故事设定：\n{context_text}\n\n请输出旁白背景描述："
+        )
+
+        background_messages = [_LLMMessage(role="user", content=background_prompt)]
+        background_text = None
+        try:
+            background_response, _ = await ai_manager.generate_response(
+                narrator,
+                background_messages,  # type: ignore[arg-type]
+                user_preferences={"mode": "story_intro"},
+                user=user,
+            )
+            if background_response:
+                background_text = background_response.strip()
+        except Exception as exc:
+            LOGGER.error("Background intro generation failed: %s", exc)
+
+        role_intro_text = None
+        if user_role:
+            role_context = self._build_role_context(pack, user_role)
+            role_prompt = (
+                "请作为旁白，描述玩家扮演的角色在当前场景中的心境、特长和动机，"
+                "用 2 段以内文字突出该角色与众不同之处，并给出即将采取行动的暗示。\n\n"
+                f"角色信息：\n{json.dumps(role_context, ensure_ascii=False, indent=2)}\n\n"
+                f"场景：{state.scene_id}"
+            )
+            role_messages = [_LLMMessage(role="user", content=role_prompt)]
+            try:
+                role_response, _ = await ai_manager.generate_response(
+                    narrator,
+                    role_messages,  # type: ignore[arg-type]
+                    user_preferences={"mode": "story_role_intro"},
+                    user=user,
+                )
+                if role_response:
+                    role_intro_text = role_response.strip()
+            except Exception as exc:
+                LOGGER.error("Role intro generation failed: %s", exc)
+
+        return SessionIntro(background=background_text, role_intro=role_intro_text)
+
     def _build_narrator_character(self, pack: StoryPack) -> Character:
         narrator_name = f"《{pack.title}》旁白" if pack.title else "故事旁白"
         narrator = Character(
@@ -583,6 +732,10 @@ class StoryService:
         ai_actions: List[Dict[str, Any]],
         available_choices: List[Dict[str, Any]],
     ) -> str:
+        filtered_variables = {
+            k: v for k, v in state.variables.items() if not str(k).startswith("__")
+        }
+
         context = {
             "story": {
                 "id": pack.id,
@@ -595,7 +748,7 @@ class StoryService:
                 "location": state.location,
             },
             "flags": state.flags,
-            "variables": state.variables,
+            "variables": filtered_variables,
             "inventories": state.inventories,
             "player": {
                 "role": user_role,
@@ -618,6 +771,19 @@ class StoryService:
         )
 
         return f"{instructions}\n\n当前上下文：\n{context_text}\n\n请输出旁白叙述："
+
+    def _build_role_context(self, pack: StoryPack, role_id: Optional[str]) -> Dict[str, Any]:
+        if not role_id:
+            return {}
+        for role in pack.roles:
+            if role.id == role_id:
+                return {
+                    "id": role.id,
+                    "name": role.name,
+                    "traits": role.traits,
+                    "inventory": role.inventory,
+                }
+        return {"id": role_id, "name": role_id}
 
     @staticmethod
     def _dump_model(model: BaseModel) -> Dict[str, Any]:

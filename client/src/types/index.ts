@@ -93,6 +93,8 @@ export interface StorySession {
   createdAt: string;
   updatedAt: string;
   choices: StoryChoice[];
+  introNarration?: string;
+  roleIntro?: string;
 }
 
 export interface StoryTurnResponse {
