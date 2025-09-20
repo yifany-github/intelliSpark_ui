@@ -61,6 +61,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: ${{ secrets.CLOUDFLARE_PROJECT_NAME }}
           directory: ./dist/public
+          branch: preview
           wranglerVersion: '3'
       
       - name: Create Sentry Release (optional)

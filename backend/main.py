@@ -51,6 +51,7 @@ if settings.allowed_origins:
     for origin in raw_origins:
         if "*" in origin:
             # Convert wildcard syntax to a regex that FastAPI's CORS middleware understands
+            # Allow simple wildcard patterns (e.g. https://*.example.com)
             pattern = re.escape(origin).replace("\\*", ".*")
             wildcard_patterns.append(f"^{pattern}$")
         else:
