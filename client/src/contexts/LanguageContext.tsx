@@ -415,6 +415,7 @@ export type TranslationKey =
   | 'gamingVirtual'
   | 'animeManga'
   | 'moviesTv'
+  | 'featured'
   | 'featuredCharacters'
   | 'handpickedSelections'
   | 'trendingThisWeek'
@@ -1167,6 +1168,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     gamingVirtual: 'Gaming & Virtual',
     animeManga: 'Anime & Manga',
     moviesTv: 'Movies & TV',
+    featured: 'Featured',
     noCharactersFoundInCategory: 'No {category} Characters Found',
     tryExploringOtherCategories: 'Try exploring other categories or check back later for new additions.',
     featuredCharacters: 'Featured Characters',
@@ -1816,6 +1818,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     gamingVirtual: '游戏虚拟',
     animeManga: '动漫',
     moviesTv: '影视',
+    featured: '精选',
     noCharactersFoundInCategory: '未找到{category}角色',
     tryExploringOtherCategories: '试试其他分类或稍后查看新增内容',
     featuredCharacters: '精选角色',
