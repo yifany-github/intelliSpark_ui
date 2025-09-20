@@ -14,13 +14,17 @@ import { Smile, Paperclip, Send, Slash, Palette } from 'lucide-react';
 interface ChatInputProps {
   onSendMessage: (message: string) => void;
   isLoading: boolean;
+  disabled?: boolean;
+  placeholder?: string;
 }
 
-const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
+const ChatInput = ({ onSendMessage, isLoading, disabled = false, placeholder }: ChatInputProps) => {
   const [message, setMessage] = useState('');
   const { toast } = useToast();
   const { t } = useLanguage();
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const isSubmitDisabled = disabled || isLoading;
 
   const validateMessage = (content: string): string | null => {
     if (!content.trim()) return 'Message cannot be empty';
@@ -31,6 +35,8 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
   };
 
   const handleSend = () => {
+    if (isSubmitDisabled) return;
+
     const trimmedMessage = message.trim();
     if (!trimmedMessage) return;
     
@@ -84,7 +90,7 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
       <div className="flex items-center bg-secondary rounded-2xl px-3 py-2">
         <Popover>
           <PopoverTrigger asChild>
-            <button className="text-gray-400 mr-3">
+            <button className="text-gray-400 mr-3" disabled={isSubmitDisabled}>
               <Smile className="h-5 w-5" />
             </button>
           </PopoverTrigger>
@@ -108,21 +114,22 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={t('typeMessage')}
+          placeholder={placeholder ?? t('typeMessage')}
           className="flex-grow bg-transparent border-0 focus:outline-none text-white resize-none max-h-24"
           rows={1}
+          disabled={isSubmitDisabled}
         />
         
-        <button className="ml-3 text-gray-400">
+        <button className="ml-3 text-gray-400" disabled={isSubmitDisabled}>
           <Paperclip className="h-5 w-5" />
         </button>
         
         <button 
-          className={`ml-3 w-8 h-8 ${isLoading ? 'bg-secondary' : 'bg-primary'} rounded-full flex items-center justify-center text-white ${
+          className={`ml-3 w-8 h-8 ${isSubmitDisabled ? 'bg-secondary' : 'bg-primary'} rounded-full flex items-center justify-center text-white ${
             isLoading ? 'animate-pulse' : 'hover:bg-accent transition-colors'
           }`}
           onClick={handleSend}
-          disabled={isLoading || !message.trim()}
+          disabled={isSubmitDisabled || !message.trim()}
         >
           <Send className="h-4 w-4" />
         </button>
@@ -132,7 +139,7 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
         <div className="flex">
           <Popover>
             <PopoverTrigger asChild>
-              <button className="mr-3 flex items-center">
+              <button className="mr-3 flex items-center" disabled={isSubmitDisabled}>
                 <Slash className="h-4 w-4 mr-1" /> {t('commands')}
               </button>
             </PopoverTrigger>
@@ -154,7 +161,7 @@ const ChatInput = ({ onSendMessage, isLoading }: ChatInputProps) => {
           
           <Popover>
             <PopoverTrigger asChild>
-              <button className="flex items-center">
+              <button className="flex items-center" disabled={isSubmitDisabled}>
                 <Palette className="h-4 w-4 mr-1" /> {t('tone')}
               </button>
             </PopoverTrigger>

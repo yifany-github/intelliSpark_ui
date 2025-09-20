@@ -305,3 +305,9 @@ attached_assets/user_profiles/
 
 # Local AI/tooling artifacts
 .claude/
+
+# ===================================================
+# Development tools and caches
+# ===================================================
+.codebuddy/
+.claude.yml

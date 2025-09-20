@@ -63,7 +63,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   } = useQuery<ChatMessage[]>({
     queryKey: [`/api/chats/${chatId}/messages`],
     enabled: !!chatId && !isCreatingChat,
-    refetchInterval: (data) => {
+    refetchInterval: (query) => {
+      const data = query.state.data as ChatMessage[] | undefined;
       // Poll for messages if we have a chat but no messages yet (opening line being generated)
       return (!data || data.length === 0) && chat ? 2000 : false;
     }
@@ -79,16 +80,20 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   });
   
   // Fallback character fetch if not found in enriched chats
+  const fallbackCharacterId = chat?.characterId ?? (chat as { character_id?: number } | undefined)?.character_id;
+
   const {
     data: fallbackCharacter,
     isLoading: isLoadingFallbackCharacter
-  } = useQuery({
-    queryKey: [`/api/characters/${chat?.character_id}`],
-    enabled: !!chat?.character_id && !chats.find(c => c.id === parseInt(chatId || '0'))?.character,
+  } = useQuery<Character>({
+    queryKey: [`/api/characters/${fallbackCharacterId}`],
+    enabled: !!fallbackCharacterId && !chats.find(c => c.id === parseInt(chatId || '0'))?.character,
   });
 
   // Get character data from the enriched chats list with fallback, or from creating state
-  const character = useMemo(() => {
+  type ChatCharacter = Character | NonNullable<EnrichedChat["character"]>;
+
+  const character = useMemo<ChatCharacter | null>(() => {
     // ✅ PRIORITY 1: If in creating state, use selectedCharacter from RolePlayContext (immediately available)
     if (isCreatingChat && selectedCharacter) {
       return selectedCharacter;
@@ -109,7 +114,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     if (fallbackCharacter) {
       return fallbackCharacter;
     }
-    
+
     return null;
   }, [chats, chatId, fallbackCharacter, isCreatingChat, creatingCharacter, selectedCharacter]);
   

@@ -40,8 +40,8 @@ jobs:
       - name: Run linting
         run: npm run check || true
 
-      - name: Build frontend
-        run: npm run build || echo "Build completed with TypeScript warnings"
+      - name: Build application
+        run: npm run build:ci
         env:
           # Use production environment variables
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
@@ -61,7 +61,7 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: ${{ secrets.CLOUDFLARE_PROJECT_NAME }}
           directory: ./dist/public
-          # Provide the secrets as build environment variables for Pages
+          branch: preview
           wranglerVersion: '3'
       
       - name: Create Sentry Release (optional)

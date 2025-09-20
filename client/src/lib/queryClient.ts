@@ -124,7 +124,7 @@ export const queryClient = new QueryClient({
         // Refetch character data when window gains focus to ensure latest descriptions
         const queryKey = query.queryKey[0] as string;
         // More targeted: only character list and individual character queries
-        return queryKey === '/api/characters' || queryKey.match(/^\/api\/characters\/\d+$/);
+        return queryKey === '/api/characters' || /^\/api\/characters\/\d+$/.test(queryKey);
       },
       staleTime: (query) => {
         // Character-related queries should refresh more frequently to pick up 

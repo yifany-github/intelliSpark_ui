@@ -64,5 +64,7 @@ export interface EnrichedChat extends Chat {
     id: number;
     name: string;
     avatarUrl: string;
+    description?: string;
+    traits?: string[];
   } | null;
 }
