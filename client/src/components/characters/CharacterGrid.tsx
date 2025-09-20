@@ -426,10 +426,10 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
           
           // Fallback to quality-based scoring for non-featured characters
           const traitQuality = char.traits.length >= 3 ? char.traits.length * 2 : 0;
-          const backstoryQuality = (char.backstory?.length || 0) >= 100 ? 
-            Math.min((char.backstory?.length || 0) / 50, 20) : 0;
-          const descriptionQuality = (char.description?.length || 0) >= 50 ? 
-            Math.min((char.description?.length || 0) / 25, 15) : 0;
+          const backstoryQuality = (char.backstory?.length ?? 0) >= 100 ? 
+            Math.min((char.backstory?.length ?? 0) / 50, 20) : 0;
+          const descriptionQuality = (char.description?.length ?? 0) >= 50 ? 
+            Math.min((char.description?.length ?? 0) / 25, 15) : 0;
           
           // Bonus for diverse and interesting traits
           const diversityBonus = new Set(char.traits.map(t => t.toLowerCase())).size * 1.5;
@@ -439,7 +439,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
             char.name?.length > 2,
             char.backstory?.length > 50,
             char.traits.length >= 2,
-            char.description?.length > 30,
+            (char.description?.length ?? 0) > 30,
             char.gender
           ].filter(Boolean).length * 2;
           
