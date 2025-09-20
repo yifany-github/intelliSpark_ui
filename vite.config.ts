@@ -10,13 +10,8 @@ export default defineConfig(async ({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const plugins = [];
   
-  // Add React plugin with TypeScript checking conditionally
-  if (process.env.VITE_SKIP_TS_CHECK === 'true') {
-    // Skip TypeScript checking for CI builds
-    plugins.push(react({ typescript: false }));
-  } else {
-    plugins.push(react());
-  }
+  // Add React plugin - always use React plugin normally
+  plugins.push(react());
   
   // Only load Replit plugins in Replit environment
   if (process.env.REPL_ID !== undefined) {
@@ -53,6 +48,18 @@ export default defineConfig(async ({ mode }) => {
           warn(warning);
         }
       }
+    },
+    esbuild: {
+      // Skip TypeScript checking entirely for CI builds
+      ...(process.env.VITE_SKIP_TS_CHECK === 'true' && {
+        target: 'esnext',
+        tsconfigRaw: {
+          compilerOptions: {
+            skipLibCheck: true,
+            noEmit: true
+          }
+        }
+      })
     },
     server: {
       proxy: {
