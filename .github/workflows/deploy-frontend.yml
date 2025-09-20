@@ -40,11 +40,8 @@ jobs:
       - name: Run linting
         run: npm run check || true
 
-      - name: Skip build - let Cloudflare handle it
-        run: |
-          echo "Skipping local build - Cloudflare Pages will build directly from source"
-          mkdir -p ./dist/public
-          echo "Cloudflare will build this" > ./dist/public/.gitkeep
+      - name: Build application
+        run: npm run build:ci
         env:
           # Use production environment variables
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
@@ -63,8 +60,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: ${{ secrets.CLOUDFLARE_PROJECT_NAME }}
-          directory: ./
-          # Let Cloudflare build from source
+          directory: ./dist/public
           wranglerVersion: '3'
       
       - name: Create Sentry Release (optional)
