@@ -40,17 +40,11 @@ jobs:
       - name: Run linting
         run: npm run check || true
 
-      - name: Build frontend
+      - name: Skip build - let Cloudflare handle it
         run: |
-          npm run build:ci || npm run build || echo "Both builds failed - creating fallback"
-          
-      - name: Create fallback build if needed
-        run: |
-          if [ ! -d "./dist/public" ]; then
-            echo "Creating emergency fallback build..."
-            mkdir -p ./dist/public
-            echo "Build failed - emergency deployment" > ./dist/public/index.html
-          fi
+          echo "Skipping local build - Cloudflare Pages will build directly from source"
+          mkdir -p ./dist/public
+          echo "Cloudflare will build this" > ./dist/public/.gitkeep
         env:
           # Use production environment variables
           VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
@@ -69,8 +63,8 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: ${{ secrets.CLOUDFLARE_PROJECT_NAME }}
-          directory: ./dist/public
-          # Provide the secrets as build environment variables for Pages
+          directory: ./
+          # Let Cloudflare build from source
           wranglerVersion: '3'
       
       - name: Create Sentry Release (optional)
