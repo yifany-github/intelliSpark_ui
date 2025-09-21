@@ -45,9 +45,15 @@ class User(Base):
     email = Column(String(255), unique=True, nullable=True, index=True)  # nullable for existing users
     provider = Column(String(50), default='email')  # 'email', 'google', 'apple'
     firebase_uid = Column(String(255), unique=True, nullable=True)  # Firebase user ID
+    email_verified = Column(Boolean, default=False)
     memory_enabled = Column(Boolean, default=True)
     preferred_ai_model = Column(String(50), default='gemini')  # User's preferred AI model: 'gemini', 'grok', etc.
     created_at = Column(DateTime, default=func.now())
+    last_login_at = Column(DateTime, nullable=True)
+    last_login_ip = Column(String(100), nullable=True)
+    is_suspended = Column(Boolean, default=False, index=True)
+    suspended_at = Column(DateTime, nullable=True)
+    suspension_reason = Column(Text, nullable=True)
     
     # Relationships
     chats = relationship("Chat", back_populates="user")

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Toggle } from "@/components/ui/toggle";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -108,12 +109,49 @@ interface Character {
   createdBy?: number | null;
 }
 
-interface User {
+interface AdminUser {
   id: number;
   username: string;
+  email: string | null;
+  provider: string | null;
   memory_enabled: boolean;
+  email_verified: boolean;
   created_at: string;
+  last_login_at?: string | null;
+  last_login_ip?: string | null;
+  token_balance: number;
   total_chats: number;
+  is_suspended: boolean;
+  suspended_at?: string | null;
+  suspension_reason?: string | null;
+}
+
+interface AdminUsersResponse {
+  data: AdminUser[];
+  meta: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
+}
+
+interface AdminUserDetail extends AdminUser {
+  recent_chats: Array<{
+    id: number;
+    uuid?: string | null;
+    title: string;
+    character_id: number;
+    created_at: string;
+    updated_at: string;
+  }>;
+  recent_token_transactions: Array<{
+    id: number;
+    transaction_type: string;
+    amount: number;
+    description?: string | null;
+    created_at: string;
+  }>;
+  unread_notifications: number;
 }
 
 type AdminTokenResponse = {
@@ -149,6 +187,23 @@ const AdminPage = () => {
   const [promptPreviewData, setPromptPreviewData] = useState<any>(null);
   const [isCreatingCharacter, setIsCreatingCharacter] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false);
+  const [suspendTargetUser, setSuspendTargetUser] = useState<AdminUser | null>(null);
+  const [suspendReason, setSuspendReason] = useState("");
+  const [isTokenDialogOpen, setIsTokenDialogOpen] = useState(false);
+  const [tokenTargetUser, setTokenTargetUser] = useState<AdminUser | null>(null);
+  const [tokenAmount, setTokenAmount] = useState<number>(0);
+  const [tokenReason, setTokenReason] = useState("");
+  const [isUserDetailDialogOpen, setIsUserDetailDialogOpen] = useState(false);
+  const [selectedUserIdForDetail, setSelectedUserIdForDetail] = useState<number | null>(null);
+  const [selectedUserDetail, setSelectedUserDetail] = useState<AdminUserDetail | null>(null);
+  const [isUserDetailLoading, setIsUserDetailLoading] = useState(false);
+
+  const USER_PAGE_SIZE = 20;
+  const [userSearchTerm, setUserSearchTerm] = useState("");
+  const [userStatusFilter, setUserStatusFilter] = useState<"all" | "active" | "suspended">("all");
+  const [userProviderFilter, setUserProviderFilter] = useState<string>("all");
+  const [userPage, setUserPage] = useState(0);
 
   const queryClient = useQueryClient();
   const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -342,6 +397,50 @@ const AdminPage = () => {
     }
   };
 
+  useEffect(() => {
+    setUserPage(0);
+  }, [userSearchTerm, userStatusFilter, userProviderFilter]);
+
+  useEffect(() => {
+    if (!isUserDetailDialogOpen || selectedUserIdForDetail === null) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const loadUserDetail = async () => {
+      setIsUserDetailLoading(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/admin/users/${selectedUserIdForDetail}`, {
+          headers: authHeaders,
+          signal: controller.signal
+        });
+        if (!response.ok) {
+          throw new Error("Failed to fetch user detail");
+        }
+        const detail = await response.json();
+        setSelectedUserDetail(detail);
+      } catch (error: any) {
+        if (error?.name !== "AbortError") {
+          console.error("Failed to load user detail", error);
+          toast({
+            title: "Unable to load user details",
+            description: error?.message || 'Please try again later.',
+            variant: "destructive",
+          });
+        }
+      } finally {
+        setIsUserDetailLoading(false);
+      }
+    };
+
+    loadUserDetail();
+
+    return () => {
+      controller.abort();
+    };
+  }, [isUserDetailDialogOpen, selectedUserIdForDetail, authHeaders]);
+
   const { data: stats, refetch: refetchStats } = useQuery<AdminStats>({
     queryKey: ["admin-stats"],
     queryFn: async () => {
@@ -368,17 +467,49 @@ const AdminPage = () => {
     enabled: isAuthenticated,
   });
 
-  const { data: users = [], refetch: refetchUsers } = useQuery<User[]>({
-    queryKey: ["admin-users"],
+  const { data: usersResponse, refetch: refetchUsers, isFetching: isFetchingUsers } = useQuery<AdminUsersResponse>({
+    queryKey: [
+      "admin-users",
+      userSearchTerm,
+      userStatusFilter,
+      userProviderFilter,
+      userPage,
+      authToken
+    ],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/api/admin/users`, {
+      const params = new URLSearchParams({
+        limit: USER_PAGE_SIZE.toString(),
+        offset: (userPage * USER_PAGE_SIZE).toString(),
+      });
+
+      if (userSearchTerm.trim().length > 0) {
+        params.append("search", userSearchTerm.trim());
+      }
+
+      if (userStatusFilter !== "all") {
+        params.append("status", userStatusFilter);
+      }
+
+      if (userProviderFilter !== "all") {
+        params.append("provider", userProviderFilter);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/users?${params.toString()}`, {
         headers: authHeaders,
       });
       if (!response.ok) throw new Error("Failed to fetch users");
       return response.json();
     },
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && !!authToken,
+    keepPreviousData: true,
   });
+
+  const users = usersResponse?.data ?? [];
+  const usersMeta = usersResponse?.meta;
+  const totalUsers = usersMeta?.total ?? 0;
+  const totalUserPages = Math.max(1, Math.ceil(totalUsers / USER_PAGE_SIZE));
+  const userRangeStart = totalUsers === 0 ? 0 : userPage * USER_PAGE_SIZE + 1;
+  const userRangeEnd = totalUsers === 0 ? 0 : Math.min(totalUsers, (userPage + 1) * USER_PAGE_SIZE);
 
 
 
@@ -501,6 +632,158 @@ const AdminPage = () => {
     },
   });
 
+  const suspendUserMutation = useMutation({
+    mutationFn: async ({ userId, reason }: { userId: number; reason?: string }) => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/suspend`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify({ reason }),
+      });
+      if (!response.ok) throw new Error("Failed to suspend user");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast({ 
+        title: "User suspended",
+        description: data?.message || "The user can no longer log in.",
+        className: "bg-red-600 text-white border-red-500"
+      });
+      setSuspendTargetUser(null);
+      setIsSuspendDialogOpen(false);
+      setSuspendReason("");
+      if (selectedUserDetail && data?.user?.id === selectedUserDetail.id) {
+        setSelectedUserDetail(prev => prev ? { ...prev, ...data.user } : prev);
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to suspend user",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const unsuspendUserMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/unsuspend`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+      });
+      if (!response.ok) throw new Error("Failed to unsuspend user");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast({ 
+        title: "User unsuspended",
+        description: data?.message || "The user can now log in.",
+        className: "border-green-200 bg-green-50"
+      });
+      if (selectedUserDetail && data?.user?.id === selectedUserDetail.id) {
+        setSelectedUserDetail(prev => prev ? { ...prev, ...data.user } : prev);
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to unsuspend user",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const adjustTokensMutation = useMutation({
+    mutationFn: async ({ userId, amount, reason }: { userId: number; amount: number; reason?: string }) => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/tokens`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify({ amount, reason }),
+      });
+      if (!response.ok) throw new Error(await response.text() || "Failed to adjust tokens");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast({ 
+        title: "Token balance updated",
+        description: data?.message || "Token balance adjusted successfully.",
+        className: "border-blue-200 bg-blue-50"
+      });
+      if (tokenTargetUser && data?.user?.id === tokenTargetUser.id) {
+        setTokenTargetUser(prev => prev ? { ...prev, ...data.user } : prev);
+      }
+      setTokenTargetUser(null);
+      setTokenAmount(0);
+      setTokenReason("");
+      setIsTokenDialogOpen(false);
+      if (selectedUserDetail && data?.user?.id === selectedUserDetail.id) {
+        setSelectedUserDetail(prev => prev ? { ...prev, ...data.user } : prev);
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to update tokens",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const openSuspendDialog = (user: AdminUser) => {
+    setSuspendTargetUser(user);
+    setSuspendReason(user.suspension_reason || "");
+    setIsSuspendDialogOpen(true);
+  };
+
+  const handleSuspendSubmit = () => {
+    if (!suspendTargetUser) return;
+    suspendUserMutation.mutate({
+      userId: suspendTargetUser.id,
+      reason: suspendReason.trim() || undefined,
+    });
+  };
+
+  const openTokenDialog = (user: AdminUser) => {
+    setTokenTargetUser(user);
+    setTokenAmount(0);
+    setTokenReason("");
+    setIsTokenDialogOpen(true);
+  };
+
+  const handleTokenAdjustSubmit = () => {
+    if (!tokenTargetUser) return;
+    if (!tokenAmount || tokenAmount === 0) {
+      toast({
+        title: "Enter a token amount",
+        description: "Use positive numbers to add tokens, negative to deduct.",
+        variant: "destructive",
+      });
+      return;
+    }
+    adjustTokensMutation.mutate({
+      userId: tokenTargetUser.id,
+      amount: tokenAmount,
+      reason: tokenReason.trim() || undefined,
+    });
+  };
+
+  const handleViewUserDetail = (userId: number) => {
+    setSelectedUserIdForDetail(userId);
+    setSelectedUserDetail(null);
+    setIsUserDetailDialogOpen(true);
+  };
+
   const filteredCharacters = characters.filter(character => {
     // 文本搜索
     const matchesSearch = character.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -515,10 +798,6 @@ const AdminPage = () => {
       return matchesSearch && character.categories && character.categories.includes(categoryFilter);
     }
   });
-
-  const filteredUsers = users.filter(user =>
-    user.username.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   // Notification mutations
   const sendNotificationMutation = useMutation({
@@ -1344,69 +1623,252 @@ const AdminPage = () => {
           </TabsContent>
 
           <TabsContent value="users" className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-slate-900">User Management</h2>
-                <p className="text-slate-600">Monitor user activity and preferences</p>
+                <p className="text-slate-600">Monitor accounts, balances, and access controls</p>
               </div>
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                <Input
-                  placeholder="Search users..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-64 bg-white border-slate-300 text-slate-900"
-                />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  className="border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  onClick={() => refetchUsers()}
+                  disabled={isFetchingUsers}
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isFetchingUsers ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  onClick={() => {
+                    setNotificationForm({
+                      title: "",
+                      content: "",
+                      type: "admin",
+                      priority: "normal",
+                      target: "all",
+                      userIds: [],
+                    });
+                    setShowNotificationDialog(true);
+                  }}
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Notification
+                </Button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredUsers.map((user) => (
-                <Card key={user.id} className="shadow-sm border-slate-200 hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg text-slate-900">{user.username}</CardTitle>
-                      <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-300">ID: {user.id}</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Total Chats:</span>
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                          {user.total_chats}
-                        </Badge>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Memory:</span>
-                        <Badge variant="outline" className={user.memory_enabled ? "bg-green-100 text-green-700 border-green-300" : "bg-gray-100 text-gray-700 border-gray-300"}>
-                          {user.memory_enabled ? "Enabled" : "Disabled"}
-                        </Badge>
-                      </div>
-                      <Separator />
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Joined:</span>
-                        <span className="text-sm text-gray-700">
-                          {new Date(user.created_at).toLocaleDateString()}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="relative w-full lg:max-w-xs">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <Input
+                  placeholder="Search by username or email..."
+                  value={userSearchTerm}
+                  onChange={(e) => setUserSearchTerm(e.target.value)}
+                  className="pl-10 bg-white border-slate-300 text-slate-900"
+                />
+              </div>
+              <div className="flex flex-col gap-3 w-full lg:flex-row lg:w-auto">
+                <Select value={userStatusFilter} onValueChange={(value) => setUserStatusFilter(value as "all" | "active" | "suspended")}>
+                  <SelectTrigger className="bg-white border-slate-300 text-slate-900 w-full lg:w-40">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={userProviderFilter} onValueChange={setUserProviderFilter}>
+                  <SelectTrigger className="bg-white border-slate-300 text-slate-900 w-full lg:w-40">
+                    <SelectValue placeholder="Provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All providers</SelectItem>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="google">Google</SelectItem>
+                    <SelectItem value="apple">Apple</SelectItem>
+                    <SelectItem value="firebase">Firebase</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            
-            {filteredUsers.length === 0 && (
-              <Card className="shadow-sm border-slate-200">
-                <CardContent className="flex flex-col items-center justify-center py-16">
-                  <Globe className="w-16 h-16 text-slate-300 mb-4" />
-                  <h3 className="text-lg font-semibold text-slate-700 mb-2">No users found</h3>
-                  <p className="text-gray-500 text-center">
-                    {searchTerm ? "No users match your search criteria." : "No users have registered yet."}
-                  </p>
-                </CardContent>
-              </Card>
-            )}
+
+            <Card className="shadow-sm border-slate-200">
+              <CardContent className="p-0">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-slate-50">
+                      <TableHead>User</TableHead>
+                      <TableHead>Email & Provider</TableHead>
+                      <TableHead className="text-right">Tokens</TableHead>
+                      <TableHead className="text-right">Chats</TableHead>
+                      <TableHead>Last Login</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="w-[240px]">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isFetchingUsers && users.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-24 text-center text-slate-500">
+                          <Loader2 className="w-5 h-5 mx-auto animate-spin" />
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {!isFetchingUsers && users.length === 0 && (
+                      <TableRow>
+                        <TableCell colSpan={7} className="h-24 text-center text-slate-500">
+                          {userSearchTerm || userStatusFilter !== "all" || userProviderFilter !== "all"
+                            ? "No users match your current filters."
+                            : "No users found."}
+                        </TableCell>
+                      </TableRow>
+                    )}
+                    {users.map((user) => (
+                      <TableRow key={user.id} className="hover:bg-slate-50">
+                        <TableCell>
+                          <div className="flex flex-col">
+                            <span className="font-medium text-slate-900">{user.username}</span>
+                            <span className="text-xs text-slate-500">ID: {user.id}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-sm text-slate-700">{user.email || "—"}</span>
+                            <div className="flex flex-wrap gap-2">
+                              {user.provider && (
+                                <Badge variant="outline" className="text-xs capitalize bg-slate-100 text-slate-700 border-slate-300">
+                                  {user.provider}
+                                </Badge>
+                              )}
+                              <Badge
+                                variant="outline"
+                                className={`text-xs ${user.email_verified ? "bg-green-100 text-green-700 border-green-300" : "bg-amber-50 text-amber-700 border-amber-300"}`}
+                              >
+                                {user.email_verified ? "Verified" : "Unverified"}
+                              </Badge>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-right font-semibold text-slate-900">
+                          {user.token_balance}
+                        </TableCell>
+                        <TableCell className="text-right text-slate-700">
+                          {user.total_chats}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-col gap-1 text-sm text-slate-700">
+                            <span>{user.last_login_at ? new Date(user.last_login_at).toLocaleString() : "Never"}</span>
+                            {user.last_login_ip && (
+                              <span className="text-xs text-slate-500">IP: {user.last_login_ip}</span>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${user.is_suspended ? "bg-red-50 text-red-600 border-red-300" : "bg-emerald-50 text-emerald-600 border-emerald-300"}`}
+                          >
+                            {user.is_suspended ? "Suspended" : "Active"}
+                          </Badge>
+                          {user.is_suspended && user.suspension_reason && (
+                            <div className="text-[11px] text-slate-500 mt-1">{user.suspension_reason}</div>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-slate-300 text-slate-700 bg-white hover:bg-slate-100"
+                              onClick={() => handleViewUserDetail(user.id)}
+                            >
+                              <Eye className="w-4 h-4 mr-1" /> View
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-blue-300 text-blue-700 bg-white hover:bg-blue-50"
+                              onClick={() => openTokenDialog(user)}
+                            >
+                              <DollarSign className="w-4 h-4 mr-1" /> Tokens
+                            </Button>
+                            {user.is_suspended ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50"
+                                onClick={() => unsuspendUserMutation.mutate(user.id)}
+                                disabled={unsuspendUserMutation.isPending}
+                              >
+                                {unsuspendUserMutation.isPending ? (
+                                  <div className="flex items-center gap-1">
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Restore
+                                  </div>
+                                ) : (
+                                  "Restore"
+                                )}
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="border-red-300 text-red-600 bg-white hover:bg-red-50"
+                                onClick={() => openSuspendDialog(user)}
+                                disabled={suspendUserMutation.isPending && suspendTargetUser?.id === user.id}
+                              >
+                                {suspendUserMutation.isPending && suspendTargetUser?.id === user.id ? (
+                                  <div className="flex items-center gap-1">
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    Processing
+                                  </div>
+                                ) : (
+                                  <><Lock className="w-4 h-4 mr-1" /> Suspend</>
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-slate-600">
+                {totalUsers > 0
+                  ? `Showing ${userRangeStart}–${userRangeEnd} of ${totalUsers} users`
+                  : "No users to display"}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-300 text-slate-700 bg-white hover:bg-slate-50"
+                  onClick={() => setUserPage((prev) => Math.max(prev - 1, 0))}
+                  disabled={userPage === 0 || isFetchingUsers}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-slate-600">
+                  Page {totalUsers === 0 ? 0 : userPage + 1} of {totalUsers === 0 ? 0 : totalUserPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-300 text-slate-700 bg-white hover:bg-slate-50"
+                  onClick={() => setUserPage((prev) => Math.min(prev + 1, totalUserPages - 1))}
+                  disabled={totalUsers === 0 || userPage >= totalUserPages - 1 || isFetchingUsers}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
@@ -1595,7 +2057,7 @@ const AdminPage = () => {
                   <Users className="w-4 h-4 text-slate-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-slate-900">{users.length}</div>
+                  <div className="text-2xl font-bold text-slate-900">{totalUsers}</div>
                   <p className="text-xs text-slate-600">Users who can receive notifications</p>
                 </CardContent>
               </Card>
@@ -1781,6 +2243,274 @@ const AdminPage = () => {
               </Card>
             </div>
           </TabsContent>
+
+          <Dialog
+            open={isSuspendDialogOpen}
+            onOpenChange={(open) => {
+              setIsSuspendDialogOpen(open);
+              if (!open) {
+                setSuspendTargetUser(null);
+                setSuspendReason("");
+              }
+            }}
+          >
+            <DialogContent className="max-w-md bg-white">
+              <DialogHeader className="bg-white">
+                <DialogTitle className="text-xl text-slate-900">
+                  Suspend {suspendTargetUser?.username ?? "user"}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <p className="text-sm text-slate-600">
+                  Suspended users cannot log in until you restore their account. Provide an optional reason for the audit log.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="suspendReason" className="text-sm font-medium text-slate-900">Reason (optional)</Label>
+                  <Textarea
+                    id="suspendReason"
+                    value={suspendReason}
+                    onChange={(e) => setSuspendReason(e.target.value)}
+                    placeholder="Explain why this account is being suspended..."
+                    className="bg-white border-slate-300 text-slate-900"
+                    rows={4}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-slate-300 text-slate-700 bg-white hover:bg-slate-50"
+                    onClick={() => {
+                      setIsSuspendDialogOpen(false);
+                      setSuspendTargetUser(null);
+                      setSuspendReason("");
+                    }}
+                    disabled={suspendUserMutation.isPending}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                    onClick={handleSuspendSubmit}
+                    disabled={suspendUserMutation.isPending || !suspendTargetUser}
+                  >
+                    {suspendUserMutation.isPending ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Suspending...
+                      </div>
+                    ) : (
+                      "Confirm suspend"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={isTokenDialogOpen}
+            onOpenChange={(open) => {
+              setIsTokenDialogOpen(open);
+              if (!open) {
+                setTokenTargetUser(null);
+                setTokenAmount(0);
+                setTokenReason("");
+              }
+            }}
+          >
+            <DialogContent className="max-w-md bg-white">
+              <DialogHeader className="bg-white">
+                <DialogTitle className="text-xl text-slate-900">
+                  Adjust tokens for {tokenTargetUser?.username ?? "user"}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="p-3 rounded-md bg-slate-50 border border-slate-200 text-sm text-slate-700">
+                  Current balance: <span className="font-semibold text-slate-900">{tokenTargetUser?.token_balance ?? 0}</span> tokens
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tokenAmount" className="text-sm font-medium text-slate-900">Amount</Label>
+                  <Input
+                    id="tokenAmount"
+                    type="number"
+                    value={tokenAmount}
+                    onChange={(e) => setTokenAmount(Number(e.target.value))}
+                    className="bg-white border-slate-300 text-slate-900"
+                  />
+                  <p className="text-xs text-slate-500">Use positive numbers to add tokens and negative numbers to deduct tokens.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tokenReason" className="text-sm font-medium text-slate-900">Reason (optional)</Label>
+                  <Textarea
+                    id="tokenReason"
+                    value={tokenReason}
+                    onChange={(e) => setTokenReason(e.target.value)}
+                    placeholder="Document why this adjustment is being made..."
+                    className="bg-white border-slate-300 text-slate-900"
+                    rows={4}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-slate-300 text-slate-700 bg-white hover:bg-slate-50"
+                    onClick={() => {
+                      setIsTokenDialogOpen(false);
+                      setTokenTargetUser(null);
+                      setTokenAmount(0);
+                      setTokenReason("");
+                    }}
+                    disabled={adjustTokensMutation.isPending}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={handleTokenAdjustSubmit}
+                    disabled={adjustTokensMutation.isPending || !tokenTargetUser}
+                  >
+                    {adjustTokensMutation.isPending ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Updating...
+                      </div>
+                    ) : (
+                      "Update tokens"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={isUserDetailDialogOpen}
+            onOpenChange={(open) => {
+              setIsUserDetailDialogOpen(open);
+              if (!open) {
+                setSelectedUserIdForDetail(null);
+                setSelectedUserDetail(null);
+              }
+            }}
+          >
+            <DialogContent className="max-w-3xl bg-white">
+              <DialogHeader className="bg-white">
+                <DialogTitle className="text-xl text-slate-900">
+                  {selectedUserDetail?.username || "User details"}
+                </DialogTitle>
+              </DialogHeader>
+              {isUserDetailLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+                </div>
+              ) : selectedUserDetail ? (
+                <div className="space-y-6 py-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <Label className="text-xs uppercase tracking-wide text-slate-500">Email</Label>
+                      <span className="text-sm text-slate-900">{selectedUserDetail.email || "—"}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs uppercase tracking-wide text-slate-500">Provider</Label>
+                      <span className="text-sm text-slate-900">{selectedUserDetail.provider || "email"}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs uppercase tracking-wide text-slate-500">Created</Label>
+                      <span className="text-sm text-slate-900">{new Date(selectedUserDetail.created_at).toLocaleString()}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs uppercase tracking-wide text-slate-500">Last login</Label>
+                      <span className="text-sm text-slate-900">{selectedUserDetail.last_login_at ? new Date(selectedUserDetail.last_login_at).toLocaleString() : "Never"}</span>
+                      {selectedUserDetail.last_login_ip && (
+                        <span className="text-xs text-slate-500">IP: {selectedUserDetail.last_login_ip}</span>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs uppercase tracking-wide text-slate-500">Token balance</Label>
+                      <span className="text-sm font-semibold text-slate-900">{selectedUserDetail.token_balance}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs uppercase tracking-wide text-slate-500">Total chats</Label>
+                      <span className="text-sm text-slate-900">{selectedUserDetail.total_chats}</span>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs uppercase tracking-wide text-slate-500">Status</Label>
+                      <div className="flex items-center gap-2">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${selectedUserDetail.is_suspended ? "bg-red-50 text-red-600 border-red-300" : "bg-emerald-50 text-emerald-600 border-emerald-300"}`}
+                        >
+                          {selectedUserDetail.is_suspended ? "Suspended" : "Active"}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${selectedUserDetail.email_verified ? "bg-green-100 text-green-700 border-green-300" : "bg-amber-50 text-amber-700 border-amber-300"}`}
+                        >
+                          {selectedUserDetail.email_verified ? "Email verified" : "Email unverified"}
+                        </Badge>
+                      </div>
+                      {selectedUserDetail.is_suspended && selectedUserDetail.suspension_reason && (
+                        <span className="text-xs text-slate-500">Reason: {selectedUserDetail.suspension_reason}</span>
+                      )}
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs uppercase tracking-wide text-slate-500">Unread notifications</Label>
+                      <span className="text-sm text-slate-900">{selectedUserDetail.unread_notifications}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                      <h4 className="text-sm font-semibold text-slate-900 mb-3">Recent Chats</h4>
+                      {selectedUserDetail.recent_chats.length === 0 ? (
+                        <p className="text-sm text-slate-500">No chats yet.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {selectedUserDetail.recent_chats.map((chat) => (
+                            <div key={chat.id} className="bg-white border border-slate-200 rounded-md p-2">
+                              <div className="text-sm font-medium text-slate-900">{chat.title}</div>
+                              <div className="text-xs text-slate-500">Chat #{chat.id} · Character #{chat.character_id}</div>
+                              <div className="text-xs text-slate-500">{new Date(chat.created_at).toLocaleString()}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                      <h4 className="text-sm font-semibold text-slate-900 mb-3">Recent Token Activity</h4>
+                      {selectedUserDetail.recent_token_transactions.length === 0 ? (
+                        <p className="text-sm text-slate-500">No token transactions recorded.</p>
+                      ) : (
+                        <div className="space-y-2">
+                          {selectedUserDetail.recent_token_transactions.map((txn) => (
+                            <div key={txn.id} className="bg-white border border-slate-200 rounded-md p-2">
+                              <div className="flex justify-between text-sm text-slate-900">
+                                <span className="capitalize">{txn.transaction_type}</span>
+                                <span className={`font-semibold ${txn.amount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                  {txn.amount}
+                                </span>
+                              </div>
+                              {txn.description && (
+                                <div className="text-xs text-slate-500 mt-1">{txn.description}</div>
+                              )}
+                              <div className="text-xs text-slate-500 mt-1">{new Date(txn.created_at).toLocaleString()}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-10 text-center text-sm text-slate-500">Unable to load user details.</div>
+              )}
+            </DialogContent>
+          </Dialog>
+
         </Tabs>
       </div>
     </div>
@@ -2255,7 +2985,7 @@ const NotificationForm = ({ form, setForm, users, onSubmit, onCancel, isLoading 
     userIds: number[];
   };
   setForm: (form: any) => void;
-  users: User[];
+  users: AdminUser[];
   onSubmit: () => void;
   onCancel: () => void;
   isLoading: boolean;
@@ -2363,9 +3093,14 @@ const NotificationForm = ({ form, setForm, users, onSubmit, onCancel, isLoading 
                       />
                       <Label
                         htmlFor={`user-${user.id}`}
-                        className="text-sm text-gray-700 cursor-pointer flex-1"
+                        className="cursor-pointer flex-1"
                       >
-                        {user.username} (ID: {user.id})
+                        <div className="flex flex-col">
+                          <span className="text-sm text-slate-800">{user.username}</span>
+                          <span className="text-xs text-slate-500">
+                            {user.email || "No email"} · ID: {user.id}
+                          </span>
+                        </div>
                       </Label>
                     </div>
                   ))}

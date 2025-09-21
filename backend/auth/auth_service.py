@@ -71,6 +71,34 @@ class AuthService:
         if not AuthService.verify_password(password, user.password):
             return None
         return user
+
+    @staticmethod
+    def ensure_user_is_active(user: User):
+        """Raise if user account is suspended."""
+        if not user:
+            return
+        if getattr(user, "is_suspended", False):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is suspended. Please contact support."
+            )
+
+    @staticmethod
+    def record_successful_login(db: Session, user: User, client_ip: Optional[str] = None) -> None:
+        """Record login metadata for auditing."""
+        if not user:
+            return
+
+        user.last_login_at = datetime.now(timezone.utc)
+        if client_ip:
+            user.last_login_ip = client_ip
+
+        db.add(user)
+        try:
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
     
     @staticmethod
     def create_user(db: Session, username: str, password: str) -> User:

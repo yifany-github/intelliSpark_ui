@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from typing import List, Dict, Any
+from sqlalchemy import func, or_
+from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 import logging
 import os
@@ -13,7 +13,7 @@ import glob
 from pathlib import Path
 
 from database import get_db
-from models import Character, Chat, ChatMessage, User
+from models import Character, Chat, ChatMessage, User, UserToken, TokenTransaction, Notification
 from schemas import (
     Character as CharacterSchema, 
     MessageResponse, CharacterCreate, CharacterAdminUpdate
@@ -24,10 +24,43 @@ from services.character_gallery_service import CharacterGalleryService
 from services.prompt_engine import create_prompt_preview
 from auth.admin_routes import get_current_admin
 from auth.admin_jwt import TokenPayload, create_token_pair
+from payment.token_service import TokenService
 
 # Login request schema
 class LoginRequest(BaseModel):
     password: str
+
+class SuspendUserRequest(BaseModel):
+    reason: Optional[str] = None
+
+
+class TokenAdjustmentRequest(BaseModel):
+    amount: int
+    reason: Optional[str] = None
+
+
+def serialize_admin_user(
+    user: User,
+    token_balance: Optional[int] = None,
+    total_chats: Optional[int] = None
+) -> Dict[str, Any]:
+    """Serialize a user object for admin responses without sensitive fields."""
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "provider": user.provider,
+        "memory_enabled": user.memory_enabled,
+        "email_verified": getattr(user, "email_verified", False),
+        "created_at": user.created_at,
+        "last_login_at": getattr(user, "last_login_at", None),
+        "last_login_ip": getattr(user, "last_login_ip", None),
+        "token_balance": token_balance if token_balance is not None else 0,
+        "total_chats": total_chats if total_chats is not None else len(getattr(user, "chats", []) or []),
+        "is_suspended": getattr(user, "is_suspended", False),
+        "suspended_at": getattr(user, "suspended_at", None),
+        "suspension_reason": getattr(user, "suspension_reason", None)
+    }
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -435,28 +468,254 @@ async def get_admin_character_stats(
 
 @router.get("/users")
 async def get_admin_users(
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+    provider: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
     db: Session = Depends(get_db),
     admin_user: TokenPayload = Depends(get_current_admin)
 ):
-    """Get all users for admin"""
+    """Get paginated users with admin metadata"""
     try:
-        users = db.query(User).all()
-        # Convert to dict to avoid password exposure
-        user_list = []
-        for user in users:
-            user_dict = {
-                "id": user.id,
-                "username": user.username,
-                "memory_enabled": user.memory_enabled,
-                "created_at": user.created_at,
-                "total_chats": len(user.chats)
+        limit = max(1, min(limit, 100))
+        offset = max(offset, 0)
+
+        query = db.query(User)
+
+        if search:
+            pattern = f"%{search.lower()}%"
+            query = query.filter(
+                or_(
+                    func.lower(User.username).like(pattern),
+                    func.lower(User.email).like(pattern)
+                )
+            )
+
+        if status == "suspended":
+            query = query.filter(User.is_suspended.is_(True))
+        elif status == "active":
+            query = query.filter(or_(User.is_suspended.is_(False), User.is_suspended.is_(None)))
+
+        if provider:
+            query = query.filter(User.provider == provider)
+
+        total = query.count()
+        users = query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
+
+        user_ids = [user.id for user in users]
+
+        token_map = {}
+        chat_counts = {}
+        if user_ids:
+            token_rows = db.query(UserToken.user_id, UserToken.balance).filter(UserToken.user_id.in_(user_ids)).all()
+            token_map = {row.user_id: row.balance for row in token_rows}
+
+            chat_rows = db.query(Chat.user_id, func.count(Chat.id).label('chat_count')) \
+                .filter(Chat.user_id.in_(user_ids)) \
+                .group_by(Chat.user_id) \
+                .all()
+            chat_counts = {row.user_id: row.chat_count for row in chat_rows}
+
+        user_data = [
+            serialize_admin_user(
+                user,
+                token_balance=token_map.get(user.id, 0),
+                total_chats=chat_counts.get(user.id, 0)
+            )
+            for user in users
+        ]
+
+        return {
+            "data": user_data,
+            "meta": {
+                "total": total,
+                "limit": limit,
+                "offset": offset
             }
-            user_list.append(user_dict)
-        
-        return user_list
+        }
     except Exception as e:
         logger.error(f"Error fetching users for admin: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch users")
+
+
+@router.get("/users/{user_id}")
+async def get_admin_user_detail(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin_user: TokenPayload = Depends(get_current_admin)
+):
+    """Get detailed information for a specific user"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    token_service = TokenService(db)
+    token_balance = token_service.get_user_balance(user.id)
+    total_chats = db.query(Chat).filter(Chat.user_id == user.id).count()
+
+    recent_chats = db.query(Chat).filter(Chat.user_id == user.id) \
+        .order_by(Chat.created_at.desc()).limit(5).all()
+    recent_chat_payload = [
+        {
+            "id": chat.id,
+            "uuid": chat.uuid,
+            "title": chat.title,
+            "character_id": chat.character_id,
+            "created_at": chat.created_at,
+            "updated_at": chat.updated_at
+        }
+        for chat in recent_chats
+    ]
+
+    recent_transactions = db.query(TokenTransaction).filter(TokenTransaction.user_id == user.id) \
+        .order_by(TokenTransaction.created_at.desc()).limit(5).all()
+    recent_token_payload = [
+        {
+            "id": txn.id,
+            "transaction_type": txn.transaction_type,
+            "amount": txn.amount,
+            "description": txn.description,
+            "created_at": txn.created_at
+        }
+        for txn in recent_transactions
+    ]
+
+    unread_notifications = db.query(Notification).filter(
+        Notification.user_id == user.id,
+        Notification.is_read.is_(False)
+    ).count()
+
+    payload = serialize_admin_user(
+        user,
+        token_balance=token_balance,
+        total_chats=total_chats
+    )
+    payload.update({
+        "recent_chats": recent_chat_payload,
+        "recent_token_transactions": recent_token_payload,
+        "unread_notifications": unread_notifications
+    })
+
+    return payload
+
+
+@router.post("/users/{user_id}/suspend")
+async def suspend_user(
+    user_id: int,
+    payload: SuspendUserRequest,
+    db: Session = Depends(get_db),
+    admin_user: TokenPayload = Depends(get_current_admin)
+):
+    """Suspend a user account"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if getattr(user, "is_suspended", False):
+        return {
+            "message": "User already suspended",
+            "user": serialize_admin_user(
+                user,
+                token_balance=TokenService(db).get_user_balance(user.id),
+                total_chats=db.query(Chat).filter(Chat.user_id == user.id).count()
+            )
+        }
+
+    user.is_suspended = True
+    user.suspended_at = datetime.utcnow()
+    user.suspension_reason = payload.reason
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    logger.info(f"Admin {admin_user.sub} suspended user {user.id}")
+    token_balance = TokenService(db).get_user_balance(user.id)
+    total_chats = db.query(Chat).filter(Chat.user_id == user.id).count()
+
+    return {
+        "message": "User suspended",
+        "user": serialize_admin_user(user, token_balance=token_balance, total_chats=total_chats)
+    }
+
+
+@router.post("/users/{user_id}/unsuspend")
+async def unsuspend_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin_user: TokenPayload = Depends(get_current_admin)
+):
+    """Restore a suspended user account"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not getattr(user, "is_suspended", False):
+        return {
+            "message": "User already active",
+            "user": serialize_admin_user(
+                user,
+                token_balance=TokenService(db).get_user_balance(user.id),
+                total_chats=db.query(Chat).filter(Chat.user_id == user.id).count()
+            )
+        }
+
+    user.is_suspended = False
+    user.suspended_at = None
+    user.suspension_reason = None
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    logger.info(f"Admin {admin_user.sub} unsuspended user {user.id}")
+    token_balance = TokenService(db).get_user_balance(user.id)
+    total_chats = db.query(Chat).filter(Chat.user_id == user.id).count()
+
+    return {
+        "message": "User unsuspended",
+        "user": serialize_admin_user(user, token_balance=token_balance, total_chats=total_chats)
+    }
+
+
+@router.post("/users/{user_id}/tokens")
+async def adjust_user_tokens(
+    user_id: int,
+    payload: TokenAdjustmentRequest,
+    db: Session = Depends(get_db),
+    admin_user: TokenPayload = Depends(get_current_admin)
+):
+    """Add or deduct tokens from a user balance"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.amount == 0:
+        raise HTTPException(status_code=400, detail="Amount must be non-zero")
+
+    token_service = TokenService(db)
+    description = payload.reason or "Admin adjustment"
+
+    if payload.amount > 0:
+        success = token_service.add_tokens(user_id, payload.amount, description)
+        action = "added"
+    else:
+        success = token_service.deduct_tokens(user_id, abs(payload.amount), description)
+        action = "deducted"
+
+    if not success:
+        raise HTTPException(status_code=400, detail="Unable to adjust tokens (insufficient balance?)")
+
+    balance = token_service.get_user_balance(user_id)
+    total_chats = db.query(Chat).filter(Chat.user_id == user_id).count()
+
+    logger.info(f"Admin {admin_user.sub} {action} {payload.amount} tokens for user {user.id}")
+    return {
+        "message": f"Successfully {action} {abs(payload.amount)} tokens",
+        "token_balance": balance,
+        "user": serialize_admin_user(user, token_balance=balance, total_chats=total_chats)
+    }
 
 @router.get("/stats")
 async def get_admin_stats(
