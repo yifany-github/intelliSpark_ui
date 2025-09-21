@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     
     # Authentication settings
     secret_key: str
+    admin_jwt_secret: Optional[str] = None  # JWT secret for admin authentication
     
     # AI Model settings
     gemini_api_key: Optional[str] = None

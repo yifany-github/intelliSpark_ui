@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -53,6 +53,10 @@ import {
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const ADMIN_USERNAME = import.meta.env.VITE_ADMIN_USERNAME || "admin";
+const ADMIN_ACCESS_TOKEN_KEY = "adminAccessToken";
+const ADMIN_REFRESH_TOKEN_KEY = "adminRefreshToken";
+const ADMIN_TOKEN_EXPIRY_KEY = "adminAccessTokenExpiresAt";
 
 interface AdminStats {
   totals: {
@@ -112,10 +116,18 @@ interface User {
   total_chats: number;
 }
 
+type AdminTokenResponse = {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type?: string;
+};
+
 const AdminPage = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginPassword, setLoginPassword] = useState("");
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [showCharacterDialog, setShowCharacterDialog] = useState(false);
   const [editingAnalytics, setEditingAnalytics] = useState<Character | null>(null);
@@ -139,65 +151,195 @@ const AdminPage = () => {
   const [showDeleted, setShowDeleted] = useState(false);
 
   const queryClient = useQueryClient();
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearScheduledRefresh = () => {
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
+    }
+  };
+
+  function handleLogout(showToast = true) {
+    clearScheduledRefresh();
+    setIsAuthenticated(false);
+    setAuthToken(null);
+    setRefreshToken(null);
+    setShowCharacterDialog(false);
+    setEditingCharacter(null);
+    setEditingAnalytics(null);
+    localStorage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
+    localStorage.removeItem(ADMIN_REFRESH_TOKEN_KEY);
+    localStorage.removeItem(ADMIN_TOKEN_EXPIRY_KEY);
+    localStorage.removeItem("adminToken"); // Legacy key cleanup
+    if (showToast) {
+      toast({ 
+        title: "Logged out", 
+        description: "You have been logged out successfully",
+        className: "bg-blue-600 text-white border-blue-500"
+      });
+    }
+  }
+
+  function scheduleTokenRefresh(expiresInSeconds: number, tokenForRefresh: string) {
+    if (!expiresInSeconds || !tokenForRefresh) return;
+    clearScheduledRefresh();
+    const refreshDelay = Math.max((expiresInSeconds - 60) * 1000, 5000);
+    refreshTimeoutRef.current = setTimeout(() => {
+      refreshAdminToken(tokenForRefresh, true);
+    }, refreshDelay);
+  }
+
+  function applyTokenResponse(tokenData: AdminTokenResponse) {
+    setAuthToken(tokenData.access_token);
+    setRefreshToken(tokenData.refresh_token);
+    setIsAuthenticated(true);
+
+    localStorage.setItem(ADMIN_ACCESS_TOKEN_KEY, tokenData.access_token);
+    localStorage.setItem(ADMIN_REFRESH_TOKEN_KEY, tokenData.refresh_token);
+    const expiresAt = Date.now() + tokenData.expires_in * 1000;
+    localStorage.setItem(ADMIN_TOKEN_EXPIRY_KEY, expiresAt.toString());
+
+    scheduleTokenRefresh(tokenData.expires_in, tokenData.refresh_token);
+  }
+
+  async function refreshAdminToken(providedRefreshToken?: string | null, silent = false) {
+    const tokenToUse = providedRefreshToken || refreshToken;
+    if (!tokenToUse) {
+      toast({
+        title: "Admin session expired",
+        description: "Please log in again.",
+        variant: "destructive",
+      });
+      handleLogout(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/admin/refresh`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refresh_token: tokenToUse }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Refresh failed with status ${response.status}`);
+      }
+
+      const tokenData: AdminTokenResponse = await response.json();
+      applyTokenResponse(tokenData);
+      return tokenData;
+    } catch (error) {
+      console.error("Failed to refresh admin token:", error);
+      toast({
+        title: "Admin session expired",
+        description: "Please log in again.",
+        variant: "destructive",
+      });
+      handleLogout(false);
+    }
+  }
+
+  async function verifyAdminToken(access: string, refreshForFallback: string | null) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/admin/verify`, {
+        headers: {
+          Authorization: `Bearer ${access}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Verification failed with status ${response.status}`);
+      }
+    } catch (error) {
+      console.warn("Admin token verification failed, attempting refresh", error);
+      if (refreshForFallback) {
+        await refreshAdminToken(refreshForFallback, true);
+      } else {
+        handleLogout(false);
+      }
+    }
+  }
 
   useEffect(() => {
-    const token = localStorage.getItem("adminToken");
-    if (token) {
-      setAuthToken(token);
+    const storedAccess = localStorage.getItem(ADMIN_ACCESS_TOKEN_KEY);
+    const storedRefresh = localStorage.getItem(ADMIN_REFRESH_TOKEN_KEY);
+    const storedExpiry = localStorage.getItem(ADMIN_TOKEN_EXPIRY_KEY);
+
+    if (storedAccess && storedRefresh) {
+      setAuthToken(storedAccess);
+      setRefreshToken(storedRefresh);
       setIsAuthenticated(true);
+
+      const expiresAt = storedExpiry ? parseInt(storedExpiry, 10) : NaN;
+      if (!Number.isNaN(expiresAt)) {
+        const msRemaining = expiresAt - Date.now();
+        if (msRemaining <= 60_000) {
+          refreshAdminToken(storedRefresh, true);
+        } else {
+          scheduleTokenRefresh(Math.floor(msRemaining / 1000), storedRefresh);
+        }
+      }
+
+      verifyAdminToken(storedAccess, storedRefresh);
+    } else {
+      // Remove legacy admin token if present to avoid confusion
+      if (localStorage.getItem("adminToken")) {
+        localStorage.removeItem("adminToken");
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const authHeaders = {
-    Authorization: `Bearer ${authToken}`,
-  };
+  useEffect(() => {
+    return () => {
+      clearScheduledRefresh();
+    };
+  }, []);
+
+  const authHeaders = useMemo(() => (
+    authToken ? { Authorization: `Bearer ${authToken}` } : {}
+  ), [authToken]);
 
   const loginMutation = useMutation({
     mutationFn: async (password: string) => {
-      const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/admin/login-jwt`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username: ADMIN_USERNAME, password }),
       });
       if (!response.ok) {
-        throw new Error("Invalid password");
+        const errorText = await response.text();
+        throw new Error(errorText || "Invalid credentials");
       }
-      return response.json();
+      const data = await response.json();
+      return data as AdminTokenResponse & { admin_user?: Record<string, unknown> };
     },
     onSuccess: (data) => {
-      setAuthToken(data.access_token);
-      setIsAuthenticated(true);
-      localStorage.setItem("adminToken", data.access_token);
+      applyTokenResponse(data);
+      setLoginPassword("");
       toast({ 
         title: "✅ Login successful", 
         description: "Welcome to ProductInsightAI Admin Panel",
         className: "bg-green-600 text-white border-green-500"
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error("Admin login failed", error);
       toast({
         title: "❌ Login failed",
-        description: "Invalid password. Please try again.",
+        description: error?.message || "Invalid password. Please try again.",
         variant: "destructive",
       });
     },
   });
 
   const handleLogin = () => {
-    if (loginPassword) {
+    if (loginPassword && !loginMutation.isPending) {
       loginMutation.mutate(loginPassword);
     }
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setAuthToken(null);
-    localStorage.removeItem("adminToken");
-    toast({ 
-      title: "Logged out", 
-      description: "You have been logged out successfully",
-      className: "bg-blue-600 text-white border-blue-500"
-    });
   };
 
   const { data: stats, refetch: refetchStats } = useQuery<AdminStats>({

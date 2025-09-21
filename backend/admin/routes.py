@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import UploadFile, File, Form, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from typing import List, Dict, Any
@@ -23,6 +22,8 @@ from services.character_service import CharacterService, CharacterServiceError
 from services.upload_service import UploadService
 from services.character_gallery_service import CharacterGalleryService
 from services.prompt_engine import create_prompt_preview
+from auth.admin_routes import get_current_admin
+from auth.admin_jwt import TokenPayload, create_token_pair
 
 # Login request schema
 class LoginRequest(BaseModel):
@@ -34,21 +35,8 @@ logger = logging.getLogger(__name__)
 # Create router (no prefix - main.py handles /api/admin prefix)
 router = APIRouter(tags=["admin"])
 
-# Security
-security = HTTPBearer()
-
 # Simple admin password (in production, use proper authentication)
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
-
-def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Verify admin authentication token"""
-    if credentials.credentials != ADMIN_PASSWORD:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return credentials
 
 # ===== ADMIN AUTH ROUTES =====
 
@@ -60,10 +48,14 @@ async def admin_login(request: LoginRequest):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid password"
         )
-    
+
+    token_data = create_token_pair("admin:legacy")
+
     return {
-        "access_token": ADMIN_PASSWORD,
-        "token_type": "bearer",
+        "access_token": token_data.access_token,
+        "refresh_token": token_data.refresh_token,
+        "token_type": token_data.token_type,
+        "expires_in": token_data.expires_in,
         "message": "Admin login successful"
     }
 
@@ -76,7 +68,7 @@ async def admin_login(request: LoginRequest):
 async def get_admin_characters(
     include_deleted: bool = False,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get all characters for admin (includes private characters; optionally include deleted)"""
     try:
@@ -93,7 +85,7 @@ async def get_admin_characters(
 async def create_admin_character(
     character_data: CharacterCreate,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Create a new character (admin context)"""
     try:
@@ -120,7 +112,7 @@ async def create_admin_character(
 async def get_admin_character_gallery(
     character_id: int,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get character gallery data (admin context)"""
     try:
@@ -139,7 +131,7 @@ async def admin_upload_gallery_image(
     is_primary: bool = Form(False),
     alt_text: str = Form(None),
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Upload a gallery image (admin context, uses admin token)"""
     try:
@@ -183,7 +175,7 @@ async def admin_set_primary_gallery_image(
     character_id: int,
     image_id: int,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Set primary gallery image (admin context)"""
     try:
@@ -202,7 +194,7 @@ async def admin_delete_gallery_image(
     character_id: int,
     image_id: int,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Delete a gallery image (admin context, soft delete)"""
     try:
@@ -221,7 +213,7 @@ async def admin_reorder_gallery_images(
     character_id: int,
     image_order: List[Dict[str, int]],
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Reorder gallery images (admin context)"""
     try:
@@ -240,7 +232,7 @@ async def update_admin_character(
     character_id: int,
     character_data: CharacterCreate,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Update an existing character (admin context)"""
     try:
@@ -269,7 +261,7 @@ async def delete_admin_character(
     force: bool = False,
     reason: str = None,
     db: Session = Depends(get_db),
-    creds: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Delete a character (admin context)
     - Default: soft delete with optional reason
@@ -306,7 +298,7 @@ async def delete_admin_character(
 async def restore_admin_character(
     character_id: int,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Restore a soft-deleted character (admin only)"""
     try:
@@ -328,7 +320,7 @@ async def restore_admin_character(
 async def get_character_impact(
     character_id: int,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get impact summary before deletion (admin only)"""
     try:
@@ -348,7 +340,7 @@ async def update_character_admin_settings(
     character_id: int,
     update_data: CharacterAdminUpdate,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Update character admin-only settings (featured status, analytics, etc.)"""
     try:
@@ -398,7 +390,7 @@ async def update_character_admin_settings(
 async def toggle_character_featured(
     character_id: int,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Toggle character featured status for Editor's Choice"""
     try:
@@ -426,7 +418,7 @@ async def toggle_character_featured(
 @router.get("/characters/stats")
 async def get_admin_character_stats(
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get character statistics for admin dashboard"""
     try:
@@ -444,7 +436,7 @@ async def get_admin_character_stats(
 @router.get("/users")
 async def get_admin_users(
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get all users for admin"""
     try:
@@ -469,7 +461,7 @@ async def get_admin_users(
 @router.get("/stats")
 async def get_admin_stats(
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get admin statistics"""
     try:
@@ -530,7 +522,7 @@ async def get_admin_stats(
 @router.get("/payments")
 async def get_admin_payments(
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get payment monitoring data (placeholder)"""
     try:
@@ -560,7 +552,7 @@ async def get_admin_payments(
 @router.get("/assets/images")
 async def get_asset_images(
     asset_type: str = "characters",  # Only "characters" now supported
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get available images from attached_assets directory"""
     try:
@@ -621,7 +613,7 @@ async def get_asset_images(
 async def upload_asset_image(
     request: Request,
     file: UploadFile = File(...),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Upload an admin-curated character image to /attached_assets/characters_img.
 
@@ -653,7 +645,7 @@ async def get_character_prompt_preview(
     preview: bool = True,
     chat_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """
     Get compiled prompt preview for a character.
