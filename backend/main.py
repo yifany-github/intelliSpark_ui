@@ -19,6 +19,7 @@ from routes.chats import router as chats_router
 from routes.admin import router as new_admin_router  # New AI admin routes
 from admin.routes import router as admin_router
 from auth.routes import router as auth_router
+from auth.admin_routes import router as admin_auth_router  # New JWT admin auth
 from payment.routes import router as payment_router
 from routes.user_preferences import router as preferences_router
 from notifications_routes import router as notifications_router
@@ -110,6 +111,7 @@ app.include_router(new_admin_router, prefix="/api")  # New AI admin routes
 app.include_router(preferences_router, prefix="/api")  # User preferences routes
 app.include_router(admin_router, prefix="/api/admin")  # Legacy admin routes
 app.include_router(auth_router, prefix="/api/auth", tags=["authentication"])
+app.include_router(admin_auth_router, prefix="/api/auth", tags=["admin-authentication"])  # New JWT admin auth
 app.include_router(payment_router)
 app.include_router(notifications_router)
 

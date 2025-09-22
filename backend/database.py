@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, Session
 from config import settings
 from models import Base, User, Character, Chat, ChatMessage
@@ -9,6 +9,44 @@ engine = create_engine(
     connect_args={"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def ensure_user_admin_columns():
+    """Ensure newer admin-related columns exist on users table for legacy databases."""
+    inspector = inspect(engine)
+    try:
+        existing_columns = {column['name'] for column in inspector.get_columns('users')}
+    except Exception:
+        existing_columns = set()
+
+    if not existing_columns:
+        # Table may not exist yet; nothing to do
+        return
+
+    dialect = engine.dialect.name
+    boolean_type = "INTEGER" if dialect == "sqlite" else "BOOLEAN"
+    bool_default_false = "0" if dialect == "sqlite" else "FALSE"
+    datetime_type = "TIMESTAMP"
+    text_type = "TEXT"
+    string_type = "VARCHAR(100)" if dialect != "sqlite" else "TEXT"
+
+    migrations = {
+        "email_verified": f"ALTER TABLE users ADD COLUMN email_verified {boolean_type} DEFAULT {bool_default_false}",
+        "last_login_at": f"ALTER TABLE users ADD COLUMN last_login_at {datetime_type}",
+        "last_login_ip": f"ALTER TABLE users ADD COLUMN last_login_ip {string_type}",
+        "is_suspended": f"ALTER TABLE users ADD COLUMN is_suspended {boolean_type} DEFAULT {bool_default_false}",
+        "suspended_at": f"ALTER TABLE users ADD COLUMN suspended_at {datetime_type}",
+        "suspension_reason": f"ALTER TABLE users ADD COLUMN suspension_reason {text_type}"
+    }
+
+    with engine.begin() as conn:
+        for column_name, ddl in migrations.items():
+            if column_name not in existing_columns:
+                conn.execute(text(ddl))
+
+
+ensure_user_admin_columns()
+
 
 def get_db():
     """Dependency to get database session"""
@@ -21,7 +59,8 @@ def get_db():
 async def init_db():
     """Initialize database and create tables"""
     Base.metadata.create_all(bind=engine)
-    
+    ensure_user_admin_columns()
+
     # Create initial data
     db = SessionLocal()
     try:

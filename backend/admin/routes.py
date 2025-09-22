@@ -1,20 +1,17 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import UploadFile, File, Form, Request
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-from typing import List, Dict, Any
+from sqlalchemy import func, or_
+from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 import logging
 import os
-from datetime import datetime
-from pydantic import BaseModel
-from typing import Optional
+from datetime import datetime, timezone
 import glob
 from pathlib import Path
 
 from database import get_db
-from models import Character, Chat, ChatMessage, User
+from models import Character, Chat, ChatMessage, User, UserToken, TokenTransaction, Notification
 from schemas import (
     Character as CharacterSchema, 
     MessageResponse, CharacterCreate, CharacterAdminUpdate
@@ -23,10 +20,45 @@ from services.character_service import CharacterService, CharacterServiceError
 from services.upload_service import UploadService
 from services.character_gallery_service import CharacterGalleryService
 from services.prompt_engine import create_prompt_preview
+from auth.admin_routes import get_current_admin
+from auth.admin_jwt import TokenPayload, create_token_pair
+from payment.token_service import TokenService
 
 # Login request schema
 class LoginRequest(BaseModel):
     password: str
+
+class SuspendUserRequest(BaseModel):
+    reason: Optional[str] = None
+
+
+class TokenAdjustmentRequest(BaseModel):
+    amount: int
+    reason: Optional[str] = None
+
+
+def serialize_admin_user(
+    user: User,
+    token_balance: Optional[int] = None,
+    total_chats: Optional[int] = None
+) -> Dict[str, Any]:
+    """Serialize a user object for admin responses without sensitive fields."""
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "provider": user.provider,
+        "memory_enabled": user.memory_enabled,
+        "email_verified": getattr(user, "email_verified", False),
+        "created_at": user.created_at,
+        "last_login_at": getattr(user, "last_login_at", None),
+        "last_login_ip": getattr(user, "last_login_ip", None),
+        "token_balance": token_balance if token_balance is not None else 0,
+        "total_chats": total_chats if total_chats is not None else len(getattr(user, "chats", []) or []),
+        "is_suspended": getattr(user, "is_suspended", False),
+        "suspended_at": getattr(user, "suspended_at", None),
+        "suspension_reason": getattr(user, "suspension_reason", None)
+    }
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -34,21 +66,10 @@ logger = logging.getLogger(__name__)
 # Create router (no prefix - main.py handles /api/admin prefix)
 router = APIRouter(tags=["admin"])
 
-# Security
-security = HTTPBearer()
-
 # Simple admin password (in production, use proper authentication)
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
-
-def verify_admin_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Verify admin authentication token"""
-    if credentials.credentials != ADMIN_PASSWORD:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication credentials",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return credentials
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+if not ADMIN_PASSWORD:
+    raise RuntimeError("ADMIN_PASSWORD environment variable must be set for admin authentication")
 
 # ===== ADMIN AUTH ROUTES =====
 
@@ -60,10 +81,14 @@ async def admin_login(request: LoginRequest):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid password"
         )
-    
+
+    token_data = create_token_pair("admin:legacy")
+
     return {
-        "access_token": ADMIN_PASSWORD,
-        "token_type": "bearer",
+        "access_token": token_data.access_token,
+        "refresh_token": token_data.refresh_token,
+        "token_type": token_data.token_type,
+        "expires_in": token_data.expires_in,
         "message": "Admin login successful"
     }
 
@@ -76,7 +101,7 @@ async def admin_login(request: LoginRequest):
 async def get_admin_characters(
     include_deleted: bool = False,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get all characters for admin (includes private characters; optionally include deleted)"""
     try:
@@ -93,7 +118,7 @@ async def get_admin_characters(
 async def create_admin_character(
     character_data: CharacterCreate,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Create a new character (admin context)"""
     try:
@@ -120,7 +145,7 @@ async def create_admin_character(
 async def get_admin_character_gallery(
     character_id: int,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get character gallery data (admin context)"""
     try:
@@ -139,7 +164,7 @@ async def admin_upload_gallery_image(
     is_primary: bool = Form(False),
     alt_text: str = Form(None),
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Upload a gallery image (admin context, uses admin token)"""
     try:
@@ -183,7 +208,7 @@ async def admin_set_primary_gallery_image(
     character_id: int,
     image_id: int,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Set primary gallery image (admin context)"""
     try:
@@ -202,7 +227,7 @@ async def admin_delete_gallery_image(
     character_id: int,
     image_id: int,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Delete a gallery image (admin context, soft delete)"""
     try:
@@ -221,7 +246,7 @@ async def admin_reorder_gallery_images(
     character_id: int,
     image_order: List[Dict[str, int]],
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Reorder gallery images (admin context)"""
     try:
@@ -240,7 +265,7 @@ async def update_admin_character(
     character_id: int,
     character_data: CharacterCreate,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Update an existing character (admin context)"""
     try:
@@ -269,7 +294,7 @@ async def delete_admin_character(
     force: bool = False,
     reason: str = None,
     db: Session = Depends(get_db),
-    creds: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Delete a character (admin context)
     - Default: soft delete with optional reason
@@ -306,7 +331,7 @@ async def delete_admin_character(
 async def restore_admin_character(
     character_id: int,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Restore a soft-deleted character (admin only)"""
     try:
@@ -328,7 +353,7 @@ async def restore_admin_character(
 async def get_character_impact(
     character_id: int,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get impact summary before deletion (admin only)"""
     try:
@@ -348,7 +373,7 @@ async def update_character_admin_settings(
     character_id: int,
     update_data: CharacterAdminUpdate,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Update character admin-only settings (featured status, analytics, etc.)"""
     try:
@@ -398,7 +423,7 @@ async def update_character_admin_settings(
 async def toggle_character_featured(
     character_id: int,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Toggle character featured status for Editor's Choice"""
     try:
@@ -426,7 +451,7 @@ async def toggle_character_featured(
 @router.get("/characters/stats")
 async def get_admin_character_stats(
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get character statistics for admin dashboard"""
     try:
@@ -443,33 +468,303 @@ async def get_admin_character_stats(
 
 @router.get("/users")
 async def get_admin_users(
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+    provider: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
-    """Get all users for admin"""
+    """Get paginated users with admin metadata"""
     try:
-        users = db.query(User).all()
-        # Convert to dict to avoid password exposure
-        user_list = []
-        for user in users:
-            user_dict = {
-                "id": user.id,
-                "username": user.username,
-                "memory_enabled": user.memory_enabled,
-                "created_at": user.created_at,
-                "total_chats": len(user.chats)
+        limit = max(1, min(limit, 100))
+        offset = max(offset, 0)
+
+        query = db.query(User)
+
+        if search:
+            pattern = f"%{search.lower()}%"
+            query = query.filter(
+                or_(
+                    func.lower(User.username).like(pattern),
+                    func.lower(User.email).like(pattern)
+                )
+            )
+
+        if status == "suspended":
+            query = query.filter(User.is_suspended.is_(True))
+        elif status == "active":
+            query = query.filter(or_(User.is_suspended.is_(False), User.is_suspended.is_(None)))
+
+        if provider:
+            query = query.filter(User.provider == provider)
+
+        total = query.count()
+        users = query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
+
+        user_ids = [user.id for user in users]
+
+        token_map = {}
+        chat_counts = {}
+        if user_ids:
+            token_rows = db.query(UserToken.user_id, UserToken.balance).filter(UserToken.user_id.in_(user_ids)).all()
+            token_map = {row.user_id: row.balance for row in token_rows}
+
+            chat_rows = db.query(Chat.user_id, func.count(Chat.id).label('chat_count')) \
+                .filter(Chat.user_id.in_(user_ids)) \
+                .group_by(Chat.user_id) \
+                .all()
+            chat_counts = {row.user_id: row.chat_count for row in chat_rows}
+
+        user_data = [
+            serialize_admin_user(
+                user,
+                token_balance=token_map.get(user.id, 0),
+                total_chats=chat_counts.get(user.id, 0)
+            )
+            for user in users
+        ]
+
+        return {
+            "data": user_data,
+            "meta": {
+                "total": total,
+                "limit": limit,
+                "offset": offset
             }
-            user_list.append(user_dict)
-        
-        return user_list
+        }
     except Exception as e:
         logger.error(f"Error fetching users for admin: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch users")
 
+
+@router.get("/users/{user_id}")
+async def get_admin_user_detail(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin_user: TokenPayload = Depends(get_current_admin)
+):
+    """Get detailed information for a specific user"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    token_service = TokenService(db)
+    token_balance = token_service.get_user_balance(user.id)
+    total_chats = db.query(Chat).filter(Chat.user_id == user.id).count()
+
+    recent_chats = db.query(Chat, Character.name) \
+        .join(Character, Character.id == Chat.character_id, isouter=True) \
+        .filter(Chat.user_id == user.id) \
+        .order_by(Chat.created_at.desc()).limit(5).all()
+    recent_chat_payload = []
+    for chat, character_name in recent_chats:
+        recent_chat_payload.append({
+            "id": chat.id,
+            "uuid": chat.uuid,
+            "title": chat.title,
+            "character_id": chat.character_id,
+            "character_name": character_name,
+            "created_at": chat.created_at,
+            "updated_at": chat.updated_at
+        })
+
+    recent_transactions = db.query(TokenTransaction).filter(TokenTransaction.user_id == user.id) \
+        .order_by(TokenTransaction.created_at.desc()).limit(5).all()
+    recent_token_payload = [
+        {
+            "id": txn.id,
+            "transaction_type": txn.transaction_type,
+            "amount": txn.amount,
+            "description": txn.description,
+            "created_at": txn.created_at
+        }
+        for txn in recent_transactions
+    ]
+
+    unread_notifications = db.query(Notification).filter(
+        Notification.user_id == user.id,
+        Notification.is_read.is_(False)
+    ).count()
+
+    payload = serialize_admin_user(
+        user,
+        token_balance=token_balance,
+        total_chats=total_chats
+    )
+    payload.update({
+        "recent_chats": recent_chat_payload,
+        "recent_token_transactions": recent_token_payload,
+        "unread_notifications": unread_notifications
+    })
+
+    return payload
+
+
+@router.get("/users/{user_id}/chats/{chat_id}")
+async def get_admin_chat_detail(
+    user_id: int,
+    chat_id: int,
+    db: Session = Depends(get_db),
+    admin_user: TokenPayload = Depends(get_current_admin)
+):
+    """Get chat details and messages for admin review"""
+    chat = db.query(Chat).filter(Chat.id == chat_id, Chat.user_id == user_id).first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    character = db.query(Character).filter(Character.id == chat.character_id).first()
+
+    messages = db.query(ChatMessage).filter(ChatMessage.chat_id == chat.id).order_by(ChatMessage.id).all()
+
+    return {
+        "chat": {
+            "id": chat.id,
+            "uuid": str(chat.uuid) if chat.uuid else None,
+            "title": chat.title,
+            "character_id": chat.character_id,
+            "character_name": character.name if character else None,
+            "created_at": chat.created_at.isoformat() + "Z" if chat.created_at else None,
+            "updated_at": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
+        },
+        "character": {
+            "id": character.id,
+            "name": character.name,
+        } if character else None,
+        "messages": [
+            {
+                "id": message.id,
+                "role": message.role,
+                "content": message.content,
+                "timestamp": message.timestamp.isoformat() + "Z" if message.timestamp else None
+            }
+            for message in messages
+        ]
+    }
+
+
+@router.post("/users/{user_id}/suspend")
+async def suspend_user(
+    user_id: int,
+    payload: SuspendUserRequest,
+    db: Session = Depends(get_db),
+    admin_user: TokenPayload = Depends(get_current_admin)
+):
+    """Suspend a user account"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if getattr(user, "is_suspended", False):
+        return {
+            "message": "User already suspended",
+            "user": serialize_admin_user(
+                user,
+                token_balance=TokenService(db).get_user_balance(user.id),
+                total_chats=db.query(Chat).filter(Chat.user_id == user.id).count()
+            )
+        }
+
+    user.is_suspended = True
+    user.suspended_at = datetime.now(timezone.utc)
+    user.suspension_reason = payload.reason
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    logger.info(f"Admin {admin_user.sub} suspended user {user.id}")
+    token_balance = TokenService(db).get_user_balance(user.id)
+    total_chats = db.query(Chat).filter(Chat.user_id == user.id).count()
+
+    return {
+        "message": "User suspended",
+        "user": serialize_admin_user(user, token_balance=token_balance, total_chats=total_chats)
+    }
+
+
+@router.post("/users/{user_id}/unsuspend")
+async def unsuspend_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    admin_user: TokenPayload = Depends(get_current_admin)
+):
+    """Restore a suspended user account"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if not getattr(user, "is_suspended", False):
+        return {
+            "message": "User already active",
+            "user": serialize_admin_user(
+                user,
+                token_balance=TokenService(db).get_user_balance(user.id),
+                total_chats=db.query(Chat).filter(Chat.user_id == user.id).count()
+            )
+        }
+
+    user.is_suspended = False
+    user.suspended_at = None
+    user.suspension_reason = None
+
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    logger.info(f"Admin {admin_user.sub} unsuspended user {user.id}")
+    token_balance = TokenService(db).get_user_balance(user.id)
+    total_chats = db.query(Chat).filter(Chat.user_id == user.id).count()
+
+    return {
+        "message": "User unsuspended",
+        "user": serialize_admin_user(user, token_balance=token_balance, total_chats=total_chats)
+    }
+
+
+@router.post("/users/{user_id}/tokens")
+async def adjust_user_tokens(
+    user_id: int,
+    payload: TokenAdjustmentRequest,
+    db: Session = Depends(get_db),
+    admin_user: TokenPayload = Depends(get_current_admin)
+):
+    """Add or deduct tokens from a user balance"""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.amount == 0:
+        raise HTTPException(status_code=400, detail="Amount must be non-zero")
+
+    token_service = TokenService(db)
+    description = payload.reason or "Admin adjustment"
+
+    if payload.amount > 0:
+        success = token_service.add_tokens(user_id, payload.amount, description)
+        action = "added"
+    else:
+        success = token_service.deduct_tokens(user_id, abs(payload.amount), description)
+        action = "deducted"
+
+    if not success:
+        raise HTTPException(status_code=400, detail="Unable to adjust tokens (insufficient balance?)")
+
+    balance = token_service.get_user_balance(user_id)
+    total_chats = db.query(Chat).filter(Chat.user_id == user_id).count()
+
+    logger.info(f"Admin {admin_user.sub} {action} {payload.amount} tokens for user {user.id}")
+    return {
+        "message": f"Successfully {action} {abs(payload.amount)} tokens",
+        "token_balance": balance,
+        "user": serialize_admin_user(user, token_balance=balance, total_chats=total_chats)
+    }
+
 @router.get("/stats")
 async def get_admin_stats(
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get admin statistics"""
     try:
@@ -530,7 +825,7 @@ async def get_admin_stats(
 @router.get("/payments")
 async def get_admin_payments(
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get payment monitoring data (placeholder)"""
     try:
@@ -560,7 +855,7 @@ async def get_admin_payments(
 @router.get("/assets/images")
 async def get_asset_images(
     asset_type: str = "characters",  # Only "characters" now supported
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Get available images from attached_assets directory"""
     try:
@@ -621,7 +916,7 @@ async def get_asset_images(
 async def upload_asset_image(
     request: Request,
     file: UploadFile = File(...),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """Upload an admin-curated character image to /attached_assets/characters_img.
 
@@ -653,7 +948,7 @@ async def get_character_prompt_preview(
     preview: bool = True,
     chat_id: Optional[int] = None,
     db: Session = Depends(get_db),
-    _: HTTPAuthorizationCredentials = Depends(verify_admin_token)
+    admin_user: TokenPayload = Depends(get_current_admin)
 ):
     """
     Get compiled prompt preview for a character.

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -55,7 +55,7 @@ async def register(user_data: UserRegister, db: Session = Depends(get_db)):
         )
 
 @router.post("/login", response_model=Token)
-async def login(user_data: UserLogin, db: Session = Depends(get_db)):
+async def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db)):
     """Login user with email and return access token"""
     try:
         # Authenticate user by email
@@ -66,11 +66,18 @@ async def login(user_data: UserLogin, db: Session = Depends(get_db)):
                 detail="Incorrect email or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
+        AuthService.ensure_user_is_active(user)
+
         # Create access token (using email as subject)
         access_token = AuthService.create_access_token(data={"sub": user.email})
         logger.info(f"User logged in: {user.email}")
-        
+
+        client_ip = request.client.host if request.client else None
+        try:
+            AuthService.record_successful_login(db, user, client_ip)
+        except Exception as e:
+            logger.warning(f"Failed to record login metadata for user {user.email}: {e}")
+
         return {"access_token": access_token, "token_type": "bearer"}
         
     except HTTPException:
@@ -88,7 +95,7 @@ async def get_current_user_info(current_user: User = Depends(get_current_user)):
     return current_user
 
 @router.post("/login/legacy", response_model=Token)
-async def login_legacy(user_data: UserLoginLegacy, db: Session = Depends(get_db)):
+async def login_legacy(user_data: UserLoginLegacy, request: Request, db: Session = Depends(get_db)):
     """Login user with username (legacy support)"""
     try:
         # Authenticate user by username
@@ -99,11 +106,18 @@ async def login_legacy(user_data: UserLoginLegacy, db: Session = Depends(get_db)
                 detail="Incorrect username or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
+        AuthService.ensure_user_is_active(user)
+
         # Create access token (using username as subject for legacy compatibility)
         access_token = AuthService.create_access_token(data={"sub": user.username})
         logger.info(f"User logged in (legacy): {user.username}")
-        
+
+        client_ip = request.client.host if request.client else None
+        try:
+            AuthService.record_successful_login(db, user, client_ip)
+        except Exception as e:
+            logger.warning(f"Failed to record login metadata for user {user.username}: {e}")
+
         return {"access_token": access_token, "token_type": "bearer"}
         
     except HTTPException:
@@ -116,7 +130,7 @@ async def login_legacy(user_data: UserLoginLegacy, db: Session = Depends(get_db)
         )
 
 @router.post("/login/firebase", response_model=Token)
-async def login_firebase(auth_data: FirebaseAuthRequest, db: Session = Depends(get_db)):
+async def login_firebase(auth_data: FirebaseAuthRequest, request: Request, db: Session = Depends(get_db)):
     """Login user with Firebase token"""
     try:
         # Authenticate user by Firebase token
@@ -127,11 +141,18 @@ async def login_firebase(auth_data: FirebaseAuthRequest, db: Session = Depends(g
                 detail="Invalid Firebase token",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
+        AuthService.ensure_user_is_active(user)
+
         # Create access token (using email as subject)
         access_token = AuthService.create_access_token(data={"sub": user.email})
         logger.info(f"User logged in via Firebase: {user.email}")
-        
+
+        client_ip = request.client.host if request.client else None
+        try:
+            AuthService.record_successful_login(db, user, client_ip)
+        except Exception as e:
+            logger.warning(f"Failed to record login metadata for user {user.email}: {e}")
+
         return {"access_token": access_token, "token_type": "bearer"}
         
     except HTTPException:

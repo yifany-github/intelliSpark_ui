@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     
     # Authentication settings
     secret_key: str
+    admin_jwt_secret: str  # JWT secret for admin authentication
     
     # AI Model settings
     gemini_api_key: Optional[str] = None
@@ -58,12 +59,15 @@ def validate_settings():
     
     if not settings.firebase_api_key:
         print("WARNING: FIREBASE_API_KEY not found. Google OAuth will not work.")
-    
+
     if not settings.stripe_secret_key:
         print("WARNING: STRIPE_SECRET_KEY not found. Payment processing will not work.")
-    
+
     if not settings.secret_key:
         raise ValueError("SECRET_KEY is required for JWT authentication")
+
+    if not settings.admin_jwt_secret:
+        raise ValueError("ADMIN_JWT_SECRET is required for admin JWT authentication")
     
     # Database configuration logging (mask sensitive parts)
     db_type = "PostgreSQL (Supabase)" if settings.database_url.startswith("postgresql") else "SQLite (Development)"

@@ -91,22 +91,49 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
 
   // Helper function to detect NSFW content in character (primary: explicit flag; secondary: keyword heuristic)
   const isCharacterNSFW = (character: Character): boolean => {
-    // Prefer explicit flag from backend
-    if ((character.nsfwLevel || 0) > 0) return true;
+    const nsfwLevel = character.nsfwLevel;
+
+    // Prefer explicit flag from backend; 0 means safe, >0 means NSFW, only fallback when flag missing
+    if (nsfwLevel !== undefined && nsfwLevel !== null) {
+      return nsfwLevel > 0;
+    }
 
     // Fallback heuristic for legacy data with no nsfwLevel set
-    const nsfwKeywords = ['nsfw', 'adult', '成人', '性', '娇羞', '淫', '魅惑', '撩人', '敏感', '情色', '欲望', '肉体', '呻吟', '诱惑', '性感'];
-    const hasNsfwTrait = character.traits.some((trait: string) => 
-      nsfwKeywords.some(keyword => trait.toLowerCase().includes(keyword.toLowerCase()))
+    const nsfwKeywords = [
+      'nsfw',
+      'adult-only',
+      '成人向',
+      '成人内容',
+      '限制级',
+      '少儿不宜',
+      '18禁',
+      '情色',
+      '露骨',
+      '激情描写',
+      '亲密接触',
+      '情色小说',
+      '恋物癖',
+      'sm调教',
+      '性幻想',
+      '色情描写'
+    ];
+
+    const normalisedKeywords = nsfwKeywords.filter(keyword => keyword.length > 1);
+
+    const hasNsfwTrait = character.traits.some((trait: string) =>
+      normalisedKeywords.some(keyword => trait.toLowerCase().includes(keyword.toLowerCase()))
     );
+
     const description = character.description || '';
-    const hasNsfwDescription = nsfwKeywords.some(keyword => 
+    const hasNsfwDescription = normalisedKeywords.some(keyword =>
       description.toLowerCase().includes(keyword.toLowerCase())
     );
+
     const backstory = character.backstory || '';
-    const hasNsfwBackstory = nsfwKeywords.some(keyword => 
+    const hasNsfwBackstory = normalisedKeywords.some(keyword =>
       backstory.toLowerCase().includes(keyword.toLowerCase())
     );
+
     return hasNsfwTrait || hasNsfwDescription || hasNsfwBackstory;
   };
 
