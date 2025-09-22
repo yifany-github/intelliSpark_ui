@@ -2533,23 +2533,25 @@ const AdminPage = () => {
                       {selectedUserDetail.recent_chats.length === 0 ? (
                         <p className="text-sm text-slate-500">No chats yet.</p>
                       ) : (
-                        <div className="space-y-2">
-                          {selectedUserDetail.recent_chats.map((chat) => {
-                            const characterLabel = chat.character_name ? `${chat.character_name}` : `Character #${chat.character_id}`;
-                            return (
-                              <button
-                                key={chat.id}
-                                type="button"
+                        <ScrollArea className="max-h-64">
+                          <div className="space-y-2 pr-2">
+                            {selectedUserDetail.recent_chats.map((chat) => {
+                              const characterLabel = chat.character_name ? `${chat.character_name}` : `Character #${chat.character_id}`;
+                              return (
+                                <button
+                                  key={chat.id}
+                                  type="button"
                                 onClick={() => openChatPreview(chat)}
                                 className="w-full text-left bg-white border border-slate-200 rounded-md p-2 transition hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
                               >
                                 <div className="text-sm font-medium text-slate-900">{chat.title}</div>
                                 <div className="text-xs text-slate-500">Chat #{chat.id} · {characterLabel}</div>
-                                <div className="text-xs text-slate-500">{new Date(chat.created_at).toLocaleString()}</div>
-                              </button>
-                            );
-                          })}
-                        </div>
+                                  <div className="text-xs text-slate-500">{new Date(chat.created_at).toLocaleString()}</div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </ScrollArea>
                       )}
                     </div>
                     <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
@@ -2557,22 +2559,24 @@ const AdminPage = () => {
                       {selectedUserDetail.recent_token_transactions.length === 0 ? (
                         <p className="text-sm text-slate-500">No token transactions recorded.</p>
                       ) : (
-                        <div className="space-y-2">
-                          {selectedUserDetail.recent_token_transactions.map((txn) => (
-                            <div key={txn.id} className="bg-white border border-slate-200 rounded-md p-2">
-                              <div className="flex justify-between text-sm text-slate-900">
-                                <span className="capitalize">{txn.transaction_type}</span>
-                                <span className={`font-semibold ${txn.amount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                  {txn.amount}
-                                </span>
+                        <ScrollArea className="max-h-64">
+                          <div className="space-y-2 pr-2">
+                            {selectedUserDetail.recent_token_transactions.map((txn) => (
+                              <div key={txn.id} className="bg-white border border-slate-200 rounded-md p-2">
+                                <div className="flex justify-between text-sm text-slate-900">
+                                  <span className="capitalize">{txn.transaction_type}</span>
+                                  <span className={`font-semibold ${txn.amount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                    {txn.amount}
+                                  </span>
+                                </div>
+                                {txn.description && (
+                                  <div className="text-xs text-slate-500 mt-1 whitespace-pre-line">{txn.description}</div>
+                                )}
+                                <div className="text-xs text-slate-500 mt-1">{new Date(txn.created_at).toLocaleString()}</div>
                               </div>
-                              {txn.description && (
-                                <div className="text-xs text-slate-500 mt-1">{txn.description}</div>
-                              )}
-                              <div className="text-xs text-slate-500 mt-1">{new Date(txn.created_at).toLocaleString()}</div>
-                            </div>
-                          ))}
-                        </div>
+                            ))}
+                          </div>
+                        </ScrollArea>
                       )}
                     </div>
                   </div>
@@ -2609,8 +2613,8 @@ const AdminPage = () => {
                     <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Character:</span><span className="font-medium">{chatPreview.chat.character_name || chatPreview.character?.name || `#${chatPreview.chat.character_id}`}</span></div>
                     <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Started:</span><span className="font-medium">{new Date(chatPreview.chat.created_at).toLocaleString()}</span></div>
                   </div>
-                  <ScrollArea className="max-h-[60vh] pr-2">
-                    <div className="space-y-3">
+                  <ScrollArea className="max-h-[60vh]">
+                    <div className="space-y-3 pr-3">
                       {chatPreview.messages.length === 0 ? (
                         <div className="text-sm text-slate-500 text-center py-10">No messages recorded in this chat.</div>
                       ) : (
