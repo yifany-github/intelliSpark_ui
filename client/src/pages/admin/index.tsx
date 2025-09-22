@@ -50,7 +50,8 @@ import {
   Bell,
   Send,
   AlertTriangle,
-  Loader2
+  Loader2,
+  X
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -2533,8 +2534,8 @@ const AdminPage = () => {
                       {selectedUserDetail.recent_chats.length === 0 ? (
                         <p className="text-sm text-slate-500">No chats yet.</p>
                       ) : (
-                        <ScrollArea className="max-h-64">
-                          <div className="space-y-2 pr-2">
+                        <div className="max-h-64 overflow-y-auto pr-2">
+                          <div className="space-y-2">
                             {selectedUserDetail.recent_chats.map((chat) => {
                               const characterLabel = chat.character_name ? `${chat.character_name}` : `Character #${chat.character_id}`;
                               return (
@@ -2551,7 +2552,7 @@ const AdminPage = () => {
                               );
                             })}
                           </div>
-                        </ScrollArea>
+                        </div>
                       )}
                     </div>
                     <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
@@ -2559,8 +2560,8 @@ const AdminPage = () => {
                       {selectedUserDetail.recent_token_transactions.length === 0 ? (
                         <p className="text-sm text-slate-500">No token transactions recorded.</p>
                       ) : (
-                        <ScrollArea className="max-h-64">
-                          <div className="space-y-2 pr-2">
+                        <div className="max-h-64 overflow-y-auto pr-2">
+                          <div className="space-y-2">
                             {selectedUserDetail.recent_token_transactions.map((txn) => (
                               <div key={txn.id} className="bg-white border border-slate-200 rounded-md p-2">
                                 <div className="flex justify-between text-sm text-slate-900">
@@ -2576,7 +2577,7 @@ const AdminPage = () => {
                               </div>
                             ))}
                           </div>
-                        </ScrollArea>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -2598,6 +2599,14 @@ const AdminPage = () => {
             }}
           >
             <DialogContent className="max-w-3xl bg-white">
+              <button
+                type="button"
+                onClick={() => setIsChatPreviewDialogOpen(false)}
+                className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
               <DialogHeader className="bg-white">
                 <DialogTitle className="text-xl text-slate-900">
                   {chatPreview?.chat?.title || "Chat preview"}
@@ -2613,8 +2622,8 @@ const AdminPage = () => {
                     <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Character:</span><span className="font-medium">{chatPreview.chat.character_name || chatPreview.character?.name || `#${chatPreview.chat.character_id}`}</span></div>
                     <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Started:</span><span className="font-medium">{new Date(chatPreview.chat.created_at).toLocaleString()}</span></div>
                   </div>
-                  <ScrollArea className="max-h-[60vh]">
-                    <div className="space-y-3 pr-3">
+                  <div className="max-h-[60vh] overflow-y-auto pr-3">
+                    <div className="space-y-3">
                       {chatPreview.messages.length === 0 ? (
                         <div className="text-sm text-slate-500 text-center py-10">No messages recorded in this chat.</div>
                       ) : (
@@ -2635,7 +2644,7 @@ const AdminPage = () => {
                         })
                       )}
                     </div>
-                  </ScrollArea>
+                  </div>
                 </div>
               ) : (
                 <div className="py-10 text-center text-sm text-slate-500">Unable to load chat history.</div>
