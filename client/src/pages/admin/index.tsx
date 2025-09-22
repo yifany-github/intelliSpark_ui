@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Toggle } from "@/components/ui/toggle";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -141,6 +141,7 @@ interface AdminUserDetail extends AdminUser {
     uuid?: string | null;
     title: string;
     character_id: number;
+    character_name?: string | null;
     created_at: string;
     updated_at: string;
   }>;
@@ -152,6 +153,28 @@ interface AdminUserDetail extends AdminUser {
     created_at: string;
   }>;
   unread_notifications: number;
+}
+
+interface AdminChatDetail {
+  chat: {
+    id: number;
+    uuid?: string | null;
+    title: string;
+    character_id: number;
+    character_name?: string | null;
+    created_at: string;
+    updated_at: string;
+  };
+  character?: {
+    id: number;
+    name: string;
+  } | null;
+  messages: Array<{
+    id: number;
+    role: string;
+    content: string;
+    timestamp?: string | null;
+  }>;
 }
 
 type AdminTokenResponse = {
@@ -192,12 +215,16 @@ const AdminPage = () => {
   const [suspendReason, setSuspendReason] = useState("");
   const [isTokenDialogOpen, setIsTokenDialogOpen] = useState(false);
   const [tokenTargetUser, setTokenTargetUser] = useState<AdminUser | null>(null);
-  const [tokenAmount, setTokenAmount] = useState<number>(0);
+  const [tokenAmount, setTokenAmount] = useState<string>("");
+  const [tokenAdjustmentType, setTokenAdjustmentType] = useState<"credit" | "debit">("credit");
   const [tokenReason, setTokenReason] = useState("");
   const [isUserDetailDialogOpen, setIsUserDetailDialogOpen] = useState(false);
   const [selectedUserIdForDetail, setSelectedUserIdForDetail] = useState<number | null>(null);
   const [selectedUserDetail, setSelectedUserDetail] = useState<AdminUserDetail | null>(null);
   const [isUserDetailLoading, setIsUserDetailLoading] = useState(false);
+  const [isChatPreviewDialogOpen, setIsChatPreviewDialogOpen] = useState(false);
+  const [chatPreview, setChatPreview] = useState<AdminChatDetail | null>(null);
+  const [isChatPreviewLoading, setIsChatPreviewLoading] = useState(false);
 
   const USER_PAGE_SIZE = 20;
   const [userSearchTerm, setUserSearchTerm] = useState("");
@@ -724,7 +751,8 @@ const AdminPage = () => {
         setTokenTargetUser(prev => prev ? { ...prev, ...data.user } : prev);
       }
       setTokenTargetUser(null);
-      setTokenAmount(0);
+      setTokenAmount("");
+      setTokenAdjustmentType("credit");
       setTokenReason("");
       setIsTokenDialogOpen(false);
       if (selectedUserDetail && data?.user?.id === selectedUserDetail.id) {
@@ -756,24 +784,26 @@ const AdminPage = () => {
 
   const openTokenDialog = (user: AdminUser) => {
     setTokenTargetUser(user);
-    setTokenAmount(0);
+    setTokenAmount("");
+    setTokenAdjustmentType("credit");
     setTokenReason("");
     setIsTokenDialogOpen(true);
   };
 
   const handleTokenAdjustSubmit = () => {
     if (!tokenTargetUser) return;
-    if (!tokenAmount || tokenAmount === 0) {
+    const parsedAmount = Number(tokenAmount);
+    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
       toast({
-        title: "Enter a token amount",
-        description: "Use positive numbers to add tokens, negative to deduct.",
+        title: "Enter a valid amount",
+        description: "Amount must be a positive number.",
         variant: "destructive",
       });
       return;
     }
     adjustTokensMutation.mutate({
       userId: tokenTargetUser.id,
-      amount: tokenAmount,
+      amount: tokenAdjustmentType === "credit" ? parsedAmount : -parsedAmount,
       reason: tokenReason.trim() || undefined,
     });
   };
@@ -782,6 +812,41 @@ const AdminPage = () => {
     setSelectedUserIdForDetail(userId);
     setSelectedUserDetail(null);
     setIsUserDetailDialogOpen(true);
+  };
+
+  const openChatPreview = async (chat: {
+    id: number;
+    uuid?: string | null;
+    title: string;
+    character_id: number;
+    character_name?: string | null;
+  }) => {
+    if (!selectedUserDetail) return;
+
+    setChatPreview(null);
+    setIsChatPreviewLoading(true);
+    setIsChatPreviewDialogOpen(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${selectedUserDetail.id}/chats/${chat.id}`, {
+        headers: authHeaders,
+      });
+      if (!response.ok) {
+        throw new Error(await response.text() || "Failed to load chat");
+      }
+      const detail: AdminChatDetail = await response.json();
+      setChatPreview(detail);
+    } catch (error: any) {
+      setChatPreview(null);
+      toast({
+        title: "Unable to load chat history",
+        description: error?.message || "Please try again later.",
+        variant: "destructive",
+      });
+      setIsChatPreviewDialogOpen(false);
+    } finally {
+      setIsChatPreviewLoading(false);
+    }
   };
 
   const filteredCharacters = characters.filter(character => {
@@ -1695,149 +1760,147 @@ const AdminPage = () => {
               </div>
             </div>
 
-            <Card className="shadow-sm border-slate-200">
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-slate-50">
-                      <TableHead>User</TableHead>
-                      <TableHead>Email & Provider</TableHead>
-                      <TableHead className="text-right">Tokens</TableHead>
-                      <TableHead className="text-right">Chats</TableHead>
-                      <TableHead>Last Login</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="w-[240px]">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {isFetchingUsers && users.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center text-slate-500">
-                          <Loader2 className="w-5 h-5 mx-auto animate-spin" />
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {!isFetchingUsers && users.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={7} className="h-24 text-center text-slate-500">
-                          {userSearchTerm || userStatusFilter !== "all" || userProviderFilter !== "all"
-                            ? "No users match your current filters."
-                            : "No users found."}
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {users.map((user) => (
-                      <TableRow key={user.id} className="hover:bg-slate-50">
-                        <TableCell>
-                          <div className="flex flex-col">
-                            <span className="font-medium text-slate-900">{user.username}</span>
-                            <span className="text-xs text-slate-500">ID: {user.id}</span>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {isFetchingUsers && users.length === 0 && (
+                <Card className="shadow-sm border-slate-200">
+                  <CardContent className="flex items-center justify-center h-40">
+                    <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+                  </CardContent>
+                </Card>
+              )}
+
+              {!isFetchingUsers && users.length === 0 && (
+                <Card className="shadow-sm border-slate-200">
+                  <CardContent className="flex flex-col items-center justify-center h-40 text-center text-slate-500">
+                    <Users className="w-10 h-10 mb-3 text-slate-300" />
+                    {userSearchTerm || userStatusFilter !== "all" || userProviderFilter !== "all"
+                      ? "No users match your current filters."
+                      : "No users found."}
+                  </CardContent>
+                </Card>
+              )}
+
+              {users.map((user) => (
+                <Card key={user.id} className="shadow-sm border-slate-200 hover:shadow-md transition-shadow">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-lg text-slate-900">{user.username}</CardTitle>
+                        <p className="text-xs text-slate-500">User ID: {user.id}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${user.is_suspended ? "bg-red-50 text-red-600 border-red-300" : "bg-emerald-50 text-emerald-600 border-emerald-300"}`}
+                        >
+                          {user.is_suspended ? "Suspended" : "Active"}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${user.email_verified ? "bg-green-100 text-green-700 border-green-300" : "bg-amber-50 text-amber-700 border-amber-300"}`}
+                        >
+                          {user.email_verified ? "Verified" : "Unverified"}
+                        </Badge>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2 text-sm text-slate-700">
+                      <div>
+                        <span className="font-medium text-slate-600">Email:</span> {user.email || "—"}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-600">Provider:</span>
+                        {user.provider ? (
+                          <Badge variant="outline" className="text-xs capitalize bg-slate-100 text-slate-700 border-slate-300">{user.provider}</Badge>
+                        ) : (
+                          <span>email</span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <button
+                          type="button"
+                          onClick={() => openTokenDialog(user)}
+                          className="bg-slate-50 border border-slate-200 rounded-md p-2 text-left transition hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                          title="Adjust token balance"
+                        >
+                          <div className="flex items-center justify-between text-xs text-slate-500">
+                            <span>Tokens</span>
+                            <span className="flex items-center gap-1 text-blue-500 font-medium">
+                              <DollarSign className="w-3 h-3" />
+                              Adjust
+                            </span>
                           </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1">
-                            <span className="text-sm text-slate-700">{user.email || "—"}</span>
-                            <div className="flex flex-wrap gap-2">
-                              {user.provider && (
-                                <Badge variant="outline" className="text-xs capitalize bg-slate-100 text-slate-700 border-slate-300">
-                                  {user.provider}
-                                </Badge>
-                              )}
-                              <Badge
-                                variant="outline"
-                                className={`text-xs ${user.email_verified ? "bg-green-100 text-green-700 border-green-300" : "bg-amber-50 text-amber-700 border-amber-300"}`}
-                              >
-                                {user.email_verified ? "Verified" : "Unverified"}
-                              </Badge>
+                          <div className="mt-1 text-lg font-semibold text-slate-900">{user.token_balance}</div>
+                        </button>
+                        <div className="bg-slate-50 border border-slate-200 rounded-md p-2">
+                          <div className="text-xs text-slate-500">Chats</div>
+                          <div className="text-lg font-semibold text-slate-900">{user.total_chats}</div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="font-medium text-slate-600 text-xs uppercase tracking-wide mb-1">Last login</div>
+                        <div>{user.last_login_at ? new Date(user.last_login_at).toLocaleString() : "Never"}</div>
+                        {user.last_login_ip && (
+                          <div className="text-xs text-slate-500">IP: {user.last_login_ip}</div>
+                        )}
+                      </div>
+                      {user.is_suspended && user.suspension_reason && (
+                        <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md p-2">
+                          <span className="font-semibold">Reason: </span>{user.suspension_reason}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-slate-300 text-slate-700 bg-white hover:bg-slate-100"
+                        onClick={() => handleViewUserDetail(user.id)}
+                      >
+                        <Eye className="w-4 h-4 mr-1" /> View details
+                      </Button>
+                      {user.is_suspended ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50"
+                          onClick={() => unsuspendUserMutation.mutate(user.id)}
+                          disabled={unsuspendUserMutation.isPending}
+                        >
+                          {unsuspendUserMutation.isPending ? (
+                            <div className="flex items-center gap-1">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Restoring
                             </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-right font-semibold text-slate-900">
-                          {user.token_balance}
-                        </TableCell>
-                        <TableCell className="text-right text-slate-700">
-                          {user.total_chats}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-col gap-1 text-sm text-slate-700">
-                            <span>{user.last_login_at ? new Date(user.last_login_at).toLocaleString() : "Never"}</span>
-                            {user.last_login_ip && (
-                              <span className="text-xs text-slate-500">IP: {user.last_login_ip}</span>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge
-                            variant="outline"
-                            className={`text-xs ${user.is_suspended ? "bg-red-50 text-red-600 border-red-300" : "bg-emerald-50 text-emerald-600 border-emerald-300"}`}
-                          >
-                            {user.is_suspended ? "Suspended" : "Active"}
-                          </Badge>
-                          {user.is_suspended && user.suspension_reason && (
-                            <div className="text-[11px] text-slate-500 mt-1">{user.suspension_reason}</div>
+                          ) : (
+                            "Restore access"
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="border-slate-300 text-slate-700 bg-white hover:bg-slate-100"
-                              onClick={() => handleViewUserDetail(user.id)}
-                            >
-                              <Eye className="w-4 h-4 mr-1" /> View
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="border-blue-300 text-blue-700 bg-white hover:bg-blue-50"
-                              onClick={() => openTokenDialog(user)}
-                            >
-                              <DollarSign className="w-4 h-4 mr-1" /> Tokens
-                            </Button>
-                            {user.is_suspended ? (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50"
-                                onClick={() => unsuspendUserMutation.mutate(user.id)}
-                                disabled={unsuspendUserMutation.isPending}
-                              >
-                                {unsuspendUserMutation.isPending ? (
-                                  <div className="flex items-center gap-1">
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Restore
-                                  </div>
-                                ) : (
-                                  "Restore"
-                                )}
-                              </Button>
-                            ) : (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                className="border-red-300 text-red-600 bg-white hover:bg-red-50"
-                                onClick={() => openSuspendDialog(user)}
-                                disabled={suspendUserMutation.isPending && suspendTargetUser?.id === user.id}
-                              >
-                                {suspendUserMutation.isPending && suspendTargetUser?.id === user.id ? (
-                                  <div className="flex items-center gap-1">
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Processing
-                                  </div>
-                                ) : (
-                                  <><Lock className="w-4 h-4 mr-1" /> Suspend</>
-                                )}
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-red-300 text-red-600 bg-white hover:bg-red-50"
+                          onClick={() => openSuspendDialog(user)}
+                          disabled={suspendUserMutation.isPending && suspendTargetUser?.id === user.id}
+                        >
+                          {suspendUserMutation.isPending && suspendTargetUser?.id === user.id ? (
+                            <div className="flex items-center gap-1">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Suspending...
+                            </div>
+                          ) : (
+                            <><Lock className="w-4 h-4 mr-1" /> Suspend</>
+                          )}
+                        </Button>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
 
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-slate-600">
@@ -2335,12 +2398,28 @@ const AdminPage = () => {
                   <Input
                     id="tokenAmount"
                     type="number"
+                    min="0"
                     value={tokenAmount}
-                    onChange={(e) => setTokenAmount(Number(e.target.value))}
+                    onChange={(e) => setTokenAmount(e.target.value)}
+                    placeholder="Enter number of tokens"
                     className="bg-white border-slate-300 text-slate-900"
                   />
-                  <p className="text-xs text-slate-500">Use positive numbers to add tokens and negative numbers to deduct tokens.</p>
+                  <p className="text-xs text-slate-500">Choose whether to add or deduct this amount below.</p>
                 </div>
+                <RadioGroup
+                  value={tokenAdjustmentType}
+                  onValueChange={(value) => setTokenAdjustmentType(value as "credit" | "debit")}
+                  className="grid grid-cols-2 gap-2"
+                >
+                  <label className={`border rounded-md p-3 text-sm cursor-pointer transition flex items-center ${tokenAdjustmentType === "credit" ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-slate-300 text-slate-700'}`}>
+                    <RadioGroupItem value="credit" className="mr-2" />
+                    Add tokens
+                  </label>
+                  <label className={`border rounded-md p-3 text-sm cursor-pointer transition flex items-center ${tokenAdjustmentType === "debit" ? 'bg-red-50 border-red-300 text-red-700' : 'bg-white border-slate-300 text-slate-700'}`}>
+                    <RadioGroupItem value="debit" className="mr-2" />
+                    Deduct tokens
+                  </label>
+                </RadioGroup>
                 <div className="space-y-2">
                   <Label htmlFor="tokenReason" className="text-sm font-medium text-slate-900">Reason (optional)</Label>
                   <Textarea
@@ -2351,6 +2430,7 @@ const AdminPage = () => {
                     className="bg-white border-slate-300 text-slate-900"
                     rows={4}
                   />
+                  <p className="text-xs text-slate-500">This note is saved in the user's token transaction history.</p>
                 </div>
                 <div className="flex justify-end gap-2 pt-2">
                   <Button
@@ -2360,7 +2440,8 @@ const AdminPage = () => {
                     onClick={() => {
                       setIsTokenDialogOpen(false);
                       setTokenTargetUser(null);
-                      setTokenAmount(0);
+                      setTokenAmount("");
+                      setTokenAdjustmentType("credit");
                       setTokenReason("");
                     }}
                     disabled={adjustTokensMutation.isPending}
@@ -2394,6 +2475,9 @@ const AdminPage = () => {
               if (!open) {
                 setSelectedUserIdForDetail(null);
                 setSelectedUserDetail(null);
+                setIsChatPreviewDialogOpen(false);
+                setChatPreview(null);
+                setIsChatPreviewLoading(false);
               }
             }}
           >
@@ -2409,58 +2493,38 @@ const AdminPage = () => {
                 </div>
               ) : selectedUserDetail ? (
                 <div className="space-y-6 py-2">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <Label className="text-xs uppercase tracking-wide text-slate-500">Email</Label>
-                      <span className="text-sm text-slate-900">{selectedUserDetail.email || "—"}</span>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs uppercase tracking-wide text-slate-500">Provider</Label>
-                      <span className="text-sm text-slate-900">{selectedUserDetail.provider || "email"}</span>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs uppercase tracking-wide text-slate-500">Created</Label>
-                      <span className="text-sm text-slate-900">{new Date(selectedUserDetail.created_at).toLocaleString()}</span>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs uppercase tracking-wide text-slate-500">Last login</Label>
-                      <span className="text-sm text-slate-900">{selectedUserDetail.last_login_at ? new Date(selectedUserDetail.last_login_at).toLocaleString() : "Never"}</span>
+                  <div className="space-y-2 text-sm text-slate-900">
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Email:</span><span className="font-medium break-all">{selectedUserDetail.email || "—"}</span></div>
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Provider:</span><span className="font-medium capitalize">{selectedUserDetail.provider || "email"}</span></div>
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Created:</span><span className="font-medium">{new Date(selectedUserDetail.created_at).toLocaleString()}</span></div>
+                    <div>
+                      <span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Last Login:</span>
+                      <span className="font-medium">{selectedUserDetail.last_login_at ? new Date(selectedUserDetail.last_login_at).toLocaleString() : "Never"}</span>
                       {selectedUserDetail.last_login_ip && (
-                        <span className="text-xs text-slate-500">IP: {selectedUserDetail.last_login_ip}</span>
+                        <span className="ml-2 text-xs text-slate-500">IP: {selectedUserDetail.last_login_ip}</span>
                       )}
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs uppercase tracking-wide text-slate-500">Token balance</Label>
-                      <span className="text-sm font-semibold text-slate-900">{selectedUserDetail.token_balance}</span>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs uppercase tracking-wide text-slate-500">Total chats</Label>
-                      <span className="text-sm text-slate-900">{selectedUserDetail.total_chats}</span>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs uppercase tracking-wide text-slate-500">Status</Label>
-                      <div className="flex items-center gap-2">
-                        <Badge
-                          variant="outline"
-                          className={`text-xs ${selectedUserDetail.is_suspended ? "bg-red-50 text-red-600 border-red-300" : "bg-emerald-50 text-emerald-600 border-emerald-300"}`}
-                        >
-                          {selectedUserDetail.is_suspended ? "Suspended" : "Active"}
-                        </Badge>
-                        <Badge
-                          variant="outline"
-                          className={`text-xs ${selectedUserDetail.email_verified ? "bg-green-100 text-green-700 border-green-300" : "bg-amber-50 text-amber-700 border-amber-300"}`}
-                        >
-                          {selectedUserDetail.email_verified ? "Email verified" : "Email unverified"}
-                        </Badge>
-                      </div>
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Token balance:</span><span className="font-semibold text-slate-900">{selectedUserDetail.token_balance}</span></div>
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Total chats:</span><span className="font-medium">{selectedUserDetail.total_chats}</span></div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs uppercase tracking-wide text-slate-500">Status:</span>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${selectedUserDetail.is_suspended ? "bg-red-50 text-red-600 border-red-300" : "bg-emerald-50 text-emerald-600 border-emerald-300"}`}
+                      >
+                        {selectedUserDetail.is_suspended ? "Suspended" : "Active"}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${selectedUserDetail.email_verified ? "bg-green-100 text-green-700 border-green-300" : "bg-amber-50 text-amber-700 border-amber-300"}`}
+                      >
+                        {selectedUserDetail.email_verified ? "Email verified" : "Email unverified"}
+                      </Badge>
                       {selectedUserDetail.is_suspended && selectedUserDetail.suspension_reason && (
                         <span className="text-xs text-slate-500">Reason: {selectedUserDetail.suspension_reason}</span>
                       )}
                     </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs uppercase tracking-wide text-slate-500">Unread notifications</Label>
-                      <span className="text-sm text-slate-900">{selectedUserDetail.unread_notifications}</span>
-                    </div>
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Unread notifications:</span><span className="font-medium">{selectedUserDetail.unread_notifications}</span></div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -2470,13 +2534,21 @@ const AdminPage = () => {
                         <p className="text-sm text-slate-500">No chats yet.</p>
                       ) : (
                         <div className="space-y-2">
-                          {selectedUserDetail.recent_chats.map((chat) => (
-                            <div key={chat.id} className="bg-white border border-slate-200 rounded-md p-2">
-                              <div className="text-sm font-medium text-slate-900">{chat.title}</div>
-                              <div className="text-xs text-slate-500">Chat #{chat.id} · Character #{chat.character_id}</div>
-                              <div className="text-xs text-slate-500">{new Date(chat.created_at).toLocaleString()}</div>
-                            </div>
-                          ))}
+                          {selectedUserDetail.recent_chats.map((chat) => {
+                            const characterLabel = chat.character_name ? `${chat.character_name}` : `Character #${chat.character_id}`;
+                            return (
+                              <button
+                                key={chat.id}
+                                type="button"
+                                onClick={() => openChatPreview(chat)}
+                                className="w-full text-left bg-white border border-slate-200 rounded-md p-2 transition hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                              >
+                                <div className="text-sm font-medium text-slate-900">{chat.title}</div>
+                                <div className="text-xs text-slate-500">Chat #{chat.id} · {characterLabel}</div>
+                                <div className="text-xs text-slate-500">{new Date(chat.created_at).toLocaleString()}</div>
+                              </button>
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -2507,6 +2579,62 @@ const AdminPage = () => {
                 </div>
               ) : (
                 <div className="py-10 text-center text-sm text-slate-500">Unable to load user details.</div>
+              )}
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={isChatPreviewDialogOpen}
+            onOpenChange={(open) => {
+              setIsChatPreviewDialogOpen(open);
+              if (!open) {
+                setChatPreview(null);
+                setIsChatPreviewLoading(false);
+              }
+            }}
+          >
+            <DialogContent className="max-w-3xl bg-white">
+              <DialogHeader className="bg-white">
+                <DialogTitle className="text-xl text-slate-900">
+                  {chatPreview?.chat?.title || "Chat preview"}
+                </DialogTitle>
+              </DialogHeader>
+              {isChatPreviewLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+                </div>
+              ) : chatPreview ? (
+                <div className="space-y-4 py-2">
+                  <div className="text-sm text-slate-700">
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Character:</span><span className="font-medium">{chatPreview.chat.character_name || chatPreview.character?.name || `#${chatPreview.chat.character_id}`}</span></div>
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Started:</span><span className="font-medium">{new Date(chatPreview.chat.created_at).toLocaleString()}</span></div>
+                  </div>
+                  <ScrollArea className="max-h-[60vh] pr-2">
+                    <div className="space-y-3">
+                      {chatPreview.messages.length === 0 ? (
+                        <div className="text-sm text-slate-500 text-center py-10">No messages recorded in this chat.</div>
+                      ) : (
+                        chatPreview.messages.map((message) => {
+                          const isUser = message.role === "user";
+                          return (
+                            <div
+                              key={message.id}
+                              className={`rounded-md border border-slate-200 p-3 ${isUser ? 'bg-slate-50 border-blue-200' : 'bg-white border-slate-200'}`}
+                            >
+                              <div className="flex justify-between text-xs uppercase tracking-wide text-slate-500 mb-1">
+                                <span>{isUser ? 'User' : 'Assistant'}</span>
+                                <span>{message.timestamp ? new Date(message.timestamp).toLocaleString() : ''}</span>
+                              </div>
+                              <p className="text-sm whitespace-pre-line text-slate-900">{message.content}</p>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+              ) : (
+                <div className="py-10 text-center text-sm text-slate-500">Unable to load chat history.</div>
               )}
             </DialogContent>
           </Dialog>

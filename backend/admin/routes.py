@@ -554,19 +554,21 @@ async def get_admin_user_detail(
     token_balance = token_service.get_user_balance(user.id)
     total_chats = db.query(Chat).filter(Chat.user_id == user.id).count()
 
-    recent_chats = db.query(Chat).filter(Chat.user_id == user.id) \
+    recent_chats = db.query(Chat, Character.name) \
+        .join(Character, Character.id == Chat.character_id, isouter=True) \
+        .filter(Chat.user_id == user.id) \
         .order_by(Chat.created_at.desc()).limit(5).all()
-    recent_chat_payload = [
-        {
+    recent_chat_payload = []
+    for chat, character_name in recent_chats:
+        recent_chat_payload.append({
             "id": chat.id,
             "uuid": chat.uuid,
             "title": chat.title,
             "character_id": chat.character_id,
+            "character_name": character_name,
             "created_at": chat.created_at,
             "updated_at": chat.updated_at
-        }
-        for chat in recent_chats
-    ]
+        })
 
     recent_transactions = db.query(TokenTransaction).filter(TokenTransaction.user_id == user.id) \
         .order_by(TokenTransaction.created_at.desc()).limit(5).all()
@@ -598,6 +600,48 @@ async def get_admin_user_detail(
     })
 
     return payload
+
+
+@router.get("/users/{user_id}/chats/{chat_id}")
+async def get_admin_chat_detail(
+    user_id: int,
+    chat_id: int,
+    db: Session = Depends(get_db),
+    admin_user: TokenPayload = Depends(get_current_admin)
+):
+    """Get chat details and messages for admin review"""
+    chat = db.query(Chat).filter(Chat.id == chat_id, Chat.user_id == user_id).first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    character = db.query(Character).filter(Character.id == chat.character_id).first()
+
+    messages = db.query(ChatMessage).filter(ChatMessage.chat_id == chat.id).order_by(ChatMessage.id).all()
+
+    return {
+        "chat": {
+            "id": chat.id,
+            "uuid": str(chat.uuid) if chat.uuid else None,
+            "title": chat.title,
+            "character_id": chat.character_id,
+            "character_name": character.name if character else None,
+            "created_at": chat.created_at.isoformat() + "Z" if chat.created_at else None,
+            "updated_at": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
+        },
+        "character": {
+            "id": character.id,
+            "name": character.name,
+        } if character else None,
+        "messages": [
+            {
+                "id": message.id,
+                "role": message.role,
+                "content": message.content,
+                "timestamp": message.timestamp.isoformat() + "Z" if message.timestamp else None
+            }
+            for message in messages
+        ]
+    }
 
 
 @router.post("/users/{user_id}/suspend")
