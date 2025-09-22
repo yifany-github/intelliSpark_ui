@@ -6,16 +6,20 @@ Implements access tokens (short-lived) and refresh tokens (long-lived) with rota
 """
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 import jwt
+from jwt import InvalidTokenError
 from fastapi import HTTPException, status
 from pydantic import BaseModel
 
 from config import settings
 
 # JWT Configuration
-ADMIN_JWT_SECRET = settings.admin_jwt_secret or os.getenv("ADMIN_JWT_SECRET", "admin-jwt-secret-key-change-in-production")
+if not settings.admin_jwt_secret:
+    raise RuntimeError("ADMIN_JWT_SECRET is required for admin authentication")
+
+ADMIN_JWT_SECRET = settings.admin_jwt_secret
 ADMIN_JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
@@ -45,14 +49,14 @@ def create_access_token(admin_user_id: str, expires_delta: Optional[timedelta] =
         JWT access token string
     """
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+
     to_encode = {
         "sub": admin_user_id,
         "exp": expire,
-        "iat": datetime.utcnow(),
+        "iat": datetime.now(timezone.utc),
         "token_type": "access",
         "admin": True
     }
@@ -72,14 +76,14 @@ def create_refresh_token(admin_user_id: str, expires_delta: Optional[timedelta] 
         JWT refresh token string
     """
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
-    
+        expire = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+
     to_encode = {
         "sub": admin_user_id,
         "exp": expire,
-        "iat": datetime.utcnow(),
+        "iat": datetime.now(timezone.utc),
         "token_type": "refresh",
         "admin": True
     }
@@ -127,7 +131,7 @@ def verify_token(token: str, expected_type: str = "access") -> TokenPayload:
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except jwt.JWTError:
+    except InvalidTokenError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Could not validate credentials",

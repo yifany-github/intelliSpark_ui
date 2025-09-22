@@ -6,9 +6,7 @@ from typing import List, Dict, Any, Optional
 from pydantic import BaseModel
 import logging
 import os
-from datetime import datetime
-from pydantic import BaseModel
-from typing import Optional
+from datetime import datetime, timezone
 import glob
 from pathlib import Path
 
@@ -69,7 +67,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["admin"])
 
 # Simple admin password (in production, use proper authentication)
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+if not ADMIN_PASSWORD:
+    raise RuntimeError("ADMIN_PASSWORD environment variable must be set for admin authentication")
 
 # ===== ADMIN AUTH ROUTES =====
 
@@ -667,7 +667,7 @@ async def suspend_user(
         }
 
     user.is_suspended = True
-    user.suspended_at = datetime.utcnow()
+    user.suspended_at = datetime.now(timezone.utc)
     user.suspension_reason = payload.reason
 
     db.add(user)
