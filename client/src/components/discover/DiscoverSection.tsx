@@ -157,89 +157,102 @@ const DiscoverSection = () => {
   }, [selectedCategory, trendingCharacters, newCharacters, popularCharacters, recommendedCharacters, featuredCharacters]);
 
   const CharacterCard = ({ character, size = 'normal' }: { character: Character, size?: 'normal' | 'large' }) => (
-    <div 
-      className={`bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-all duration-200 cursor-pointer group hover:scale-105 hover:shadow-lg ${
+    <div
+      className={`relative rounded-2xl overflow-hidden bg-gray-900/70 border border-gray-800/60 backdrop-blur-sm transition-all duration-300 cursor-pointer group ${
         size === 'large' ? 'col-span-2' : ''
-      } ${isCreatingChat ? 'opacity-50 pointer-events-none' : ''}`}
+      } ${
+        isCreatingChat
+          ? 'opacity-50 pointer-events-none'
+          : 'hover:-translate-y-1 hover:shadow-xl'
+      }`}
       onClick={() => !isCreatingChat && handleCharacterClick(character)}
     >
       <div className="relative">
         <img
           src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}
           alt={character.name}
-          className={`w-full object-cover group-hover:brightness-110 transition-all duration-200 ${
-            size === 'large' ? 'h-64' : 'h-48'
+          className={`w-full object-cover transition-all duration-500 group-hover:scale-[1.03] ${
+            size === 'large' ? 'h-80' : 'h-64'
           }`}
         />
-        <div className="absolute top-2 right-2 z-20 flex items-center space-x-2">
+        <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/60 via-black/20 to-transparent pointer-events-none" />
+        <div className="absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-black/70 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+        <div className="absolute top-3 right-3 z-30 flex items-center gap-2">
           {(character.nsfwLevel || 0) > 0 && (
-            <div className="w-8 h-8 bg-red-500/90 backdrop-blur-sm rounded-full border border-red-400/50 flex items-center justify-center">
-              <span className="text-xs text-white font-bold leading-none">18+</span>
+            <div className="w-9 h-9 bg-red-500/75 backdrop-blur-sm rounded-full border border-red-400/40 flex items-center justify-center text-white text-xs font-bold">
+              18+
             </div>
           )}
-          <button 
+          <button
             onClick={(e) => {
               e.stopPropagation();
               handleFavoriteToggle(character.id);
             }}
             title={isFavorite(character.id) ? '取消收藏' : '收藏'}
             aria-label={isFavorite(character.id) ? '取消收藏' : '收藏'}
-            className={`p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors ${
+            className={`p-2 rounded-full bg-black/45 hover:bg-black/65 transition-colors border border-white/10 shadow-sm ${
               isFavorite(character.id) ? 'text-yellow-400' : 'text-white'
             }`}
           >
-            <Star className={`w-4 h-4 ${isFavorite(character.id) ? 'fill-current' : ''}`} />
+            <Star className={`w-[18px] h-[18px] ${isFavorite(character.id) ? 'fill-current' : ''}`} />
           </button>
         </div>
-        <div className="absolute bottom-2 left-2 right-2">
-          <div className="flex flex-wrap gap-1 mb-2">
-            {character.traits.slice(0, 3).map((trait: string) => (
-              <span key={trait} className="bg-blue-600 text-white px-2 py-1 rounded text-xs backdrop-blur-sm">
-                {trait}
-              </span>
-            ))}
-          </div>
-        </div>
-        {/* Hover overlay */}
-        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center pointer-events-none">
-          <div className="flex space-x-2 pointer-events-auto">
-            <button 
+        <div className="absolute inset-x-0 bottom-0 p-4 z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+          <div className="flex flex-wrap justify-center gap-2 pointer-events-auto">
+            <button
               onClick={(e) => {
                 e.stopPropagation();
                 if (!isCreatingChat) {
                   handleStartChat(character);
                 }
               }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              className="px-4 py-2 rounded-full bg-blue-600/90 hover:bg-blue-600 text-white text-sm font-medium transition-colors disabled:opacity-60"
               disabled={isCreatingChat}
             >
               {isCreatingChat ? t('creating') : t('chatNow')}
             </button>
-            <button 
+            <button
               onClick={(e) => {
                 e.stopPropagation();
                 handlePreviewOpen(character);
               }}
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-4 py-2 rounded-full bg-white/15 hover:bg-white/25 text-white text-sm font-medium transition-colors backdrop-blur-sm"
             >
               {t('preview')}
             </button>
           </div>
         </div>
       </div>
-      <div className="p-3">
-        <h3 className="font-semibold text-white mb-1 truncate group-hover:text-blue-400 transition-colors">{character.name}</h3>
-        <p className="text-xs text-gray-400 mb-2 line-clamp-2">{character.description || character.backstory}</p>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="text-xs text-gray-400">⭐ 4.8</span>
-            {isFavorite(character.id) && (
-              <span className="text-xs text-yellow-400">❤️</span>
-            )}
+      <div className="p-4 space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <h3 className="font-semibold text-white text-lg leading-tight line-clamp-2 group-hover:text-blue-400 transition-colors">
+            {character.name}
+          </h3>
+          {isFavorite(character.id) && <span className="text-sm">❤️</span>}
+        </div>
+        <p className="text-sm text-gray-300/90 leading-relaxed line-clamp-3">
+          {character.description || character.backstory}
+        </p>
+        {character.traits?.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {character.traits.slice(0, 4).map((trait: string) => (
+              <span
+                key={trait}
+                className="px-2.5 py-1 text-xs font-medium rounded-full bg-gray-800/70 border border-gray-700/60 text-blue-100"
+              >
+                {trait}
+              </span>
+            ))}
           </div>
-          <div className="flex items-center space-x-1">
-            <Eye className="w-3 h-3 text-gray-400" />
-            <span className="text-xs text-gray-400">1.2K</span>
+        )}
+        <div className="flex items-center justify-between text-xs text-gray-400">
+          <div className="flex items-center gap-2">
+            <span>⭐ 4.8</span>
+            <span className="px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-200">{t('popular')}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Eye className="w-3.5 h-3.5 text-gray-400" />
+            <span>1.2K</span>
           </div>
         </div>
       </div>
@@ -346,9 +359,9 @@ const DiscoverSection = () => {
               {t('viewAll') || '查看全部'}
             </button>
           </div>
-          <div className={viewMode === 'masonry' 
-            ? "columns-1 md:columns-2 gap-4 space-y-4" 
-            : "grid grid-cols-1 md:grid-cols-2 gap-4"
+          <div className={viewMode === 'masonry'
+            ? "columns-1 md:columns-2 gap-5 space-y-5"
+            : "grid grid-cols-1 md:grid-cols-2 gap-5"
           }>
             {filteredSections.featured.map((character) => (
               <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>
@@ -380,9 +393,9 @@ const DiscoverSection = () => {
               {t('viewAll') || '查看全部'}
             </button>
           </div>
-          <div className={viewMode === 'masonry' 
-            ? "columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4" 
-            : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+          <div className={viewMode === 'masonry'
+            ? "columns-1 md:columns-2 gap-5 space-y-5"
+            : "grid grid-cols-1 md:grid-cols-2 gap-5"
           }>
             {filteredSections.trending.map((character) => (
               <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>
@@ -414,9 +427,9 @@ const DiscoverSection = () => {
               {t('viewAll') || '查看全部'}
             </button>
           </div>
-          <div className={viewMode === 'masonry' 
-            ? "columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4" 
-            : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+          <div className={viewMode === 'masonry'
+            ? "columns-1 md:columns-2 gap-5 space-y-5"
+            : "grid grid-cols-1 md:grid-cols-2 gap-5"
           }>
             {filteredSections.new.map((character) => (
               <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>
@@ -440,9 +453,9 @@ const DiscoverSection = () => {
               </span>
             )}
           </div>
-          <div className={viewMode === 'masonry' 
-            ? "columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4" 
-            : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+          <div className={viewMode === 'masonry'
+            ? "columns-1 md:columns-2 gap-5 space-y-5"
+            : "grid grid-cols-1 md:grid-cols-2 gap-5"
           }>
             {filteredSections.popular.map((character) => (
               <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>
@@ -466,9 +479,9 @@ const DiscoverSection = () => {
               </span>
             )}
           </div>
-          <div className={viewMode === 'masonry' 
-            ? "columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4" 
-            : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+          <div className={viewMode === 'masonry'
+            ? "columns-1 md:columns-2 gap-5 space-y-5"
+            : "grid grid-cols-1 md:grid-cols-2 gap-5"
           }>
             {filteredSections.recommended.map((character) => (
               <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>

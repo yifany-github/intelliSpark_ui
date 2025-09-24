@@ -52,7 +52,7 @@ export default function GlobalSidebar() {
 
   return (
     <div 
-      className={`${isCollapsed ? 'w-16' : 'w-64'} bg-gray-800 border-r border-gray-700 fixed left-0 top-14 z-20 transition-all duration-300 flex flex-col hidden sm:flex`}
+      className={`${isCollapsed ? 'w-16' : 'w-64'} bg-slate-950/90 border-r border-slate-800/80 backdrop-blur-md fixed left-0 top-14 z-20 overflow-hidden transition-[width] duration-300 ease-in-out flex flex-col hidden sm:flex`}
       style={{ height: 'calc(100vh - 56px)' }}
     >
       <div className="p-4 flex-1 min-h-0">
@@ -66,7 +66,7 @@ export default function GlobalSidebar() {
         {/* User Profile */}
         <div className={`flex items-center mb-6 ${isCollapsed ? 'justify-center' : 'space-x-3'}`}>
           <div 
-            className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center hover:bg-gray-500 transition-colors cursor-pointer"
+            className="w-10 h-10 bg-slate-800/70 rounded-full flex items-center justify-center hover:bg-slate-700 transition-colors cursor-pointer"
             onClick={navigateToHome}
             title={isCollapsed ? (isAuthenticated ? (user?.email?.split('@')[0] || t('user')) : t('guest')) : undefined}
           >
@@ -97,7 +97,7 @@ export default function GlobalSidebar() {
             <button
               key={item.id}
               onClick={() => navigateToPath(item.path)}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2 py-3' : 'space-x-4 px-3 py-2.5'} rounded-xl transition-all duration-200 group ${
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2 py-3' : 'space-x-4 px-3 py-2.5'} rounded-xl transition-colors duration-200 ease-in-out group ${
                 isRouteActive(item.path)
                   ? 'bg-gray-100/10 text-white font-medium' 
                   : 'text-gray-300 hover:bg-gray-100/5 hover:text-gray-100'
@@ -129,7 +129,7 @@ export default function GlobalSidebar() {
             <button
               key={link.path}
               onClick={() => navigateToPath(link.path)}
-              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2 py-3' : 'space-x-4 px-3 py-2'} rounded-xl text-gray-400 hover:bg-gray-100/5 hover:text-gray-200 text-sm transition-all duration-200 group`}
+              className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2 py-3' : 'space-x-4 px-3 py-2'} rounded-xl text-gray-400 hover:bg-gray-100/5 hover:text-gray-200 text-sm transition-colors duration-200 ease-in-out group`}
               title={isCollapsed ? link.label : undefined}
             >
               <link.icon className={`${isCollapsed ? 'w-6 h-6' : 'w-4 h-4'} group-hover:text-gray-200 transition-colors`} />

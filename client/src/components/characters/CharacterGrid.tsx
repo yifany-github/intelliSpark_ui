@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
-import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield, Heart, Share, MessageCircle, ChevronDown, Filter } from 'lucide-react';
+import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield, Heart, MessageCircle, ChevronDown, Filter, Sparkles, Smile, Ban } from 'lucide-react';
 import { Character } from '@/types';
 import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
@@ -13,9 +13,32 @@ import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
+import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectLabel,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 const filterKeys = ['popular', 'trending', 'new', 'following', 'editorChoice'] as const;
+const genderOptions = ['all', 'female', 'male', 'other'] as const;
+const genderIconMap: Record<typeof genderOptions[number], React.ComponentType<{ className?: string }>> = {
+  all: Users,
+  female: Heart,
+  male: Shield,
+  other: Sparkles,
+};
 
 // 新的多层次分类体系
 interface CategoryGroup {
@@ -79,14 +102,15 @@ interface CharacterGridProps {
 
 export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) {
   const [activeTab, setActiveTab] = useState('Characters');
-  const [selectedFilter, setSelectedFilter] = useState('popular');
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [genderFilter, setGenderFilter] = useState('all');
+  const [selectedFilter, setSelectedFilter] = useState<typeof filterKeys[number]>('popular');
+  const [selectedCategory, setSelectedCategory] = useState<typeof categoryKeys[number]>('all');
+  const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female' | 'other'>('all');
   const [nsfwEnabled, setNsfwEnabled] = useState(false);
   const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
-  const [isCategoryExpanded, setIsCategoryExpanded] = useState(false);
-  const [visibleCategoriesCount, setVisibleCategoriesCount] = useState(6);
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isNSFWConfirmOpen, setIsNSFWConfirmOpen] = useState(false);
   const { navigateToPath, navigateToLogin } = useNavigation();
 
   // Helper function to detect NSFW content in character (primary: explicit flag; secondary: keyword heuristic)
@@ -160,6 +184,53 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const { t } = useLanguage();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const nsfwSwitchId = useId();
+  const favoritesSwitchId = useId();
+  const panelId = useId();
+
+  const selectedCategoryLabel = selectedCategory === 'all'
+    ? (t('all') || '全部')
+    : allCategories.find(cat => cat.key === selectedCategory)?.label || selectedCategory;
+
+  const genderLabel =
+    genderFilter === 'all'
+      ? t('all') || '全部'
+      : t(genderFilter) ||
+        ({
+          female: '女性',
+          male: '男性',
+          other: '其他',
+        } as const)[genderFilter];
+
+  const handleResetFilters = () => {
+    setSelectedFilter('popular');
+    setSelectedCategory('all');
+    setGenderFilter('all');
+    setNsfwEnabled(false);
+    setActiveTab('Characters');
+  };
+
+  const activeFilters = useMemo(() => {
+    const badges: { label: string; value: string; color: string }[] = [];
+
+    if (selectedFilter !== 'popular') {
+      badges.push({ label: t('sortBy') || '排序', value: t(selectedFilter), color: 'bg-brand-secondary/20 text-brand-secondary' });
+    }
+    if (selectedCategory !== 'all') {
+      badges.push({ label: t('category') || '分类', value: selectedCategoryLabel, color: 'bg-brand-accent/20 text-brand-accent' });
+    }
+    if (genderFilter !== 'all') {
+      badges.push({ label: t('gender') || '性别', value: genderLabel, color: 'bg-blue-500/15 text-blue-400' });
+    }
+    if (nsfwEnabled) {
+      badges.push({ label: 'NSFW', value: t('nsfwEnabled') || '已开启', color: 'bg-red-500/20 text-red-400' });
+    }
+    if (activeTab === 'Favorites') {
+      badges.push({ label: t('favorites') || '收藏', value: t('favoritesOnly') || '仅看收藏', color: 'bg-pink-500/20 text-pink-500' });
+    }
+
+    return badges;
+  }, [selectedFilter, selectedCategory, genderFilter, nsfwEnabled, activeTab, t, selectedCategoryLabel, genderLabel]);
   
   // Mutation for creating a new chat (runs in background after immediate navigation)
   const { mutate: createChat, isPending: isCreatingChat } = useMutation({
@@ -220,58 +291,6 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     { key: 'Chats', label: t('chats') },
     { key: 'Favorites', label: t('favorites') }
   ];
-
-  // 根据屏幕宽度计算可显示的分类标签数量
-  const calculateVisibleCategories = useCallback(() => {
-    const screenWidth = window.innerWidth;
-    
-    // 根据不同屏幕宽度设置不同的显示数量
-    if (screenWidth < 640) {        // sm breakpoint
-      return 2; // 移动端显示最少
-    } else if (screenWidth < 768) { // md breakpoint  
-      return 4;
-    } else if (screenWidth < 1024) { // lg breakpoint
-      return 6;
-    } else if (screenWidth < 1280) { // xl breakpoint
-      return 8;
-    } else if (screenWidth < 1536) { // 2xl breakpoint
-      return 10;
-    } else {                        // 超大屏幕
-      return 12; // 显示更多分类
-    }
-  }, []);
-
-  // 监听窗口大小变化
-  useEffect(() => {
-    const updateVisibleCategories = () => {
-      const newCount = calculateVisibleCategories();
-      setVisibleCategoriesCount(newCount);
-      
-      // 如果新的可见分类数量能够包含所有分类，自动收起展开状态
-      if (newCount >= allCategories.length && isCategoryExpanded) {
-        setIsCategoryExpanded(false);
-      }
-    };
-
-    // 初始化
-    updateVisibleCategories();
-
-    // 添加窗口大小变化监听器 - 使用防抖以提高性能
-    let timeoutId: NodeJS.Timeout;
-    const debouncedUpdate = () => {
-      clearTimeout(timeoutId);
-      timeoutId = setTimeout(updateVisibleCategories, 100);
-    };
-
-    window.addEventListener('resize', debouncedUpdate);
-
-    // 清理监听器
-    return () => {
-      window.removeEventListener('resize', debouncedUpdate);
-      clearTimeout(timeoutId);
-    };
-  }, [calculateVisibleCategories, isCategoryExpanded, allCategories.length]);
-
 
   // Ensure characters is an array
   const charactersArray = Array.isArray(characters) ? characters : [];
@@ -499,119 +518,331 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   return (
     <div className="w-full h-full px-3 sm:px-4 md:px-6 lg:px-8 xl:px-10 py-3 sm:py-6">
       {/* Content Header */}
-      <div className="mb-6">        
-        {/* Tabs */}
-        <div className="flex space-x-6 mb-6">
+      <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-4 text-sm font-medium text-content-tertiary">
           {tabs.map(tab => (
             <button
               key={tab.key}
               onClick={() => setActiveTab(tab.key)}
-              className={`text-lg font-medium pb-2 border-b-2 transition-colors ${
+              className={`group relative rounded-full px-4 py-2 transition-colors ${
                 activeTab === tab.key
-                  ? 'text-brand-secondary border-brand-secondary bg-brand-secondary/5'
-                  : 'text-content-tertiary border-transparent hover:text-content-secondary'
+                  ? 'bg-brand-secondary/10 text-brand-secondary shadow-surface'
+                  : 'hover:text-content-secondary'
               }`}
             >
-              {tab.label}
+              <span className="text-sm font-medium uppercase tracking-[0.12em]">
+                {tab.label}
+              </span>
+              {activeTab === tab.key && (
+                <span className="pointer-events-none absolute inset-x-4 bottom-0 h-px rounded-full bg-brand-secondary/70" />
+              )}
             </button>
           ))}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            {genderOptions.map(option => {
+              const GenderIcon = genderIconMap[option];
+              return (
+                <button
+                  key={`gender-${option}`}
+                  onClick={() => setGenderFilter(option)}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.16em] transition-colors ${
+                    genderFilter === option
+                      ? 'border-brand-secondary/70 bg-brand-secondary/15 text-brand-secondary shadow-[0_6px_20px_-15px_rgba(244,164,96,0.9)]'
+                      : 'border-transparent bg-surface-tertiary/60 text-content-secondary hover:bg-surface-tertiary'
+                  }`}
+                  type="button"
+                >
+                  <GenderIcon className="h-3.5 w-3.5" />
+                  <span>{option === 'all' ? (t('all') || '全部') : t(option)}</span>
+                </button>
+              );
+            })}
+          </div>
+          {activeFilters.length > 0 && (
+            <span className="inline-flex items-center gap-2 rounded-full bg-brand-secondary/10 px-3 py-1 text-xs font-medium text-brand-secondary shadow-[0_0_12px_rgba(244,164,96,0.15)]">
+              <Sparkles className="h-3 w-3" />
+              {t('activeFilters') || '已应用筛选'} · {activeFilters.length}
+            </span>
+          )}
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-col sm:flex-row sm:items-center space-y-2 sm:space-y-0 sm:space-x-4 mb-4">
-          <div className="flex flex-wrap gap-2">
-            {filterKeys.map(filterKey => (
-              <button
-                key={filterKey}
-                onClick={() => setSelectedFilter(filterKey)}
-                className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-full text-sm font-medium transition-colors flex items-center space-x-2 min-h-[44px] min-w-[44px] justify-center ${
-                  selectedFilter === filterKey
-                    ? 'bg-brand-secondary text-zinc-900 shadow-surface'
-                    : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600 active:bg-zinc-500'
-                }`}
-              >
-                {filterKey === 'popular' && <Flame className="w-4 h-4" />}
-                {filterKey === 'trending' && <TrendingUp className="w-4 h-4" />}
-                {filterKey === 'new' && <Star className="w-4 h-4" />}
-                {filterKey === 'following' && <Users className="w-4 h-4" />}
-                {filterKey === 'editorChoice' && <Crown className="w-4 h-4" />}
-                <span className="hidden sm:inline">{t(filterKey)}</span>
-              </button>
-            ))}
-          </div>
-          
-          <div className="flex items-center space-x-2 sm:space-x-4 sm:ml-auto">
-            <div className="flex items-center space-x-2">
-              <span className="text-sm">{t('gender')}</span>
-              <select 
-                value={genderFilter}
-                onChange={(e) => setGenderFilter(e.target.value)}
-                className="bg-gray-700 border border-gray-600 rounded px-2 py-1 text-sm"
-              >
-                <option value="all">{t('all')}</option>
-                <option value="male">{t('male')}</option>
-                <option value="female">{t('female')}</option>
-                <option value="other">{t('other')}</option>
-              </select>
-            </div>
-            
-            <div className="flex items-center space-x-3 bg-surface-secondary p-3 rounded-lg border border-surface-border">
-              <Shield className="w-4 h-4 text-brand-secondary" />
-              <span className="text-sm font-medium text-content-primary">{t('adultContentControl')}</span>
-              <button
-                onClick={() => setNsfwEnabled(!nsfwEnabled)}
-                className={`relative w-12 h-6 rounded-full transition-all duration-300 ${
-                  nsfwEnabled 
-                    ? 'bg-brand-secondary shadow-glow' 
-                    : 'bg-surface-tertiary hover:bg-zinc-500'
-                }`}
-              >
-                <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition-all duration-300 flex items-center justify-center ${
-                  nsfwEnabled ? 'translate-x-6 shadow-md' : 'translate-x-0'
-                }`}>
-                  <Crown className="w-3 h-3 text-brand-secondary" />
-                </div>
-              </button>
-            </div>
-          </div>
-        </div>
+        <div className="hidden lg:flex lg:items-center lg:gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              if (!nsfwEnabled) {
+                setIsNSFWConfirmOpen(true);
+                return;
+              }
+              setNsfwEnabled(false);
+            }}
+            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-colors ${
+              nsfwEnabled
+                ? 'border-red-400/60 bg-red-500/15 text-red-200 hover:border-red-300 hover:text-red-100'
+                : 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200 hover:border-emerald-300 hover:text-emerald-100'
+            }`}
+          >
+            {nsfwEnabled ? <Ban className="h-4 w-4" /> : <Smile className="h-4 w-4" />}
+            <span>{nsfwEnabled ? (t('nsfwEnabledLabel') || 'NSFW Enabled') : (t('nsfwDisabledLabel') || 'Safe Mode')}</span>
+          </button>
 
-        {/* Category Tags - 水平滚动设计，移动端友好 */}
-        <div className="mb-6">
-          <div className="flex overflow-x-auto gap-3 pb-2 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-surface-border">
-            {/* 全部标签 */}
-            <button
-              onClick={() => setSelectedCategory('all')}
-              className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-colors min-h-[40px] ${
-                selectedCategory === 'all'
-                  ? 'bg-brand-secondary text-zinc-900 shadow-surface'
-                  : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600 active:bg-zinc-500'
-              }`}
-            >
-              全部
-            </button>
-            
-            {/* 所有分类标签水平滚动 */}
-            {allCategories.map((category) => (
-              <button
-                key={category.key}
-                onClick={() => setSelectedCategory(category.key)}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap flex-shrink-0 transition-colors min-h-[40px] ${
-                  selectedCategory === category.key
-                    ? 'bg-brand-accent text-white shadow-surface'
-                    : 'bg-surface-tertiary text-content-secondary hover:bg-zinc-600 active:bg-zinc-500'
-                }`}
-              >
-                {category.label}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsSidebarOpen(true)}
+            className="inline-flex items-center gap-2 rounded-full border border-surface-border/60 bg-surface-secondary/40 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-content-tertiary shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-colors hover:border-brand-secondary/50 hover:text-brand-secondary"
+          >
+            <Filter className="h-4 w-4" />
+            <span>{t('showFilters') || '显示筛选'}</span>
+          </button>
         </div>
       </div>
 
+      <Sheet open={isSidebarOpen} onOpenChange={setIsSidebarOpen}>
+        <SheetTrigger asChild>
+          <span className="hidden" />
+        </SheetTrigger>
+        <SheetContent side="right" className="hidden w-full max-w-[420px] border-surface-border/40 bg-gradient-to-br from-surface-secondary/80 via-surface-secondary/40 to-surface-secondary/20 px-6 pb-6 pt-8 shadow-[0_18px_45px_-25px_rgba(0,0,0,0.65)] backdrop-blur-xl lg:block">
+          <div className="flex h-full flex-col overflow-hidden">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3 text-sm font-semibold uppercase tracking-[0.18em] text-content-secondary">
+              <Filter className="h-4 w-4" />
+              <span>{t('filters') || '筛选器'}</span>
+            </div>
+            <button
+              onClick={handleResetFilters}
+              className="rounded-full bg-surface-primary/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-content-tertiary transition-colors hover:bg-brand-secondary/90 hover:text-black"
+              type="button"
+            >
+              {t('clearFilters') || '清除筛选'}
+            </button>
+          </div>
+
+          <Separator className="my-4 bg-surface-border/30" />
+
+          <div className="flex flex-col gap-4 overflow-y-auto pr-1">
+            <div className="rounded-2xl border border-white/5 bg-surface-primary/70 p-4 shadow-[0_12px_35px_-25px_rgba(0,0,0,0.65)]">
+              <Label className="text-[11px] font-semibold uppercase tracking-[0.22em] text-content-tertiary/70">
+                {t('category') || '分类'}
+              </Label>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setSelectedCategory('all')}
+                  className={`rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+                    selectedCategory === 'all'
+                      ? 'border-brand-secondary/70 bg-brand-secondary/15 text-brand-secondary shadow-[0_4px_18px_-10px_rgba(244,164,96,0.9)]'
+                      : 'border-transparent bg-surface-tertiary/60 text-content-secondary hover:bg-surface-tertiary'
+                  }`}
+                  type="button"
+                >
+                  {t('all') || '全部'}
+                </button>
+                {categoryGroups.map(group => (
+                  <div key={`sheet-group-${group.key}`} className="col-span-2">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-content-tertiary/60">
+                      {group.label}
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {group.categories.map(category => (
+                        <button
+                          key={category.key}
+                          onClick={() => setSelectedCategory(category.key)}
+                          className={`rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${
+                            selectedCategory === category.key
+                              ? 'border-brand-secondary/70 bg-brand-secondary/15 text-brand-secondary shadow-[0_4px_18px_-10px_rgba(244,164,96,0.9)]'
+                              : 'border-transparent bg-surface-tertiary/60 text-content-secondary hover:bg-surface-tertiary'
+                          }`}
+                          type="button"
+                        >
+                          {category.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/5 bg-surface-primary/70 p-4 shadow-[0_12px_35px_-25px_rgba(0,0,0,0.65)]">
+              <Label className="text-[11px] font-semibold uppercase tracking-[0.22em] text-content-tertiary/70">
+                {t('favorites') || '收藏'}
+              </Label>
+              <div className="mt-2 flex items-center justify-between rounded-xl border border-surface-border/40 bg-surface-secondary/60 px-3 py-2">
+                <div>
+                  <p className="text-sm font-semibold text-content-primary">{t('favoritesOnly') || '仅看收藏'}</p>
+                  <p className="text-xs text-content-tertiary">{activeTab === 'Favorites' ? t('showAllCharacters') : t('showFavoritesOnly')}</p>
+                </div>
+                <Switch
+                  id={`${panelId}-sheet-favorites`}
+                  checked={activeTab === 'Favorites'}
+                  onCheckedChange={(value) => setActiveTab(value ? 'Favorites' : 'Characters')}
+                  className="data-[state=checked]:bg-brand-secondary"
+                />
+              </div>
+            </div>
+
+            {activeFilters.length > 0 && (
+              <div className="rounded-2xl border border-white/5 bg-surface-primary/70 p-4 shadow-[0_12px_35px_-25px_rgba(0,0,0,0.65)]">
+                <Label className="text-[11px] font-semibold uppercase tracking-[0.22em] text-content-tertiary/70">
+                  {t('activeFilters') || '已应用筛选'}
+                </Label>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {activeFilters.map((badge, index) => (
+                    <Badge key={`sheet-badge-${index}`} variant="secondary" className={`gap-1 rounded-full ${badge.color}`}>
+                      {badge.label}: {badge.value}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      <Dialog open={isNSFWConfirmOpen} onOpenChange={setIsNSFWConfirmOpen}>
+        <DialogContent className="max-w-md bg-surface-primary text-content-primary">
+          <DialogHeader>
+            <DialogTitle>{t('confirmEnableNSFW') || 'Confirm Adult Content'}</DialogTitle>
+            <DialogDescription>
+              {t('nsfwDisclaimer') || 'Adult content is available only to users who are at least 18 years old. By enabling NSFW mode you confirm that you are of legal age and legally responsible for viewing adult-oriented material.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md bg-red-500/10 px-4 py-3 text-xs text-red-200">
+            {t('nsfwLegalNotice') || 'Proceeding means you acknowledge local laws and agree to the platform terms regarding adult content.'}
+          </div>
+          <DialogFooter className="mt-4 flex w-full justify-end gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setIsNSFWConfirmOpen(false)}
+            >
+              {t('cancel') || '取消'}
+            </Button>
+            <Button
+              type="button"
+              className="bg-red-500 text-white hover:bg-red-500/90"
+              onClick={() => {
+                setNsfwEnabled(true);
+                setIsNSFWConfirmOpen(false);
+              }}
+            >
+              {t('confirm') || '确认开启'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <div className="flex-1 space-y-4">
+        <div className="lg:hidden">
+          <Sheet open={isFilterPanelOpen} onOpenChange={setIsFilterPanelOpen}>
+            <SheetTrigger asChild>
+              <button className="flex w-full items-center justify-between rounded-2xl border border-surface-border/50 bg-surface-secondary/40 px-4 py-3 text-sm font-semibold text-content-secondary shadow-[0_14px_24px_-20px_rgba(0,0,0,0.65)]">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4" />
+                  <span>{t('filters') || '筛选器'}</span>
+                </div>
+                <ChevronDown className={`h-4 w-4 transition-transform ${isFilterPanelOpen ? 'rotate-180' : 'rotate-0'}`} />
+              </button>
+            </SheetTrigger>
+            <SheetContent className="max-w-sm overflow-y-auto px-4 pb-6 pt-4" side="left">
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-wrap gap-2">
+                  {filterKeys.map(filterKey => (
+                    <button
+                      key={`mobile-${filterKey}`}
+                      onClick={() => setSelectedFilter(filterKey)}
+                      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-colors ${
+                        selectedFilter === filterKey
+                          ? 'border-brand-secondary bg-brand-secondary/20 text-brand-secondary shadow-surface'
+                          : 'border-transparent bg-surface-tertiary text-content-secondary hover:bg-surface-tertiary/80'
+                      }`}
+                      type="button"
+                    >
+                      {filterKey === 'popular' && <Flame className="h-4 w-4" />}
+                      {filterKey === 'trending' && <TrendingUp className="h-4 w-4" />}
+                      {filterKey === 'new' && <Star className="h-4 w-4" />}
+                      {filterKey === 'following' && <Users className="h-4 w-4" />}
+                      {filterKey === 'editorChoice' && <Crown className="h-4 w-4" />}
+                      <span>{t(filterKey)}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <Separator className="bg-surface-border/40" />
+
+                <div className="space-y-3">
+                  <Label className="text-xs font-medium uppercase tracking-wide text-content-tertiary/80">{t('category') || '分类'}</Label>
+                  <Select value={selectedCategory} onValueChange={(value) => setSelectedCategory(value as typeof categoryKeys[number])}>
+                    <SelectTrigger className="h-11 rounded-xl border-surface-border/70 bg-surface-secondary text-sm font-medium">
+                      <SelectValue placeholder={t('category')}>
+                        <div className="flex items-center gap-2">
+                          <Filter className="h-4 w-4 text-brand-accent" />
+                          <span className="truncate text-content-primary">{selectedCategoryLabel}</span>
+                        </div>
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent className="rounded-xl border border-surface-border/70 bg-surface-primary shadow-xl" position="popper">
+                      <SelectGroup>
+                        <SelectLabel className="text-xs text-content-tertiary/80">{t('quickSelect') || '快速选择'}</SelectLabel>
+                        <SelectItem value="all">{t('all') || '全部'}</SelectItem>
+                        {categoryGroups.map(group => (
+                          <div key={`mobile-group-${group.key}`}>
+                            <SelectLabel className="text-xs text-content-tertiary/80">
+                              {group.label}
+                            </SelectLabel>
+                            {group.categories.map(category => (
+                              <SelectItem key={category.key} value={category.key}>
+                                {category.label}
+                              </SelectItem>
+                            ))}
+                          </div>
+                        ))}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-3">
+                  <Label className="text-xs font-medium uppercase tracking-wide text-content-tertiary/80">{t('favoritesOnly') || '仅看收藏'}</Label>
+                  <div className="flex items-center justify-between rounded-xl border border-surface-border/60 bg-surface-primary px-3 py-3">
+                    <div>
+                      <p className="text-sm font-medium text-content-primary">{t('favoritesOnly') || '仅看收藏'}</p>
+                      <p className="text-xs text-content-tertiary">{activeTab === 'Favorites' ? t('showAllCharacters') : t('showFavoritesOnly')}</p>
+                    </div>
+                    <Switch
+                      id={`${panelId}-mobile-favorites`}
+                      checked={activeTab === 'Favorites'}
+                      onCheckedChange={(value) => setActiveTab(value ? 'Favorites' : 'Characters')}
+                      className="data-[state=checked]:bg-brand-secondary"
+                    />
+                  </div>
+                </div>
+
+                {activeFilters.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {activeFilters.map((badge, index) => (
+                      <Badge key={`mobile-badge-${index}`} variant="secondary" className={`gap-1 rounded-full ${badge.color}`}>
+                        {badge.label}: {badge.value}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </SheetContent>
+          </Sheet>
+        </div>
+
+        {activeFilters.length === 0 && (
+          <div className="flex items-center gap-2 text-xs text-content-tertiary lg:hidden">
+            <Sparkles className="h-3.5 w-3.5" />
+            {t('filterHint') || '快速上手：先按“热门”排序，再选择感兴趣的分类即可开始探索。'}
+          </div>
+        )}
+      </div>
+ 
       {/* Character Grid */}
       {isLoading ? (
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 3xl:grid-cols-10 gap-3 sm:gap-4" role="grid" aria-label="Character cards loading">
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6 xl:gap-8" role="grid" aria-label="Character cards loading">
           {[...Array(10)].map((_, i) => (
             <div key={i} className="group relative bg-gradient-surface border border-surface-border rounded-xl overflow-hidden shadow-elevated animate-pulse" role="gridcell" aria-label={`Loading character ${i + 1}`}>
               {/* Enhanced shimmer effect */}
@@ -697,218 +928,200 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-8 3xl:grid-cols-10 gap-3 sm:gap-4" role="grid" aria-label="Character cards">
-          {sortedCharacters.map(character => (
-            <div 
-              key={character.id} 
-              className="group relative bg-gradient-surface border border-surface-border rounded-xl overflow-hidden shadow-elevated hover:shadow-premium hover:shadow-glow transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] cursor-pointer focus-within:ring-2 focus-within:ring-brand-secondary focus-within:ring-offset-2 focus-within:ring-offset-zinc-900"
-              onClick={() => handleCharacterClick(character)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleCharacterClick(character);
-                }
-              }}
-              tabIndex={0}
-              role="button"
-              aria-label={`Select character ${character.name}. ${character.description || ''}`}
-            >
-              <div className="relative w-full aspect-[3/4] overflow-hidden bg-surface-tertiary">
-                <img
-                  src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}
-                  alt={`${character.name} character avatar`}
-                  className="w-full h-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-105"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.src = `${API_BASE_URL}/assets/characters_img/Elara.jpeg`;
-                    target.onerror = null; // Prevent infinite loop
-                  }}
-                  loading="lazy"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                
-                {/* Featured character indicator - only show for admin-featured characters */}
-                {isCharacterFeatured(character) && (
-                  <div className="absolute top-3 left-3 animate-pulse">
-                    <div className="flex items-center justify-center space-x-1 bg-gradient-to-r from-yellow-400 via-yellow-500 to-amber-500 px-3 py-1.5 rounded-full shadow-lg shadow-yellow-500/50 border-2 border-yellow-300 h-8">
-                      <Crown className="w-4 h-4 text-amber-900 drop-shadow-sm" />
-                      <span className="text-xs text-amber-900 font-black tracking-wide drop-shadow-sm leading-none">{t('featured')}</span>
-                    </div>
+        <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6 xl:gap-8" role="grid" aria-label="Character cards">
+          {sortedCharacters.map(character => {
+            const analytics = getCharacterAnalytics(character);
+            const totalActivity = analytics.viewCount + analytics.chatCount;
+            const rating = getCharacterRating(character);
+
+            const isFeaturedCard = isCharacterFeatured(character);
+
+            const statusBadge = (() => {
+              if (isFeaturedCard) {
+                return (
+                  <div className="flex items-center gap-1 bg-gradient-to-r from-yellow-400 via-yellow-500 to-amber-400 px-2.5 py-1 rounded-full shadow-glow shadow-yellow-400/30 animate-pulse">
+                    <Crown className="w-3.5 h-3.5 text-amber-900 drop-shadow" />
+                    <span className="text-xs text-amber-900 font-semibold tracking-wide leading-none">官方推荐</span>
                   </div>
+                );
+              }
+              if (totalActivity > 100) {
+                return (
+                  <div className="flex items-center space-x-1 leading-none">
+                    <div className="w-2 h-2 bg-green-400 rounded-full" />
+                    <span className="text-xs text-green-400 font-medium leading-none">{t('popular')}</span>
+                  </div>
+                );
+              }
+              if (totalActivity > 10) {
+                return (
+                  <div className="flex items-center space-x-1 leading-none">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full" />
+                    <span className="text-xs text-blue-400 font-medium leading-none">活跃</span>
+                  </div>
+                );
+              }
+              return (
+                <div className="flex items-center space-x-1 leading-none">
+                  <div className="w-2 h-2 bg-gray-400 rounded-full" />
+                  <span className="text-xs text-gray-400 font-medium leading-none">新角色</span>
+                </div>
+              );
+            })();
+
+            return (
+              <div 
+                key={character.id} 
+                className={`group relative grid w-full aspect-[2/1] min-h-[460px] grid-rows-[6fr_5fr] bg-gradient-surface border rounded-xl overflow-hidden shadow-elevated transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] cursor-pointer focus-within:ring-2 focus-within:ring-brand-secondary focus-within:ring-offset-2 focus-within:ring-offset-zinc-900 ${
+                  isFeaturedCard
+                    ? 'border-amber-300/70 shadow-[0_0_40px_rgba(251,191,36,0.35)] hover:shadow-[0_0_55px_rgba(251,191,36,0.45)]'
+                    : 'border-surface-border hover:shadow-premium hover:shadow-glow'
+                }`}
+                onClick={() => handleCharacterClick(character)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleCharacterClick(character);
+                  }
+                }}
+                tabIndex={0}
+                role="button"
+                aria-label={`Select character ${character.name}. ${character.description || ''}`}
+              >
+                {isFeaturedCard && (
+                  <>
+                    <div className="pointer-events-none absolute inset-0 rounded-xl border border-amber-300/60 opacity-80 animate-[pulse_3s_ease-in-out_infinite]" />
+                    <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-br from-amber-200/10 via-amber-300/10 to-transparent mix-blend-screen animate-[pulse_4s_ease-in-out_infinite]" />
+                    <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
+                      <div className="absolute inset-y-[-40%] left-[-60%] w-[160%] rotate-6 bg-[linear-gradient(120deg,transparent,rgba(251,191,36,0.75),transparent)] blur-xl opacity-60 animate-[featuredShine_7s_linear_infinite]" />
+                    </div>
+                  </>
                 )}
-                
-                {/* Top-right indicators and actions */}
-                <div className="absolute top-3 right-3 flex items-center space-x-2">
-                  <button 
-                    onClick={(e) => {
-                      try {
-                        e.stopPropagation();
-                        handleFavoriteToggle(character.id);
-                      } catch (error) {
-                        console.error('Failed to toggle favorite:', error);
-                      }
+                <div className="relative z-10 overflow-hidden bg-surface-tertiary">
+                  <img
+                    src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}
+                    alt={`${character.name} character avatar`}
+                    className="h-full w-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-105"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      target.src = `${API_BASE_URL}/assets/characters_img/Elara.jpeg`;
+                      target.onerror = null; // Prevent infinite loop
                     }}
-                    aria-label={`${isFavorite(character.id) ? '取消收藏' : '收藏'} ${character.name}`}
-                    className={`w-8 h-8 bg-black/60 backdrop-blur-sm rounded-full hover:bg-black/80 transition-all duration-200 flex items-center justify-center ${
-                      isFavorite(character.id) ? 'text-brand-secondary' : 'text-white hover:text-brand-secondary'
-                    }`}
-                  >
-                    <Star className={`w-4 h-4 ${isFavorite(character.id) ? 'fill-current' : ''}`} />
-                  </button>
-                  {/* NSFW indicator - only show for characters with adult content */}
-                  {isCharacterNSFW(character) && (
-                    <div className="w-8 h-8 bg-red-500/90 backdrop-blur-sm rounded-full border border-red-400/50 flex items-center justify-center">
-                      <span className="text-xs text-white font-bold leading-none">18+</span>
-                    </div>
-                  )}
-                </div>
-                {/* Removed overlay trait chips to avoid duplication with content area */}
-                {/* Simplified hover overlay - dual action layout */}
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4 pointer-events-none">
-                  <div className="w-full space-y-2 pointer-events-auto">
-                    {/* Primary action - Start Chat */}
-                    <button 
-                      onClick={(e) => {
-                        try {
-                          e.stopPropagation();
-                          handleStartChat(character);
-                        } catch (error) {
-                          console.error('Failed to start chat:', error);
-                        }
-                      }}
-                      className="w-full py-3 bg-brand-secondary text-zinc-900 rounded-lg font-bold text-sm hover:bg-brand-secondary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-black"
-                    >
-                      <div className="flex items-center justify-center space-x-2">
-                        <MessageCircle className="w-4 h-4" />
-                        <span>开始聊天</span>
-                      </div>
-                    </button>
-                    
-                    {/* Secondary action - Preview */}
-                    <button 
-                      onClick={(e) => {
-                        try {
-                          e.stopPropagation();
-                          handlePreviewOpen(character);
-                        } catch (error) {
-                          console.error('Failed to open preview:', error);
-                        }
-                      }}
-                      className="w-full py-2 bg-surface-secondary/90 backdrop-blur-sm text-content-primary rounded-lg font-medium text-sm hover:bg-surface-tertiary transition-colors focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-black"
-                    >
-                      <div className="flex items-center justify-center space-x-2">
-                        <Eye className="w-4 h-4" />
-                        <span>预览详情</span>
-                      </div>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <div className="p-4 space-y-3">
-                {/* Character name with meaningful status */}
-                <div className="flex items-center justify-between">
-                  <h3 className="font-bold text-lg text-content-primary group-hover:text-brand-secondary transition-colors truncate">
-                    {character.name}
-                  </h3>
-                  {/* Show activity level based on real data instead of confusing "online" status */}
-                  {(() => {
-                    const analytics = getCharacterAnalytics(character);
-                    const totalActivity = analytics.viewCount + analytics.chatCount;
-                    
-                    if (isCharacterFeatured(character)) {
-                      return (
-                        <div className="flex items-center space-x-1">
-                          <Crown className="w-3 h-3 text-yellow-500" />
-                          <span className="text-xs text-yellow-500 font-medium">官方推荐</span>
-                        </div>
-                      );
-                    } else if (totalActivity > 100) {
-                      return (
-                        <div className="flex items-center space-x-1">
-                          <div className="w-2 h-2 bg-green-400 rounded-full" />
-                          <span className="text-xs text-green-400 font-medium">{t('popular')}</span>
-                        </div>
-                      );
-                    } else if (totalActivity > 10) {
-                      return (
-                        <div className="flex items-center space-x-1">
-                          <div className="w-2 h-2 bg-blue-400 rounded-full" />
-                          <span className="text-xs text-blue-400 font-medium">活跃</span>
-                        </div>
-                      );
-                    } else {
-                      return (
-                        <div className="flex items-center space-x-1">
-                          <div className="w-2 h-2 bg-gray-400 rounded-full" />
-                          <span className="text-xs text-gray-400 font-medium">新角色</span>
-                        </div>
-                      );
-                    }
-                  })()}
-                </div>
-                
-                {/* Voice style and description */}
-                <div className="space-y-2">
-                  {/* TODO: Re-enable voice style UI when voice system is implemented (Issue #118)
-                  <div className="flex items-center space-x-2">
-                    <Mic className="w-3 h-3 text-brand-secondary" />
-                    <span className="text-xs text-content-secondary font-medium truncate">{character.voiceStyle || t('defaultVoice')}</span>
-                  </div>
-                  */}
+                    loading="lazy"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                   
-                  {/* Character description - always visible */}
-                  <p className="text-xs text-content-tertiary line-clamp-2 leading-relaxed">
-                    {character.description}
+                  <div className="absolute top-3 right-3 flex items-center space-x-2">
+                    <button 
+                      onClick={(e) => {
+                        try {
+                          e.stopPropagation();
+                          handleFavoriteToggle(character.id);
+                        } catch (error) {
+                          console.error('Failed to toggle favorite:', error);
+                        }
+                      }}
+                      aria-label={`${isFavorite(character.id) ? '取消收藏' : '收藏'} ${character.name}`}
+                      className={`w-8 h-8 bg-black/60 backdrop-blur-sm rounded-full hover:bg-black/80 transition-all duration-200 flex items-center justify-center ${
+                        isFavorite(character.id) ? 'text-brand-secondary' : 'text-white hover:text-brand-secondary'
+                      }`}
+                    >
+                      <Star className={`w-4 h-4 ${isFavorite(character.id) ? 'fill-current' : ''}`} />
+                    </button>
+                    {isCharacterNSFW(character) && (
+                      <div className="w-8 h-8 bg-red-500/90 backdrop-blur-sm rounded-full border border-red-400/50 flex items-center justify-center">
+                        <span className="text-xs text-white font-bold leading-none">18+</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4 pointer-events-none">
+                    <div className="w-full space-y-2 pointer-events-auto">
+                      <button 
+                        onClick={(e) => {
+                          try {
+                            e.stopPropagation();
+                            handleStartChat(character);
+                          } catch (error) {
+                            console.error('Failed to start chat:', error);
+                          }
+                        }}
+                        className="w-full py-3 bg-brand-secondary text-zinc-900 rounded-lg font-bold text-sm hover:bg-brand-secondary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-black"
+                      >
+                        <div className="flex items-center justify-center space-x-2">
+                          <MessageCircle className="w-4 h-4" />
+                          <span>开始聊天</span>
+                        </div>
+                      </button>
+                      
+                      <button 
+                        onClick={(e) => {
+                          try {
+                            e.stopPropagation();
+                            handlePreviewOpen(character);
+                          } catch (error) {
+                            console.error('Failed to open preview:', error);
+                          }
+                        }}
+                        className="w-full py-2 bg-surface-secondary/90 backdrop-blur-sm text-content-primary rounded-lg font-medium text-sm hover:bg-surface-tertiary transition-colors focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-black"
+                      >
+                        <div className="flex items-center justify-center space-x-2">
+                          <Eye className="w-4 h-4" />
+                          <span>预览详情</span>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div className="relative z-10 flex flex-col overflow-hidden p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 className="flex-1 font-bold text-lg text-content-primary group-hover:text-brand-secondary transition-colors truncate">
+                      {character.name}
+                    </h3>
+                    <div className="flex items-center">{statusBadge}</div>
+                  </div>
+
+                  <p className="mt-2 text-sm text-content-tertiary line-clamp-2 md:line-clamp-3 xl:line-clamp-4 leading-relaxed">
+                    {character.description || character.backstory}
                   </p>
-                </div>
-                
-                {/* Traits display (single location on card) */}
-                {character.traits?.length > 0 && (
-                  <div className="space-y-2">
-                    <TraitChips
-                      traits={character.traits}
-                      maxVisible={2}
-                      size="xs"
-                      chipClassName="px-2.5 py-1 bg-brand-secondary/20 text-brand-secondary border border-brand-secondary/30"
-                      moreChipClassName="px-2.5 py-1 bg-surface-tertiary text-content-tertiary border border-surface-border"
-                    />
-                  </div>
-                )}
-                
-                {/* Real-time engagement metrics from backend analytics */}
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center space-x-3">
-                    <div className="flex items-center space-x-1">
-                      <Star className="w-3 h-3 text-brand-secondary fill-current" />
-                      <span className="text-content-secondary font-medium">
-                        {getCharacterRating(character)}
-                      </span>
+
+                  <div className="mt-auto space-y-2">
+                    {character.traits?.length > 0 && (
+                      <TraitChips
+                        traits={character.traits}
+                        maxVisible={2}
+                        size="xs"
+                        className="flex-nowrap"
+                        chipClassName="px-2.5 py-1 bg-brand-secondary/15 text-brand-secondary border border-brand-secondary/25"
+                        moreChipClassName="px-2.5 py-1 bg-surface-tertiary text-content-tertiary border border-surface-border"
+                      />
+                    )}
+
+                    <div className="flex items-center justify-between text-xs text-content-tertiary">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-1">
+                          <Star className="w-3.5 h-3.5 text-brand-secondary fill-current" />
+                          <span className="font-semibold text-content-secondary">{rating}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <Heart className="w-3.5 h-3.5 text-brand-secondary" />
+                          <span className="font-medium">{formatNumber(analytics.likeCount)}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <MessageCircle className="w-3.5 h-3.5 text-content-tertiary" />
+                          <span className="text-content-tertiary">{formatNumber(analytics.chatCount)}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Eye className="w-3.5 h-3.5 text-content-tertiary" />
+                        <span className="text-content-tertiary">{formatNumber(analytics.viewCount)}</span>
+                      </div>
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <MessageCircle className="w-3 h-3 text-content-tertiary" />
-                      <span className="text-content-tertiary">
-                        {formatNumber(getCharacterAnalytics(character).chatCount)}
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-1">
-                    <Eye className="w-3 h-3 text-content-tertiary" />
-                    <span className="text-content-tertiary">
-                      {formatNumber(getCharacterAnalytics(character).viewCount)}
-                    </span>
                   </div>
                 </div>
-                
-                {/* Simple favorite indicator */}
-                {isFavorite(character.id) && (
-                  <div className="flex items-center space-x-1">
-                    <Star className="w-3 h-3 text-brand-secondary fill-current" />
-                    <span className="text-xs text-content-secondary font-medium">{t('favorited')}</span>
-                  </div>
-                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
       

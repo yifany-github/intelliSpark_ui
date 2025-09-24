@@ -48,6 +48,11 @@ export type TranslationKey =
   | 'save'
   | 'cancel'
   | 'searchCharacters'
+  | 'search'
+  | 'searchHistory'
+  | 'noSearchHistory'
+  | 'clearHistory'
+  | 'popularSearches'
   | 'typeMessage'
   | 'noChatsYet'
   | 'startChatWith'
@@ -430,6 +435,9 @@ export type TranslationKey =
   | 'tryExploringOther'
   | 'viewAllCharacters'
   | 'chatNow'
+  | 'addFavorite'
+  | 'removeFavorite'
+  | 'remove'
   | 'creating'
   | 'friendly'
   | 'mysterious'
@@ -475,6 +483,15 @@ export type TranslationKey =
   | 'detailedResponses'
   | 'conciseResponses'
   | 'storytelling'
+  | 'discoverYourNextAdventure'
+  | 'heroSubtitle'
+  | 'startStory'
+  | 'createCharacterCTA'
+  | 'liveStories'
+  | 'storiesUpdating'
+  | 'heroFeaturedHint'
+  | 'aiNarration'
+  | 'heroNarrationHint'
   | 'interactive'
   | 'questionFocused'
   | 'analytical'
@@ -514,6 +531,13 @@ export type TranslationKey =
   | 'tokensLabel'
   | 'searchCharacters'
   | 'upgradePlan'
+  | 'nextTierPreview'
+  | 'perMonth'
+  | 'monthlyTokens'
+  | 'exclusiveStories'
+  | 'starterPlan'
+  | 'standardPlan'
+  | 'premiumPlan'
   | 'freePlan'
   | 'profile'
   | 'myChats'
@@ -755,6 +779,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     memoryEnabled: 'Memory Enabled',
     save: 'Save',
     cancel: 'Cancel',
+    confirm: 'Confirm',
     typeMessage: 'Type a message...',
     noChatsYet: 'No chats yet',
     startChatWith: 'Start Chat with',
@@ -1225,6 +1250,15 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     detailedResponses: 'Detailed responses',
     conciseResponses: 'Concise responses',
     storytelling: 'Storytelling',
+    discoverYourNextAdventure: 'Discover your next adventure',
+    heroSubtitle: 'Pick a character and jump into dynamic, AI narrated scenes.',
+    startStory: 'Start Story Mode',
+    createCharacterCTA: 'Create your character',
+    liveStories: 'Live stories',
+    storiesUpdating: 'Continuously updated multi-role scripts',
+    heroFeaturedHint: 'Featured characters are ready to collaborate with you',
+    aiNarration: 'AI Narration',
+    heroNarrationHint: 'Gemini and Grok bring immersive narration to every moment.',
     interactive: 'Interactive',
     questionFocused: 'Question-focused',
     analytical: 'Analytical',
@@ -1260,7 +1294,18 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     chatWithAICharacters: 'Chat with AI characters',
     tokensLabel: 'Tokens',
     searchCharacters: 'Search characters...',
+    search: 'Search',
+    searchHistory: 'Search history',
+    noSearchHistory: 'No search history yet',
+    popularSearches: 'Popular searches',
     upgradePlan: 'Upgrade Plan',
+    nextTierPreview: 'Next tier preview',
+    perMonth: 'per month',
+    monthlyTokens: '500 tokens each month',
+    exclusiveStories: 'Access to exclusive stories',
+    starterPlan: 'Starter Plan',
+    standardPlan: 'Standard Plan',
+    premiumPlan: 'Premium Plan',
     freePlan: 'Free Plan',
     profile: 'Profile',
     myChats: 'My Chats',
@@ -1311,6 +1356,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     romance: 'Romance',
     action: 'Action',
     chatNow: 'Chat Now',
+    addFavorite: 'Add to favorites',
+    removeFavorite: 'Remove from favorites',
+    remove: 'Remove',
     preview: 'Preview',
     noFavoritesYet: 'No favorites yet',
     noCharactersFound: 'No characters found',
@@ -1345,6 +1393,11 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     // Issue #69 - New English translations
     chatWith: 'Chat with',
     adultContentControl: 'Adult Content Control',
+    nsfwEnabledLabel: 'NSFW Enabled',
+    nsfwDisabledLabel: 'Safe Mode',
+    nsfwDisclaimer: 'Adult content is available only to users who are at least 18 years old. By enabling NSFW mode, you confirm that you are of legal age and legally responsible for viewing adult-oriented material.',
+    nsfwLegalNotice: 'Proceeding means you comply with local laws and agree to the platform\'s adult-content terms.',
+    confirmEnableNSFW: 'Confirm Adult Content',
     unableToLoadCharacters: 'Unable to load characters',
     checkConnectionRetry: 'Please check your connection and try again',
     startPremiumChat: 'Start Premium Chat',
@@ -1389,6 +1442,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     nonBinary: 'Non-binary',
     other: 'Other',
     preferNotToSay: 'Prefer not to say',
+    appNameEnglish: 'YY Chat',
+    appNameChinese: '歪歪',
   },
   zh: {
     characters: '角色',
@@ -1404,6 +1459,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     memoryEnabled: '启用记忆',
     save: '保存',
     cancel: '取消',
+    confirm: '确认',
     typeMessage: '输入消息...',
     noChatsYet: '还没有聊天',
     startChatWith: '与以下角色开始聊天',
@@ -1694,7 +1750,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     manageToken: '管理您的代币',
     balancePurchase: '余额，购买',
     historyUsage: '历史和使用',
-    clearHistory: '清除历史',
     exportOptions: '导出选项',
     subscriptionLogout: '订阅和退出',
     functionality: '功能',
@@ -1875,6 +1930,15 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     detailedResponses: '详细回应',
     conciseResponses: '简洁回应',
     storytelling: '讲故事',
+    discoverYourNextAdventure: '探索下一段属于你的冒险',
+    heroSubtitle: '挑选心仪角色，进入 AI 旁白的沉浸式剧情。',
+    startStory: '开始故事模式',
+    createCharacterCTA: '创建你的角色',
+    liveStories: '实时故事',
+    storiesUpdating: '持续更新的多角色剧本',
+    heroFeaturedHint: '精选角色正等待与你协作',
+    aiNarration: 'AI 旁白',
+    heroNarrationHint: 'Gemini 与 Grok 为每个场景带来沉浸式旁白。',
     interactive: '互动式',
     questionFocused: '问题导向',
     analytical: '分析型',
@@ -1910,7 +1974,19 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     chatWithAICharacters: '与AI角色聊天',
     tokensLabel: '代币',
     searchCharacters: '搜索角色...',
+    search: '搜索',
+    searchHistory: '搜索历史',
+    noSearchHistory: '暂无搜索记录',
+    clearHistory: '清除历史',
+    popularSearches: '热门搜索',
     upgradePlan: '升级套餐',
+    nextTierPreview: '下一档套餐预览',
+    perMonth: '每月',
+    monthlyTokens: '每月获得 500 个代币',
+    exclusiveStories: '解锁专属剧情',
+    starterPlan: 'Starter 套餐',
+    standardPlan: 'Standard 套餐',
+    premiumPlan: 'Premium 套餐',
     freePlan: '免费套餐',
     profile: '个人资料',
     myChats: '我的聊天',
@@ -1961,6 +2037,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     romance: '浪漫',
     action: '动作',
     chatNow: '立即聊天',
+    addFavorite: '收藏',
+    removeFavorite: '取消收藏',
+    remove: '移除',
     preview: '预览',
     noFavoritesYet: '还没有收藏',
     noCharactersFound: '未找到角色',
@@ -1995,6 +2074,11 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     // Issue #69 - New Chinese translations
     chatWith: '与',
     adultContentControl: '成人内容控制',
+    nsfwEnabledLabel: '已开启 NSFW',
+    nsfwDisabledLabel: '安全模式',
+    nsfwDisclaimer: '成人内容仅适用于年满 18 岁的用户。开启后，您确认自己已达到法定年龄并承担相关法律责任。',
+    nsfwLegalNotice: '继续操作即表示您遵守本地法律并同意平台的成人内容条款。',
+    confirmEnableNSFW: '确认开启成人内容',
     unableToLoadCharacters: '无法加载角色',
     checkConnectionRetry: '请检查网络连接并重试',
     startPremiumChat: '开始聊天',
@@ -2039,6 +2123,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     nonBinary: '非二元',
     other: '其他',
     preferNotToSay: '不愿说明',
+    appNameEnglish: 'YY Chat',
+    appNameChinese: '歪歪',
   },
 };
 
