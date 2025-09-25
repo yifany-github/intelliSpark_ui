@@ -166,6 +166,8 @@ export type TranslationKey =
   | 'bonus'
   | 'previous'
   | 'next'
+  | 'stepBack'
+  | 'stepNext'
   | 'tryAgain'
   | 'failedToLoad'
   | 'usageStatistics'
@@ -407,6 +409,8 @@ export type TranslationKey =
   | 'howCharacterAppears'
   | 'characterNameRequired'
   | 'characterDescriptionRequired'
+  | 'characterNameMinLength'
+  | 'characterDescriptionMinLength'
   | 'characterBackstoryRequired'
   | 'atLeastOneTrait'
   | 'invalidFileType'
@@ -784,7 +788,16 @@ export type TranslationKey =
   | 'chatWithCharacter'
   | 'nonBinary'
   | 'other'
-  | 'preferNotToSay';
+  | 'preferNotToSay'
+  | 'previewCharacter'
+  | 'browseAllCharacters'
+  | 'personaPrompt'
+  | 'personaPromptPlaceholder'
+  | 'personaPromptHelp'
+  | 'cancelCharacterCreation'
+  | 'cancelCharacterCreationDescription'
+  | 'keepEditing'
+  | 'confirmCancel';
 
 // Define translations for each language
 const translations: Record<Language, Record<TranslationKey, string>> = {
@@ -887,8 +900,10 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     purchase: 'Purchase',
     refund: 'Refund',
     bonus: 'Bonus',
-    previous: 'Previous',
-    next: 'Next',
+  previous: 'Previous',
+  next: 'Next',
+  stepBack: 'Previous',
+  stepNext: 'Next',
     usageStatistics: 'Usage Statistics',
     excellent: 'Excellent',
     good: 'Good',
@@ -1084,7 +1099,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     uploadAvatar: 'Upload Avatar',
     pngJpgUpTo5MB: 'PNG, JPG up to 5MB',
     characterName: 'Character Name',
-    enterCharacterName: 'Enter character name',
+    enterCharacterName: 'Enter character name (min 2 characters)',
     shortDescription: 'Short Description',
     briefDescription: 'Brief description of your character (1-2 sentences)',
     detailedBackstory: 'Detailed backstory and background information',
@@ -1115,6 +1130,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     howCharacterAppears: 'How your character will appear to others',
     characterNameRequired: 'Character name is required',
     characterDescriptionRequired: 'Character description is required',
+    characterNameMinLength: 'Name must be at least 2 characters',
+    characterDescriptionMinLength: 'Description must be at least 10 characters',
     characterBackstoryRequired: 'Character backstory is required',
     atLeastOneTrait: 'At least one trait is required',
     invalidFileType: 'Invalid file type',
@@ -1444,7 +1461,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     tryDifferentImage: 'Please try again with a different image',
     selectGender: 'Select gender',
     characterDescription: 'Character Description',
-    characterDescriptionPlaceholder: 'Describe your character\'s personality, background, history, and what makes them unique. Include their motivations, traits, and how they interact with others...',
+    characterDescriptionPlaceholder: 'Describe your character\'s personality, background, history, and what makes them unique. Include their motivations, traits, and how they interact with others... (min 10 characters)',
     characterDescriptionHelp: 'This comprehensive description will be used to generate your character\'s personality and responses.',
     chooseAvatarImage: 'Choose Avatar Image',
     resetToDefault: 'Reset to Default',
@@ -1489,6 +1506,15 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     today: 'Today',
     yesterday: 'Yesterday',
     earlier: 'Earlier',
+    previewCharacter: 'View This Character',
+    browseAllCharacters: 'Browse All Characters',
+    personaPrompt: 'Persona Prompt (LLM)',
+    personaPromptPlaceholder: 'Optional: Describe how the AI should role-play as this character. If left blank, the description will be used.',
+    personaPromptHelp: 'Helpful tips: keep personality traits, tone, and key behaviors concise for best AI performance.',
+    cancelCharacterCreation: 'Cancel character creation?',
+    cancelCharacterCreationDescription: 'Your progress will be lost. Are you sure you want to exit the character creation process?',
+    keepEditing: 'Keep editing',
+    confirmCancel: 'Confirm cancel',
   },
   zh: {
     characters: '角色',
@@ -1655,6 +1681,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     bonus: '奖励',
     previous: '上一页',
     next: '下一页',
+    stepBack: '上一步',
+    stepNext: '下一步',
     tryAgain: '重试',
     failedToLoad: '加载失败',
     usageStatistics: '使用统计',
@@ -1852,7 +1880,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     uploadAvatar: '上传头像',
     pngJpgUpTo5MB: 'PNG、JPG格式，最大5MB',
     characterName: '角色名称',
-    enterCharacterName: '输入角色名称',
+    enterCharacterName: '输入角色名称（至少 2 个字符）',
     shortDescription: '简短描述',
     briefDescription: '角色的简要描述（1-2句话）',
     detailedBackstory: '详细的背景故事和背景信息',
@@ -1884,6 +1912,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     howCharacterAppears: '您的角色将如何呈现给其他人',
     characterNameRequired: '角色名称是必需的',
     characterDescriptionRequired: '角色描述是必需的',
+    characterNameMinLength: '名称至少需要 2 个字符',
+    characterDescriptionMinLength: '描述至少需要 10 个字符',
     characterBackstoryRequired: '角色背景故事是必需的',
     atLeastOneTrait: '至少需要一个特征',
     invalidFileType: '无效的文件类型',
@@ -2146,7 +2176,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     tryDifferentImage: '请尝试上传不同的图片',
     selectGender: '选择性别',
     characterDescription: '角色描述',
-    characterDescriptionPlaceholder: '描述您角色的性格、背景、历史以及独特之处。包括他们的动机、特征以及与他人的互动方式...',
+    characterDescriptionPlaceholder: '描述您角色的性格、背景、历史以及独特之处。包括他们的动机、特征以及与他人的互动方式...（至少 10 个字符）',
     characterDescriptionHelp: '此详细描述将用于生成您角色的个性和回应。',
     chooseAvatarImage: '选择头像图片',
     resetToDefault: '重置为默认',
@@ -2191,6 +2221,15 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     today: '今天',
     yesterday: '昨天',
     earlier: '更早',
+    previewCharacter: '查看该角色',
+    browseAllCharacters: '浏览所有角色',
+    personaPrompt: '角色人格提示（LLM）',
+    personaPromptPlaceholder: '可选：描述 AI 扮演该角色时的语气与行为。留空时将使用角色描述。',
+    personaPromptHelp: '小贴士：用简明语言概括性格、语气和关键行为，有助于获得稳定表现。',
+    cancelCharacterCreation: '确认取消创建角色？',
+    cancelCharacterCreationDescription: '当前填写的内容将不会保存，确定要退出角色创建流程吗？',
+    keepEditing: '继续编辑',
+    confirmCancel: '确认取消',
   },
 };
 

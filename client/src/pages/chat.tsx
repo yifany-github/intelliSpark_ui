@@ -379,27 +379,88 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   
   // If we're showing a specific chat
   return (
-    <GlobalLayout showSidebar={false} contentTopPadding={false}>
-      <div className="h-[calc(100vh-56px)] bg-gray-900 text-white flex relative overflow-hidden">
-        {/* Mobile overlay */}
-        {showChatList && (
-          <div 
-            className="fixed inset-0 bg-black/50 z-5 lg:hidden" 
-            onClick={() => setShowChatList(false)}
-          />
-        )}
-        
-        {/* Left Sidebar - Recent Chats */}
-        <div
-          className={cn(
-            "transition-all duration-300",
-            "bg-gray-800/90 backdrop-blur border-r border-gray-700/80",
-            "flex-shrink-0 flex flex-col absolute lg:relative z-10 h-full",
-            "shadow-lg shadow-black/40",
-            showChatList ? "flex w-full" : "hidden",
-            "lg:flex lg:w-[19rem] xl:w-[20rem]"
+    <GlobalLayout
+      showSidebar={false}
+      contentTopPadding={false}
+      contentPaddingClass="flex min-h-0 flex-1 flex-col p-0"
+      maxContentWidthClass="max-w-full"
+      mainClassName="flex flex-1 flex-col"
+      mainScrollable={false}
+    >
+      <div className="flex flex-1 min-h-0 flex-col">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 bg-gray-900/95 px-3 py-3 text-white sm:px-6 sm:py-4">
+          <div className="flex flex-1 items-center gap-2 sm:gap-3 min-w-0">
+            {/* Back button for mobile */}
+            <button 
+              onClick={navigateBack}
+              className="lg:hidden rounded-lg p-1 text-gray-300 transition-colors hover:bg-gray-800"
+              title="Back to previous page"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+
+            {/* Mobile menu button */}
+            <button 
+              onClick={() => setShowChatList(!showChatList)}
+              className="lg:hidden rounded-lg p-1 text-gray-300 transition-colors hover:bg-gray-800"
+            >
+              {showChatList ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+
+            {character && (
+              <ImageWithFallback
+                src={character?.avatarUrl}
+                alt={character?.name}
+                fallbackText={character?.name}
+                size="md"
+                showSpinner={true}
+                className="h-9 w-9 rounded-2xl sm:h-11 sm:w-11"
+              />
+            )}
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-semibold sm:text-lg">
+                {isLoadingCharacter ? t('loading') : character?.name}
+              </h1>
+              {chat && (
+                <p className="text-xs text-gray-400 sm:text-sm">
+                  {chat.title || t('untitledChat')}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <ChatModelSelector />
+            <button 
+              onClick={() => setShowCharacterInfo(!showCharacterInfo)}
+              className="xl:hidden rounded-lg p-2 text-gray-300 transition-colors hover:bg-gray-800"
+              title={t('characterInfo')}
+            >
+              <MoreVertical className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-1 min-h-0 bg-gray-900 text-white">
+          {/* Mobile overlay */}
+          {showChatList && (
+            <div 
+              className="fixed inset-0 bg-black/50 z-5 lg:hidden" 
+              onClick={() => setShowChatList(false)}
+            />
           )}
-        >
+        
+          {/* Left Sidebar - Recent Chats */}
+          <div
+            className={cn(
+              "transition-all duration-300",
+              "bg-gray-800/90 backdrop-blur border-r border-gray-700/80",
+              "flex-shrink-0 flex flex-col absolute lg:relative z-10 h-full",
+              "shadow-lg shadow-black/40",
+              showChatList ? "flex w-full" : "hidden",
+              "lg:flex lg:w-[19rem] xl:w-[20rem]"
+            )}
+          >
           <div className="px-4 pt-4 pb-3 border-b border-gray-700/60">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -602,62 +663,12 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
               )}
             </div>
           </div>
-        </div>
-
-        {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col min-w-0 h-full">
-          {/* Chat Header */}
-          <div className="bg-gray-800 border-b border-gray-700 p-2 sm:p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 sm:space-x-3 flex-1 min-w-0">
-                {/* Back button for mobile */}
-                <button 
-                  onClick={navigateBack}
-                  className="lg:hidden p-1 hover:bg-gray-700 rounded transition-colors"
-                  title="Back to previous page"
-                >
-                  <ArrowLeft className="w-5 h-5" />
-                </button>
-                
-                {/* Mobile menu button */}
-                <button 
-                  onClick={() => setShowChatList(!showChatList)}
-                  className="lg:hidden p-1 hover:bg-gray-700 rounded transition-colors"
-                >
-                  {showChatList ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-                </button>
-                
-                {character && (
-                  <ImageWithFallback
-                    src={character?.avatarUrl}
-                    alt={character?.name}
-                    fallbackText={character?.name}
-                    size="md"
-                    showSpinner={true}
-                    className="w-8 h-8 sm:w-10 sm:h-10"
-                  />
-                )}
-                <div className="flex-1 min-w-0">
-                  <h1 className="font-semibold truncate">
-                    {isLoadingCharacter ? t('loading') : character?.name}
-                  </h1>
-                </div>
-              </div>
-              <div className="flex items-center space-x-1 sm:space-x-2">
-                <ChatModelSelector />
-                <button 
-                  onClick={() => setShowCharacterInfo(!showCharacterInfo)}
-                  className="xl:hidden p-2 hover:bg-gray-700 rounded transition-colors"
-                  title={t('characterInfo')}
-                >
-                  <MoreVertical className="w-4 h-4 sm:w-5 sm:h-5" />
-                </button>
-              </div>
-            </div>
           </div>
 
+          {/* Main Chat Area */}
+          <div className="flex flex-1 min-h-0 flex-col min-w-0">
           {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-2 space-y-4 scrollbar-thin">
+          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-24 space-y-4 scrollbar-thin">
             {/* Creating chat state - show immediate loading UI */}
             {isCreatingChat ? (
               <div className="flex items-start mb-4">
@@ -737,17 +748,18 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
           </div>
 
           {/* Chat Input - disabled during creating state */}
-          <ChatInput 
-            onSendMessage={sendMessage} 
-            isLoading={isSending || isTyping || isCreatingChat} 
-            disabled={isCreatingChat}
-            placeholder={isCreatingChat ? t('creatingChat') : undefined}
-          />
-        </div>
+            <ChatInput 
+              onSendMessage={sendMessage} 
+              isLoading={isSending || isTyping || isCreatingChat} 
+              disabled={isCreatingChat}
+              placeholder={isCreatingChat ? t('creatingChat') : undefined}
+              className="sticky bottom-0 left-0 right-0 border-t border-gray-800/70 bg-gray-900/95"
+            />
+          </div>
 
-        {/* Character Info Modal for mobile/tablet */}
-        {showCharacterInfo && character && (
-          <div className="fixed inset-0 bg-black/50 z-20 xl:hidden flex items-center justify-center p-4">
+          {/* Character Info Modal for mobile/tablet */}
+          {showCharacterInfo && character && (
+            <div className="fixed inset-0 bg-black/50 z-20 xl:hidden flex items-center justify-center p-4">
             <div className="bg-gray-800 rounded-lg max-w-md w-full max-h-[80vh] overflow-y-auto">
               <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-4 flex items-center justify-between">
                 <h3 className="text-lg font-semibold">{t('characterInfo')}</h3>
@@ -785,8 +797,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
         )}
 
         {/* Right Sidebar - Character Info */}
-        {character && (
-          <div className="w-full lg:w-80 bg-gray-800 border-l border-gray-700 flex-shrink-0 hidden xl:flex xl:flex-col h-full overflow-y-auto scrollbar-thin">
+          {character && (
+            <div className="w-full lg:w-80 bg-gray-800 border-l border-gray-700 flex-shrink-0 hidden xl:flex xl:flex-col h-full overflow-y-auto scrollbar-thin">
             {/* Character Gallery */}
             <div className="relative p-4 flex-shrink-0">
               <CharacterGallery 
@@ -841,8 +853,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 </button>
               </div>
             </div>
-          </div>
-        )}
+            </div>
+          )}
+        </div>
       </div>
     </GlobalLayout>
   );

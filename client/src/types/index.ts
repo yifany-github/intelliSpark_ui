@@ -37,6 +37,7 @@ export interface Character {
   chatCount?: number;
   trendingScore?: number;
   lastActivity?: string;
+  isFavorite?: boolean;
 }
 
 export interface Chat {
