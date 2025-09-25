@@ -13,10 +13,13 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { invalidateTokenBalance } from "@/services/tokenService";
 import { queryClient } from "@/lib/queryClient";
-import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft } from "lucide-react";
+import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft, Sparkles, Filter, Pin, Trash2 } from "lucide-react";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import { ImprovedTokenBalance } from "@/components/payment/ImprovedTokenBalance";
 import GlobalLayout from "@/components/layout/GlobalLayout";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 interface ChatPageProps {
   chatId?: string;
@@ -29,6 +32,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   const { navigateBack } = useNavigation();
   const [showChatList, setShowChatList] = useState(false);
   const [showCharacterInfo, setShowCharacterInfo] = useState(false);
+  const [recentSearch, setRecentSearch] = useState("");
+  const [pinnedChatIds, setPinnedChatIds] = useState<number[]>([]);
+  const [isBrowserMounted, setIsBrowserMounted] = useState(false);
   
   // Handle "creating" state when user is redirected immediately after clicking start chat
   const isCreatingChat = chatId === 'creating';
@@ -206,7 +212,88 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     setIsTyping(true);
     aiResponse();
   };
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsBrowserMounted(true);
+      try {
+        const stored = localStorage.getItem("pinnedChats");
+        if (stored) {
+          const parsed = JSON.parse(stored) as number[];
+          if (Array.isArray(parsed)) {
+            setPinnedChatIds(parsed.slice(0, 12));
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to read pinned chats from storage", error);
+      }
+    }
+  }, []);
   
+  // Derived recent chat lists
+  const pinnedChats = useMemo(() => {
+    return chats.filter((chat) => pinnedChatIds.includes(chat.id));
+  }, [chats, pinnedChatIds]);
+
+  const filteredChats = useMemo(() => {
+    const normalized = recentSearch.trim().toLowerCase();
+    return chats.filter((chat) => {
+      if (pinnedChatIds.includes(chat.id)) return false;
+      if (!normalized) return true;
+      const name = chat.character?.name?.toLowerCase() || "";
+      const title = chat.title?.toLowerCase() || "";
+      return name.includes(normalized) || title.includes(normalized);
+    });
+  }, [chats, pinnedChatIds, recentSearch]);
+
+  const togglePinChat = (chatId: number) => {
+    setPinnedChatIds((prev) => {
+      const next = prev.includes(chatId)
+        ? prev.filter((id) => id !== chatId)
+        : [chatId, ...prev].slice(0, 12);
+
+      if (isBrowserMounted) {
+        try {
+          localStorage.setItem("pinnedChats", JSON.stringify(next));
+        } catch (error) {
+          console.warn("Failed to persist pinned chats", error);
+        }
+      }
+
+      return next;
+    });
+  };
+
+  const formattedRelativeTime = (dateString?: string) => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now.getTime() - date.getTime();
+
+    const minute = 60 * 1000;
+    const hour = minute * 60;
+    const day = hour * 24;
+
+    if (diff < minute) {
+      return t("justNow");
+    }
+    if (diff < hour) {
+      const count = Math.floor(diff / minute);
+      return t("minutesAgo", { count });
+    }
+    if (diff < day) {
+      const count = Math.floor(diff / hour);
+      return t("hoursAgo", { count });
+    }
+
+    const count = Math.floor(diff / day);
+    if (count === 1) {
+      return t("yesterday");
+    }
+
+    return t("daysAgo", { count });
+  };
+
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -303,82 +390,216 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
         )}
         
         {/* Left Sidebar - Recent Chats */}
-        <div className={`${showChatList ? 'flex' : 'hidden'} lg:flex w-full lg:w-64 bg-gray-800 border-r border-gray-700 flex-shrink-0 flex-col absolute lg:relative z-10 h-full`}>
-          <div className="p-4 border-b border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-semibold">{t('chats')}</h2>
-              <div className="flex items-center space-x-2">
-                <button 
-                  onClick={navigateBack}
-                  className="hidden lg:block p-1 hover:bg-gray-700 rounded transition-colors"
-                  title="Back to previous page"
+        <div
+          className={cn(
+            "transition-all duration-300",
+            "bg-gray-800/90 backdrop-blur border-r border-gray-700/80",
+            "flex-shrink-0 flex flex-col absolute lg:relative z-10 h-full",
+            "shadow-lg shadow-black/40",
+            showChatList ? "flex w-full" : "hidden",
+            "lg:flex lg:w-[19rem] xl:w-[20rem]"
+          )}
+        >
+          <div className="px-4 pt-4 pb-3 border-b border-gray-700/60">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-gray-500">
+                  {t('recentChats')}
+                </p>
+                <h2 className="text-lg font-semibold text-white">
+                  {t('chats')}
+                </h2>
+              </div>
+              <div className="flex items-center gap-1 text-gray-400">
+                <button
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/chats"] })}
+                  className="p-2 rounded-full hover:bg-gray-700/70 transition-colors"
+                  title={t('refreshChats')}
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  <Sparkles className="w-4 h-4" />
                 </button>
-                <button 
+                <button
                   onClick={() => setShowChatList(false)}
-                  className="lg:hidden p-1 hover:bg-gray-700 rounded transition-colors"
-                  title="Close chat list"
+                  className="lg:hidden p-2 rounded-full hover:bg-gray-700/70 transition-colors"
+                  title={t('collapseSidebar')}
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
+
+            <div className="mt-3 relative">
+              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+              <Input
+                value={recentSearch}
+                onChange={(event) => setRecentSearch(event.target.value)}
+                placeholder={t('searchChatsPlaceholder')}
+                className="bg-gray-900/60 border-gray-700/70 text-sm pl-10 placeholder:text-gray-500 focus-visible:ring-brand-accent/70"
+              />
+            </div>
+
+            <div className="mt-3 flex items-center justify-between text-xs text-gray-400">
+              <span>{t('pinnedConversations')}</span>
+
+            </div>
           </div>
-          
+
           <div className="flex-1 overflow-y-auto scrollbar-thin">
-            {/* Current Active Chat */}
             {character && (
-              <div className="p-3 bg-brand-accent/20 border-l-4 border-brand-accent">
-                <div className="flex items-center space-x-3">
-                  <div className="relative">
-                    <ImageWithFallback
-                      src={character?.avatarUrl}
-                      alt={character?.name}
-                      fallbackText={character?.name}
-                      size="md"
-                      showSpinner={true}
-                      className="w-10 h-10"
-                    />
-                    <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-gray-800 rounded-full"></div>
+              <div className="px-4 pt-4">
+                <div className="rounded-2xl border border-brand-accent/40 bg-brand-accent/10 p-3 shadow-inner">
+                  <div className="flex items-center gap-3">
+                    <div className="relative">
+                      <ImageWithFallback
+                        src={character?.avatarUrl}
+                        alt={character?.name}
+                        fallbackText={character?.name}
+                        size="md"
+                        showSpinner={true}
+                        className="w-10 h-10"
+                      />
+                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-gray-900 rounded-full" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-brand-accent truncate">
+                        {character?.name}
+                      </p>
+                      <p className="text-xs text-brand-accent/80 truncate">
+                        {t('currentlyChatting')}
+                      </p>
+                    </div>
+                    <Badge variant="secondary" className="bg-brand-accent/20 text-brand-accent text-[10px]">
+                      {t('activeNow')}
+                    </Badge>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium text-blue-200 truncate">{character?.name}</p>
-                    <p className="text-sm text-blue-300 truncate">{t('currentlyChatting')}</p>
-                  </div>
-                  <div className="w-2 h-2 bg-brand-accent rounded-full animate-pulse"></div>
                 </div>
               </div>
             )}
-            
-            {/* Other Chats */}
-            <div className="p-4">
-              <h3 className="text-sm text-gray-400 mb-3">{t('recentConversations')}</h3>
-              <div className="space-y-2">
-                {chats.filter(c => c.id !== parseInt(chatId || '0')).map((chat) => (
-                  <Link 
-                    key={chat.id} 
-                    href={`/chat/${chat.id}`}
-                    className="flex items-center space-x-3 p-2 rounded hover:bg-gray-700 cursor-pointer transition-colors"
-                  >
-                    <ImageWithFallback
-                      src={chat.character?.avatarUrl}
-                      alt={chat.character?.name || "Character"}
-                      fallbackText={chat.character?.name || "?"}
-                      size="sm"
-                      showSpinner={true}
-                      className="w-8 h-8"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{chat.character?.name}</p>
-                      <p className="text-xs text-gray-400 truncate">{chat.title}</p>
-                    </div>
-                    <span className="text-xs text-gray-500">
-                      {chat.updatedAt ? new Date(chat.updatedAt).toLocaleDateString() : ''}
-                    </span>
-                  </Link>
-                ))}
+
+            {pinnedChats.length > 0 && (
+              <div className="px-4 pt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500">
+                    {t('pinnedConversations')}
+                  </p>
+                  <span className="text-xs text-gray-500">{pinnedChats.length}</span>
+                </div>
+                <div className="space-y-2">
+                  {pinnedChats.map((chat) => (
+                    <Link
+                      key={`pinned-${chat.id}`}
+                      href={`/chat/${chat.id}`}
+                      className="group flex items-center gap-3 rounded-2xl border border-gray-700/70 bg-gray-800/60 p-3 transition-all hover:border-brand-accent/50 hover:bg-gray-800"
+                    >
+                      <ImageWithFallback
+                        src={chat.character?.avatarUrl}
+                        alt={chat.character?.name || "Character"}
+                        fallbackText={chat.character?.name || "?"}
+                        size="sm"
+                        showSpinner={true}
+                        className="w-9 h-9"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <p className="text-sm font-medium text-white truncate">
+                            {chat.character?.name}
+                          </p>
+                          <span className="text-[11px] text-gray-400">
+                            {formattedRelativeTime(chat.updatedAt)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 truncate">
+                          {chat.title || t('untitledChat')}
+                        </p>
+                        <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-500">
+                          <Badge variant="outline" className="border-gray-700/70 text-gray-400">
+                            {t('pinned')}
+                          </Badge>
+                          <button
+                            onClick={(event) => {
+                              event.preventDefault();
+                              togglePinChat(chat.id);
+                            }}
+                            className="hidden items-center gap-1 rounded-full border border-gray-700/60 px-2 py-0.5 text-xs text-gray-400 transition-colors group-hover:flex hover:border-brand-accent/60 hover:text-brand-accent"
+                          >
+                            <Pin className="w-3 h-3" />
+                            {t('unpin')}
+                          </button>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
               </div>
+            )}
+
+            <div className="px-4 pt-4 pb-6">
+              <div className="mb-3 flex items-center justify-between text-xs text-gray-500">
+                <p className="uppercase tracking-wide">{t('recentConversations')}</p>
+                <span>{filteredChats.length}</span>
+              </div>
+
+              {filteredChats.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-gray-700/70 bg-gray-900/40 p-4 text-center text-sm text-gray-500">
+                  <p>{recentSearch ? t('noMatches') : t('noChatsYet')}</p>
+                  <p className="mt-1 text-xs text-gray-600">{t('searchHint')}</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredChats
+                    .filter((chat) => chat.id !== parseInt(chatId || "0"))
+                    .map((chat) => (
+                      <Link
+                        key={chat.id}
+                        href={`/chat/${chat.id}`}
+                        className="group flex items-center gap-3 rounded-2xl border border-transparent bg-gray-900/40 p-3 transition-all hover:border-brand-accent/40 hover:bg-gray-900/70"
+                      >
+                        <ImageWithFallback
+                          src={chat.character?.avatarUrl}
+                          alt={chat.character?.name || "Character"}
+                          fallbackText={chat.character?.name || "?"}
+                          size="sm"
+                          showSpinner={true}
+                          className="w-9 h-9"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-medium text-white truncate">
+                              {chat.character?.name || t('unknownCharacter')}
+                            </p>
+                            <span className="text-[11px] text-gray-500">
+                              {formattedRelativeTime(chat.updatedAt)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400 truncate">
+                            {chat.title || t('untitledChat')}
+                          </p>
+                          <div className="mt-2 flex items-center gap-2 text-[11px] text-gray-500 opacity-0 transition-opacity group-hover:opacity-100">
+                            <button
+                              onClick={(event) => {
+                                event.preventDefault();
+                                togglePinChat(chat.id);
+                              }}
+                              className="flex items-center gap-1 rounded-full border border-gray-700/70 px-2 py-0.5 transition-colors hover:border-brand-accent/50 hover:text-brand-accent"
+                            >
+                              <Pin className="w-3 h-3" />
+                              {t('pinChatAction')}
+                            </button>
+                          </div>
+                        </div>
+                        <button
+                          onClick={(event) => {
+                            event.preventDefault();
+                            deleteSingleChat(chat.id);
+                          }}
+                          className="hidden rounded-full p-2 text-gray-500 transition-colors hover:bg-red-500/10 hover:text-red-400 group-hover:block"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </Link>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

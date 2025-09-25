@@ -60,6 +60,7 @@ export interface ChatMessage {
 
 // Enriched chat type with character data
 export interface EnrichedChat extends Chat {
+  latestMessagePreview?: string | null;
   character: {
     id: number;
     name: string;

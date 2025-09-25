@@ -62,6 +62,28 @@ export type TranslationKey =
   | 'subscribe'
   | 'loadingMessages'
   | 'errorLoading'
+  | 'refreshChats'
+  | 'searchChatsPlaceholder'
+  | 'pinnedConversations'
+  | 'activeNow'
+  | 'pinned'
+  | 'unpin'
+  | 'noMatches'
+  | 'searchHint'
+  | 'pinChatAction'
+  | 'unknownCharacter'
+  | 'untitledChat'
+  | 'pinChat'
+  | 'unpinChat'
+  | 'pinnedChatsLabel'
+  | 'recentChatsTitle'
+  | 'lastActive'
+  | 'yesterday'
+  | 'today'
+  | 'earlier'
+  | 'minutesAgo'
+  | 'hoursAgo'
+  | 'daysAgo'
   | 'noMessagesYet'
   | 'startNewChat'
   | 'todaysChatTime'
@@ -547,6 +569,8 @@ export type TranslationKey =
   | 'guest'
   | 'home'
   | 'recentChats'
+  | 'lastMessage'
+  | 'lastUpdatedAt'
   | 'favorites'
   | 'discover'
   | 'createCharacter'
@@ -1315,6 +1339,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     guest: 'Guest',
     home: 'Home',
     recentChats: 'Recent Chats',
+    lastMessage: 'Last Message',
+    lastUpdatedAt: 'Last updated',
     favorites: 'Favorites',
     discover: 'Discover',
     createCharacter: 'Create Character',
@@ -1444,6 +1470,25 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     preferNotToSay: 'Prefer not to say',
     appNameEnglish: 'YY Chat',
     appNameChinese: '歪歪',
+    refreshChats: 'Refresh',
+    searchChatsPlaceholder: 'Search your recent chats...',
+    pinnedConversations: 'Pinned chats',
+    activeNow: 'Active now',
+    pinned: 'Pinned',
+    unpin: 'Unpin',
+    noMatches: 'No chats found for this search',
+    searchHint: 'Try searching by character name or chat title',
+    pinChatAction: 'Pin chat',
+    pinChat: 'Pin chat',
+    unpinChat: 'Unpin chat',
+    pinnedChatsLabel: 'Pinned chats',
+    recentChatsTitle: 'Recent',
+    unknownCharacter: 'Unknown character',
+    untitledChat: 'Untitled chat',
+    lastActive: 'Last active',
+    today: 'Today',
+    yesterday: 'Yesterday',
+    earlier: 'Earlier',
   },
   zh: {
     characters: '角色',
@@ -1996,6 +2041,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     guest: '游客',
     home: '首页',
     recentChats: '最近聊天',
+    lastMessage: '最近对话',
+    lastUpdatedAt: '更新时间',
     favorites: '收藏',
     discover: '发现',
     createCharacter: '创建角色',
@@ -2125,6 +2172,25 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     preferNotToSay: '不愿说明',
     appNameEnglish: 'YY Chat',
     appNameChinese: '歪歪',
+    refreshChats: '刷新',
+    searchChatsPlaceholder: '搜索最近的聊天…',
+    pinnedConversations: '已固定聊天',
+    activeNow: '正在聊天',
+    pinned: '已固定',
+    unpin: '取消固定',
+    noMatches: '没有找到匹配的聊天',
+    searchHint: '可以使用角色名称或聊天标题进行搜索',
+    pinChatAction: '固定聊天',
+    pinChat: '固定聊天',
+    unpinChat: '取消固定',
+    pinnedChatsLabel: '已固定聊天',
+    recentChatsTitle: '最近',
+    unknownCharacter: '未知角色',
+    untitledChat: '未命名聊天',
+    lastActive: '上次活跃',
+    today: '今天',
+    yesterday: '昨天',
+    earlier: '更早',
   },
 };
 
