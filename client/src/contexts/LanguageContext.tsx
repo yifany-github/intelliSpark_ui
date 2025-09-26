@@ -797,7 +797,43 @@ export type TranslationKey =
   | 'cancelCharacterCreation'
   | 'cancelCharacterCreationDescription'
   | 'keepEditing'
-  | 'confirmCancel';
+  | 'confirmCancel'
+  | 'myCharactersHeading'
+  | 'myCharactersTagline'
+  | 'myCharactersSubheading'
+  | 'myCharactersStatsTotal'
+  | 'myCharactersStatsPublished'
+  | 'myCharactersStatsPrivate'
+  | 'myCharactersStatsLatest'
+  | 'myCharactersBrowseLibrary'
+  | 'myCharactersCreateNew'
+  | 'myCharactersSearchPlaceholder'
+  | 'myCharactersFilterVisibility'
+  | 'myCharactersFilterPublished'
+  | 'myCharactersFilterPrivate'
+  | 'myCharactersFilterContent'
+  | 'myCharactersFilterSafe'
+  | 'myCharactersFilterNsfw'
+  | 'myCharactersFilterCategory'
+  | 'myCharactersSortBy'
+  | 'myCharactersSortNewest'
+  | 'myCharactersSortOldest'
+  | 'myCharactersSortChats'
+  | 'myCharactersSortViews'
+  | 'myCharactersEmptyHeading'
+  | 'myCharactersEmptyFiltered'
+  | 'myCharactersCreateFirst'
+  | 'myCharactersPublic'
+  | 'myCharactersPrivate'
+  | 'myCharactersUpdated'
+  | 'myCharactersStartChat'
+  | 'myCharactersPreview'
+  | 'myCharactersConfirmDelete'
+  | 'myCharactersConfirmDeleteDesc'
+  | 'myCharactersFilterNsfwBadge'
+  | 'myCharactersChatsLabel'
+  | 'myCharactersViewsLabel'
+  | 'myCharactersCreated';
 
 // Define translations for each language
 const translations: Record<Language, Record<TranslationKey, string>> = {
@@ -1515,6 +1551,42 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     cancelCharacterCreationDescription: 'Your progress will be lost. Are you sure you want to exit the character creation process?',
     keepEditing: 'Keep editing',
     confirmCancel: 'Confirm cancel',
+    myCharactersHeading: 'My Characters',
+    myCharactersTagline: 'Control your characters',
+    myCharactersSubheading: 'Review performance, fine-tune personas, and keep your characters ready for the next unforgettable story.',
+    myCharactersStatsTotal: 'Total',
+    myCharactersStatsPublished: 'Published',
+    myCharactersStatsPrivate: 'Private',
+    myCharactersStatsLatest: 'Latest Update',
+    myCharactersBrowseLibrary: 'Browse Library',
+    myCharactersCreateNew: 'Create New Character',
+    myCharactersSearchPlaceholder: 'Search by name, description, or traits',
+    myCharactersFilterVisibility: 'All visibility',
+    myCharactersFilterPublished: 'Published',
+    myCharactersFilterPrivate: 'Private',
+    myCharactersFilterContent: 'All content',
+    myCharactersFilterSafe: 'Safe only',
+    myCharactersFilterNsfw: 'NSFW only',
+    myCharactersFilterCategory: 'Category',
+    myCharactersSortBy: 'Sort by',
+    myCharactersSortNewest: 'Newest first',
+    myCharactersSortOldest: 'Oldest first',
+    myCharactersSortChats: 'Most chats',
+    myCharactersSortViews: 'Most views',
+    myCharactersEmptyHeading: "You haven't created any characters yet.",
+    myCharactersEmptyFiltered: 'No characters match your current filters.',
+    myCharactersCreateFirst: 'Create Your First Character',
+    myCharactersPublic: 'Public',
+    myCharactersPrivate: 'Private',
+    myCharactersUpdated: 'Updated',
+    myCharactersStartChat: 'Start Chat',
+    myCharactersPreview: 'Preview',
+    myCharactersConfirmDelete: 'Delete character?',
+    myCharactersConfirmDeleteDesc: 'This action cannot be undone. This will permanently delete your character and all associated data.',
+    myCharactersFilterNsfwBadge: 'NSFW',
+    myCharactersChatsLabel: 'chats',
+    myCharactersViewsLabel: 'views',
+    myCharactersCreated: 'Created',
   },
   zh: {
     characters: '角色',
@@ -2230,6 +2302,42 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     cancelCharacterCreationDescription: '当前填写的内容将不会保存，确定要退出角色创建流程吗？',
     keepEditing: '继续编辑',
     confirmCancel: '确认取消',
+    myCharactersHeading: '我的角色',
+    myCharactersTagline: '角色管家',
+    myCharactersSubheading: '查看表现、微调人设，让你的角色随时准备开启下一段难忘故事。',
+    myCharactersStatsTotal: '总数',
+    myCharactersStatsPublished: '已发布',
+    myCharactersStatsPrivate: '私密/草稿',
+    myCharactersStatsLatest: '最近更新',
+    myCharactersBrowseLibrary: '浏览角色库',
+    myCharactersCreateNew: '创建新角色',
+    myCharactersSearchPlaceholder: '按名称、描述或特征搜索',
+    myCharactersFilterVisibility: '全部可见性',
+    myCharactersFilterPublished: '已发布',
+    myCharactersFilterPrivate: '私密',
+    myCharactersFilterContent: '全部内容分级',
+    myCharactersFilterSafe: '仅安全内容',
+    myCharactersFilterNsfw: '仅 NSFW',
+    myCharactersFilterCategory: '分类',
+    myCharactersSortBy: '排序方式',
+    myCharactersSortNewest: '最新优先',
+    myCharactersSortOldest: '最早优先',
+    myCharactersSortChats: '聊天次数最多',
+    myCharactersSortViews: '浏览次数最多',
+    myCharactersEmptyHeading: '你还没有创建任何角色。',
+    myCharactersEmptyFiltered: '暂无角色符合当前筛选条件。',
+    myCharactersCreateFirst: '创建你的第一个角色',
+    myCharactersPublic: '公开',
+    myCharactersPrivate: '私密',
+    myCharactersUpdated: '更新于',
+    myCharactersStartChat: '开始聊天',
+    myCharactersPreview: '预览',
+    myCharactersConfirmDelete: '确认删除角色？',
+    myCharactersConfirmDeleteDesc: '此操作无法撤销，将永久删除该角色及其所有数据。',
+    myCharactersFilterNsfwBadge: 'NSFW',
+    myCharactersChatsLabel: '次聊天',
+    myCharactersViewsLabel: '次浏览',
+    myCharactersCreated: '创建于',
   },
 };
 
