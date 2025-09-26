@@ -641,6 +641,8 @@ export type TranslationKey =
   | 'usd'
   | 'perToken'
   | 'tokensPlural'
+  | 'cardInformation'
+  | 'cardDetailsSecure'
   | 'agreeToTerms'
   | 'termsOfService'
   | 'and'
@@ -1105,6 +1107,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     usd: 'USD',
     perToken: 'per token',
     tokensPlural: 'tokens',
+    cardInformation: 'Card details',
+    cardDetailsSecure: 'Your card details are encrypted and processed securely by Stripe.',
     agreeToTerms: 'I agree to the',
     termsOfService: 'Terms of Service',
     and: 'and',
@@ -1437,6 +1441,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     usd: '美元',
     perToken: '每代币',
     tokensPlural: '代币',
+    cardInformation: '卡片信息',
+    cardDetailsSecure: '您的卡片信息通过 Stripe 安全加密处理。',
     agreeToTerms: '我同意',
     termsOfService: '服务条款',
     and: '和',

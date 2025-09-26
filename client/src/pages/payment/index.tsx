@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
@@ -7,7 +7,7 @@ import {
   useElements,
 } from '@stripe/react-stripe-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Check, Coins, CreditCard, Loader2, Star } from 'lucide-react';
+import { ArrowLeft, Check, Coins, CreditCard, Loader2, ShieldCheck, Star } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
@@ -147,21 +147,25 @@ const CardPaymentForm: React.FC<{
     createPayment(selectedTier);
   };
 
-  const cardElementOptions = {
+  const cardElementOptions = useMemo(() => ({
     style: {
       base: {
-        fontSize: '16px',
-        color: '#ffffff',
-        backgroundColor: '#1f2937',
+        fontSize: '18px',
+        color: '#F9FAFB',
+        fontFamily: '"Inter", "SF Pro Display", system-ui, sans-serif',
+        iconColor: '#A855F7',
+        letterSpacing: '0.03em',
         '::placeholder': {
-          color: '#9ca3af',
+          color: '#9CA3AF',
         },
       },
       invalid: {
-        color: '#ef4444',
+        color: '#F87171',
+        iconColor: '#F87171',
       },
     },
-  };
+    showIcon: true,
+  }), []);
 
   return (
     <Card className="bg-gray-800 border-gray-700">
@@ -324,9 +328,23 @@ const CardPaymentForm: React.FC<{
           {/* Payment Method */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-white">{t('paymentMethod')}</h3>
-            <div className="p-3 border border-gray-600 rounded-lg bg-gray-700">
-              <CardElement options={cardElementOptions} />
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm text-gray-300">
+              <span className="font-medium">{t('cardInformation')}</span>
+              <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-gray-400">
+                <span>Visa</span>
+                <span>Mastercard</span>
+                <span>Amex</span>
+              </div>
             </div>
+            <div className="group rounded-2xl border border-gray-600 bg-gray-900/60 px-5 py-4 shadow-inner transition-all duration-200 focus-within:border-brand-accent focus-within:ring-2 focus-within:ring-brand-accent/30">
+              <CardElement options={cardElementOptions} className="text-lg outline-none" />
+            </div>
+            <p className="flex items-center gap-2 text-xs text-gray-500">
+              <ShieldCheck className="h-4 w-4 text-brand-secondary" />
+              {t('cardDetailsSecure')}
+            </p>
+          </div>
           </div>
 
           {/* Terms and Conditions */}
