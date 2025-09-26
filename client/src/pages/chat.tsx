@@ -382,12 +382,12 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     <GlobalLayout
       showSidebar={false}
       contentTopPadding={false}
-      contentPaddingClass="flex min-h-0 flex-1 flex-col p-0"
+      contentPaddingClass="flex min-h-0 h-full flex-1 flex-col p-0"
       maxContentWidthClass="max-w-full"
-      mainClassName="flex flex-1 flex-col"
+      mainClassName="flex flex-1 flex-col min-h-0 h-[calc(100vh-4rem)]"
       mainScrollable={false}
     >
-      <div className="flex flex-1 min-h-0 flex-col">
+      <div className="flex flex-1 min-h-0 flex-col h-full">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 bg-gray-900/95 px-3 py-3 text-white sm:px-6 sm:py-4">
           <div className="flex flex-1 items-center gap-2 sm:gap-3 min-w-0">
             {/* Back button for mobile */}
@@ -441,7 +441,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
           </div>
         </div>
 
-        <div className="flex flex-1 min-h-0 bg-gray-900 text-white">
+        <div className="flex flex-1 min-h-0 overflow-hidden bg-gray-900 text-white">
           {/* Mobile overlay */}
           {showChatList && (
             <div 
@@ -666,9 +666,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
           </div>
 
           {/* Main Chat Area */}
-          <div className="flex flex-1 min-h-0 flex-col min-w-0">
-          {/* Messages Area */}
-          <div className="flex-1 overflow-y-auto px-4 pt-4 pb-24 space-y-4 scrollbar-thin">
+          <div className="flex flex-1 min-h-0 flex-col min-w-0 overflow-hidden">
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 scrollbar-thin">
             {/* Creating chat state - show immediate loading UI */}
             {isCreatingChat ? (
               <div className="flex items-start mb-4">
@@ -745,15 +745,15 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             )}
             
             <div ref={messagesEndRef} />
-          </div>
+            </div>
 
-          {/* Chat Input - disabled during creating state */}
+            {/* Chat Input - disabled during creating state */}
             <ChatInput 
               onSendMessage={sendMessage} 
               isLoading={isSending || isTyping || isCreatingChat} 
               disabled={isCreatingChat}
               placeholder={isCreatingChat ? t('creatingChat') : undefined}
-              className="sticky bottom-0 left-0 right-0 border-t border-gray-800/70 bg-gray-900/95"
+              className="border-t border-gray-800/70 bg-gray-900/95"
             />
           </div>
 

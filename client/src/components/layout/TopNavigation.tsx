@@ -183,7 +183,7 @@ export default function TopNavigation({
   const showChineseName = language === 'zh';
 
   return (
-    <div className="w-full border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md sticky top-0 z-40">
+    <div className="sticky top-0 z-40 h-16 w-full border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md">
       <div className="mx-auto flex w-full max-w-[110rem] items-center justify-between gap-4 px-4 sm:px-8 lg:px-12 py-3">
         <div className="flex flex-1 items-center gap-2 min-w-0">
           {withSidebar && (
