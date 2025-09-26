@@ -1,8 +1,8 @@
 import stripe
-import os
 from typing import Optional, Dict, Any
 import logging
 from payment.token_service import get_pricing_tier
+from utils.exchange_rates import convert_usd_cents_to_cny_fen
 from config import settings
 
 logger = logging.getLogger(__name__)
@@ -14,34 +14,88 @@ class StripeService:
     def __init__(self):
         self.webhook_secret = settings.stripe_webhook_secret
         
-    def create_payment_intent(self, user_id: int, tier: str) -> Optional[Dict[str, Any]]:
+    def create_payment_intent(
+        self,
+        user_id: int,
+        tier: str,
+        payment_method_type: str = "card",
+        return_url: Optional[str] = None,
+    ) -> Optional[Dict[str, Any]]:
         """Create a Stripe payment intent for token purchase"""
         try:
             pricing_info = get_pricing_tier(tier)
             if not pricing_info:
                 logger.error(f"Invalid pricing tier: {tier}")
                 return None
-            
+
+            supported_methods = {"card", "wechat_pay", "alipay"}
+            if payment_method_type not in supported_methods:
+                logger.error(f"Unsupported payment method type: {payment_method_type}")
+                return None
+
+            metadata = {
+                "user_id": str(user_id),
+                "tier": tier,
+                "tokens": str(pricing_info["tokens"]),
+                "type": "token_purchase",
+                "payment_method": payment_method_type,
+            }
+
+            if return_url:
+                metadata["return_url"] = return_url
+
+            # Determine amount/currency based on payment method
+            amount = pricing_info["price"]
+            currency = "usd"
+            payment_method_options: Dict[str, Any] = {}
+
+            if payment_method_type == "wechat_pay":
+                currency = "cny"
+                amount = pricing_info.get("price_cny", pricing_info["price"])
+                payment_method_options["wechat_pay"] = {"client": "web"}
+                metadata["fx_rate_usd_cny"] = str(pricing_info["fx_rate"])
+                metadata["usd_amount_cents"] = str(pricing_info["price"])
+            elif payment_method_type == "alipay":
+                currency = "cny"
+                amount, fx_rate = convert_usd_cents_to_cny_fen(pricing_info["price"])
+                payment_method_options["alipay"] = {}
+                metadata["fx_rate_usd_cny"] = str(fx_rate)
+                metadata["usd_amount_cents"] = str(pricing_info["price"])
+
             # Create payment intent
             intent = stripe.PaymentIntent.create(
-                amount=pricing_info["price"],  # Amount in cents
-                currency="usd",
-                metadata={
-                    "user_id": str(user_id),
-                    "tier": tier,
-                    "tokens": str(pricing_info["tokens"]),
-                    "type": "token_purchase"
-                },
-                description=f"Token purchase - {pricing_info['description']}"
+                amount=amount,
+                currency=currency,
+                payment_method_types=[payment_method_type],
+                payment_method_options=payment_method_options or None,
+                metadata=metadata,
+                description=f"Token purchase - {pricing_info['description']}",
             )
-            
+
+            if payment_method_type == "wechat_pay":
+                intent = stripe.PaymentIntent.confirm(
+                    intent.id,
+                    payment_method_data={"type": "wechat_pay"},
+                    payment_method_options={"wechat_pay": {"client": "web"}}
+                )
+
+            next_action = None
+            if getattr(intent, "next_action", None):
+                try:
+                    next_action = intent.next_action.to_dict_recursive()
+                except AttributeError:
+                    next_action = dict(intent.next_action)
+
             return {
                 "client_secret": intent.client_secret,
                 "payment_intent_id": intent.id,
-                "amount": pricing_info["price"],
-                "tokens": pricing_info["tokens"]
+                "amount": amount,
+                "tokens": pricing_info["tokens"],
+                "currency": currency,
+                "payment_method": payment_method_type,
+                "next_action": next_action,
             }
-            
+
         except stripe.error.StripeError as e:
             logger.error(f"Stripe error creating payment intent: {str(e)}")
             return None
@@ -72,7 +126,10 @@ class StripeService:
                 "tokens": int(metadata.get("tokens")),
                 "tier": metadata.get("tier"),
                 "payment_intent_id": payment_intent.get("id"),
-                "amount": payment_intent.get("amount")
+                "amount": payment_intent.get("amount"),
+                "amount_cents": payment_intent.get("amount"),
+                "currency": payment_intent.get("currency"),
+                "payment_method": metadata.get("payment_method", "card"),
             }
         except (ValueError, TypeError, KeyError) as e:
             logger.error(f"Error parsing payment intent metadata: {str(e)}")

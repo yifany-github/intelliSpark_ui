@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
@@ -7,7 +7,7 @@ import {
   useElements,
 } from '@stripe/react-stripe-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Check, Coins, CreditCard, Star } from 'lucide-react';
+import { ArrowLeft, Check, Coins, CreditCard, Loader2, Star } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
@@ -18,6 +18,9 @@ import { ImprovedTokenBalance } from '../../components/payment/ImprovedTokenBala
 import GlobalLayout from '../../components/layout/GlobalLayout';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { apiRequest } from '@/lib/queryClient';
+import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector';
+import { QRCodePayment } from '@/components/payment/QRCodePayment';
+import { PaymentMethod } from '@/types/payments';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 // Initialize Stripe (you'll need to set your publishable key in environment variables)
@@ -26,7 +29,9 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 
 interface PricingTier {
   tokens: number;
   price: number;
+  price_cny?: number;
   description: string;
+  fx_rate?: number;
 }
 
 interface PricingTiers {
@@ -40,18 +45,33 @@ const fetchPricingTiers = async (): Promise<PricingTiers> => {
   return res.json();
 };
 
-const createPaymentIntent = async (tier: string) => {
+interface PaymentIntentResponse {
+  client_secret: string;
+  payment_intent_id: string;
+  amount: number;
+  tokens: number;
+  currency: string;
+  payment_method: PaymentMethod;
+  next_action?: Record<string, any>;
+}
+
+const createPaymentIntent = async (tier: string, paymentMethod: PaymentMethod, returnUrl?: string) => {
   const token = localStorage.getItem('auth_token');
   if (!token) {
     throw new Error('No authentication token found');
   }
 
-  const res = await apiRequest('POST', '/api/payment/create-payment-intent', { tier, amount: 0 });
+  const res = await apiRequest('POST', '/api/payment/create-payment-intent', {
+    tier,
+    amount: 0,
+    payment_method: paymentMethod,
+    return_url: returnUrl,
+  });
   if (!res.ok) throw new Error('Failed to create payment intent');
-  return res.json();
+  return res.json() as Promise<PaymentIntentResponse>;
 };
 
-const PaymentForm: React.FC<{ 
+const CardPaymentForm: React.FC<{ 
   selectedTier: string; 
   tierData: PricingTier;
   onSuccess: () => void; 
@@ -75,7 +95,7 @@ const PaymentForm: React.FC<{
   });
 
   const { mutate: createPayment } = useMutation({
-    mutationFn: createPaymentIntent,
+    mutationFn: (tier: string) => createPaymentIntent(tier, 'card'),
     onSuccess: async (data) => {
       if (!stripe || !elements) return;
 
@@ -309,34 +329,6 @@ const PaymentForm: React.FC<{
             </div>
           </div>
 
-          {/* Order Summary */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white">{t('orderSummary')}</h3>
-            <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-300">{tierData.description}</span>
-                <span className="text-white font-semibold">${(tierData.price / 100).toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between items-center text-sm text-gray-400 mb-2">
-                <span>{tierData.tokens} {t('tokensPlural')}</span>
-                <span>${((tierData.price / 100) / tierData.tokens).toFixed(3)} {t('perToken')}</span>
-              </div>
-              <div className="border-t border-gray-600 pt-2 mt-2">
-                <div className="flex justify-between items-center font-semibold">
-                  <span className="text-white">{t('total')}</span>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-brand-secondary mb-1">
-                      ${(tierData.price / 100).toFixed(2)}
-                    </div>
-                    <div className="text-sm text-content-tertiary uppercase tracking-wide">
-                      {t('usd')} - Premium Tokens
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* Terms and Conditions */}
           <div className="space-y-2">
             <label className="flex items-start space-x-2">
@@ -395,13 +387,322 @@ const PaymentForm: React.FC<{
   );
 };
 
+const OrderSummary: React.FC<{ tierData: PricingTier; method: PaymentMethod }> = ({ tierData, method }) => {
+  const { t } = useLanguage();
+  const usdTotal = (tierData.price / 100).toFixed(2);
+  const pricePerToken = ((tierData.price / 100) / tierData.tokens).toFixed(3);
+  const cnyTotal = tierData.price_cny ? (tierData.price_cny / 100).toFixed(2) : null;
+
+  return (
+    <Card className="bg-gray-800 border-gray-700">
+      <CardHeader>
+        <CardTitle className="text-white">{t('orderSummary')}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-gray-300">{tierData.description}</span>
+          <span className="text-white font-semibold">${usdTotal}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm text-gray-400">
+          <span>{tierData.tokens} {t('tokensPlural')}</span>
+          <span>${pricePerToken} {t('perToken')}</span>
+        </div>
+
+        {cnyTotal && method !== 'card' && (
+          <div className="flex items-center justify-between text-sm text-gray-400">
+            <span>Amount in CNY</span>
+            <span>¥{cnyTotal}</span>
+          </div>
+        )}
+
+        <Separator className="border-gray-700" />
+
+        <div className="text-center">
+          <div className="text-3xl font-bold text-brand-secondary mb-1">
+            ${usdTotal}
+          </div>
+          <div className="text-sm text-content-tertiary uppercase tracking-wide">
+            {t('usd')} • {t('tokensPlural')}
+          </div>
+        </div>
+
+        {cnyTotal && method !== 'card' && (
+          <div className="rounded-lg bg-gray-700/60 p-3 text-sm text-gray-300">
+            <div className="font-medium text-white">WeChat/Alipay amount</div>
+            <div>¥{cnyTotal}</div>
+            <p className="mt-1 text-xs text-gray-400">Final amount may vary slightly due to currency conversion.</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+interface PaymentCheckoutProps {
+  selectedTier: string;
+  tierData: PricingTier;
+  onSuccess: () => void;
+  onBack: () => void;
+}
+
+interface QRSessionState {
+  clientSecret: string;
+  paymentIntentId: string;
+  qrImageUrl: string;
+  amount: number;
+  currency: string;
+  expiresAt?: number;
+  method: PaymentMethod;
+}
+
+const PaymentCheckout: React.FC<PaymentCheckoutProps> = ({ selectedTier, tierData, onSuccess, onBack }) => {
+  const { t } = useLanguage();
+  const stripe = useStripe();
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('card');
+  const [qrSession, setQrSession] = useState<QRSessionState | null>(null);
+  const [isAltProcessing, setIsAltProcessing] = useState(false);
+  const [altError, setAltError] = useState<string | null>(null);
+
+  const createAlternativePayment = useMutation<PaymentIntentResponse, Error, PaymentMethod>({
+    mutationFn: (method: PaymentMethod) => {
+      const returnUrl = new URL(window.location.pathname, window.location.origin);
+      returnUrl.searchParams.set('payment', method);
+      returnUrl.searchParams.set('status', 'success');
+      const encodedReturnUrl = method === 'alipay' ? returnUrl.toString() : undefined;
+      return createPaymentIntent(selectedTier, method, encodedReturnUrl);
+    },
+    onSuccess: async (data: PaymentIntentResponse, method: PaymentMethod) => {
+      if (method === 'wechat_pay') {
+        const qrDetails = data.next_action?.wechat_pay_display_qr_code;
+        const qrUrl = qrDetails?.image_url_png || qrDetails?.image_url_svg || qrDetails?.image_data_url;
+        if (!qrUrl) {
+          setAltError('Unable to load WeChat Pay QR code. Please try again.');
+          return;
+        }
+        setQrSession({
+          clientSecret: data.client_secret,
+          paymentIntentId: data.payment_intent_id,
+          qrImageUrl: qrUrl,
+          amount: data.amount,
+          currency: data.currency,
+          expiresAt: qrDetails?.expires_at,
+          method,
+        });
+        setAltError(null);
+      } else if (method === 'alipay') {
+        if (!stripe) {
+          setAltError('Stripe is not ready yet. Please try again.');
+          return;
+        }
+        try {
+          const returnUrl = new URL(window.location.pathname, window.location.origin);
+          returnUrl.searchParams.set('payment', 'alipay');
+          returnUrl.searchParams.set('status', 'success');
+          const { error } = await stripe.confirmAlipayPayment(data.client_secret, {
+            return_url: returnUrl.toString(),
+          });
+          if (error) {
+            setAltError(error.message || 'Alipay confirmation failed.');
+          }
+        } catch (err: any) {
+          setAltError(err?.message || 'Unable to redirect to Alipay.');
+        }
+      }
+    },
+    onError: (error: any) => {
+      setAltError(error?.message || 'Unable to start payment. Please try again.');
+    },
+    onSettled: () => {
+      setIsAltProcessing(false);
+    },
+  });
+
+  useEffect(() => {
+    if (selectedMethod !== 'wechat_pay') {
+      setQrSession(null);
+    }
+  }, [selectedMethod]);
+
+  const handleMethodChange = (method: PaymentMethod) => {
+    setSelectedMethod(method);
+    setAltError(null);
+    if (method !== 'wechat_pay') {
+      setQrSession(null);
+    }
+  };
+
+  const handleQrSuccess = () => {
+    setQrSession(null);
+    onSuccess();
+  };
+
+  const handleStartAlternativePayment = () => {
+    if (isAltProcessing) {
+      return;
+    }
+    setAltError(null);
+    setIsAltProcessing(true);
+    createAlternativePayment.mutate(selectedMethod);
+  };
+
+  const showAlternativeFlow = selectedMethod !== 'card';
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <Button 
+          variant="ghost" 
+          onClick={onBack}
+          className="mb-2"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          {t('backToPricing')}
+        </Button>
+      </div>
+
+      <h1 className="text-3xl font-bold text-white">{t('completePurchase')}</h1>
+
+      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+        <div className="space-y-6">
+          <div>
+            <h3 className="mb-3 text-lg font-semibold text-white">{t('paymentMethod')}</h3>
+            <PaymentMethodSelector selected={selectedMethod} onSelect={handleMethodChange} />
+          </div>
+
+          {showAlternativeFlow ? (
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white">
+                  {selectedMethod === 'wechat_pay' ? 'WeChat Pay' : 'Alipay'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {selectedMethod === 'wechat_pay' && qrSession ? (
+                  <QRCodePayment
+                    clientSecret={qrSession.clientSecret}
+                    paymentIntentId={qrSession.paymentIntentId}
+                    qrImageUrl={qrSession.qrImageUrl}
+                    amount={qrSession.amount}
+                    currency={qrSession.currency}
+                    expiresAt={qrSession.expiresAt}
+                    method={qrSession.method}
+                    onSuccess={handleQrSuccess}
+                    onExpired={() => {
+                      setQrSession(null);
+                      handleStartAlternativePayment();
+                    }}
+                  />
+                ) : (
+                  <div className="space-y-4 text-gray-300">
+                    <p>
+                      {selectedMethod === 'wechat_pay'
+                        ? 'Generate a QR code and scan it with your WeChat app to complete the payment.'
+                        : 'You will be redirected to Alipay to confirm and complete your purchase.'}
+                    </p>
+
+                    {selectedMethod === 'alipay' && (
+                      <div className="rounded-lg bg-gray-700/60 p-3 text-sm text-gray-300">
+                        <p className="font-medium text-white mb-1">What to expect</p>
+                        <p>• A new tab or window will open with the Stripe Alipay simulator.</p>
+                        <p>• Follow the prompts to approve the payment.</p>
+                        <p>• You will be brought back here automatically after completing the approval.</p>
+                      </div>
+                    )}
+
+                    <Button
+                      type="button"
+                      disabled={isAltProcessing}
+                      onClick={handleStartAlternativePayment}
+                      className="w-full bg-brand-accent text-black hover:bg-brand-accent/90"
+                    >
+                      {isAltProcessing ? (
+                        <span className="flex items-center justify-center gap-2 text-sm">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {t('processing')}...
+                        </span>
+                      ) : (
+                        selectedMethod === 'wechat_pay' ? 'Generate QR Code' : 'Continue to Alipay'
+                      )}
+                    </Button>
+
+                    <p className="text-xs text-gray-500">
+                      Payment Intent will be created under your account: {tierData.tokens} tokens purchase.
+                    </p>
+                  </div>
+                )}
+
+                {altError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{altError}</AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <CardPaymentForm selectedTier={selectedTier} tierData={tierData} onSuccess={onSuccess} />
+          )}
+        </div>
+
+        <OrderSummary tierData={tierData} method={selectedMethod} />
+      </div>
+    </div>
+  );
+};
+
 const PaymentPage: React.FC = () => {
-  const { navigateToPath } = useNavigation();
+  const { navigateToPath, navigateToHome } = useNavigation();
   const { t } = useLanguage();
   const [selectedTier, setSelectedTier] = useState<string>('standard');
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentMethodParam = params.get('payment');
+    const statusParam = params.get('status');
+
+    if (paymentMethodParam === 'alipay' && statusParam === 'success') {
+      setPaymentSuccess(true);
+      setShowPaymentForm(false);
+      queryClient.invalidateQueries({ queryKey: ['tokenBalance'] });
+
+      params.delete('payment');
+      params.delete('status');
+      const newQuery = params.toString();
+      const newUrl = `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (!paymentSuccess) {
+      return;
+    }
+
+    let attempts = 0;
+    const maxAttempts = 6; // Refresh for ~30 seconds after success
+    let intervalId: number | null = null;
+
+    const refreshBalance = () => {
+      queryClient.invalidateQueries({ queryKey: ['tokenBalance'] });
+      attempts += 1;
+      if (attempts >= maxAttempts && intervalId !== null) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    refreshBalance();
+    intervalId = window.setInterval(refreshBalance, 5000);
+
+    return () => {
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+  }, [paymentSuccess, queryClient]);
 
   const { 
     data: pricingTiers, 
@@ -440,7 +741,7 @@ const PaymentPage: React.FC = () => {
                 <ImprovedTokenBalance showTitle={false} compact={false} showStats={false} />
               </div>
               <div className="flex gap-3 justify-center">
-                <Button onClick={() => navigateToPath('/chats')} size="lg" className="bg-brand-accent hover:bg-indigo-500 rounded-2xl shadow-surface">
+                <Button onClick={navigateToHome} size="lg" className="bg-brand-accent hover:bg-indigo-500 rounded-2xl shadow-surface">
                   {t('startChatting')}
                 </Button>
                 <Button onClick={handleBackToProfile} variant="outline" size="lg" className="bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl">
@@ -457,24 +758,13 @@ const PaymentPage: React.FC = () => {
   if (showPaymentForm && pricingTiers && selectedTier) {
     return (
       <GlobalLayout>
-        <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-2xl">
-          <div className="mb-6">
-            <Button 
-              variant="ghost" 
-              onClick={() => setShowPaymentForm(false)}
-              className="mb-4"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              {t('backToPricing')}
-            </Button>
-            <h1 className="text-3xl font-bold text-white">{t('completePurchase')}</h1>
-          </div>
-
+        <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-4xl">
           <Elements stripe={stripePromise}>
-            <PaymentForm 
+            <PaymentCheckout
               selectedTier={selectedTier}
               tierData={pricingTiers[selectedTier]}
               onSuccess={handlePaymentSuccess}
+              onBack={() => setShowPaymentForm(false)}
             />
           </Elements>
         </div>

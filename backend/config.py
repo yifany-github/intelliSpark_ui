@@ -20,7 +20,14 @@ class Settings(BaseSettings):
     # Stripe settings
     stripe_secret_key: Optional[str] = None
     stripe_webhook_secret: Optional[str] = None
-    
+
+    # FX rate settings
+    fx_rate_api_url: Optional[str] = None
+    fx_rate_api_timeout_seconds: int = 5
+    fx_rate_cache_ttl_seconds: int = 86400
+    fx_default_usd_cny_rate: float = 7.2
+    fx_usd_cny_rate_override: Optional[float] = None
+
     # Voice/Audio settings
     eleven_lab_api: Optional[str] = None
 
