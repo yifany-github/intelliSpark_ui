@@ -26,7 +26,9 @@ async def create_payment_intent(
         stripe_service = StripeService()
         payment_data = stripe_service.create_payment_intent(
             user_id=current_user.id,
-            tier=request.tier
+            tier=request.tier,
+            payment_method_type=request.payment_method,
+            return_url=request.return_url,
         )
         
         if not payment_data:
@@ -73,7 +75,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                     user_id=payment_data["user_id"],
                     amount=payment_data["tokens"],
                     description=f"Purchased {payment_data['tokens']} tokens ({payment_data['tier']} tier)",
-                    stripe_payment_intent_id=payment_data["payment_intent_id"]
+                    stripe_payment_intent_id=payment_data["payment_intent_id"],
+                    payment_method=payment_data.get("payment_method"),
                 )
                 
                 if success:
@@ -86,10 +89,11 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                             template_name="payment_success",
                             user_id=payment_data["user_id"],
                             variables={
-                                "amount": payment_data["amount_cents"] // 100,  # Convert to dollars
+                                "amount": (payment_data.get("amount_cents") or payment_data.get("amount", 0)) // 100,
                                 "tokens": payment_data["tokens"],
                                 "tier": payment_data["tier"],
-                                "payment_id": payment_data["payment_intent_id"]
+                                "payment_id": payment_data["payment_intent_id"],
+                                "payment_method": payment_data.get("payment_method", "card"),
                             }
                         )
                         logger.info(f"Created payment success notification for user {payment_data['user_id']}")
@@ -105,9 +109,10 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                             template_name="payment_failed",
                             user_id=payment_data["user_id"],
                             variables={
-                                "amount": payment_data["amount_cents"] // 100,
+                                "amount": (payment_data.get("amount_cents") or payment_data.get("amount", 0)) // 100,
                                 "tier": payment_data["tier"],
-                                "payment_id": payment_data["payment_intent_id"]
+                                "payment_id": payment_data["payment_intent_id"],
+                                "payment_method": payment_data.get("payment_method", "card"),
                             }
                         )
                         logger.info(f"Created payment failed notification for user {payment_data['user_id']}")
@@ -131,7 +136,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                         user_id=user_id,
                         variables={
                             "amount": payment_intent["amount"] // 100,  # Convert to dollars
-                            "payment_id": payment_intent["id"]
+                            "payment_id": payment_intent["id"],
+                            "payment_method": payment_intent.get("payment_method_types", ["card"])[0],
                         }
                     )
                     logger.info(f"Created payment failed notification for user {user_id}")

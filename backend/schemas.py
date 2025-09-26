@@ -242,12 +242,17 @@ class UserTokenBalance(BaseSchema):
 class TokenPurchaseRequest(BaseSchema):
     amount: int = Field(..., description="Number of tokens to purchase")
     tier: str = Field(..., description="Pricing tier (starter, standard, premium)")
+    payment_method: str = Field(default="card", description="Stripe payment method type: card, wechat_pay, alipay")
+    return_url: Optional[str] = Field(default=None, description="Optional return URL for redirect-based payments like Alipay")
 
 class TokenPurchaseResponse(BaseSchema):
     client_secret: str
     payment_intent_id: str
     amount: int
     tokens: int
+    currency: str
+    payment_method: str
+    next_action: Optional[Dict[str, Any]] = None
 
 class TokenTransaction(BaseSchema):
     id: int
