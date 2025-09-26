@@ -719,6 +719,11 @@ const PaymentPage: React.FC = () => {
     queryClient.invalidateQueries({ queryKey: ['tokenBalance'] });
   };
 
+  const handleBuyMoreTokens = () => {
+    setPaymentSuccess(false);
+    setShowPaymentForm(false);
+  };
+
   // Back function for sub-pages only
   const handleBackToProfile = () => {
     navigateToPath('/profile');
@@ -738,7 +743,12 @@ const PaymentPage: React.FC = () => {
                 {t('tokensAddedToAccount')}
               </p>
               <div className="mb-6">
-                <ImprovedTokenBalance showTitle={false} compact={false} showStats={false} />
+                <ImprovedTokenBalance
+                  showTitle={false}
+                  compact={false}
+                  showStats={false}
+                  onPurchaseClick={handleBuyMoreTokens}
+                />
               </div>
               <div className="flex gap-3 justify-center">
                 <Button onClick={navigateToHome} size="lg" className="bg-brand-accent hover:bg-indigo-500 rounded-2xl shadow-surface">
