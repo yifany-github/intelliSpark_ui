@@ -1,4 +1,4 @@
-import { Search, ChevronDown, User, LogOut, LogIn, Crown, Menu } from 'lucide-react';
+import { Search, ChevronDown, User, LogOut, LogIn, Menu } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useNavigation } from '@/contexts/NavigationContext';
@@ -7,6 +7,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ImprovedTokenBalance } from '@/components/payment/ImprovedTokenBalance';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { fetchTokenBalance } from '@/services/tokenService';
+import LogoImage from '@/assets/logo.png';
 
 const SEARCH_HISTORY_KEY = 'character_search_history_v2';
 const MAX_HISTORY_ITEMS = 10;
@@ -181,12 +182,13 @@ export default function TopNavigation({
   }, [t, user]);
 
   const showChineseName = language === 'zh';
+  const appNameText = showChineseName ? (t('appNameChinese') || '歪歪') : (t('appNameEnglish') || 'YY Chat');
 
   return (
     <div className="sticky top-0 z-40 h-16 w-full border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md">
       <div className="mx-auto flex w-full max-w-[110rem] items-center justify-between gap-4 px-4 sm:px-8 lg:px-12 py-3">
         <div className="flex flex-1 items-center gap-2 min-w-0">
-          {withSidebar && (
+          {withSidebar ? (
             <button
               onClick={toggleCollapsed}
               className="hidden sm:inline-flex items-center justify-center rounded-xl border border-slate-700/70 bg-slate-900/70 p-2 text-slate-300 transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-secondary"
@@ -195,17 +197,19 @@ export default function TopNavigation({
             >
               <Menu className="h-5 w-5" />
             </button>
+          ) : (
+            <span className="hidden h-10 w-10 items-center justify-center sm:inline-flex" aria-hidden />
           )}
           <button
             onClick={navigateToHome}
             className="flex items-center gap-2 rounded-xl border border-transparent bg-slate-900/80 px-2 py-1.5 transition hover:border-slate-700/70 hover:bg-slate-900"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 text-slate-900 shadow-lg">
-              <Crown className="h-5 w-5" />
+            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900/90 shadow-lg">
+              <img src={LogoImage} alt={appNameText} className="h-7 w-7 object-contain" />
             </div>
             <div className="hidden sm:flex flex-col leading-tight">
               <span className="text-sm font-semibold text-slate-100 tracking-wide">
-                {showChineseName ? (t('appNameChinese') || '歪歪') : (t('appNameEnglish') || 'YY Chat')}
+                {appNameText}
               </span>
             </div>
           </button>

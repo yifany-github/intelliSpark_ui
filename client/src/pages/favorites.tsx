@@ -197,8 +197,8 @@ const FavoritesCharacterCard = (
     if (totalActivity > 10) {
       return (
         <div className="flex items-center gap-1">
-          <div className="w-2 h-2 bg-blue-400 rounded-full" />
-          <span className="text-xs text-blue-400">活跃</span>
+        <div className="w-2 h-2 bg-brand-secondary rounded-full" />
+        <span className="text-xs text-brand-secondary">活跃</span>
         </div>
       );
     }
@@ -531,7 +531,7 @@ const FavoritesPage = () => {
               placeholder={t('searchFavoriteCharacters') || t('searchCharacters') || '搜索收藏角色'}
               value={filters.search}
               onChange={(event) => dispatch({ type: 'SET_SEARCH', payload: event.target.value })}
-              className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+              className="w-full pl-10 pr-4 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-secondary"
             />
           </div>
           <div className="flex items-center flex-wrap gap-2">
@@ -539,7 +539,7 @@ const FavoritesPage = () => {
               <select
                 value={filters.sortBy}
                 onChange={(event) => dispatch({ type: 'SET_SORT_BY', payload: event.target.value as SortBy })}
-                className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500"
+                className="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-brand-secondary"
               >
                 <option value="date">{t('sortByDate')}</option>
                 <option value="name">{t('sortByName')}</option>
@@ -566,7 +566,7 @@ const FavoritesPage = () => {
               className={cn(
                 'px-3 py-1.5 rounded-full text-sm transition-all duration-200 border',
                 filters.category === category.key
-                  ? 'bg-blue-600 text-white border-blue-500 shadow-lg'
+                  ? 'bg-brand-secondary text-black border-brand-secondary shadow-lg'
                   : 'bg-gray-800 text-gray-200 border-gray-700 hover:bg-gray-700'
               )}
             >
@@ -585,7 +585,7 @@ const FavoritesPage = () => {
             <button
               type="button"
               onClick={() => refetch()}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              className="px-6 py-3 bg-brand-secondary hover:bg-brand-secondary/90 text-black rounded-lg transition-colors"
             >
               {t('refreshChats') || '刷新'}
             </button>
@@ -618,7 +618,7 @@ const FavoritesPage = () => {
               <button
                 type="button"
                 onClick={() => navigateToHome()}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+                className="px-6 py-3 bg-brand-secondary hover:bg-brand-secondary/90 text-black rounded-lg transition-colors"
               >
                 {t('exploreCharacters')}
               </button>
