@@ -2,6 +2,8 @@ from sqlalchemy.orm import Session
 from models import UserToken, TokenTransaction, User
 from database import get_db
 from typing import Optional
+
+from utils.exchange_rates import convert_usd_cents_to_cny_fen
 import logging
 
 logger = logging.getLogger(__name__)
@@ -21,7 +23,14 @@ class TokenService:
             return 0
         return user_token.balance
     
-    def add_tokens(self, user_id: int, amount: int, description: str = None, stripe_payment_intent_id: str = None) -> bool:
+    def add_tokens(
+        self,
+        user_id: int,
+        amount: int,
+        description: str = None,
+        stripe_payment_intent_id: str = None,
+        payment_method: Optional[str] = None,
+    ) -> bool:
         """Add tokens to user's balance"""
         try:
             # Get or create user token record
@@ -34,11 +43,15 @@ class TokenService:
             user_token.balance += amount
             
             # Create transaction record
+            details = description or f"Purchased {amount} tokens"
+            if payment_method:
+                details = f"{details} via {payment_method}"
+
             transaction = TokenTransaction(
                 user_id=user_id,
                 transaction_type="purchase",
                 amount=amount,
-                description=description or f"Purchased {amount} tokens",
+                description=details,
                 stripe_payment_intent_id=stripe_payment_intent_id
             )
             self.db.add(transaction)
@@ -97,25 +110,38 @@ class TokenService:
 PRICING_TIERS = {
     "starter": {
         "tokens": 100,
-        "price": 500,  # $5.00 in cents
-        "description": "Starter Pack - 100 tokens"
+        "price": 500,  # $5.00 in cents (USD)
+        "description": "Starter Pack - 100 tokens",
     },
     "standard": {
         "tokens": 500,
         "price": 2000,  # $20.00 in cents (25% bonus)
-        "description": "Standard Pack - 500 tokens"
+        "description": "Standard Pack - 500 tokens",
     },
     "premium": {
         "tokens": 1500,
         "price": 5000,  # $50.00 in cents (50% bonus)
-        "description": "Premium Pack - 1500 tokens"
-    }
+        "description": "Premium Pack - 1500 tokens",
+    },
 }
 
+
+def _with_conversion(tier_config: dict) -> dict:
+    tier = tier_config.copy()
+    converted_fen, rate = convert_usd_cents_to_cny_fen(tier["price"])
+    tier["price_cny"] = converted_fen
+    tier["fx_rate"] = float(rate)
+    return tier
+
+
 def get_pricing_tier(tier_name: str) -> dict:
-    """Get pricing information for a specific tier"""
-    return PRICING_TIERS.get(tier_name.lower())
+    """Get pricing information for a specific tier including live CNY conversion."""
+    config = PRICING_TIERS.get(tier_name.lower())
+    if not config:
+        return None
+    return _with_conversion(config)
+
 
 def get_all_pricing_tiers() -> dict:
-    """Get all available pricing tiers"""
-    return PRICING_TIERS
+    """Get all available pricing tiers with live CNY conversion."""
+    return {name: _with_conversion(config) for name, config in PRICING_TIERS.items()}
