@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { type ReactNode } from 'react';
 import { ChatMessage } from '../../types';
 import { format } from 'date-fns';
 import { Menu, X, RefreshCw, Copy, Palette } from 'lucide-react';
@@ -34,18 +34,66 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
     });
   };
   
-  // Process message content for markdown-like formatting
-  const processContent = (content: string) => {
-    // Handle *text* for italics
-    content = content.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    // Handle **text** for bold
-    content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    // Handle paragraphs
-    content = content.split('\n\n').map(p => `<p>${p}</p>`).join('');
-    // Handle line breaks
-    content = content.replace(/\n/g, '<br />');
-    
-    return content;
+  const renderInlineFormatting = (text: string) => {
+    const nodes: ReactNode[] = [];
+    const regex = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    let key = 0;
+
+    while ((match = regex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        nodes.push(text.slice(lastIndex, match.index));
+      }
+
+      const token = match[0];
+      const isStrong = token.startsWith('**');
+      const innerText = token.slice(isStrong ? 2 : 1, token.length - (isStrong ? 2 : 1));
+
+      nodes.push(
+        isStrong ? (
+          <strong key={`strong-${key++}`}>{innerText}</strong>
+        ) : (
+          <em key={`em-${key++}`}>{innerText}</em>
+        )
+      );
+
+      lastIndex = regex.lastIndex;
+    }
+
+    if (lastIndex < text.length) {
+      nodes.push(text.slice(lastIndex));
+    }
+
+    // Convert newline characters inside plain strings to <br />
+    return nodes.flatMap((node, outerIndex) => {
+      if (typeof node !== 'string') {
+        return [node];
+      }
+
+      const segments = node.split('\n');
+      return segments.flatMap((segment, innerIndex) => {
+        const parts: ReactNode[] = [segment];
+        if (innerIndex < segments.length - 1) {
+          parts.push(<br key={`br-${outerIndex}-${innerIndex}`} />);
+        }
+        return parts;
+      });
+    });
+  };
+
+  const renderMessageContent = (content: string) => {
+    const paragraphs = content.split(/\n{2,}/).filter(Boolean);
+
+    if (paragraphs.length === 0) {
+      return null;
+    }
+
+    return paragraphs.map((paragraph, index) => (
+      <p key={`paragraph-${index}`}>
+        {renderInlineFormatting(paragraph)}
+      </p>
+    ));
   };
   
   // Handle system messages (errors) differently
@@ -76,11 +124,9 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
       
       <div className="max-w-[80%]">
         <div className={isAI ? "chat-bubble-ai" : "chat-bubble-user"}>
-          <div
-            dangerouslySetInnerHTML={{ 
-              __html: processContent(message.content) 
-            }}
-          />
+          <div>
+            {renderMessageContent(message.content)}
+          </div>
           
           {isAI && (
             <DropdownMenu>

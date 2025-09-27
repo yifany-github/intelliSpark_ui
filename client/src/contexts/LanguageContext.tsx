@@ -833,7 +833,24 @@ export type TranslationKey =
   | 'myCharactersFilterNsfwBadge'
   | 'myCharactersChatsLabel'
   | 'myCharactersViewsLabel'
-  | 'myCharactersCreated';
+  | 'myCharactersCreated'
+  | 'sortBy'
+  | 'nsfwEnabled'
+  | 'favoritesOnly'
+  | 'activeFilters'
+  | 'nsfwEnabledLabel'
+  | 'nsfwDisabledLabel'
+  | 'showFilters'
+  | 'filters'
+  | 'nsfwDisclaimer'
+  | 'nsfwLegalNotice'
+  | 'quickSelect'
+  | 'showAllCharacters'
+  | 'showFavoritesOnly'
+  | 'filterHint'
+  | 'appNameChinese'
+  | 'appNameEnglish'
+  | 'delete';
 
 // Define translations for each language
 const translations: Record<Language, Record<TranslationKey, string>> = {
@@ -1587,6 +1604,17 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     myCharactersChatsLabel: 'chats',
     myCharactersViewsLabel: 'views',
     myCharactersCreated: 'Created',
+    sortBy: 'Sort By',
+    nsfwEnabled: 'NSFW Enabled',
+    favoritesOnly: 'Favorites Only',
+    activeFilters: 'Active Filters',
+    showFilters: 'Show Filters',
+    filters: 'Filters',
+    quickSelect: 'Quick Select',
+    showAllCharacters: 'Show All Characters',
+    showFavoritesOnly: 'Show Favorites Only',
+    filterHint: 'Quick start: Sort by "Popular" first, then select categories of interest to begin exploring.',
+    delete: 'Delete',
   },
   zh: {
     characters: '角色',
@@ -2338,6 +2366,17 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     myCharactersChatsLabel: '次聊天',
     myCharactersViewsLabel: '次浏览',
     myCharactersCreated: '创建于',
+    sortBy: '排序',
+    nsfwEnabled: '已开启',
+    favoritesOnly: '仅看收藏',
+    activeFilters: '已应用筛选',
+    showFilters: '显示筛选',
+    filters: '筛选器',
+    quickSelect: '快速选择',
+    showAllCharacters: '显示所有角色',
+    showFavoritesOnly: '仅显示收藏',
+    filterHint: '快速上手：先按"热门"排序，再选择感兴趣的分类即可开始探索。',
+    delete: '删除',
   },
 };
 
