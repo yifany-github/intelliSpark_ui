@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer utilities {
+  @keyframes featuredShine {
+    0% {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+    20% {
+      opacity: 0.85;
+    }
+    50% {
+      opacity: 0.35;
+    }
+    100% {
+      transform: translateX(120%);
+      opacity: 0;
+    }
+  }
+}
+

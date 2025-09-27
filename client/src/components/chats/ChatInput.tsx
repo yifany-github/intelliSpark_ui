@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { cn } from '@/lib/utils';
 
 // Constants
 const MAX_MESSAGE_LENGTH = 10000; // 10KB limit to match backend
@@ -16,9 +17,10 @@ interface ChatInputProps {
   isLoading: boolean;
   disabled?: boolean;
   placeholder?: string;
+  className?: string;
 }
 
-const ChatInput = ({ onSendMessage, isLoading, disabled = false, placeholder }: ChatInputProps) => {
+const ChatInput = ({ onSendMessage, isLoading, disabled = false, placeholder, className }: ChatInputProps) => {
   const [message, setMessage] = useState('');
   const { toast } = useToast();
   const { t } = useLanguage();
@@ -86,7 +88,7 @@ const ChatInput = ({ onSendMessage, isLoading, disabled = false, placeholder }: 
   };
 
   return (
-    <div className="p-3 border-t border-secondary bg-background sticky bottom-0">
+    <div className={cn("p-3 border-t border-secondary bg-background", className)}>
       <div className="flex items-center bg-secondary rounded-2xl px-3 py-2">
         <Popover>
           <PopoverTrigger asChild>

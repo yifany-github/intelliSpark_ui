@@ -16,30 +16,26 @@ const sizeClasses: Record<NonNullable<Props['size']>, string> = {
 };
 
 export default function TraitChips({ traits = [], maxVisible = Infinity, size = 'sm', className = '', chipClassName, moreChipClassName }: Props) {
-  const [expanded, setExpanded] = useState(false);
-  const visible = expanded ? traits : traits.slice(0, maxVisible);
-  const hiddenCount = Math.max(traits.length - visible.length, 0);
+  const [expanded] = useState(false);
+  const visible = traits.slice(0, maxVisible);
+  const hiddenExists = traits.length > visible.length;
 
   return (
-    <div className={`flex flex-wrap gap-1 ${className}`}>
+    <div className={`flex flex-nowrap gap-1 ${className}`}>
       {visible.map((trait, index) => (
         <span
           key={`${trait}-${index}`}
-          className={`${chipClassName || 'bg-gray-600 text-white'} rounded ${sizeClasses[size]}`}
+          className={`inline-flex items-center ${chipClassName || 'bg-gray-600 text-white'} rounded ${sizeClasses[size]}`}
         >
           {trait}
         </span>
       ))}
-      {!expanded && hiddenCount > 0 && (
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className={`${moreChipClassName || 'bg-gray-700 hover:bg-gray-600 text-white'} rounded ${sizeClasses[size]}`}
-          aria-label={`Show ${hiddenCount} more traits`}
-          aria-expanded={expanded}
+      {hiddenExists && (
+        <span
+          className={`inline-flex items-center ${moreChipClassName || 'bg-gray-700 text-white'} rounded ${sizeClasses[size]}`}
         >
-          +{hiddenCount} more
-        </button>
+          ...
+        </span>
       )}
     </div>
   );

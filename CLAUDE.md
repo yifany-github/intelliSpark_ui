@@ -9,28 +9,25 @@ This is a React-based AI role-playing chat application called "ProductInsightAI"
 ## Development Commands
 
 ```bash
-# Start development server (client + server)
+# Start development server (frontend only)
 npm run dev
 
 # Build for production
 npm run build
 
-# Start production server
-npm start
+# Build for CI (skips TypeScript checking)
+npm run build:ci
+
+# Preview production build
+npm run preview
 
 # TypeScript type checking
 npm run check
 
-# Run tests
-npm test
-
-# Database migrations (if using database)
-npm run db:push
-
 # Backend specific commands
 cd backend
-python -m uvicorn main:app --reload  # Start backend server
-python -m pytest                     # Run backend tests
+python main.py                       # Start backend server
+python -m uvicorn main:app --reload  # Alternative backend start (with auto-reload)
 ```
 
 ## Architecture
@@ -222,3 +219,26 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 - **Few-Shot Examples**: Generic conversation examples in `backend/prompts/generic_few_shots.json` can be customized
 - **Cache Debugging**: Check logs for "Cache creation" messages to debug Gemini cache issues
 - **Error Handling**: Comprehensive error boundaries and user-friendly error messages
+
+## Database Migrations
+
+The project uses custom migration scripts in `backend/migrations/` directory:
+
+```bash
+# Database migration files (run in sequence):
+001_add_message_content_limit.py    # Adds content length limits
+002_add_uuid_fields.py              # Adds UUID fields to tables
+003_populate_uuid_fields.py         # Populates existing UUID fields
+004_add_character_gallery.py        # Adds character gallery features
+005_add_character_analytics.py      # Adds analytics tracking
+006_add_age_nsfw_level.py          # Adds age restrictions and NSFW levels
+007_soft_delete_characters.py      # Implements soft delete for characters
+```
+
+When schema changes occur, check if a migration exists in the `backend/migrations/` directory before manually deleting the database.
+
+# important-instruction-reminders
+Do what has been asked; nothing more, nothing less.
+NEVER create files unless they're absolutely necessary for achieving your goal.
+ALWAYS prefer editing an existing file to creating a new one.
+NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.

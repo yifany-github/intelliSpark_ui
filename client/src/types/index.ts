@@ -37,6 +37,7 @@ export interface Character {
   chatCount?: number;
   trendingScore?: number;
   lastActivity?: string;
+  isFavorite?: boolean;
 }
 
 export interface Chat {
@@ -60,6 +61,7 @@ export interface ChatMessage {
 
 // Enriched chat type with character data
 export interface EnrichedChat extends Chat {
+  latestMessagePreview?: string | null;
   character: {
     id: number;
     name: string;

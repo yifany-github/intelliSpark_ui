@@ -1,71 +1,61 @@
-import { useState } from 'react';
-import { Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ReactNode } from 'react';
+import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { useLanguage } from '@/contexts/LanguageContext';
 
-interface Step {
+export interface CharacterCreationStep {
   id: number;
   title: string;
   description: string;
-  isComplete: boolean;
 }
 
 interface CharacterCreationWizardProps {
+  steps: CharacterCreationStep[];
   currentStep: number;
-  totalSteps: number;
   onNextStep: () => void;
   onPrevStep: () => void;
   onGoToStep: (step: number) => void;
-  children: React.ReactNode;
+  children: ReactNode;
   canProceed?: boolean;
+  isSubmitting?: boolean;
+  nextLabel?: string;
+  prevLabel?: string;
+  submitLabel?: string;
+  showNavigation?: boolean;
 }
 
 export default function CharacterCreationWizard({
+  steps,
   currentStep,
-  totalSteps,
   onNextStep,
   onPrevStep,
   onGoToStep,
   children,
-  canProceed = true
+  canProceed = true,
+  isSubmitting = false,
+  nextLabel,
+  prevLabel,
+  submitLabel,
+  showNavigation = true,
 }: CharacterCreationWizardProps) {
-  const steps: Step[] = [
-    {
-      id: 1,
-      title: 'Basic Info',
-      description: 'Name, description, and avatar',
-      isComplete: currentStep > 1
-    },
-    {
-      id: 2,
-      title: 'Personality',
-      description: 'Traits and characteristics',
-      isComplete: currentStep > 2
-    },
-    {
-      id: 3,
-      title: 'Details',
-      description: 'Additional information',
-      isComplete: currentStep > 3
-    },
-    {
-      id: 4,
-      title: 'Settings',
-      description: 'Publishing preferences',
-      isComplete: currentStep > 4
-    }
-  ];
-
+  const { t, interfaceLanguage } = useLanguage();
+  const totalSteps = steps.length;
   const currentStepData = steps[currentStep - 1];
+  const computedPrevLabel = prevLabel ?? t('stepBack');
+  const computedNextLabel = nextLabel ?? t('stepNext');
+  const computedSubmitLabel = submitLabel ?? t('createCharacter');
+  const progressLabel = interfaceLanguage === 'zh'
+    ? `第 ${currentStep} 步 / 共 ${totalSteps} 步`
+    : `Step ${currentStep} of ${totalSteps}`;
 
   return (
     <div className="max-w-4xl mx-auto">
       {/* Step Indicator */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-2xl font-bold text-white">Create Your Character</h2>
+        <div className="flex items-center justify-end mb-4">
           <div className="text-sm text-gray-400">
-            Step {currentStep} of {totalSteps}
+            {progressLabel}
           </div>
         </div>
         
@@ -77,13 +67,13 @@ export default function CharacterCreationWizard({
                 className={`relative flex items-center justify-center w-10 h-10 rounded-full cursor-pointer transition-colors ${
                   currentStep === step.id
                     ? 'bg-blue-600 text-white'
-                    : step.isComplete
+                    : currentStep > step.id
                     ? 'bg-green-600 text-white'
                     : 'bg-gray-700 text-gray-400'
                 }`}
                 onClick={() => onGoToStep(step.id)}
               >
-                {step.isComplete ? (
+                {currentStep > step.id ? (
                   <Check className="w-5 h-5" />
                 ) : (
                   <span className="text-sm font-medium">{step.id}</span>
@@ -116,40 +106,42 @@ export default function CharacterCreationWizard({
         </CardContent>
       </Card>
 
-      {/* Navigation Buttons */}
-      <div className="flex justify-between">
-        <Button
-          variant="outline"
-          onClick={onPrevStep}
-          disabled={currentStep === 1}
-          className="flex items-center space-x-2"
-        >
-          <ChevronLeft className="w-4 h-4" />
-          <span>Previous</span>
-        </Button>
+      {showNavigation && (
+        <div className="flex justify-between">
+          <Button
+            variant="outline"
+            onClick={onPrevStep}
+            disabled={currentStep === 1}
+            className="flex items-center space-x-2"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            <span>{computedPrevLabel}</span>
+          </Button>
 
-        <div className="flex space-x-2">
-          {currentStep < totalSteps ? (
-            <Button
-              onClick={onNextStep}
-              disabled={!canProceed}
-              className="flex items-center space-x-2"
-            >
-              <span>Next</span>
-              <ChevronRight className="w-4 h-4" />
-            </Button>
-          ) : (
-            <Button
-              onClick={onNextStep}
-              disabled={!canProceed}
-              className="flex items-center space-x-2 bg-green-600 hover:bg-green-700"
-            >
-              <span>Create Character</span>
-              <Check className="w-4 h-4" />
-            </Button>
-          )}
+          <div className="flex space-x-2">
+            {currentStep < totalSteps ? (
+              <Button
+                onClick={onNextStep}
+                disabled={!canProceed || isSubmitting}
+                className="flex items-center space-x-2"
+              >
+                <span>{computedNextLabel}</span>
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            ) : (
+              <Button
+                onClick={onNextStep}
+                disabled={!canProceed || isSubmitting}
+                className="flex items-center space-x-2 bg-green-600 hover:bg-green-700"
+              >
+                {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>{computedSubmitLabel}</span>
+                <Check className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

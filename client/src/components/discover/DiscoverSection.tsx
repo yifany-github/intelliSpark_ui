@@ -1,9 +1,28 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { 
-  Star, Eye, TrendingUp, Flame, Crown, Users, Calendar, Zap, Search, 
-  BookOpen, Gamepad2, Film, Music, Sparkles, Heart, Shield, Sword,
-  Globe, Brain, Bot, Palette, Coffee, Mountain, Compass, Filter, Grid
+import {
+  Star,
+  Eye,
+  TrendingUp,
+  Flame,
+  Crown,
+  Users,
+  Calendar,
+  Search,
+  BookOpen,
+  Gamepad2,
+  Film,
+  Sparkles,
+  Heart,
+  Sword,
+  Globe,
+  Bot,
+  Palette,
+  Coffee,
+  Mountain,
+  Grid,
+  Rows,
+  MessageCircle,
 } from 'lucide-react';
 import { Character } from '@/types';
 import { useFavorites } from '@/contexts/FavoritesContext';
@@ -15,6 +34,8 @@ import { createRecommendationEngine } from '@/lib/recommendationEngine';
 import { useToast } from '@/hooks/use-toast';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 import { useLanguage } from '@/contexts/LanguageContext';
+import { cn } from '@/lib/utils';
+import TraitChips from '@/components/characters/TraitChips';
 
 const DiscoverSection = () => {
   const { navigateToPath } = useNavigation();
@@ -41,7 +62,14 @@ const DiscoverSection = () => {
 
   // State for category filtering and layout
   const [selectedCategory, setSelectedCategory] = useState('All');
-  const [viewMode, setViewMode] = useState<'grid' | 'masonry'>('masonry');
+  const [viewMode, setViewMode] = useState<'grid' | 'masonry'>('grid');
+  const [activeSegment, setActiveSegment] = useState<'trending' | 'latest' | 'recommended' | 'favorites'>('trending');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [visibleCount, setVisibleCount] = useState(6);
+
+  useEffect(() => {
+    setVisibleCount(6);
+  }, [activeSegment, selectedCategory, searchTerm]);
 
   // Mutation for creating a new chat
   const { mutate: createChat, isPending: isCreatingChat } = useMutation({
@@ -113,10 +141,64 @@ const DiscoverSection = () => {
   );
   
   const featuredCharacters = useMemo(() => recommendationEngine.getFeatured(2), [recommendationEngine]);
+  const favoriteCharacters = useMemo(
+    () => characters.filter((character) => favorites.includes(character.id)),
+    [characters, favorites]
+  );
+
+  const formatNumber = (num: number): string => {
+    if (num < 1000) return num.toString();
+    if (num < 10000) return `${(num / 1000).toFixed(1)}K`;
+    if (num < 1000000) return `${Math.floor(num / 1000)}K`;
+    return `${(num / 1000000).toFixed(1)}M`;
+  };
+
+  const getCharacterAnalytics = (character: Character) => {
+    const analytics = character as unknown as {
+      viewCount?: number;
+      chatCount?: number;
+      likeCount?: number;
+      trendingScore?: number;
+    };
+
+    return {
+      viewCount: analytics?.viewCount ?? 0,
+      chatCount: analytics?.chatCount ?? 0,
+      likeCount: analytics?.likeCount ?? 0,
+      trendingScore: analytics?.trendingScore ?? 0,
+    };
+  };
+
+  const getCharacterRating = (character: Character): number => {
+    const analytics = getCharacterAnalytics(character);
+    const totalInteractions = analytics.viewCount + analytics.chatCount;
+
+    if (totalInteractions === 0) return 4.0;
+
+    const likeRatio = analytics.likeCount / Math.max(totalInteractions * 0.12, 1);
+    const baseRating = Math.min(4.0 + likeRatio, 5.0);
+
+    return Math.round(baseRating * 10) / 10;
+  };
+
+  const isCharacterNSFW = (character: Character): boolean => {
+    if ((character.nsfwLevel || 0) > 0) return true;
+
+    const nsfwKeywords = ['nsfw', 'adult', '色情', '情欲', '性感', '敏感', '情色', '欲望'];
+    const traits = character.traits || [];
+    const description = `${character.description || ''} ${character.backstory || ''}`.toLowerCase();
+
+    return (
+      traits.some((trait) => nsfwKeywords.some((keyword) => trait.toLowerCase().includes(keyword))) ||
+      nsfwKeywords.some((keyword) => description.includes(keyword))
+    );
+  };
+
+  const isCharacterFeatured = (character: Character): boolean => Boolean((character as any).isFeatured);
 
   // Define explore categories with icons and colors
   const exploreCategories = [
-    { id: 'All', name: t('allCharacters'), icon: Globe, color: 'text-blue-400', bgColor: 'bg-blue-600' },
+    { id: 'All', name: t('allCharacters'), icon: Globe, color: 'text-brand-secondary', bgColor: 'bg-brand-secondary' },
     { id: 'Fantasy', name: t('fantasyMagic'), icon: Sparkles, color: 'text-purple-400', bgColor: 'bg-purple-600' },
     { id: 'Sci-Fi', name: t('sciFiFuture'), icon: Bot, color: 'text-cyan-400', bgColor: 'bg-cyan-600' },
     { id: 'Adventure', name: t('adventureAction'), icon: Sword, color: 'text-orange-400', bgColor: 'bg-orange-600' },
@@ -152,365 +234,612 @@ const DiscoverSection = () => {
       new: filterCharacters(newCharacters),
       popular: filterCharacters(popularCharacters),
       recommended: filterCharacters(recommendedCharacters),
-      featured: filterCharacters(featuredCharacters)
+      featured: filterCharacters(featuredCharacters),
+      favorites: filterCharacters(favoriteCharacters),
     };
-  }, [selectedCategory, trendingCharacters, newCharacters, popularCharacters, recommendedCharacters, featuredCharacters]);
+  }, [
+    selectedCategory,
+    trendingCharacters,
+    newCharacters,
+    popularCharacters,
+    recommendedCharacters,
+    featuredCharacters,
+    favoriteCharacters,
+  ]);
 
-  const CharacterCard = ({ character, size = 'normal' }: { character: Character, size?: 'normal' | 'large' }) => (
-    <div 
-      className={`bg-gray-800 rounded-lg overflow-hidden hover:bg-gray-750 transition-all duration-200 cursor-pointer group hover:scale-105 hover:shadow-lg ${
-        size === 'large' ? 'col-span-2' : ''
-      } ${isCreatingChat ? 'opacity-50 pointer-events-none' : ''}`}
-      onClick={() => !isCreatingChat && handleCharacterClick(character)}
-    >
-      <div className="relative">
-        <img
-          src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}
-          alt={character.name}
-          className={`w-full object-cover group-hover:brightness-110 transition-all duration-200 ${
-            size === 'large' ? 'h-64' : 'h-48'
-          }`}
-        />
-        <div className="absolute top-2 right-2 z-20 flex items-center space-x-2">
-          {(character.nsfwLevel || 0) > 0 && (
-            <div className="w-8 h-8 bg-red-500/90 backdrop-blur-sm rounded-full border border-red-400/50 flex items-center justify-center">
-              <span className="text-xs text-white font-bold leading-none">18+</span>
+  const heroCharacter = filteredSections.featured[0]
+    || filteredSections.trending[0]
+    || filteredSections.popular[0]
+    || filteredSections.new[0]
+    || characters[0]
+    || null;
+
+  const segmentConfig = useMemo(() => ([
+    {
+      id: 'trending' as const,
+      label: t('trendingThisWeek'),
+      description: t('hotPicksCommunity'),
+      icon: TrendingUp,
+      data: filteredSections.trending,
+    },
+    {
+      id: 'latest' as const,
+      label: t('newArrivals'),
+      description: t('freshCharactersAdded'),
+      icon: Calendar,
+      data: filteredSections.new,
+    },
+    {
+      id: 'recommended' as const,
+      label: t('recommendedForYou'),
+      description: t('basedOnPreferences'),
+      icon: Sparkles,
+      data: filteredSections.recommended,
+    },
+    {
+      id: 'favorites' as const,
+      label: t('myFavorites'),
+      description: favorites.length > 0 ? t('favorites') : t('noFavoritesYet'),
+      icon: Heart,
+      data: filteredSections.favorites,
+    },
+  ]), [
+    filteredSections.trending,
+    filteredSections.new,
+    filteredSections.recommended,
+    filteredSections.favorites,
+    t,
+    favorites.length,
+  ]);
+
+  const activeSegmentCharacters = useMemo(() => {
+    const segment = segmentConfig.find((config) => config.id === activeSegment);
+    const base = segment?.data ?? [];
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return base;
+    }
+
+    return base.filter((character) => {
+      const name = character.name?.toLowerCase() ?? '';
+      const description = character.description?.toLowerCase() ?? '';
+      const backstory = character.backstory?.toLowerCase() ?? '';
+      return (
+        name.includes(normalizedSearch)
+        || description.includes(normalizedSearch)
+        || backstory.includes(normalizedSearch)
+      );
+    });
+  }, [segmentConfig, activeSegment, searchTerm]);
+
+  const visibleCharacters = activeSegmentCharacters.slice(0, visibleCount);
+  const hasMoreCharacters = activeSegmentCharacters.length > visibleCount;
+  const showSkeleton = isLoading && characters.length === 0;
+
+  const curatedSections = useMemo(() => ([
+    {
+      key: 'popular',
+      title: t('mostPopular'),
+      description: t('communityFavorites'),
+      icon: Flame,
+      accentClass: 'text-orange-400',
+      data: filteredSections.popular,
+    },
+    {
+      key: 'trending',
+      title: t('trendingThisWeek'),
+      description: t('hotPicksCommunity'),
+      icon: TrendingUp,
+      accentClass: 'text-pink-400',
+      data: filteredSections.trending,
+    },
+    {
+      key: 'recommended',
+      title: t('recommendedForYou'),
+      description: t('basedOnPreferences'),
+      icon: Users,
+      accentClass: 'text-brand-secondary',
+      data: filteredSections.recommended,
+    },
+  ]), [
+    filteredSections.popular,
+    filteredSections.trending,
+    filteredSections.recommended,
+    t,
+  ]);
+
+  const heroStats = useMemo(() => ([
+    {
+      label: t('totalCharacters'),
+      value: characters.length,
+      icon: Users,
+    },
+    {
+      label: t('newArrivals'),
+      value: Math.max(newCharacters.length, filteredSections.new.length),
+      icon: Sparkles,
+    },
+    {
+      label: t('myFavorites'),
+      value: favorites.length,
+      icon: Heart,
+    },
+  ]), [
+    characters.length,
+    newCharacters.length,
+    filteredSections.new.length,
+    favorites.length,
+    t,
+  ]);
+
+  const CharacterCard = ({ character }: { character: Character }) => {
+    const analytics = getCharacterAnalytics(character);
+    const totalActivity = analytics.viewCount + analytics.chatCount;
+    const rating = getCharacterRating(character);
+    const isFeaturedCard = isCharacterFeatured(character);
+    const nsfw = isCharacterNSFW(character);
+
+    const statusBadge = (() => {
+      if (isFeaturedCard) {
+        return (
+          <div className="flex items-center gap-1 bg-gradient-to-r from-yellow-400 via-yellow-500 to-amber-400 px-2.5 py-1 rounded-full shadow-glow shadow-yellow-400/30 animate-pulse">
+            <Crown className="w-3.5 h-3.5 text-amber-900 drop-shadow" />
+            <span className="text-xs text-amber-900 font-semibold tracking-wide leading-none">官方推荐</span>
+          </div>
+        );
+      }
+      if (totalActivity > 100) {
+        return (
+          <div className="flex items-center space-x-1 leading-none">
+            <div className="w-2 h-2 bg-green-400 rounded-full" />
+            <span className="text-xs text-green-400 font-medium leading-none">{t('popular')}</span>
+          </div>
+        );
+      }
+      if (totalActivity > 10) {
+        return (
+          <div className="flex items-center space-x-1 leading-none">
+            <div className="w-2 h-2 bg-brand-secondary rounded-full" />
+            <span className="text-xs text-brand-secondary font-medium leading-none">活跃</span>
+          </div>
+        );
+      }
+      return (
+        <div className="flex items-center space-x-1 leading-none">
+          <div className="w-2 h-2 bg-gray-400 rounded-full" />
+          <span className="text-xs text-gray-400 font-medium leading-none">新角色</span>
+        </div>
+      );
+    })();
+
+    return (
+      <div
+        className={`group relative grid w-full aspect-[2/1] min-h-[460px] grid-rows-[6fr_5fr] bg-gradient-surface border rounded-xl overflow-hidden shadow-elevated transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] cursor-pointer focus-within:ring-2 focus-within:ring-brand-secondary focus-within:ring-offset-2 focus-within:ring-offset-zinc-900 ${
+          isFeaturedCard
+            ? 'border-amber-300/70 shadow-[0_0_40px_rgba(251,191,36,0.35)] hover:shadow-[0_0_55px_rgba(251,191,36,0.45)]'
+            : 'border-surface-border hover:shadow-premium hover:shadow-glow'
+        }`}
+        onClick={() => handleCharacterClick(character)}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            handleCharacterClick(character);
+          }
+        }}
+        tabIndex={0}
+        role="button"
+        aria-label={`选择角色 ${character.name}`}
+      >
+        {isFeaturedCard && (
+          <>
+            <div className="pointer-events-none absolute inset-0 rounded-xl border border-amber-300/60 opacity-80 animate-[pulse_3s_ease-in-out_infinite]" />
+            <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-br from-amber-200/10 via-amber-300/10 to-transparent mix-blend-screen animate-[pulse_4s_ease-in-out_infinite]" />
+            <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl">
+              <div className="absolute inset-y-[-40%] left-[-60%] w-[160%] rotate-6 bg-[linear-gradient(120deg,transparent,rgba(251,191,36,0.75),transparent)] blur-xl opacity-60 animate-[featuredShine_7s_linear_infinite]" />
             </div>
-          )}
-          <button 
-            onClick={(e) => {
-              e.stopPropagation();
-              handleFavoriteToggle(character.id);
-            }}
-            title={isFavorite(character.id) ? '取消收藏' : '收藏'}
-            aria-label={isFavorite(character.id) ? '取消收藏' : '收藏'}
-            className={`p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors ${
-              isFavorite(character.id) ? 'text-yellow-400' : 'text-white'
-            }`}
-          >
-            <Star className={`w-4 h-4 ${isFavorite(character.id) ? 'fill-current' : ''}`} />
-          </button>
-        </div>
-        <div className="absolute bottom-2 left-2 right-2">
-          <div className="flex flex-wrap gap-1 mb-2">
-            {character.traits.slice(0, 3).map((trait: string) => (
-              <span key={trait} className="bg-blue-600 text-white px-2 py-1 rounded text-xs backdrop-blur-sm">
-                {trait}
-              </span>
-            ))}
-          </div>
-        </div>
-        {/* Hover overlay */}
-        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex items-center justify-center pointer-events-none">
-          <div className="flex space-x-2 pointer-events-auto">
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                if (!isCreatingChat) {
-                  handleStartChat(character);
-                }
+          </>
+        )}
+
+        <div className="relative z-10 overflow-hidden bg-surface-tertiary">
+          <img
+            src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}
+            alt={`${character.name} avatar`}
+            className="h-full w-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-105"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+
+          <div className="absolute top-3 right-3 flex items-center space-x-2">
+            <button
+              onClick={(event) => {
+                event.stopPropagation();
+                handleFavoriteToggle(character.id);
               }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
-              disabled={isCreatingChat}
+              aria-label={`${isFavorite(character.id) ? '取消收藏' : '收藏'} ${character.name}`}
+              className={`w-8 h-8 bg-black/60 backdrop-blur-sm rounded-full hover:bg-black/80 transition-all duration-200 flex items-center justify-center ${
+                isFavorite(character.id) ? 'text-brand-secondary' : 'text-white hover:text-brand-secondary'
+              }`}
+              type="button"
             >
-              {isCreatingChat ? t('creating') : t('chatNow')}
+              <Star className={`w-4 h-4 ${isFavorite(character.id) ? 'fill-current' : ''}`} />
             </button>
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                handlePreviewOpen(character);
-              }}
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
-            >
-              {t('preview')}
-            </button>
-          </div>
-        </div>
-      </div>
-      <div className="p-3">
-        <h3 className="font-semibold text-white mb-1 truncate group-hover:text-blue-400 transition-colors">{character.name}</h3>
-        <p className="text-xs text-gray-400 mb-2 line-clamp-2">{character.description || character.backstory}</p>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="text-xs text-gray-400">⭐ 4.8</span>
-            {isFavorite(character.id) && (
-              <span className="text-xs text-yellow-400">❤️</span>
+            {nsfw && (
+              <div className="w-8 h-8 bg-red-500/90 backdrop-blur-sm rounded-full border border-red-400/50 flex items-center justify-center">
+                <span className="text-xs text-white font-bold leading-none">18+</span>
+              </div>
             )}
           </div>
-          <div className="flex items-center space-x-1">
-            <Eye className="w-3 h-3 text-gray-400" />
-            <span className="text-xs text-gray-400">1.2K</span>
+
+          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4 pointer-events-none">
+            <div className="w-full space-y-2 pointer-events-auto">
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (!isCreatingChat) {
+                    handleStartChat(character);
+                  }
+                }}
+                className="w-full py-3 bg-brand-secondary text-zinc-900 rounded-lg font-bold text-sm hover:bg-brand-secondary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-black disabled:opacity-60"
+                disabled={isCreatingChat}
+                type="button"
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  <MessageCircle className="w-4 h-4" />
+                  <span>{isCreatingChat ? t('creating') : t('chatNow')}</span>
+                </div>
+              </button>
+              <button
+                onClick={(event) => {
+                  event.stopPropagation();
+                  handlePreviewOpen(character);
+                }}
+                className="w-full py-2 bg-surface-secondary/90 backdrop-blur-sm text-content-primary rounded-lg font-medium text-sm hover:bg-surface-tertiary transition-colors focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-black"
+                type="button"
+              >
+                <div className="flex items-center justify-center space-x-2">
+                  <Eye className="w-4 h-4" />
+                  <span>{t('preview')}</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="relative z-10 flex flex-col overflow-hidden p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h3 className="flex-1 truncate text-lg font-bold text-content-primary transition-colors group-hover:text-brand-secondary">
+              {character.name}
+            </h3>
+            <div className="flex items-center">{statusBadge}</div>
+          </div>
+
+          <p className="mt-2 text-sm leading-relaxed text-content-tertiary line-clamp-3">
+            {character.description || character.backstory}
+          </p>
+
+          <div className="mt-auto space-y-2">
+            {character.traits?.length > 0 && (
+              <TraitChips
+                traits={character.traits}
+                maxVisible={2}
+                size="xs"
+                className="flex-nowrap"
+                chipClassName="px-2.5 py-1 bg-brand-secondary/15 text-brand-secondary border border-brand-secondary/25"
+                moreChipClassName="px-2.5 py-1 bg-surface-tertiary text-content-tertiary border border-surface-border"
+              />
+            )}
+
+            <div className="flex items-center justify-between text-xs text-content-tertiary">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-1">
+                  <Star className="w-3.5 h-3.5 text-brand-secondary fill-current" />
+                  <span className="font-semibold text-content-secondary">{rating}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Heart className="w-3.5 h-3.5 text-brand-secondary" />
+                  <span className="font-medium">{formatNumber(analytics.likeCount)}</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <MessageCircle className="w-3.5 h-3.5 text-content-tertiary" />
+                  <span className="text-content-tertiary">{formatNumber(analytics.chatCount)}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1">
+                <Eye className="w-3.5 h-3.5 text-content-tertiary" />
+                <span className="text-content-tertiary">{formatNumber(analytics.viewCount)}</span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
-    <div className="w-full h-full p-3 sm:p-6 space-y-8">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <div className="flex items-center space-x-2 mb-2">
-              <Compass className="w-6 h-6 text-blue-400" />
-              <h1 className="text-3xl font-bold text-white">{t('discoverPage')}</h1>
+    <div className="w-full space-y-10 px-3 py-4 sm:px-6 sm:py-8">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)]">
+        <div className="relative overflow-hidden rounded-3xl border border-gray-800/70 bg-gradient-to-br from-indigo-900/70 via-slate-900 to-black p-6 sm:p-8">
+          {showSkeleton ? (
+            <div className="flex flex-col gap-6">
+              <div className="h-5 w-28 animate-pulse rounded-full bg-white/10" />
+              <div className="h-12 w-3/4 animate-pulse rounded-2xl bg-white/10" />
+              <div className="h-28 w-full animate-pulse rounded-2xl bg-white/5" />
             </div>
-            <p className="text-gray-400">{t('exploreTrendingCharacters')}</p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setViewMode(viewMode === 'grid' ? 'masonry' : 'grid')}
-              className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
-              title={viewMode === 'grid' ? t('switchToMasonryLayout') : t('switchToGridLayout')}
-            >
-              <Filter className="w-4 h-4" />
-            </button>
-          </div>
+          ) : (
+            <div className="relative z-10 flex flex-col gap-6">
+              <div>
+                <div className="flex items-center gap-2 text-brand-secondary/80">
+                  <Sparkles className="h-5 w-5" />
+                  <span className="text-sm font-semibold uppercase tracking-[0.2em]">
+                    {t('discoverPage')}
+                  </span>
+                </div>
+                <h1 className="mt-3 text-3xl font-bold text-white sm:text-4xl">
+                  {t('exploreTrendingCharacters')}
+                </h1>
+                <p className="mt-3 max-w-2xl text-sm text-gray-300 sm:text-base">
+                  {t('handpickedSelections')} · {t('hotPicksCommunity')}
+                </p>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-3">
+                {heroStats.map(({ label, value, icon: StatIcon }) => (
+                  <div
+                    key={label}
+                    className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/5 p-3 backdrop-blur"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 text-white">
+                      <StatIcon className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-lg font-semibold text-white">{value}</p>
+                      <p className="text-xs text-gray-300">{label}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveSegment('recommended')}
+                  className="inline-flex items-center justify-center rounded-xl bg-brand-secondary px-5 py-3 text-sm font-semibold text-black transition-colors hover:bg-brand-secondary/90 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900"
+                >
+                  {t('startChat')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigateToPath('/favorites')}
+                  className="inline-flex items-center justify-center rounded-xl border border-gray-700 bg-black/40 px-5 py-3 text-sm font-semibold text-gray-200 transition-colors hover:border-brand-secondary hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-slate-900 disabled:opacity-60"
+                  disabled={favorites.length === 0}
+                >
+                  {t('myFavorites')}
+                </button>
+              </div>
+            </div>
+          )}
+          <div className="pointer-events-none absolute inset-0 rounded-3xl border border-white/5 opacity-50" />
+          <div className="pointer-events-none absolute -right-[15%] top-1/2 hidden h-[420px] w-[420px] -translate-y-1/2 rounded-full bg-brand-secondary/20 blur-3xl lg:block" />
         </div>
+        {heroCharacter && !showSkeleton && (
+          <div className="hidden xl:flex xl:justify-center">
+            <div className="w-full max-w-[320px] 2xl:max-w-[360px]">
+              <CharacterCard character={heroCharacter} />
+            </div>
+          </div>
+        )}
+      </section>
 
-        {/* Explore Categories */}
-        <div className="mb-6">
-          <h3 className="text-lg font-semibold text-white mb-4 flex items-center">
-            <Mountain className="w-5 h-5 text-emerald-400 mr-2" />
-            {t('exploreTypes')}
-          </h3>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-            {exploreCategories.map((category) => {
-              const IconComponent = category.icon;
-              const isSelected = selectedCategory === category.id;
+      <section id="discover-grid" className="space-y-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            {segmentConfig.map((option) => {
+              const IconComponent = option.icon;
+              const isActive = activeSegment === option.id;
               return (
                 <button
-                  key={category.id}
-                  onClick={() => setSelectedCategory(category.id)}
-                  className={`p-3 rounded-xl transition-all duration-200 transform hover:scale-105 ${
-                    isSelected 
-                      ? `${category.bgColor} text-white shadow-lg` 
-                      : 'bg-gray-800 hover:bg-gray-700 text-gray-300'
-                  }`}
+                  key={option.id}
+                  type="button"
+                  onClick={() => setActiveSegment(option.id)}
+                  className={cn(
+                    'flex min-w-[220px] flex-1 items-center gap-3 rounded-2xl border px-4 py-3 transition-all sm:min-w-[240px]',
+                    isActive
+                      ? 'border-brand-secondary/70 bg-brand-secondary/15 text-white shadow-[0_10px_30px_rgba(245,158,11,0.25)]'
+                      : 'border-gray-800 bg-gray-900/70 text-gray-200 hover:border-gray-700 hover:text-white'
+                  )}
                 >
-                  <div className="flex flex-col items-center space-y-2">
-                    <IconComponent className={`w-6 h-6 ${
-                      isSelected ? 'text-white' : category.color
-                    }`} />
-                    <span className="text-xs font-medium text-center leading-tight">
-                      {category.name.split(' ')[0]}
-                      <br className="hidden sm:block" />
-                      <span className="hidden sm:inline">{category.name.split(' ').slice(1).join(' ')}</span>
-                    </span>
+                  <div
+                    className={cn(
+                      'flex h-10 w-10 items-center justify-center rounded-xl border',
+                      isActive
+                        ? 'border-brand-secondary/70 bg-brand-secondary/20 text-brand-secondary/80'
+                        : 'border-gray-700 bg-gray-800 text-gray-300'
+                    )}
+                  >
+                    <IconComponent className="h-5 w-5" />
+                  </div>
+                  <div className="flex flex-col items-start text-left">
+                    <span className="text-sm font-semibold leading-tight">{option.label}</span>
+                    <span className="text-xs text-gray-400 line-clamp-1">{option.description}</span>
                   </div>
                 </button>
               );
             })}
           </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <div className="relative w-full min-w-[220px] sm:w-64">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder={t('searchCharacters')}
+                className="h-11 w-full rounded-xl border border-gray-800 bg-gray-900/60 pl-10 pr-3 text-sm text-white placeholder:text-gray-500 focus:border-brand-secondary focus:outline-none focus:ring-2 focus:ring-brand-secondary/40"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={() => setViewMode(viewMode === 'grid' ? 'masonry' : 'grid')}
+              className="flex h-11 w-full items-center justify-center rounded-xl border border-gray-800 bg-gray-900/60 text-gray-300 transition-colors hover:border-brand-secondary hover:text-white sm:w-11"
+              title={viewMode === 'grid' ? t('switchToMasonryLayout') : t('switchToGridLayout')}
+            >
+              {viewMode === 'grid' ? <Rows className="h-5 w-5" /> : <Grid className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Loading skeleton while fetching */}
-      {isLoading && (
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2" aria-live="polite">
-          {[0,1,2].map((_, idx) => (
-            <section key={idx} className="mb-8">
-              <div className="flex items-center justify-between mb-4">
-                <div className="h-6 w-40 bg-gray-700 rounded" />
-                <div className="h-8 w-20 bg-gray-700 rounded" />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {[0,1,2].map(i => (
-                  <div key={i} className="h-40 bg-gray-800 rounded-xl border border-gray-700 animate-pulse" />
-                ))}
-              </div>
-            </section>
-          ))}
+        <div
+          className={cn(
+            'transition-all duration-200',
+            viewMode === 'masonry'
+              ? 'columns-1 gap-6 [column-gap:1.5rem] sm:columns-2 lg:columns-3'
+              : 'grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6 xl:gap-8'
+          )}
+        >
+          {showSkeleton
+            ? Array.from({ length: viewMode === 'grid' ? 8 : 6 }).map((_, index) => (
+                <div
+                  key={index}
+                  className={cn(
+                    'h-[420px] animate-pulse rounded-2xl border border-gray-800 bg-gray-900/60',
+                    viewMode === 'masonry' && 'mb-6 break-inside-avoid'
+                  )}
+                />
+              ))
+            : visibleCharacters.map((character) => (
+                <div
+                  key={character.id}
+                  className={cn('h-full', viewMode === 'masonry' && 'mb-6 break-inside-avoid')}
+                >
+                  <CharacterCard character={character} />
+                </div>
+              ))}
         </div>
-      )}
 
-      {/* Featured Characters */}
-      {filteredSections.featured.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-            <Crown className="w-5 h-5 text-yellow-400" />
-            <h2 className="text-xl font-semibold text-white">{t('featuredCharacters')}</h2>
-            <span className="text-sm text-gray-400">{t('handpickedSelections')}</span>
-            {selectedCategory !== 'All' && (
-              <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
-                {selectedCategory}
-              </span>
-            )}
-            </div>
-            <button
-              onClick={() => navigateToPath('/characters')}
-              className="px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-200"
-            >
-              {t('viewAll') || '查看全部'}
-            </button>
-          </div>
-          <div className={viewMode === 'masonry' 
-            ? "columns-1 md:columns-2 gap-4 space-y-4" 
-            : "grid grid-cols-1 md:grid-cols-2 gap-4"
-          }>
-            {filteredSections.featured.map((character) => (
-              <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>
-                <CharacterCard character={character} size="large" />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Trending This Week */}
-      {filteredSections.trending.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-            <TrendingUp className="w-5 h-5 text-pink-400" />
-            <h2 className="text-xl font-semibold text-white">{t('trendingThisWeek')}</h2>
-            <span className="text-sm text-gray-400">{t('hotPicksCommunity')}</span>
-            {selectedCategory !== 'All' && (
-              <span className="px-2 py-1 bg-pink-600 text-white text-xs rounded-full">
-                {selectedCategory}
-              </span>
-            )}
-            </div>
-            <button
-              onClick={() => navigateToPath('/characters')}
-              className="px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-200"
-            >
-              {t('viewAll') || '查看全部'}
-            </button>
-          </div>
-          <div className={viewMode === 'masonry' 
-            ? "columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4" 
-            : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-          }>
-            {filteredSections.trending.map((character) => (
-              <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>
-                <CharacterCard character={character} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* New Arrivals */}
-      {filteredSections.new.length > 0 && (
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center space-x-2">
-            <Zap className="w-5 h-5 text-green-400" />
-            <h2 className="text-xl font-semibold text-white">{t('newArrivals')}</h2>
-            <span className="text-sm text-gray-400">{t('freshCharactersAdded')}</span>
-            {selectedCategory !== 'All' && (
-              <span className="px-2 py-1 bg-green-600 text-white text-xs rounded-full">
-                {selectedCategory}
-              </span>
-            )}
-            </div>
-            <button
-              onClick={() => navigateToPath('/characters')}
-              className="px-3 py-1.5 text-sm bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg text-gray-200"
-            >
-              {t('viewAll') || '查看全部'}
-            </button>
-          </div>
-          <div className={viewMode === 'masonry' 
-            ? "columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4" 
-            : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-          }>
-            {filteredSections.new.map((character) => (
-              <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>
-                <CharacterCard character={character} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Popular Characters */}
-      {filteredSections.popular.length > 0 && (
-        <section>
-          <div className="flex items-center space-x-2 mb-4">
-            <Flame className="w-5 h-5 text-orange-400" />
-            <h2 className="text-xl font-semibold text-white">{t('mostPopular')}</h2>
-            <span className="text-sm text-gray-400">{t('communityFavorites')}</span>
-            {selectedCategory !== 'All' && (
-              <span className="px-2 py-1 bg-orange-600 text-white text-xs rounded-full">
-                {selectedCategory}
-              </span>
-            )}
-          </div>
-          <div className={viewMode === 'masonry' 
-            ? "columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4" 
-            : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-          }>
-            {filteredSections.popular.map((character) => (
-              <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>
-                <CharacterCard character={character} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Recommended for You */}
-      {filteredSections.recommended.length > 0 && (
-        <section>
-          <div className="flex items-center space-x-2 mb-4">
-            <Users className="w-5 h-5 text-blue-400" />
-            <h2 className="text-xl font-semibold text-white">{t('recommendedForYou')}</h2>
-            <span className="text-sm text-gray-400">{t('basedOnPreferences')}</span>
-            {selectedCategory !== 'All' && (
-              <span className="px-2 py-1 bg-blue-600 text-white text-xs rounded-full">
-                {selectedCategory}
-              </span>
-            )}
-          </div>
-          <div className={viewMode === 'masonry' 
-            ? "columns-1 md:columns-2 lg:columns-3 gap-4 space-y-4" 
-            : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-          }>
-            {filteredSections.recommended.map((character) => (
-              <div key={character.id} className={viewMode === 'masonry' ? 'break-inside-avoid' : ''}>
-                <CharacterCard character={character} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Error State */}
-      {error ? (
-        <section className="text-center py-16">
-          <div className="text-6xl mb-4">⚠️</div>
-          <h3 className="text-xl font-semibold mb-2">Unable to load characters</h3>
-          <p className="text-gray-400">Please check your connection and try again</p>
-        </section>
-      ) : (
-        /* Empty State */
-        selectedCategory !== 'All' && 
-        filteredSections.featured.length === 0 && 
-        filteredSections.trending.length === 0 && 
-        filteredSections.new.length === 0 && 
-        filteredSections.popular.length === 0 && 
-        filteredSections.recommended.length === 0 && (
-          <section className="text-center py-16">
-            <div className="text-6xl mb-4">🔍</div>
-            <h3 className="text-xl font-semibold mb-2">{t('noCharactersFound').replace('{category}', selectedCategory)}</h3>
-            <p className="text-gray-400 mb-6">
-              {t('tryExploringOther')}
+        {!showSkeleton && activeSegmentCharacters.length === 0 && (
+          <div className="rounded-2xl border border-dashed border-gray-800 bg-gray-900/40 p-10 text-center shadow-inner">
+            <p className="text-base font-medium text-gray-200">
+              {activeSegment === 'favorites'
+                ? t('noFavoritesYet')
+                : searchTerm
+                  ? t('noMatches')
+                  : t('noCharactersFound').replace('{category}', selectedCategory)}
             </p>
+            <p className="mt-2 text-sm text-gray-400">{t('searchHint')}</p>
             <button
-              onClick={() => setSelectedCategory('All')}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
+              type="button"
+              onClick={() => {
+                setSelectedCategory('All');
+                setSearchTerm('');
+              }}
+              className="mt-5 inline-flex items-center justify-center rounded-full border border-gray-700 px-5 py-2 text-sm font-medium text-gray-200 transition-colors hover:border-brand-secondary hover:text-white"
             >
-              {t('viewAllCharacters')}
+              {t('clearFilters')}
             </button>
-          </section>
-        )
+          </div>
+        )}
+
+        {!showSkeleton && hasMoreCharacters && (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((previous) => previous + 6)}
+              className="rounded-full border border-gray-700 px-6 py-2 text-sm font-medium text-gray-200 transition-colors hover:border-brand-secondary hover:text-white"
+            >
+              {t('loadMore')}
+            </button>
+          </div>
+        )}
+      </section>
+
+      <section className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Mountain className="h-5 w-5 text-emerald-400" />
+            <h2 className="text-lg font-semibold text-white">{t('exploreTypes')}</h2>
+          </div>
+          {selectedCategory !== 'All' && (
+            <button
+              type="button"
+              onClick={() => setSelectedCategory('All')}
+              className="rounded-full border border-gray-700 px-4 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:border-brand-secondary hover:text-white"
+            >
+              {t('clearFilters')}
+            </button>
+          )}
+        </div>
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          {exploreCategories.map((category) => {
+            const IconComponent = category.icon;
+            const isSelected = selectedCategory === category.id;
+            return (
+              <button
+                key={category.id}
+                type="button"
+                onClick={() => setSelectedCategory(category.id)}
+                className={cn(
+                  'flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition-all',
+                  isSelected
+                    ? 'border-brand-secondary/80 bg-brand-secondary/15 text-white shadow-[0_8px_24px_rgba(245,158,11,0.25)]'
+                    : 'border-gray-800 bg-gray-900/60 text-gray-300 hover:border-gray-700 hover:text-white'
+                )}
+              >
+                <IconComponent
+                  className={cn('h-5 w-5', isSelected ? 'text-brand-secondary/80' : category.color)}
+                />
+                <span className="whitespace-nowrap">{category.name}</span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className="space-y-8">
+        {curatedSections.map((section) => {
+          if (!section.data || section.data.length === 0) {
+            return null;
+          }
+          const IconComponent = section.icon;
+          return (
+            <div
+              key={section.key}
+              className="rounded-3xl border border-gray-800 bg-gray-900/40 shadow-lg shadow-black/20"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-800/70 px-4 py-3 sm:px-6">
+                <div className="flex items-center gap-2">
+                  <IconComponent className={cn('h-5 w-5', section.accentClass)} />
+                  <h3 className="text-lg font-semibold text-white">{section.title}</h3>
+                  <span className="hidden text-sm text-gray-400 sm:inline">{section.description}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigateToPath('/characters')}
+                  className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs font-medium text-gray-300 transition-colors hover:border-brand-secondary hover:text-white"
+                >
+                  {t('viewAll')}
+                </button>
+              </div>
+              <div className="p-4 sm:p-6">
+                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                  {section.data.slice(0, 6).map((character) => (
+                    <CharacterCard
+                      key={`${section.key}-${character.id}`}
+                      character={character}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </section>
+
+      {error && (
+        <section className="rounded-3xl border border-red-500/30 bg-red-500/10 p-8 text-center shadow-inner">
+          <p className="text-lg font-semibold text-red-200">{t('errorLoading')}</p>
+          <p className="mt-2 text-sm text-red-200/80">{t('tryAgain')}</p>
+        </section>
       )}
 
-      {/* Character Preview Modal */}
       <CharacterPreviewModal
         character={previewCharacter}
         isOpen={isPreviewOpen}

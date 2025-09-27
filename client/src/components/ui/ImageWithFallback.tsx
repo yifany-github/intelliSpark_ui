@@ -10,6 +10,8 @@ interface ImageWithFallbackProps {
   className?: string;
   size?: "sm" | "md" | "lg" | "xl";
   showSpinner?: boolean;
+  roundedClass?: string;
+  imageClassName?: string;
 }
 
 // Utility function to convert relative URLs to absolute URLs
@@ -34,7 +36,9 @@ const ImageWithFallback = ({
   fallbackText, 
   className,
   size = "md",
-  showSpinner = true
+  showSpinner = true,
+  roundedClass = "rounded-full",
+  imageClassName,
 }: ImageWithFallbackProps) => {
   const [hasError, setHasError] = useState(false);
   const [isLoading, setIsLoading] = useState(!!src);
@@ -62,16 +66,17 @@ const ImageWithFallback = ({
   
 
   return (
-    <Avatar className={cn(sizeClasses[size], className)}>
+    <Avatar className={cn(sizeClasses[size], roundedClass, className)}>
       {absoluteUrl && !hasError && (
         <AvatarImage 
           src={absoluteUrl} 
           alt={alt}
           onError={handleError}
           onLoad={handleLoad}
+          className={cn("object-cover object-center", roundedClass, imageClassName)}
         />
       )}
-      <AvatarFallback className="bg-slate-200 text-slate-800 font-medium">
+      <AvatarFallback className={cn("bg-slate-200 text-slate-800 font-medium", roundedClass)}>
         {isLoading && showSpinner ? (
           <Loader2 className="h-4 w-4 animate-spin" />
         ) : (

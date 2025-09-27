@@ -48,6 +48,11 @@ export type TranslationKey =
   | 'save'
   | 'cancel'
   | 'searchCharacters'
+  | 'search'
+  | 'searchHistory'
+  | 'noSearchHistory'
+  | 'clearHistory'
+  | 'popularSearches'
   | 'typeMessage'
   | 'noChatsYet'
   | 'startChatWith'
@@ -57,6 +62,28 @@ export type TranslationKey =
   | 'subscribe'
   | 'loadingMessages'
   | 'errorLoading'
+  | 'refreshChats'
+  | 'searchChatsPlaceholder'
+  | 'pinnedConversations'
+  | 'activeNow'
+  | 'pinned'
+  | 'unpin'
+  | 'noMatches'
+  | 'searchHint'
+  | 'pinChatAction'
+  | 'unknownCharacter'
+  | 'untitledChat'
+  | 'pinChat'
+  | 'unpinChat'
+  | 'pinnedChatsLabel'
+  | 'recentChatsTitle'
+  | 'lastActive'
+  | 'yesterday'
+  | 'today'
+  | 'earlier'
+  | 'minutesAgo'
+  | 'hoursAgo'
+  | 'daysAgo'
   | 'noMessagesYet'
   | 'startNewChat'
   | 'todaysChatTime'
@@ -139,6 +166,8 @@ export type TranslationKey =
   | 'bonus'
   | 'previous'
   | 'next'
+  | 'stepBack'
+  | 'stepNext'
   | 'tryAgain'
   | 'failedToLoad'
   | 'usageStatistics'
@@ -380,6 +409,8 @@ export type TranslationKey =
   | 'howCharacterAppears'
   | 'characterNameRequired'
   | 'characterDescriptionRequired'
+  | 'characterNameMinLength'
+  | 'characterDescriptionMinLength'
   | 'characterBackstoryRequired'
   | 'atLeastOneTrait'
   | 'invalidFileType'
@@ -430,6 +461,9 @@ export type TranslationKey =
   | 'tryExploringOther'
   | 'viewAllCharacters'
   | 'chatNow'
+  | 'addFavorite'
+  | 'removeFavorite'
+  | 'remove'
   | 'creating'
   | 'friendly'
   | 'mysterious'
@@ -475,6 +509,15 @@ export type TranslationKey =
   | 'detailedResponses'
   | 'conciseResponses'
   | 'storytelling'
+  | 'discoverYourNextAdventure'
+  | 'heroSubtitle'
+  | 'startStory'
+  | 'createCharacterCTA'
+  | 'liveStories'
+  | 'storiesUpdating'
+  | 'heroFeaturedHint'
+  | 'aiNarration'
+  | 'heroNarrationHint'
   | 'interactive'
   | 'questionFocused'
   | 'analytical'
@@ -514,6 +557,13 @@ export type TranslationKey =
   | 'tokensLabel'
   | 'searchCharacters'
   | 'upgradePlan'
+  | 'nextTierPreview'
+  | 'perMonth'
+  | 'monthlyTokens'
+  | 'exclusiveStories'
+  | 'starterPlan'
+  | 'standardPlan'
+  | 'premiumPlan'
   | 'freePlan'
   | 'profile'
   | 'myChats'
@@ -523,6 +573,8 @@ export type TranslationKey =
   | 'guest'
   | 'home'
   | 'recentChats'
+  | 'lastMessage'
+  | 'lastUpdatedAt'
   | 'favorites'
   | 'discover'
   | 'createCharacter'
@@ -751,7 +803,69 @@ export type TranslationKey =
   | 'chatWithCharacter'
   | 'nonBinary'
   | 'other'
-  | 'preferNotToSay';
+  | 'preferNotToSay'
+  | 'previewCharacter'
+  | 'browseAllCharacters'
+  | 'personaPrompt'
+  | 'personaPromptPlaceholder'
+  | 'personaPromptHelp'
+  | 'cancelCharacterCreation'
+  | 'cancelCharacterCreationDescription'
+  | 'keepEditing'
+  | 'confirmCancel'
+  | 'myCharactersHeading'
+  | 'myCharactersTagline'
+  | 'myCharactersSubheading'
+  | 'myCharactersStatsTotal'
+  | 'myCharactersStatsPublished'
+  | 'myCharactersStatsPrivate'
+  | 'myCharactersStatsLatest'
+  | 'myCharactersBrowseLibrary'
+  | 'myCharactersCreateNew'
+  | 'myCharactersSearchPlaceholder'
+  | 'myCharactersFilterVisibility'
+  | 'myCharactersFilterPublished'
+  | 'myCharactersFilterPrivate'
+  | 'myCharactersFilterContent'
+  | 'myCharactersFilterSafe'
+  | 'myCharactersFilterNsfw'
+  | 'myCharactersFilterCategory'
+  | 'myCharactersSortBy'
+  | 'myCharactersSortNewest'
+  | 'myCharactersSortOldest'
+  | 'myCharactersSortChats'
+  | 'myCharactersSortViews'
+  | 'myCharactersEmptyHeading'
+  | 'myCharactersEmptyFiltered'
+  | 'myCharactersCreateFirst'
+  | 'myCharactersPublic'
+  | 'myCharactersPrivate'
+  | 'myCharactersUpdated'
+  | 'myCharactersStartChat'
+  | 'myCharactersPreview'
+  | 'myCharactersConfirmDelete'
+  | 'myCharactersConfirmDeleteDesc'
+  | 'myCharactersFilterNsfwBadge'
+  | 'myCharactersChatsLabel'
+  | 'myCharactersViewsLabel'
+  | 'myCharactersCreated'
+  | 'sortBy'
+  | 'nsfwEnabled'
+  | 'favoritesOnly'
+  | 'activeFilters'
+  | 'nsfwEnabledLabel'
+  | 'nsfwDisabledLabel'
+  | 'showFilters'
+  | 'filters'
+  | 'nsfwDisclaimer'
+  | 'nsfwLegalNotice'
+  | 'quickSelect'
+  | 'showAllCharacters'
+  | 'showFavoritesOnly'
+  | 'filterHint'
+  | 'appNameChinese'
+  | 'appNameEnglish'
+  | 'delete';
 
 // Define translations for each language
 const translations: Record<Language, Record<TranslationKey, string>> = {
@@ -770,6 +884,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     memoryEnabled: 'Memory Enabled',
     save: 'Save',
     cancel: 'Cancel',
+    confirm: 'Confirm',
     typeMessage: 'Type a message...',
     noChatsYet: 'No chats yet',
     startChatWith: 'Start Chat with',
@@ -853,8 +968,10 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     purchase: 'Purchase',
     refund: 'Refund',
     bonus: 'Bonus',
-    previous: 'Previous',
-    next: 'Next',
+  previous: 'Previous',
+  next: 'Next',
+  stepBack: 'Previous',
+  stepNext: 'Next',
     usageStatistics: 'Usage Statistics',
     excellent: 'Excellent',
     good: 'Good',
@@ -1050,7 +1167,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     uploadAvatar: 'Upload Avatar',
     pngJpgUpTo5MB: 'PNG, JPG up to 5MB',
     characterName: 'Character Name',
-    enterCharacterName: 'Enter character name',
+    enterCharacterName: 'Enter character name (min 2 characters)',
     shortDescription: 'Short Description',
     briefDescription: 'Brief description of your character (1-2 sentences)',
     detailedBackstory: 'Detailed backstory and background information',
@@ -1081,6 +1198,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     howCharacterAppears: 'How your character will appear to others',
     characterNameRequired: 'Character name is required',
     characterDescriptionRequired: 'Character description is required',
+    characterNameMinLength: 'Name must be at least 2 characters',
+    characterDescriptionMinLength: 'Description must be at least 10 characters',
     characterBackstoryRequired: 'Character backstory is required',
     atLeastOneTrait: 'At least one trait is required',
     invalidFileType: 'Invalid file type',
@@ -1255,6 +1374,15 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     detailedResponses: 'Detailed responses',
     conciseResponses: 'Concise responses',
     storytelling: 'Storytelling',
+    discoverYourNextAdventure: 'Discover your next adventure',
+    heroSubtitle: 'Pick a character and jump into dynamic, AI narrated scenes.',
+    startStory: 'Start Story Mode',
+    createCharacterCTA: 'Create your character',
+    liveStories: 'Live stories',
+    storiesUpdating: 'Continuously updated multi-role scripts',
+    heroFeaturedHint: 'Featured characters are ready to collaborate with you',
+    aiNarration: 'AI Narration',
+    heroNarrationHint: 'Gemini and Grok bring immersive narration to every moment.',
     interactive: 'Interactive',
     questionFocused: 'Question-focused',
     analytical: 'Analytical',
@@ -1290,7 +1418,18 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     chatWithAICharacters: 'Chat with AI characters',
     tokensLabel: 'Tokens',
     searchCharacters: 'Search characters...',
+    search: 'Search',
+    searchHistory: 'Search history',
+    noSearchHistory: 'No search history yet',
+    popularSearches: 'Popular searches',
     upgradePlan: 'Upgrade Plan',
+    nextTierPreview: 'Next tier preview',
+    perMonth: 'per month',
+    monthlyTokens: '500 tokens each month',
+    exclusiveStories: 'Access to exclusive stories',
+    starterPlan: 'Starter Plan',
+    standardPlan: 'Standard Plan',
+    premiumPlan: 'Premium Plan',
     freePlan: 'Free Plan',
     profile: 'Profile',
     myChats: 'My Chats',
@@ -1300,6 +1439,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     guest: 'Guest',
     home: 'Home',
     recentChats: 'Recent Chats',
+    lastMessage: 'Last Message',
+    lastUpdatedAt: 'Last updated',
     favorites: 'Favorites',
     discover: 'Discover',
     createCharacter: 'Create Character',
@@ -1341,6 +1482,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     romance: 'Romance',
     action: 'Action',
     chatNow: 'Chat Now',
+    addFavorite: 'Add to favorites',
+    removeFavorite: 'Remove from favorites',
+    remove: 'Remove',
     preview: 'Preview',
     noFavoritesYet: 'No favorites yet',
     noCharactersFound: 'No characters found',
@@ -1375,6 +1519,11 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     // Issue #69 - New English translations
     chatWith: 'Chat with',
     adultContentControl: 'Adult Content Control',
+    nsfwEnabledLabel: 'NSFW Enabled',
+    nsfwDisabledLabel: 'Safe Mode',
+    nsfwDisclaimer: 'Adult content is available only to users who are at least 18 years old. By enabling NSFW mode, you confirm that you are of legal age and legally responsible for viewing adult-oriented material.',
+    nsfwLegalNotice: 'Proceeding means you comply with local laws and agree to the platform\'s adult-content terms.',
+    confirmEnableNSFW: 'Confirm Adult Content',
     unableToLoadCharacters: 'Unable to load characters',
     checkConnectionRetry: 'Please check your connection and try again',
     startPremiumChat: 'Start Premium Chat',
@@ -1395,7 +1544,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     tryDifferentImage: 'Please try again with a different image',
     selectGender: 'Select gender',
     characterDescription: 'Character Description',
-    characterDescriptionPlaceholder: 'Describe your character\'s personality, background, history, and what makes them unique. Include their motivations, traits, and how they interact with others...',
+    characterDescriptionPlaceholder: 'Describe your character\'s personality, background, history, and what makes them unique. Include their motivations, traits, and how they interact with others... (min 10 characters)',
     characterDescriptionHelp: 'This comprehensive description will be used to generate your character\'s personality and responses.',
     chooseAvatarImage: 'Choose Avatar Image',
     resetToDefault: 'Reset to Default',
@@ -1419,6 +1568,83 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     nonBinary: 'Non-binary',
     other: 'Other',
     preferNotToSay: 'Prefer not to say',
+    appNameEnglish: 'YY Chat',
+    appNameChinese: '歪歪',
+    refreshChats: 'Refresh',
+    searchChatsPlaceholder: 'Search your recent chats...',
+    pinnedConversations: 'Pinned chats',
+    activeNow: 'Active now',
+    pinned: 'Pinned',
+    unpin: 'Unpin',
+    noMatches: 'No chats found for this search',
+    searchHint: 'Try searching by character name or chat title',
+    pinChatAction: 'Pin chat',
+    pinChat: 'Pin chat',
+    unpinChat: 'Unpin chat',
+    pinnedChatsLabel: 'Pinned chats',
+    recentChatsTitle: 'Recent',
+    unknownCharacter: 'Unknown character',
+    untitledChat: 'Untitled chat',
+    lastActive: 'Last active',
+    today: 'Today',
+    yesterday: 'Yesterday',
+    earlier: 'Earlier',
+    previewCharacter: 'View This Character',
+    browseAllCharacters: 'Browse All Characters',
+    personaPrompt: 'Persona Prompt (LLM)',
+    personaPromptPlaceholder: 'Optional: Describe how the AI should role-play as this character. If left blank, the description will be used.',
+    personaPromptHelp: 'Helpful tips: keep personality traits, tone, and key behaviors concise for best AI performance.',
+    cancelCharacterCreation: 'Cancel character creation?',
+    cancelCharacterCreationDescription: 'Your progress will be lost. Are you sure you want to exit the character creation process?',
+    keepEditing: 'Keep editing',
+    confirmCancel: 'Confirm cancel',
+    myCharactersHeading: 'My Characters',
+    myCharactersTagline: 'Control your characters',
+    myCharactersSubheading: 'Review performance, fine-tune personas, and keep your characters ready for the next unforgettable story.',
+    myCharactersStatsTotal: 'Total',
+    myCharactersStatsPublished: 'Published',
+    myCharactersStatsPrivate: 'Private',
+    myCharactersStatsLatest: 'Latest Update',
+    myCharactersBrowseLibrary: 'Browse Library',
+    myCharactersCreateNew: 'Create New Character',
+    myCharactersSearchPlaceholder: 'Search by name, description, or traits',
+    myCharactersFilterVisibility: 'All visibility',
+    myCharactersFilterPublished: 'Published',
+    myCharactersFilterPrivate: 'Private',
+    myCharactersFilterContent: 'All content',
+    myCharactersFilterSafe: 'Safe only',
+    myCharactersFilterNsfw: 'NSFW only',
+    myCharactersFilterCategory: 'Category',
+    myCharactersSortBy: 'Sort by',
+    myCharactersSortNewest: 'Newest first',
+    myCharactersSortOldest: 'Oldest first',
+    myCharactersSortChats: 'Most chats',
+    myCharactersSortViews: 'Most views',
+    myCharactersEmptyHeading: "You haven't created any characters yet.",
+    myCharactersEmptyFiltered: 'No characters match your current filters.',
+    myCharactersCreateFirst: 'Create Your First Character',
+    myCharactersPublic: 'Public',
+    myCharactersPrivate: 'Private',
+    myCharactersUpdated: 'Updated',
+    myCharactersStartChat: 'Start Chat',
+    myCharactersPreview: 'Preview',
+    myCharactersConfirmDelete: 'Delete character?',
+    myCharactersConfirmDeleteDesc: 'This action cannot be undone. This will permanently delete your character and all associated data.',
+    myCharactersFilterNsfwBadge: 'NSFW',
+    myCharactersChatsLabel: 'chats',
+    myCharactersViewsLabel: 'views',
+    myCharactersCreated: 'Created',
+    sortBy: 'Sort By',
+    nsfwEnabled: 'NSFW Enabled',
+    favoritesOnly: 'Favorites Only',
+    activeFilters: 'Active Filters',
+    showFilters: 'Show Filters',
+    filters: 'Filters',
+    quickSelect: 'Quick Select',
+    showAllCharacters: 'Show All Characters',
+    showFavoritesOnly: 'Show Favorites Only',
+    filterHint: 'Quick start: Sort by "Popular" first, then select categories of interest to begin exploring.',
+    delete: 'Delete',
   },
   zh: {
     characters: '角色',
@@ -1434,6 +1660,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     memoryEnabled: '启用记忆',
     save: '保存',
     cancel: '取消',
+    confirm: '确认',
     typeMessage: '输入消息...',
     noChatsYet: '还没有聊天',
     startChatWith: '与以下角色开始聊天',
@@ -1599,6 +1826,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     bonus: '奖励',
     previous: '上一页',
     next: '下一页',
+    stepBack: '上一步',
+    stepNext: '下一步',
     tryAgain: '重试',
     failedToLoad: '加载失败',
     usageStatistics: '使用统计',
@@ -1739,7 +1968,6 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     manageToken: '管理您的代币',
     balancePurchase: '余额，购买',
     historyUsage: '历史和使用',
-    clearHistory: '清除历史',
     exportOptions: '导出选项',
     subscriptionLogout: '订阅和退出',
     functionality: '功能',
@@ -1797,7 +2025,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     uploadAvatar: '上传头像',
     pngJpgUpTo5MB: 'PNG、JPG格式，最大5MB',
     characterName: '角色名称',
-    enterCharacterName: '输入角色名称',
+    enterCharacterName: '输入角色名称（至少 2 个字符）',
     shortDescription: '简短描述',
     briefDescription: '角色的简要描述（1-2句话）',
     detailedBackstory: '详细的背景故事和背景信息',
@@ -1829,6 +2057,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     howCharacterAppears: '您的角色将如何呈现给其他人',
     characterNameRequired: '角色名称是必需的',
     characterDescriptionRequired: '角色描述是必需的',
+    characterNameMinLength: '名称至少需要 2 个字符',
+    characterDescriptionMinLength: '描述至少需要 10 个字符',
     characterBackstoryRequired: '角色背景故事是必需的',
     atLeastOneTrait: '至少需要一个特征',
     invalidFileType: '无效的文件类型',
@@ -1920,6 +2150,15 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     detailedResponses: '详细回应',
     conciseResponses: '简洁回应',
     storytelling: '讲故事',
+    discoverYourNextAdventure: '探索下一段属于你的冒险',
+    heroSubtitle: '挑选心仪角色，进入 AI 旁白的沉浸式剧情。',
+    startStory: '开始故事模式',
+    createCharacterCTA: '创建你的角色',
+    liveStories: '实时故事',
+    storiesUpdating: '持续更新的多角色剧本',
+    heroFeaturedHint: '精选角色正等待与你协作',
+    aiNarration: 'AI 旁白',
+    heroNarrationHint: 'Gemini 与 Grok 为每个场景带来沉浸式旁白。',
     interactive: '互动式',
     questionFocused: '问题导向',
     analytical: '分析型',
@@ -1955,7 +2194,19 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     chatWithAICharacters: '与AI角色聊天',
     tokensLabel: '代币',
     searchCharacters: '搜索角色...',
+    search: '搜索',
+    searchHistory: '搜索历史',
+    noSearchHistory: '暂无搜索记录',
+    clearHistory: '清除历史',
+    popularSearches: '热门搜索',
     upgradePlan: '升级套餐',
+    nextTierPreview: '下一档套餐预览',
+    perMonth: '每月',
+    monthlyTokens: '每月获得 500 个代币',
+    exclusiveStories: '解锁专属剧情',
+    starterPlan: 'Starter 套餐',
+    standardPlan: 'Standard 套餐',
+    premiumPlan: 'Premium 套餐',
     freePlan: '免费套餐',
     profile: '个人资料',
     myChats: '我的聊天',
@@ -1965,6 +2216,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     guest: '游客',
     home: '首页',
     recentChats: '最近聊天',
+    lastMessage: '最近对话',
+    lastUpdatedAt: '更新时间',
     favorites: '收藏',
     discover: '发现',
     createCharacter: '创建角色',
@@ -2006,6 +2259,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     romance: '浪漫',
     action: '动作',
     chatNow: '立即聊天',
+    addFavorite: '收藏',
+    removeFavorite: '取消收藏',
+    remove: '移除',
     preview: '预览',
     noFavoritesYet: '还没有收藏',
     noCharactersFound: '未找到角色',
@@ -2040,6 +2296,11 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     // Issue #69 - New Chinese translations
     chatWith: '与',
     adultContentControl: '成人内容控制',
+    nsfwEnabledLabel: '已开启 NSFW',
+    nsfwDisabledLabel: '安全模式',
+    nsfwDisclaimer: '成人内容仅适用于年满 18 岁的用户。开启后，您确认自己已达到法定年龄并承担相关法律责任。',
+    nsfwLegalNotice: '继续操作即表示您遵守本地法律并同意平台的成人内容条款。',
+    confirmEnableNSFW: '确认开启成人内容',
     unableToLoadCharacters: '无法加载角色',
     checkConnectionRetry: '请检查网络连接并重试',
     startPremiumChat: '开始聊天',
@@ -2060,7 +2321,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     tryDifferentImage: '请尝试上传不同的图片',
     selectGender: '选择性别',
     characterDescription: '角色描述',
-    characterDescriptionPlaceholder: '描述您角色的性格、背景、历史以及独特之处。包括他们的动机、特征以及与他人的互动方式...',
+    characterDescriptionPlaceholder: '描述您角色的性格、背景、历史以及独特之处。包括他们的动机、特征以及与他人的互动方式...（至少 10 个字符）',
     characterDescriptionHelp: '此详细描述将用于生成您角色的个性和回应。',
     chooseAvatarImage: '选择头像图片',
     resetToDefault: '重置为默认',
@@ -2084,6 +2345,83 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     nonBinary: '非二元',
     other: '其他',
     preferNotToSay: '不愿说明',
+    appNameEnglish: 'YY Chat',
+    appNameChinese: '歪歪',
+    refreshChats: '刷新',
+    searchChatsPlaceholder: '搜索最近的聊天…',
+    pinnedConversations: '已固定聊天',
+    activeNow: '正在聊天',
+    pinned: '已固定',
+    unpin: '取消固定',
+    noMatches: '没有找到匹配的聊天',
+    searchHint: '可以使用角色名称或聊天标题进行搜索',
+    pinChatAction: '固定聊天',
+    pinChat: '固定聊天',
+    unpinChat: '取消固定',
+    pinnedChatsLabel: '已固定聊天',
+    recentChatsTitle: '最近',
+    unknownCharacter: '未知角色',
+    untitledChat: '未命名聊天',
+    lastActive: '上次活跃',
+    today: '今天',
+    yesterday: '昨天',
+    earlier: '更早',
+    previewCharacter: '查看该角色',
+    browseAllCharacters: '浏览所有角色',
+    personaPrompt: '角色人格提示（LLM）',
+    personaPromptPlaceholder: '可选：描述 AI 扮演该角色时的语气与行为。留空时将使用角色描述。',
+    personaPromptHelp: '小贴士：用简明语言概括性格、语气和关键行为，有助于获得稳定表现。',
+    cancelCharacterCreation: '确认取消创建角色？',
+    cancelCharacterCreationDescription: '当前填写的内容将不会保存，确定要退出角色创建流程吗？',
+    keepEditing: '继续编辑',
+    confirmCancel: '确认取消',
+    myCharactersHeading: '我的角色',
+    myCharactersTagline: '角色管家',
+    myCharactersSubheading: '查看表现、微调人设，让你的角色随时准备开启下一段难忘故事。',
+    myCharactersStatsTotal: '总数',
+    myCharactersStatsPublished: '已发布',
+    myCharactersStatsPrivate: '私密/草稿',
+    myCharactersStatsLatest: '最近更新',
+    myCharactersBrowseLibrary: '浏览角色库',
+    myCharactersCreateNew: '创建新角色',
+    myCharactersSearchPlaceholder: '按名称、描述或特征搜索',
+    myCharactersFilterVisibility: '全部可见性',
+    myCharactersFilterPublished: '已发布',
+    myCharactersFilterPrivate: '私密',
+    myCharactersFilterContent: '全部内容分级',
+    myCharactersFilterSafe: '仅安全内容',
+    myCharactersFilterNsfw: '仅 NSFW',
+    myCharactersFilterCategory: '分类',
+    myCharactersSortBy: '排序方式',
+    myCharactersSortNewest: '最新优先',
+    myCharactersSortOldest: '最早优先',
+    myCharactersSortChats: '聊天次数最多',
+    myCharactersSortViews: '浏览次数最多',
+    myCharactersEmptyHeading: '你还没有创建任何角色。',
+    myCharactersEmptyFiltered: '暂无角色符合当前筛选条件。',
+    myCharactersCreateFirst: '创建你的第一个角色',
+    myCharactersPublic: '公开',
+    myCharactersPrivate: '私密',
+    myCharactersUpdated: '更新于',
+    myCharactersStartChat: '开始聊天',
+    myCharactersPreview: '预览',
+    myCharactersConfirmDelete: '确认删除角色？',
+    myCharactersConfirmDeleteDesc: '此操作无法撤销，将永久删除该角色及其所有数据。',
+    myCharactersFilterNsfwBadge: 'NSFW',
+    myCharactersChatsLabel: '次聊天',
+    myCharactersViewsLabel: '次浏览',
+    myCharactersCreated: '创建于',
+    sortBy: '排序',
+    nsfwEnabled: '已开启',
+    favoritesOnly: '仅看收藏',
+    activeFilters: '已应用筛选',
+    showFilters: '显示筛选',
+    filters: '筛选器',
+    quickSelect: '快速选择',
+    showAllCharacters: '显示所有角色',
+    showFavoritesOnly: '仅显示收藏',
+    filterHint: '快速上手：先按"热门"排序，再选择感兴趣的分类即可开始探索。',
+    delete: '删除',
   },
 };
 
