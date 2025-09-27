@@ -4,12 +4,19 @@ from sqlalchemy.orm import Session
 from database import get_db
 from auth.routes import get_current_user
 from models import User
-from schemas import TokenPurchaseRequest, TokenPurchaseResponse, UserTokenBalance, MessageResponse
+from schemas import (
+    TokenPurchaseRequest,
+    TokenPurchaseResponse,
+    UserTokenBalance,
+    MessageResponse,
+    SavedPaymentMethod,
+)
 from payment.stripe_service import StripeService
 from payment.token_service import TokenService, get_all_pricing_tiers
 from notification_service import get_notification_service
 import json
 import logging
+from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -24,11 +31,29 @@ async def create_payment_intent(
     """Create a Stripe payment intent for token purchase"""
     try:
         stripe_service = StripeService()
+
+        customer_id = None
+        if request.payment_method == "card":
+            if not current_user.stripe_customer_id:
+                customer_id = stripe_service.create_customer(
+                    email=current_user.email,
+                    name=current_user.username,
+                )
+                if customer_id:
+                    current_user.stripe_customer_id = customer_id
+                    db.add(current_user)
+                    db.commit()
+                    db.refresh(current_user)
+            else:
+                customer_id = current_user.stripe_customer_id
+
         payment_data = stripe_service.create_payment_intent(
             user_id=current_user.id,
             tier=request.tier,
             payment_method_type=request.payment_method,
             return_url=request.return_url,
+            customer_id=customer_id,
+            save_payment_method=request.save_payment_method if request.payment_method == "card" else False,
         )
         
         if not payment_data:
@@ -45,6 +70,22 @@ async def create_payment_intent(
             status_code=500,
             detail="Internal server error"
         )
+
+@router.get("/saved-payment-methods", response_model=List[SavedPaymentMethod])
+async def get_saved_payment_methods(
+    current_user: User = Depends(get_current_user),
+):
+    """Return saved card payment methods for the current user"""
+    try:
+        if not current_user.stripe_customer_id:
+            return []
+
+        stripe_service = StripeService()
+        methods = stripe_service.list_saved_payment_methods(current_user.stripe_customer_id) or []
+        return [SavedPaymentMethod(**method) for method in methods]
+    except Exception as e:
+        logger.error(f"Error fetching saved payment methods: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch saved payment methods")
 
 @router.post("/webhook")
 async def stripe_webhook(request: Request, db: Session = Depends(get_db)):

@@ -48,6 +48,7 @@ class User(Base):
     email_verified = Column(Boolean, default=False)
     memory_enabled = Column(Boolean, default=True)
     preferred_ai_model = Column(String(50), default='gemini')  # User's preferred AI model: 'gemini', 'grok', etc.
+    stripe_customer_id = Column(String(255), nullable=True, unique=True)
     created_at = Column(DateTime, default=func.now())
     last_login_at = Column(DateTime, nullable=True)
     last_login_ip = Column(String(100), nullable=True)

@@ -17,10 +17,11 @@ import { useNavigation } from '../../contexts/NavigationContext';
 import { ImprovedTokenBalance } from '../../components/payment/ImprovedTokenBalance';
 import GlobalLayout from '../../components/layout/GlobalLayout';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { apiRequest } from '@/lib/queryClient';
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector';
 import { QRCodePayment } from '@/components/payment/QRCodePayment';
-import { PaymentMethod } from '@/types/payments';
+import { PaymentMethod, SavedPaymentMethodSummary } from '@/types/payments';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 // Initialize Stripe (you'll need to set your publishable key in environment variables)
@@ -55,18 +56,42 @@ interface PaymentIntentResponse {
   next_action?: Record<string, any>;
 }
 
-const createPaymentIntent = async (tier: string, paymentMethod: PaymentMethod, returnUrl?: string) => {
+const fetchSavedPaymentMethods = async (): Promise<SavedPaymentMethodSummary[]> => {
   const token = localStorage.getItem('auth_token');
   if (!token) {
     throw new Error('No authentication token found');
   }
 
-  const res = await apiRequest('POST', '/api/payment/create-payment-intent', {
+  const res = await apiRequest('GET', '/api/payment/saved-payment-methods');
+  if (!res.ok) {
+    throw new Error('Failed to fetch saved payment methods');
+  }
+  return res.json();
+};
+
+const createPaymentIntent = async (
+  tier: string,
+  paymentMethod: PaymentMethod,
+  returnUrl?: string,
+  savePaymentMethod?: boolean
+) => {
+  const token = localStorage.getItem('auth_token');
+  if (!token) {
+    throw new Error('No authentication token found');
+  }
+
+  const payload: Record<string, unknown> = {
     tier,
     amount: 0,
     payment_method: paymentMethod,
     return_url: returnUrl,
-  });
+  };
+
+  if (typeof savePaymentMethod === 'boolean') {
+    payload.save_payment_method = savePaymentMethod;
+  }
+
+  const res = await apiRequest('POST', '/api/payment/create-payment-intent', payload);
   if (!res.ok) throw new Error('Failed to create payment intent');
   return res.json() as Promise<PaymentIntentResponse>;
 };
@@ -79,11 +104,13 @@ const CardPaymentForm: React.FC<{
   const stripe = useStripe();
   const elements = useElements();
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [billingDetails, setBillingDetails] = useState({
     name: '',
-    email: '',
+    email: user?.email || '',
     address: {
       line1: '',
       line2: '',
@@ -93,41 +120,91 @@ const CardPaymentForm: React.FC<{
       country: 'US'
     }
   });
+  const [showAddressFields, setShowAddressFields] = useState(false);
+  const [shouldSaveCard, setShouldSaveCard] = useState(true);
+  const [useSavedMethod, setUseSavedMethod] = useState(false);
+  const [selectedSavedMethodId, setSelectedSavedMethodId] = useState<string | null>(null);
+  const [savedInit, setSavedInit] = useState(false);
+
+  const { data: savedMethods = [], isLoading: savedMethodsLoading } = useQuery({
+    queryKey: ['savedPaymentMethods'],
+    queryFn: fetchSavedPaymentMethods,
+    enabled: !!user,
+  });
+
+  const hasSavedMethods = savedMethods.length > 0;
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    setBillingDetails(prev => ({
+      ...prev,
+      email: prev.email || user.email || '',
+    }));
+  }, [user]);
+
+  useEffect(() => {
+    if (!hasSavedMethods) {
+      setUseSavedMethod(false);
+      setSelectedSavedMethodId(null);
+      return;
+    }
+
+    if (!savedInit && !savedMethodsLoading) {
+      setUseSavedMethod(true);
+      setSelectedSavedMethodId(savedMethods[0]?.id ?? null);
+      setSavedInit(true);
+    }
+  }, [hasSavedMethods, savedMethods, savedInit, savedMethodsLoading]);
 
   const { mutate: createPayment } = useMutation({
-    mutationFn: (tier: string) => createPaymentIntent(tier, 'card'),
+    mutationFn: ({ tier, savePaymentMethod }: { tier: string; savePaymentMethod: boolean }) =>
+      createPaymentIntent(tier, 'card', undefined, savePaymentMethod),
     onSuccess: async (data) => {
-      if (!stripe || !elements) return;
-
-      const cardElement = elements.getElement(CardElement);
-      if (!cardElement) return;
+      if (!stripe) return;
 
       setIsProcessing(true);
       setError(null);
 
       try {
-        const { error: stripeError } = await stripe.confirmCardPayment(data.client_secret, {
-          payment_method: {
-            card: cardElement,
-            billing_details: {
-              name: billingDetails.name,
-              email: billingDetails.email,
-              address: {
-                line1: billingDetails.address.line1,
-                line2: billingDetails.address.line2,
-                city: billingDetails.address.city,
-                state: billingDetails.address.state,
-                postal_code: billingDetails.address.postal_code,
-                country: billingDetails.address.country,
+        let stripeError;
+        if (useSavedMethod && selectedSavedMethodId) {
+          const result = await stripe.confirmCardPayment(data.client_secret, {
+            payment_method: selectedSavedMethodId,
+          });
+          stripeError = result.error;
+        } else {
+          if (!elements) return;
+          const cardElement = elements.getElement(CardElement);
+          if (!cardElement) return;
+
+          const result = await stripe.confirmCardPayment(data.client_secret, {
+            payment_method: {
+              card: cardElement,
+              billing_details: {
+                name: billingDetails.name,
+                email: billingDetails.email,
+                address: {
+                  line1: billingDetails.address.line1,
+                  line2: billingDetails.address.line2,
+                  city: billingDetails.address.city,
+                  state: billingDetails.address.state,
+                  postal_code: billingDetails.address.postal_code,
+                  country: billingDetails.address.country,
+                },
               },
             },
-          },
-        });
+          });
+          stripeError = result.error;
+        }
 
         if (stripeError) {
           setError(stripeError.message || 'Payment failed');
         } else {
           onSuccess();
+          queryClient.invalidateQueries({ queryKey: ['savedPaymentMethods'] });
         }
       } catch (err) {
         setError('Payment processing failed');
@@ -142,9 +219,21 @@ const CardPaymentForm: React.FC<{
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!stripe || !elements) return;
+    if (!stripe) return;
 
-    createPayment(selectedTier);
+    if (useSavedMethod) {
+      if (!selectedSavedMethodId) {
+        setError(t('selectSavedCard'));
+        return;
+      }
+    } else if (!elements) {
+      return;
+    }
+
+    createPayment({
+      tier: selectedTier,
+      savePaymentMethod: !useSavedMethod && shouldSaveCard,
+    });
   };
 
   const cardElementOptions = useMemo(() => ({
@@ -197,7 +286,13 @@ const CardPaymentForm: React.FC<{
           {/* Billing Information */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-white">{t('billingInformation')}</h3>
-            
+
+            {user && (
+              <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 px-3 py-2">
+                {t('prefilledFromProfile')}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">{t('fullName')} *</label>
@@ -207,8 +302,9 @@ const CardPaymentForm: React.FC<{
                   value={billingDetails.name}
                   onChange={(e) => setBillingDetails(prev => ({ ...prev, name: e.target.value }))}
                   className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
-                  placeholder={t('fullName')}
+                  placeholder={t('nameOnCardPlaceholder')}
                 />
+                <p className="mt-1 text-xs text-gray-500">{t('nameOnCardHint')}</p>
               </div>
               
               <div>
@@ -224,127 +320,233 @@ const CardPaymentForm: React.FC<{
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">{t('addressLine1')} *</label>
-              <input
-                type="text"
-                required
-                value={billingDetails.address.line1}
-                onChange={(e) => setBillingDetails(prev => ({ 
-                  ...prev, 
-                  address: { ...prev.address, line1: e.target.value }
-                }))}
-                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
-                placeholder={t('addressLine1')}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">{t('addressLine2')}</label>
-              <input
-                type="text"
-                value={billingDetails.address.line2}
-                onChange={(e) => setBillingDetails(prev => ({ 
-                  ...prev, 
-                  address: { ...prev.address, line2: e.target.value }
-                }))}
-                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
-                placeholder={`${t('addressLine2')} (${t('optional')})`}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">{t('city')} *</label>
-                <input
-                  type="text"
-                  required
-                  value={billingDetails.address.city}
-                  onChange={(e) => setBillingDetails(prev => ({ 
-                    ...prev, 
-                    address: { ...prev.address, city: e.target.value }
-                  }))}
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
-                  placeholder={t('city')}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">{t('state')} *</label>
-                <input
-                  type="text"
-                  required
-                  value={billingDetails.address.state}
-                  onChange={(e) => setBillingDetails(prev => ({ 
-                    ...prev, 
-                    address: { ...prev.address, state: e.target.value }
-                  }))}
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
-                  placeholder={t('state')}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">{t('zipCode')} *</label>
-                <input
-                  type="text"
-                  required
-                  value={billingDetails.address.postal_code}
-                  onChange={(e) => setBillingDetails(prev => ({ 
-                    ...prev, 
-                    address: { ...prev.address, postal_code: e.target.value }
-                  }))}
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
-                  placeholder={t('zipCode')}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">{t('country')} *</label>
-              <select
-                required
-                value={billingDetails.address.country}
-                onChange={(e) => setBillingDetails(prev => ({ 
-                  ...prev, 
-                  address: { ...prev.address, country: e.target.value }
-                }))}
-                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-brand-accent"
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setShowAddressFields(prev => !prev)}
+                className="flex w-full items-center justify-between rounded-xl border border-gray-700 bg-gray-800/80 px-4 py-3 text-sm text-gray-300 transition hover:border-brand-accent"
               >
-                <option value="US">{t('unitedStates')}</option>
-                <option value="CA">{t('canada')}</option>
-                <option value="GB">{t('unitedKingdom')}</option>
-                <option value="AU">{t('australia')}</option>
-                <option value="DE">{t('germany')}</option>
-                <option value="FR">{t('france')}</option>
-                <option value="JP">{t('japan')}</option>
-                <option value="KR">{t('southKorea')}</option>
-                <option value="SG">{t('singapore')}</option>
-                <option value="CN">{t('china')}</option>
-              </select>
+                <span className="font-medium">{t('billingAddressOptional')}</span>
+                <span className="text-brand-accent text-xs uppercase tracking-wide">
+                  {showAddressFields ? t('hideAddress') : t('addAddress')}
+                </span>
+              </button>
+
+              {showAddressFields && (
+                <div className="space-y-3 rounded-xl border border-gray-700 bg-gray-800/60 p-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">{t('addressLine1')}</label>
+                    <input
+                      type="text"
+                      value={billingDetails.address.line1}
+                      onChange={(e) => setBillingDetails(prev => ({ 
+                        ...prev, 
+                        address: { ...prev.address, line1: e.target.value }
+                      }))}
+                      className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
+                      placeholder={t('addressLine1')}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">{t('addressLine2')}</label>
+                    <input
+                      type="text"
+                      value={billingDetails.address.line2}
+                      onChange={(e) => setBillingDetails(prev => ({ 
+                        ...prev, 
+                        address: { ...prev.address, line2: e.target.value }
+                      }))}
+                      className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
+                      placeholder={`${t('addressLine2')} (${t('optional')})`}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">{t('city')}</label>
+                      <input
+                        type="text"
+                        value={billingDetails.address.city}
+                        onChange={(e) => setBillingDetails(prev => ({ 
+                          ...prev, 
+                          address: { ...prev.address, city: e.target.value }
+                        }))}
+                        className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
+                        placeholder={t('city')}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">{t('state')}</label>
+                      <input
+                        type="text"
+                        value={billingDetails.address.state}
+                        onChange={(e) => setBillingDetails(prev => ({ 
+                          ...prev, 
+                          address: { ...prev.address, state: e.target.value }
+                        }))}
+                        className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
+                        placeholder={t('state')}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">{t('zipCode')}</label>
+                      <input
+                        type="text"
+                        value={billingDetails.address.postal_code}
+                        onChange={(e) => setBillingDetails(prev => ({ 
+                          ...prev, 
+                          address: { ...prev.address, postal_code: e.target.value }
+                        }))}
+                        className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
+                        placeholder={t('zipCode')}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">{t('country')}</label>
+                    <select
+                      value={billingDetails.address.country}
+                      onChange={(e) => setBillingDetails(prev => ({ 
+                        ...prev, 
+                        address: { ...prev.address, country: e.target.value }
+                      }))}
+                      className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-brand-accent"
+                    >
+                      <option value="US">{t('unitedStates')}</option>
+                      <option value="CA">{t('canada')}</option>
+                      <option value="GB">{t('unitedKingdom')}</option>
+                      <option value="AU">{t('australia')}</option>
+                      <option value="DE">{t('germany')}</option>
+                      <option value="FR">{t('france')}</option>
+                      <option value="JP">{t('japan')}</option>
+                      <option value="KR">{t('southKorea')}</option>
+                      <option value="SG">{t('singapore')}</option>
+                      <option value="CN">{t('china')}</option>
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Payment Method */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-white">{t('paymentMethod')}</h3>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between text-sm text-gray-300">
-              <span className="font-medium">{t('cardInformation')}</span>
-              <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-gray-400">
-                <span>Visa</span>
-                <span>Mastercard</span>
-                <span>Amex</span>
+
+            {savedMethodsLoading ? (
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t('loadingSavedCards')}
               </div>
-            </div>
-            <div className="group rounded-2xl border border-gray-600 bg-gray-900/60 px-5 py-4 shadow-inner transition-all duration-200 focus-within:border-brand-accent focus-within:ring-2 focus-within:ring-brand-accent/30">
-              <CardElement options={cardElementOptions} className="text-lg outline-none" />
-            </div>
-            <p className="flex items-center gap-2 text-xs text-gray-500">
-              <ShieldCheck className="h-4 w-4 text-brand-secondary" />
-              {t('cardDetailsSecure')}
-            </p>
-          </div>
+            ) : (
+              hasSavedMethods && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm text-gray-300">
+                    <span className="font-medium">{t('savedCards')}</span>
+                    {!useSavedMethod && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUseSavedMethod(true);
+                          setSelectedSavedMethodId(savedMethods[0]?.id ?? null);
+                          setError(null);
+                        }}
+                        className="text-xs font-medium text-brand-accent hover:text-brand-accent/80"
+                      >
+                        {t('useSavedCard')}
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {savedMethods.map((method) => {
+                      const isActive = useSavedMethod && selectedSavedMethodId === method.id;
+                      return (
+                        <button
+                          key={method.id}
+                          type="button"
+                          onClick={() => {
+                            setUseSavedMethod(true);
+                            setSelectedSavedMethodId(method.id);
+                            setError(null);
+                          }}
+                          className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition ${
+                            isActive
+                              ? 'border-brand-accent bg-brand-accent/10 shadow-brand-accent/30'
+                              : 'border-gray-700 bg-gray-800/80 hover:border-brand-accent/60'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`h-10 w-10 rounded-full bg-gray-900/60 flex items-center justify-center text-sm font-semibold uppercase ${
+                              isActive ? 'text-brand-accent' : 'text-gray-300'
+                            }`}>
+                              {(method.brand?.slice(0, 2) || 'CC').toUpperCase()}
+                            </div>
+                            <div>
+                              <div className="text-sm font-semibold text-white">
+                                {(method.brand || 'Card').toUpperCase()} •••• {method.last4 || '0000'}
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                {t('expires')} {(method.exp_month ?? 0).toString().padStart(2, '0')}/{(method.exp_year ?? 0).toString()}
+                              </div>
+                            </div>
+                          </div>
+                          {isActive && <Check className="h-5 w-5 text-brand-accent" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {useSavedMethod && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUseSavedMethod(false);
+                        setSelectedSavedMethodId(null);
+                        setShouldSaveCard(true);
+                        setError(null);
+                      }}
+                      className="text-xs font-medium text-brand-accent hover:text-brand-accent/80"
+                    >
+                      {t('useDifferentCard')}
+                    </button>
+                  )}
+                </div>
+              )
+            )}
+
+            {!useSavedMethod && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm text-gray-300">
+                  <span className="font-medium">{t('cardInformation')}</span>
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-gray-400">
+                    <span>Visa</span>
+                    <span>Mastercard</span>
+                    <span>Amex</span>
+                  </div>
+                </div>
+                <div className="group rounded-2xl border border-gray-600 bg-gray-900/60 px-5 py-4 shadow-inner transition-all duration-200 focus-within:border-brand-accent focus-within:ring-2 focus-within:ring-brand-accent/30">
+                  <CardElement options={cardElementOptions} className="text-lg outline-none" />
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-400">
+                  <p className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-brand-secondary" />
+                    {t('cardDetailsSecure')}
+                  </p>
+                  <label className="flex items-center gap-2 text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={shouldSaveCard}
+                      onChange={(e) => setShouldSaveCard(e.target.checked)}
+                      className="rounded border-gray-600 bg-gray-700 text-brand-accent focus:ring-brand-accent"
+                    />
+                    <span>{t('saveCardForNextTime')}</span>
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Terms and Conditions */}
@@ -487,7 +689,7 @@ const PaymentCheckout: React.FC<PaymentCheckoutProps> = ({ selectedTier, tierDat
       returnUrl.searchParams.set('payment', method);
       returnUrl.searchParams.set('status', 'success');
       const encodedReturnUrl = method === 'alipay' ? returnUrl.toString() : undefined;
-      return createPaymentIntent(selectedTier, method, encodedReturnUrl);
+      return createPaymentIntent(selectedTier, method, encodedReturnUrl, false);
     },
     onSuccess: async (data: PaymentIntentResponse, method: PaymentMethod) => {
       if (method === 'wechat_pay') {

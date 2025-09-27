@@ -1,5 +1,5 @@
 import stripe
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import logging
 from payment.token_service import get_pricing_tier
 from utils.exchange_rates import convert_usd_cents_to_cny_fen
@@ -20,6 +20,8 @@ class StripeService:
         tier: str,
         payment_method_type: str = "card",
         return_url: Optional[str] = None,
+        customer_id: Optional[str] = None,
+        save_payment_method: bool = True,
     ) -> Optional[Dict[str, Any]]:
         """Create a Stripe payment intent for token purchase"""
         try:
@@ -44,6 +46,9 @@ class StripeService:
             if return_url:
                 metadata["return_url"] = return_url
 
+            if customer_id:
+                metadata["stripe_customer_id"] = customer_id
+
             # Determine amount/currency based on payment method
             amount = pricing_info["price"]
             currency = "usd"
@@ -63,14 +68,22 @@ class StripeService:
                 metadata["usd_amount_cents"] = str(pricing_info["price"])
 
             # Create payment intent
-            intent = stripe.PaymentIntent.create(
-                amount=amount,
-                currency=currency,
-                payment_method_types=[payment_method_type],
-                payment_method_options=payment_method_options or None,
-                metadata=metadata,
-                description=f"Token purchase - {pricing_info['description']}",
-            )
+            intent_kwargs = {
+                "amount": amount,
+                "currency": currency,
+                "payment_method_types": [payment_method_type],
+                "payment_method_options": payment_method_options or None,
+                "metadata": metadata,
+                "description": f"Token purchase - {pricing_info['description']}",
+            }
+
+            if customer_id:
+                intent_kwargs["customer"] = customer_id
+
+            if payment_method_type == "card" and save_payment_method and customer_id:
+                intent_kwargs["setup_future_usage"] = "off_session"
+
+            intent = stripe.PaymentIntent.create(**intent_kwargs)
 
             if payment_method_type == "wechat_pay":
                 intent = stripe.PaymentIntent.confirm(
@@ -101,6 +114,44 @@ class StripeService:
             return None
         except Exception as e:
             logger.error(f"Error creating payment intent: {str(e)}")
+            return None
+
+    def create_customer(self, *, email: Optional[str], name: Optional[str]) -> Optional[str]:
+        try:
+            customer = stripe.Customer.create(
+                email=email or None,
+                name=name or None,
+            )
+            return customer.id
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error creating customer: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Error creating customer: {str(e)}")
+            return None
+
+    def list_saved_payment_methods(self, customer_id: str) -> Optional[List[Dict[str, Any]]]:
+        try:
+            methods = stripe.PaymentMethod.list(customer=customer_id, type="card")
+            result = []
+            for pm in methods.data:
+                card = getattr(pm, "card", None)
+                if not card:
+                    continue
+                result.append({
+                    "id": pm.id,
+                    "brand": card.brand,
+                    "last4": card.last4,
+                    "exp_month": card.exp_month,
+                    "exp_year": card.exp_year,
+                    "is_default": False,
+                })
+            return result
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error listing payment methods: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Error listing payment methods: {str(e)}")
             return None
     
     def verify_webhook_signature(self, payload: str, signature: str) -> bool:

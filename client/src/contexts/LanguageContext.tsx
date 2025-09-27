@@ -643,6 +643,19 @@ export type TranslationKey =
   | 'tokensPlural'
   | 'cardInformation'
   | 'cardDetailsSecure'
+  | 'prefilledFromProfile'
+  | 'billingAddressOptional'
+  | 'addAddress'
+  | 'hideAddress'
+  | 'nameOnCardPlaceholder'
+  | 'nameOnCardHint'
+  | 'loadingSavedCards'
+  | 'savedCards'
+  | 'useSavedCard'
+  | 'useDifferentCard'
+  | 'saveCardForNextTime'
+  | 'expires'
+  | 'selectSavedCard'
   | 'agreeToTerms'
   | 'termsOfService'
   | 'and'
@@ -1109,6 +1122,19 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     tokensPlural: 'tokens',
     cardInformation: 'Card details',
     cardDetailsSecure: 'Your card details are encrypted and processed securely by Stripe.',
+    prefilledFromProfile: 'We pre-filled these details from your account. Update anything if needed.',
+    billingAddressOptional: 'Billing address (optional)',
+    addAddress: 'Add details',
+    hideAddress: 'Hide details',
+    nameOnCardPlaceholder: 'Name on card',
+    nameOnCardHint: 'Enter the full name exactly as it appears on your card.',
+    loadingSavedCards: 'Loading saved cards...',
+    savedCards: 'Saved cards',
+    useSavedCard: 'Use saved card',
+    useDifferentCard: 'Use a different card',
+    saveCardForNextTime: 'Save card for next time',
+    expires: 'Expires',
+    selectSavedCard: 'Select a saved card or add a new one.',
     agreeToTerms: 'I agree to the',
     termsOfService: 'Terms of Service',
     and: 'and',
@@ -1443,6 +1469,19 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     tokensPlural: '代币',
     cardInformation: '卡片信息',
     cardDetailsSecure: '您的卡片信息通过 Stripe 安全加密处理。',
+    prefilledFromProfile: '我们已根据您的账户预填了信息，如有需要可随时修改。',
+    billingAddressOptional: '账单地址（可选）',
+    addAddress: '填写详情',
+    hideAddress: '收起详情',
+    nameOnCardPlaceholder: '卡片上的姓名',
+    nameOnCardHint: '请输入卡片上显示的完整姓名。',
+    loadingSavedCards: '正在加载已保存的卡片...',
+    savedCards: '已保存的卡片',
+    useSavedCard: '使用已保存的卡片',
+    useDifferentCard: '使用其他卡片',
+    saveCardForNextTime: '保存卡片以便下次快速支付',
+    expires: '到期',
+    selectSavedCard: '请选择一张已保存的卡片或添加新卡片。',
     agreeToTerms: '我同意',
     termsOfService: '服务条款',
     and: '和',
