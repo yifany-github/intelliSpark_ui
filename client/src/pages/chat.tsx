@@ -20,6 +20,7 @@ import GlobalLayout from "@/components/layout/GlobalLayout";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useToast } from "@/hooks/use-toast";
 
 interface ChatPageProps {
   chatId?: string;
@@ -27,9 +28,10 @@ interface ChatPageProps {
 
 const ChatPage = ({ chatId }: ChatPageProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { isTyping, setIsTyping, selectedCharacter } = useRolePlay();
+  const { isTyping, setIsTyping, selectedCharacter, setCurrentChat } = useRolePlay();
   const { t } = useLanguage();
-  const { navigateBack } = useNavigation();
+  const { navigateBack, navigateToPath } = useNavigation();
+  const { toast } = useToast();
   const [showChatList, setShowChatList] = useState(false);
   const [showCharacterInfo, setShowCharacterInfo] = useState(false);
   const [recentSearch, setRecentSearch] = useState("");
@@ -206,7 +208,39 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       });
     },
   });
-  
+
+  // Delete single chat mutation
+  const { mutate: deleteSingleChat, isPending: isDeletingChat } = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await apiRequest('DELETE', `/api/chats/${id}`);
+      if (!response.ok) {
+        throw new Error('Delete operation failed');
+      }
+      return response.json();
+    },
+    onSuccess: (data, deletedChatId) => {
+      setCurrentChat(null);
+      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
+      toast({
+        title: t('success'),
+        description: t('chatDeleted'),
+      });
+
+      // Only navigate away if we deleted the current chat
+      if (chatId && parseInt(chatId) === deletedChatId) {
+        navigateToPath('/chats');
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: t('error'),
+        description: t('failedToDeleteChat'),
+        variant: "destructive",
+      });
+      console.error('Delete operation error:', error);
+    },
+  });
+
   // Regenerate the last AI message
   const regenerateLastMessage = () => {
     setIsTyping(true);

@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
-import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield, Heart, MessageCircle, ChevronDown, Filter, Sparkles, Smile, Ban } from 'lucide-react';
+import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield, Heart, MessageCircle, ChevronDown, Filter, Sparkles } from 'lucide-react';
 import { Character } from '@/types';
 import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useFavorites } from '@/contexts/FavoritesContext';
@@ -17,8 +17,6 @@ import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import {
   Select,
@@ -105,12 +103,10 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const [selectedFilter, setSelectedFilter] = useState<typeof filterKeys[number]>('popular');
   const [selectedCategory, setSelectedCategory] = useState<typeof categoryKeys[number]>('all');
   const [genderFilter, setGenderFilter] = useState<'all' | 'male' | 'female' | 'other'>('all');
-  const [nsfwEnabled, setNsfwEnabled] = useState(false);
   const [previewCharacter, setPreviewCharacter] = useState<Character | null>(null);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isNSFWConfirmOpen, setIsNSFWConfirmOpen] = useState(false);
   const { navigateToPath, navigateToLogin } = useNavigation();
 
   // Helper function to detect NSFW content in character (primary: explicit flag; secondary: keyword heuristic)
@@ -179,7 +175,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     return Math.round(baseRating * 10) / 10;
   };
   
-  const { setSelectedCharacter } = useRolePlay();
+  const { setSelectedCharacter, nsfwEnabled } = useRolePlay();
   const { isAuthenticated } = useAuth();
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -206,7 +202,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     setSelectedFilter('popular');
     setSelectedCategory('all');
     setGenderFilter('all');
-    setNsfwEnabled(false);
+    // Note: NSFW is now global and controlled from TopNavigation
     setActiveTab('Characters');
   };
 
@@ -569,25 +565,6 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
         <div className="hidden lg:flex lg:items-center lg:gap-3">
           <button
             type="button"
-            onClick={() => {
-              if (!nsfwEnabled) {
-                setIsNSFWConfirmOpen(true);
-                return;
-              }
-              setNsfwEnabled(false);
-            }}
-            className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-colors ${
-              nsfwEnabled
-                ? 'border-red-400/60 bg-red-500/15 text-red-200 hover:border-red-300 hover:text-red-100'
-                : 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200 hover:border-emerald-300 hover:text-emerald-100'
-            }`}
-          >
-            {nsfwEnabled ? <Ban className="h-4 w-4" /> : <Smile className="h-4 w-4" />}
-            <span>{nsfwEnabled ? (t('nsfwEnabledLabel') || 'NSFW Enabled') : (t('nsfwDisabledLabel') || 'Safe Mode')}</span>
-          </button>
-
-          <button
-            type="button"
             onClick={() => setIsSidebarOpen(true)}
             className="inline-flex items-center gap-2 rounded-full border border-surface-border/60 bg-surface-secondary/40 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] text-content-tertiary shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] transition-colors hover:border-brand-secondary/50 hover:text-brand-secondary"
           >
@@ -698,39 +675,6 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
           </div>
         </SheetContent>
       </Sheet>
-
-      <Dialog open={isNSFWConfirmOpen} onOpenChange={setIsNSFWConfirmOpen}>
-        <DialogContent className="max-w-md bg-surface-primary text-content-primary">
-          <DialogHeader>
-            <DialogTitle>{t('confirmEnableNSFW') || 'Confirm Adult Content'}</DialogTitle>
-            <DialogDescription>
-              {t('nsfwDisclaimer') || 'Adult content is available only to users who are at least 18 years old. By enabling NSFW mode you confirm that you are of legal age and legally responsible for viewing adult-oriented material.'}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="rounded-md bg-red-500/10 px-4 py-3 text-xs text-red-200">
-            {t('nsfwLegalNotice') || 'Proceeding means you acknowledge local laws and agree to the platform terms regarding adult content.'}
-          </div>
-          <DialogFooter className="mt-4 flex w-full justify-end gap-3">
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => setIsNSFWConfirmOpen(false)}
-            >
-              {t('cancel') || '取消'}
-            </Button>
-            <Button
-              type="button"
-              className="bg-red-500 text-white hover:bg-red-500/90"
-              onClick={() => {
-                setNsfwEnabled(true);
-                setIsNSFWConfirmOpen(false);
-              }}
-            >
-              {t('confirm') || '确认开启'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       <div className="flex-1 space-y-4">
         <div className="lg:hidden">

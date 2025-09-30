@@ -164,11 +164,11 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
           </span>
         </div>
         {(isLowBalance || isCriticalBalance) && showActions && (
-          <Button 
-            size="sm" 
-            variant="outline" 
+          <Button
+            size="sm"
+            variant="outline"
             onClick={handleBuyTokens}
-            className="h-6 text-xs px-2 bg-brand-accent hover:bg-indigo-500 border-brand-accent text-white rounded-full"
+            className="h-6 text-xs px-2 bg-brand-secondary hover:bg-amber-600 border-brand-secondary text-white rounded-full"
           >
             <Plus className="h-3 w-3 mr-1" />
             {t('buy')}
@@ -211,13 +211,13 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
             </Badge>
           </div>
           {showActions && (
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               onClick={handleBuyTokens}
-              className="flex items-center gap-1 bg-brand-accent hover:bg-indigo-500 rounded-2xl"
+              className="flex items-center gap-1 bg-brand-secondary hover:bg-amber-600 rounded-2xl"
             >
               <Plus className="h-4 w-4" />
-{t('buyMoreTokens')}
+              {t('buyMoreTokens')}
             </Button>
           )}
         </div>
@@ -252,11 +252,11 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
         {/* Quick Actions */}
         {showActions && (isLowBalance || isCriticalBalance) && (
           <div className="flex gap-2">
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               variant="outline"
               onClick={handleBuyTokens}
-              className="flex-1 bg-brand-accent hover:bg-indigo-500 border-brand-accent text-white rounded-2xl"
+              className="flex-1 bg-brand-secondary hover:bg-amber-600 border-brand-secondary text-white rounded-2xl"
             >
               <Gift className="h-4 w-4 mr-2" />
               {t('quickBuy')}

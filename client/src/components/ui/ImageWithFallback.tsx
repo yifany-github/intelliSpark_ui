@@ -54,6 +54,7 @@ const ImageWithFallback = ({
 
   // Generate initials from fallback text
   const getInitials = (text: string) => {
+    if (!text || typeof text !== 'string') return '?';
     return text
       .split(' ')
       .map(word => word.charAt(0))

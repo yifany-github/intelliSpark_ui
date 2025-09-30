@@ -79,22 +79,14 @@ export const TokenManagement: React.FC<TokenManagementProps> = ({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="sm"
             onClick={handleExportData}
             className="bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl"
           >
             <Download className="h-4 w-4 mr-2" />
             {t('exportData')}
-          </Button>
-          <Button 
-            size="sm"
-            onClick={handleBuyTokens}
-            className="bg-brand-accent hover:bg-indigo-500 rounded-2xl"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            {t('buyTokens')}
           </Button>
         </div>
       </div>
@@ -146,40 +138,6 @@ export const TokenManagement: React.FC<TokenManagementProps> = ({
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-6">
               <TokenUsageStats compact={true} />
-              
-              <Card className="bg-gray-800 border-gray-700">
-                <CardHeader>
-                  <CardTitle className="text-white flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-brand-secondary" />
-                    {t('quickActions')}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <Button 
-                    onClick={handleBuyTokens}
-                    className="w-full bg-brand-accent hover:bg-indigo-500 text-white rounded-2xl"
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    {t('purchaseMoreTokens')}
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => navigateToPath('/chats')}
-                    className="w-full bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl"
-                  >
-                    <CreditCard className="h-4 w-4 mr-2" />
-                    {t('startNewChat')}
-                  </Button>
-                  <Button 
-                    variant="outline"
-                    onClick={() => setActiveTab('history')}
-                    className="w-full bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl"
-                  >
-                    <History className="h-4 w-4 mr-2" />
-                    {t('viewTransactionHistory')}
-                  </Button>
-                </CardContent>
-              </Card>
             </div>
 
             <div className="space-y-6">

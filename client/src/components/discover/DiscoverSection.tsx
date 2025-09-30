@@ -39,7 +39,7 @@ import TraitChips from '@/components/characters/TraitChips';
 
 const DiscoverSection = () => {
   const { navigateToPath } = useNavigation();
-  const { setSelectedCharacter } = useRolePlay();
+  const { setSelectedCharacter, nsfwEnabled } = useRolePlay();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -212,23 +212,30 @@ const DiscoverSection = () => {
     { id: 'Movies', name: t('moviesTv'), icon: Film, color: 'text-amber-400', bgColor: 'bg-amber-600' }
   ];
 
-  // Filter characters by category
+  // Filter characters by category and NSFW
   const filteredSections = useMemo(() => {
-    const filterCharacters = (chars: Character[]) => 
-      selectedCategory === 'All' 
-        ? chars 
-        : chars.filter(char => 
-            char.traits.some(trait => 
-              trait.toLowerCase().includes(selectedCategory.toLowerCase()) ||
-              selectedCategory.toLowerCase() === 'sci-fi' && (trait.toLowerCase().includes('logical') || trait.toLowerCase().includes('analytical') || trait.toLowerCase().includes('curious')) ||
-              selectedCategory.toLowerCase() === 'adventure' && (trait.toLowerCase().includes('strong') || trait.toLowerCase().includes('warrior') || trait.toLowerCase().includes('honorable')) ||
-              selectedCategory.toLowerCase() === 'mystery' && (trait.toLowerCase().includes('cunning') || trait.toLowerCase().includes('mysterious')) ||
-              selectedCategory.toLowerCase() === 'romance' && (trait.toLowerCase().includes('charismatic') || trait.toLowerCase().includes('diplomatic')) ||
-              selectedCategory.toLowerCase() === 'historical' && (trait.toLowerCase().includes('wise') || trait.toLowerCase().includes('noble')) ||
-              selectedCategory.toLowerCase() === 'modern' && (trait.toLowerCase().includes('intelligent') || trait.toLowerCase().includes('peaceful'))
-            )
-          );
-    
+    const filterCharacters = (chars: Character[]) => {
+      // First apply NSFW filter
+      let filtered = nsfwEnabled ? chars : chars.filter(char => !isCharacterNSFW(char));
+
+      // Then apply category filter
+      if (selectedCategory !== 'All') {
+        filtered = filtered.filter(char =>
+          char.traits.some(trait =>
+            trait.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+            selectedCategory.toLowerCase() === 'sci-fi' && (trait.toLowerCase().includes('logical') || trait.toLowerCase().includes('analytical') || trait.toLowerCase().includes('curious')) ||
+            selectedCategory.toLowerCase() === 'adventure' && (trait.toLowerCase().includes('strong') || trait.toLowerCase().includes('warrior') || trait.toLowerCase().includes('honorable')) ||
+            selectedCategory.toLowerCase() === 'mystery' && (trait.toLowerCase().includes('cunning') || trait.toLowerCase().includes('mysterious')) ||
+            selectedCategory.toLowerCase() === 'romance' && (trait.toLowerCase().includes('charismatic') || trait.toLowerCase().includes('diplomatic')) ||
+            selectedCategory.toLowerCase() === 'historical' && (trait.toLowerCase().includes('wise') || trait.toLowerCase().includes('noble')) ||
+            selectedCategory.toLowerCase() === 'modern' && (trait.toLowerCase().includes('intelligent') || trait.toLowerCase().includes('peaceful'))
+          )
+        );
+      }
+
+      return filtered;
+    };
+
     return {
       trending: filterCharacters(trendingCharacters),
       new: filterCharacters(newCharacters),
@@ -239,6 +246,7 @@ const DiscoverSection = () => {
     };
   }, [
     selectedCategory,
+    nsfwEnabled,
     trendingCharacters,
     newCharacters,
     popularCharacters,

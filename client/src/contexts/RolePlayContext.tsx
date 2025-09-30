@@ -6,18 +6,20 @@ interface RolePlayContextType {
   // User Preferences
   memoryEnabled: boolean;
   setMemoryEnabled: (enabled: boolean) => void;
-  
+  nsfwEnabled: boolean;
+  setNsfwEnabled: (enabled: boolean) => void;
+
   // Active Selections
   selectedCharacter: Character | null;
   setSelectedCharacter: (character: Character | null) => void;
   currentChat: Chat | null;
   setCurrentChat: (chat: Chat | null) => void;
-  
+
   // Active Chat State
   isTyping: boolean;
   setIsTyping: (isTyping: boolean) => void;
-  
-  
+
+
   // Auth Modal State
   isAuthModalOpen: boolean;
   setIsAuthModalOpen: (isOpen: boolean) => void;
@@ -25,7 +27,7 @@ interface RolePlayContextType {
   setPendingMessage: (message: string | null) => void;
   pendingChatAction: (() => Promise<string>) | null;
   setPendingChatAction: (action: (() => Promise<string>) | null) => void;
-  
+
   // Start Chat Function
   startChat: (character: Character) => Promise<string>;
   startChatPreview: (character: Character) => void;
@@ -35,16 +37,33 @@ interface RolePlayContextType {
 const RolePlayContext = createContext<RolePlayContextType | undefined>(undefined);
 
 export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
-  // User Preferences
+  // User Preferences - persist NSFW state in localStorage
   const [memoryEnabled, setMemoryEnabled] = useState(true);
-  
+  const [nsfwEnabled, setNsfwEnabledState] = useState(() => {
+    try {
+      const stored = localStorage.getItem('nsfw_enabled');
+      return stored === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const setNsfwEnabled = (enabled: boolean) => {
+    setNsfwEnabledState(enabled);
+    try {
+      localStorage.setItem('nsfw_enabled', String(enabled));
+    } catch (error) {
+      console.error('Failed to save NSFW preference:', error);
+    }
+  };
+
   // Active Selections
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
   const [currentChat, setCurrentChat] = useState<Chat | null>(null);
-  
+
   // Active Chat State
   const [isTyping, setIsTyping] = useState(false);
-  
+
   // Auth Modal State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null);
@@ -110,22 +129,24 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
       value={{
         memoryEnabled,
         setMemoryEnabled,
-        
+        nsfwEnabled,
+        setNsfwEnabled,
+
         selectedCharacter,
         setSelectedCharacter,
         currentChat,
         setCurrentChat,
-        
+
         isTyping,
         setIsTyping,
-        
+
         isAuthModalOpen,
         setIsAuthModalOpen,
         pendingMessage,
         setPendingMessage,
         pendingChatAction,
         setPendingChatAction,
-        
+
         startChat,
         startChatPreview,
         requestAuthForMessage,

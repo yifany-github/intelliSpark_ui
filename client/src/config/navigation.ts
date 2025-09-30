@@ -117,7 +117,7 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     path: '/settings',
     icon: Settings,
     requiresAuth: true,
-    showInSidebar: false,
+    showInSidebar: true,
     showInTopNav: false,
     showInMobileTab: false
   }

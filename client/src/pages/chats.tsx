@@ -175,12 +175,39 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     () => setCurrentChat(null) // Extra action for clear all
   );
 
-  // Delete single chat mutation  
-  const { mutate: deleteSingleChat, isPending: isDeletingChat } = useDeleteMutation(
-    '/api/chats',
-    t('chatDeleted'),
-    t('failedToDeleteChat')
-  );
+  // Delete single chat mutation
+  const deleteChatMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const response = await apiRequest('DELETE', `/api/chats/${id}`);
+      if (!response.ok) {
+        throw new Error('Delete operation failed');
+      }
+      return response.json();
+    },
+    onSuccess: (data, deletedChatId) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
+      toast({
+        title: t('success'),
+        description: t('chatDeleted'),
+      });
+
+      // Only navigate away if we deleted the current chat
+      if (chatId && parseInt(chatId) === deletedChatId) {
+        setCurrentChat(null);
+        navigateToPath('/chats');
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: t('error'),
+        description: t('failedToDeleteChat'),
+        variant: "destructive",
+      });
+      console.error('Delete operation error:', error);
+    },
+  });
+
+  const { mutate: deleteSingleChat, isPending: isDeletingChat } = deleteChatMutation;
   
   // Regenerate the last AI message
   const regenerateLastMessage = () => {
@@ -470,26 +497,41 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
               <Pin className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">{isPinned ? t('unpin') : t('pinChatAction')}</span>
             </button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="h-8 w-8 rounded-full text-gray-400 hover:bg-red-500/10 hover:text-red-400"
+                  onClick={(e) => e.stopPropagation()}
                 >
-                  <MoreVertical className="h-4 w-4" />
+                  <Trash2 className="h-4 w-4" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="border border-gray-700 bg-gray-900">
-                <DropdownMenuItem
-                  onClick={() => deleteSingleChat(chat.id)}
-                  className="cursor-pointer text-red-400 focus:bg-red-900/30 focus:text-red-300"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  {t('deleteChat')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="bg-gray-800 border-gray-700">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-white">{t('deleteChat')}</AlertDialogTitle>
+                  <AlertDialogDescription className="text-gray-400">
+                    {t('areYouSure')} {t('deleteThisChat')} {t('cannotUndone')}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel className="bg-gray-700 text-white border-gray-600">{t('cancel')}</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      console.log('Deleting chat from list:', chat.id);
+                      deleteSingleChat(chat.id);
+                    }}
+                    className="bg-red-600 hover:bg-red-700"
+                    disabled={isDeletingChat}
+                  >
+                    {isDeletingChat ? t('deleting') : t('delete')}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </div>
       </div>
@@ -725,9 +767,39 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
               </div>
             </div>
           </div>
-          <button className="w-8 h-8 flex items-center justify-center text-gray-400">
-            <MoreVertical className="h-5 w-5" />
-          </button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <button className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-400 transition-colors">
+                <Trash2 className="h-5 w-5" />
+              </button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="bg-gray-800 border-gray-700">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-white">{t('deleteChat')}</AlertDialogTitle>
+                <AlertDialogDescription className="text-gray-400">
+                  {t('areYouSure')} {t('deleteThisChat')} {t('cannotUndone')}
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="bg-gray-700 text-white border-gray-600">{t('cancel')}</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    console.log('Delete button clicked, chatId:', chatId);
+                    if (chatId) {
+                      const numericChatId = parseInt(chatId);
+                      console.log('Deleting chat with ID:', numericChatId);
+                      deleteSingleChat(numericChatId);
+                    } else {
+                      console.error('No chatId available');
+                    }
+                  }}
+                  className="bg-red-600 hover:bg-red-700"
+                >
+                  {isDeletingChat ? t('deleting') : t('delete')}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
       </div>
       

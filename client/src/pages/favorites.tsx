@@ -357,7 +357,7 @@ const FavoritesCharacterCard = (
 
 const FavoritesPage = () => {
   const { navigateToPath, navigateToHome } = useNavigation();
-  const { setSelectedCharacter } = useRolePlay();
+  const { setSelectedCharacter, nsfwEnabled } = useRolePlay();
   const { toggleFavorite, isFavorite } = useFavorites();
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -424,6 +424,11 @@ const FavoritesPage = () => {
       });
     };
 
+    const applyNSFWFilter = (items: Character[]) => {
+      if (nsfwEnabled) return items;
+      return items.filter((character) => !isCharacterNSFW(character));
+    };
+
     const applySort = (items: Character[]) => {
       const sorted = [...items].sort((a, b) => {
         let comparison = 0;
@@ -444,10 +449,10 @@ const FavoritesPage = () => {
       return sorted;
     };
 
-    const applyChain = (items: Character[]) => applySort(applyCategory(applySearch(items)));
+    const applyChain = (items: Character[]) => applySort(applyCategory(applySearch(applyNSFWFilter(items))));
 
     return applyChain(characters);
-  }, [characters, filters]);
+  }, [characters, filters, nsfwEnabled]);
 
   const hasActiveFilters =
     filters.search.trim().length > 0 || filters.category !== 'all' || filters.sortBy !== 'date' || filters.sortOrder !== 'desc';
