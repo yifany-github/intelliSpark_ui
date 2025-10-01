@@ -218,3 +218,157 @@ class StripeService:
         except Exception as e:
             logger.error(f"Error retrieving payment intent: {str(e)}")
             return None
+
+    # ============ Subscription Methods ============
+
+    def create_subscription(
+        self,
+        customer_id: str,
+        price_id: str,
+        user_id: int,
+        tier: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Create a Stripe subscription for recurring token allocation"""
+        try:
+            metadata = {
+                "user_id": str(user_id),
+                "tier": tier,
+                "type": "premium_subscription",
+            }
+
+            subscription = stripe.Subscription.create(
+                customer=customer_id,
+                items=[{"price": price_id}],
+                payment_behavior="default_incomplete",
+                payment_settings={
+                    "save_default_payment_method": "on_subscription",
+                },
+                expand=["latest_invoice.payment_intent"],
+                metadata=metadata,
+            )
+
+            # Extract payment intent client secret
+            client_secret = None
+            if hasattr(subscription.latest_invoice, 'payment_intent'):
+                pi = subscription.latest_invoice.payment_intent
+                if hasattr(pi, 'client_secret'):
+                    client_secret = pi.client_secret
+
+            return {
+                "subscription_id": subscription.id,
+                "client_secret": client_secret,
+                "status": subscription.status,
+                "current_period_start": subscription.current_period_start,
+                "current_period_end": subscription.current_period_end,
+            }
+
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error creating subscription: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Error creating subscription: {str(e)}")
+            return None
+
+    def cancel_subscription(
+        self,
+        subscription_id: str,
+        cancel_at_period_end: bool = True,
+    ) -> bool:
+        """Cancel a Stripe subscription"""
+        try:
+            if cancel_at_period_end:
+                stripe.Subscription.modify(
+                    subscription_id,
+                    cancel_at_period_end=True,
+                )
+            else:
+                stripe.Subscription.cancel(subscription_id)
+
+            logger.info(f"Canceled subscription {subscription_id} (at_period_end={cancel_at_period_end})")
+            return True
+
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error canceling subscription: {str(e)}")
+            return False
+        except Exception as e:
+            logger.error(f"Error canceling subscription: {str(e)}")
+            return False
+
+    def update_subscription(
+        self,
+        subscription_id: str,
+        new_price_id: str,
+    ) -> Optional[Dict[str, Any]]:
+        """Update subscription to a different plan"""
+        try:
+            subscription = stripe.Subscription.retrieve(subscription_id)
+
+            # Update to new price
+            updated = stripe.Subscription.modify(
+                subscription_id,
+                items=[{
+                    "id": subscription["items"]["data"][0].id,
+                    "price": new_price_id,
+                }],
+                proration_behavior="create_prorations",
+            )
+
+            return {
+                "subscription_id": updated.id,
+                "status": updated.status,
+                "current_period_start": updated.current_period_start,
+                "current_period_end": updated.current_period_end,
+            }
+
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error updating subscription: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Error updating subscription: {str(e)}")
+            return None
+
+    def get_subscription(self, subscription_id: str) -> Optional[Dict[str, Any]]:
+        """Retrieve subscription details"""
+        try:
+            subscription = stripe.Subscription.retrieve(subscription_id)
+            return {
+                "id": subscription.id,
+                "status": subscription.status,
+                "current_period_start": subscription.current_period_start,
+                "current_period_end": subscription.current_period_end,
+                "cancel_at_period_end": subscription.cancel_at_period_end,
+                "customer": subscription.customer,
+                "metadata": subscription.metadata,
+            }
+        except stripe.error.StripeError as e:
+            logger.error(f"Stripe error retrieving subscription: {str(e)}")
+            return None
+        except Exception as e:
+            logger.error(f"Error retrieving subscription: {str(e)}")
+            return None
+
+    def handle_invoice_payment_succeeded(self, invoice: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Handle successful invoice payment (for subscriptions)"""
+        try:
+            subscription_id = invoice.get("subscription")
+            if not subscription_id:
+                return None
+
+            # Get subscription to extract metadata
+            subscription = stripe.Subscription.retrieve(subscription_id)
+            metadata = subscription.get("metadata", {})
+
+            return {
+                "subscription_id": subscription_id,
+                "user_id": int(metadata.get("user_id", 0)),
+                "tier": metadata.get("tier"),
+                "amount": invoice.get("amount_paid"),
+                "currency": invoice.get("currency"),
+                "period_start": subscription.current_period_start,
+                "period_end": subscription.current_period_end,
+                "status": subscription.status,
+            }
+
+        except (ValueError, TypeError, KeyError, stripe.error.StripeError) as e:
+            logger.error(f"Error parsing invoice data: {str(e)}")
+            return None

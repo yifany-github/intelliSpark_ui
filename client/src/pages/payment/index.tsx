@@ -7,14 +7,16 @@ import {
   useElements,
 } from '@stripe/react-stripe-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Check, Coins, CreditCard, Loader2, ShieldCheck, Star } from 'lucide-react';
+import { ArrowLeft, Check, Coins, CreditCard, Loader2, ShieldCheck, Star, Crown } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
 import { Alert, AlertDescription } from '../../components/ui/alert';
 import { Separator } from '../../components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { useNavigation } from '../../contexts/NavigationContext';
 import { ImprovedTokenBalance } from '../../components/payment/ImprovedTokenBalance';
+import { PremiumMembership } from '../../components/payment/PremiumMembership';
 import GlobalLayout from '../../components/layout/GlobalLayout';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -1004,7 +1006,7 @@ const PaymentPage: React.FC = () => {
 
   return (
     <GlobalLayout>
-      <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-4xl">
+      <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-6xl">
         <div className="mb-6">
           <h1 className="text-3xl font-bold mb-2 text-white">{t('buyTokens')}</h1>
           <p className="text-gray-400">
@@ -1017,6 +1019,21 @@ const PaymentPage: React.FC = () => {
         </div>
 
         <Separator className="my-6" />
+
+        <Tabs defaultValue="one-time" className="w-full">
+          <TabsList className="grid w-full grid-cols-2 mb-8 bg-gray-800/50">
+            <TabsTrigger value="one-time" className="data-[state=active]:bg-gray-700">
+              <Coins className="h-4 w-4 mr-2" />
+              One-Time Purchase
+            </TabsTrigger>
+            <TabsTrigger value="subscription" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600">
+              <Crown className="h-4 w-4 mr-2" />
+              Premium Membership
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="one-time">
+            <div className="space-y-6">
 
         <div className="mb-6">
           <h2 className="text-xl font-semibold mb-4 text-white">{t('chooseTokenPackage')}</h2>
@@ -1115,6 +1132,15 @@ const PaymentPage: React.FC = () => {
             <li>• {t('instantDelivery')}</li>
           </ul>
         </div>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="subscription">
+            <Elements stripe={stripePromise}>
+              <PremiumMembership />
+            </Elements>
+          </TabsContent>
+        </Tabs>
       </div>
     </GlobalLayout>
   );

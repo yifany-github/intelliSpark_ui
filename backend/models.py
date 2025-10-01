@@ -38,7 +38,7 @@ Base = declarative_base()
 
 class User(Base):
     __tablename__ = "users"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     username = Column(String(255), unique=True, nullable=False, index=True)
     password = Column(String(255), nullable=False)
@@ -49,18 +49,20 @@ class User(Base):
     memory_enabled = Column(Boolean, default=True)
     preferred_ai_model = Column(String(50), default='gemini')  # User's preferred AI model: 'gemini', 'grok', etc.
     stripe_customer_id = Column(String(255), nullable=True, unique=True)
+    is_premium_member = Column(Boolean, default=False)  # Quick lookup for subscription status
     created_at = Column(DateTime, default=func.now())
     last_login_at = Column(DateTime, nullable=True)
     last_login_ip = Column(String(100), nullable=True)
     is_suspended = Column(Boolean, default=False, index=True)
     suspended_at = Column(DateTime, nullable=True)
     suspension_reason = Column(Text, nullable=True)
-    
+
     # Relationships
     chats = relationship("Chat", back_populates="user")
     token_balance = relationship("UserToken", back_populates="user", uselist=False)
     token_transactions = relationship("TokenTransaction", back_populates="user")
     notifications = relationship("Notification", back_populates="user")
+    premium_subscription = relationship("PremiumSubscription", back_populates="user", uselist=False)
 
 
 class Character(Base):
@@ -160,17 +162,20 @@ class UserToken(Base):
 
 class TokenTransaction(Base):
     __tablename__ = "token_transactions"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    transaction_type = Column(String(50), nullable=False)  # 'purchase', 'deduction', 'refund'
+    transaction_type = Column(String(50), nullable=False)  # 'purchase', 'deduction', 'refund', 'subscription_allocation'
     amount = Column(Integer, nullable=False)  # positive for purchase/refund, negative for deduction
     description = Column(String(500), nullable=True)
     stripe_payment_intent_id = Column(String(255), nullable=True)
+    subscription_id = Column(Integer, ForeignKey("premium_subscriptions.id"), nullable=True)  # Link to subscription if applicable
+    expires_at = Column(DateTime, nullable=True, index=True)  # Token expiration for subscription tokens (2 months)
     created_at = Column(DateTime, default=func.now())
-    
+
     # Relationships
     user = relationship("User", back_populates="token_transactions")
+    subscription = relationship("PremiumSubscription", back_populates="token_allocations")
 
 class Notification(Base):
     __tablename__ = "notifications"
@@ -210,31 +215,61 @@ class NotificationTemplate(Base):
 class CharacterGalleryImage(Base):
     """Character Gallery Image Model for multi-image display system"""
     __tablename__ = "character_gallery_images"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     character_id = Column(Integer, ForeignKey("characters.id"), nullable=False, index=True)
-    
+
     # Image information
     image_url = Column(String(500), nullable=False)
     thumbnail_url = Column(String(500), nullable=True)
     alt_text = Column(String(200), nullable=True)
-    
+
     # Categorization and ordering
     category = Column(String(50), default="general")  # "portrait", "outfit", "expression", "scene", "general"
     display_order = Column(Integer, default=0, index=True)
     is_primary = Column(Boolean, default=False, index=True)
-    
+
     # Image metadata
     file_size = Column(Integer, nullable=True)        # File size in bytes
     dimensions = Column(String(20), nullable=True)    # Format: "800x600"
     file_format = Column(String(10), nullable=True)   # "jpg", "png", "webp"
-    
+
     # Management fields
     is_active = Column(Boolean, default=True, index=True)
     uploaded_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
-    
+
     # Relationships
     character = relationship("Character", back_populates="gallery_images")
     uploader = relationship("User")
+
+
+class PremiumSubscription(Base):
+    """Premium Subscription Model for monthly token plan system"""
+    __tablename__ = "premium_subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    stripe_subscription_id = Column(String(255), nullable=False, unique=True)
+    stripe_customer_id = Column(String(255), nullable=False)
+
+    # Subscription details
+    plan_tier = Column(String(50), nullable=False)  # 'basic', 'pro', 'premium'
+    status = Column(String(50), nullable=False, index=True)  # 'active', 'canceled', 'past_due', 'unpaid'
+    current_period_start = Column(DateTime, nullable=False)
+    current_period_end = Column(DateTime, nullable=False)
+    cancel_at_period_end = Column(Boolean, default=False)
+
+    # Token allocation tracking
+    monthly_token_allowance = Column(Integer, default=200)  # Tokens allocated per billing period
+    tokens_allocated_this_period = Column(Integer, default=0)  # Tokens already allocated this period
+    last_token_allocation_date = Column(DateTime, nullable=True)  # Last time tokens were allocated
+
+    # Timestamps
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="premium_subscription")
+    token_allocations = relationship("TokenTransaction", back_populates="subscription")

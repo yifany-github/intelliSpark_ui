@@ -13,10 +13,12 @@ from schemas import (
 )
 from payment.stripe_service import StripeService
 from payment.token_service import TokenService, get_all_pricing_tiers
+from payment.subscription_service import SubscriptionService, get_all_subscription_plans, get_token_expiration_date
 from notification_service import get_notification_service
 import json
 import logging
 from typing import List
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -164,11 +166,11 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         elif event["type"] == "payment_intent.payment_failed":
             payment_intent = event["data"]["object"]
             logger.warning(f"Payment failed for payment intent: {payment_intent['id']}")
-            
+
             # Extract user ID from metadata if available
             if payment_intent.get("metadata") and payment_intent["metadata"].get("user_id"):
                 user_id = int(payment_intent["metadata"]["user_id"])
-                
+
                 # Create payment failed notification
                 try:
                     notification_service = get_notification_service(db)
@@ -184,7 +186,72 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                     logger.info(f"Created payment failed notification for user {user_id}")
                 except Exception as e:
                     logger.error(f"Failed to create payment failed notification: {str(e)}")
-        
+
+        # Handle subscription invoice payment succeeded
+        elif event["type"] == "invoice.payment_succeeded":
+            invoice = event["data"]["object"]
+            stripe_service = StripeService()
+            invoice_data = stripe_service.handle_invoice_payment_succeeded(invoice)
+
+            if invoice_data and invoice_data.get("user_id"):
+                subscription_service = SubscriptionService(db)
+                token_service = TokenService(db)
+
+                # Get or create subscription record
+                subscription = subscription_service.get_user_subscription(invoice_data["user_id"])
+
+                if not subscription:
+                    # Create new subscription record
+                    subscription = subscription_service.create_subscription(
+                        user_id=invoice_data["user_id"],
+                        stripe_subscription_id=invoice_data["subscription_id"],
+                        stripe_customer_id=invoice.get("customer"),
+                        plan_tier=invoice_data["tier"],
+                        status=invoice_data["status"],
+                        current_period_start=datetime.fromtimestamp(invoice_data["period_start"]),
+                        current_period_end=datetime.fromtimestamp(invoice_data["period_end"]),
+                    )
+
+                if subscription and subscription_service.should_allocate_tokens(subscription):
+                    # Allocate monthly tokens
+                    expiration_date = get_token_expiration_date()
+                    success = token_service.add_tokens(
+                        user_id=invoice_data["user_id"],
+                        amount=subscription.monthly_token_allowance,
+                        description=f"Monthly subscription allocation ({subscription.plan_tier} plan)",
+                        expires_at=expiration_date,
+                        subscription_id=subscription.id,
+                    )
+
+                    if success:
+                        subscription_service.mark_tokens_allocated(
+                            subscription.id,
+                            subscription.monthly_token_allowance
+                        )
+                        logger.info(f"Allocated {subscription.monthly_token_allowance} tokens to user {invoice_data['user_id']}")
+
+        # Handle subscription cancellation
+        elif event["type"] == "customer.subscription.deleted":
+            subscription_obj = event["data"]["object"]
+            subscription_service = SubscriptionService(db)
+            subscription_service.update_subscription_status(
+                stripe_subscription_id=subscription_obj["id"],
+                status="canceled"
+            )
+            logger.info(f"Subscription {subscription_obj['id']} canceled")
+
+        # Handle subscription updates
+        elif event["type"] == "customer.subscription.updated":
+            subscription_obj = event["data"]["object"]
+            subscription_service = SubscriptionService(db)
+            subscription_service.update_subscription_status(
+                stripe_subscription_id=subscription_obj["id"],
+                status=subscription_obj["status"],
+                current_period_start=datetime.fromtimestamp(subscription_obj["current_period_start"]),
+                current_period_end=datetime.fromtimestamp(subscription_obj["current_period_end"]),
+            )
+            logger.info(f"Subscription {subscription_obj['id']} updated to status {subscription_obj['status']}")
+
         return {"status": "success"}
         
     except Exception as e:
@@ -253,7 +320,7 @@ async def get_user_transactions(
     try:
         token_service = TokenService(db)
         transactions = token_service.get_user_transactions(current_user.id)
-        
+
         return [
             {
                 "id": t.id,
@@ -261,14 +328,155 @@ async def get_user_transactions(
                 "amount": t.amount,
                 "description": t.description,
                 "created_at": t.created_at,
-                "stripe_payment_intent_id": t.stripe_payment_intent_id
+                "stripe_payment_intent_id": t.stripe_payment_intent_id,
+                "expires_at": t.expires_at,
             }
             for t in transactions
         ]
-        
+
     except Exception as e:
         logger.error(f"Error getting user transactions: {str(e)}")
         raise HTTPException(
             status_code=500,
             detail="Failed to get transaction history"
         )
+
+
+# ============ Subscription Endpoints ============
+
+@router.get("/subscription-plans")
+async def get_subscription_plans():
+    """Get all available subscription plans"""
+    try:
+        return get_all_subscription_plans()
+    except Exception as e:
+        logger.error(f"Error getting subscription plans: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to get subscription plans"
+        )
+
+
+@router.post("/create-subscription")
+async def create_subscription(
+    request: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a new subscription"""
+    try:
+        tier = request.get("tier")
+        price_id = request.get("price_id")  # Stripe Price ID from frontend
+
+        if not tier or not price_id:
+            raise HTTPException(status_code=400, detail="Missing tier or price_id")
+
+        stripe_service = StripeService()
+        subscription_service = SubscriptionService(db)
+
+        # Get or create Stripe customer
+        customer_id = current_user.stripe_customer_id
+        if not customer_id:
+            customer_id = stripe_service.create_customer(
+                email=current_user.email,
+                name=current_user.username,
+            )
+            if not customer_id:
+                raise HTTPException(status_code=500, detail="Failed to create customer")
+
+            current_user.stripe_customer_id = customer_id
+            db.add(current_user)
+            db.commit()
+
+        # Create subscription
+        subscription_data = stripe_service.create_subscription(
+            customer_id=customer_id,
+            price_id=price_id,
+            user_id=current_user.id,
+            tier=tier,
+        )
+
+        if not subscription_data:
+            raise HTTPException(status_code=500, detail="Failed to create subscription")
+
+        return {
+            "client_secret": subscription_data["client_secret"],
+            "subscription_id": subscription_data["subscription_id"],
+            "status": subscription_data["status"],
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error creating subscription: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create subscription")
+
+
+@router.get("/user/subscription")
+async def get_user_subscription(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get current user's subscription status"""
+    try:
+        subscription_service = SubscriptionService(db)
+        subscription = subscription_service.get_user_subscription(current_user.id)
+
+        if not subscription:
+            return {"has_subscription": False}
+
+        return {
+            "has_subscription": True,
+            "subscription": {
+                "id": subscription.id,
+                "plan_tier": subscription.plan_tier,
+                "status": subscription.status,
+                "monthly_token_allowance": subscription.monthly_token_allowance,
+                "tokens_allocated_this_period": subscription.tokens_allocated_this_period,
+                "current_period_start": subscription.current_period_start,
+                "current_period_end": subscription.current_period_end,
+                "cancel_at_period_end": subscription.cancel_at_period_end,
+            }
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting user subscription: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get subscription")
+
+
+@router.post("/cancel-subscription")
+async def cancel_subscription(
+    request: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Cancel user's subscription"""
+    try:
+        cancel_immediately = request.get("cancel_immediately", False)
+
+        subscription_service = SubscriptionService(db)
+        subscription = subscription_service.get_user_subscription(current_user.id)
+
+        if not subscription:
+            raise HTTPException(status_code=404, detail="No active subscription found")
+
+        stripe_service = StripeService()
+        success = stripe_service.cancel_subscription(
+            subscription_id=subscription.stripe_subscription_id,
+            cancel_at_period_end=not cancel_immediately,
+        )
+
+        if success:
+            subscription_service.cancel_subscription(
+                stripe_subscription_id=subscription.stripe_subscription_id,
+                cancel_at_period_end=not cancel_immediately,
+            )
+            return {"status": "success", "message": "Subscription canceled"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to cancel subscription")
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error canceling subscription: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to cancel subscription")

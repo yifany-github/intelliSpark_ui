@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from models import UserToken, TokenTransaction, User
 from database import get_db
 from typing import Optional
+from datetime import datetime, timedelta
 
 from utils.exchange_rates import convert_usd_cents_to_cny_fen
 import logging
@@ -30,36 +31,42 @@ class TokenService:
         description: str = None,
         stripe_payment_intent_id: str = None,
         payment_method: Optional[str] = None,
+        expires_at: Optional[datetime] = None,
+        subscription_id: Optional[int] = None,
     ) -> bool:
-        """Add tokens to user's balance"""
+        """Add tokens to user's balance (supports both one-time and subscription tokens)"""
         try:
             # Get or create user token record
             user_token = self.db.query(UserToken).filter(UserToken.user_id == user_id).first()
             if not user_token:
                 user_token = UserToken(user_id=user_id, balance=0)
                 self.db.add(user_token)
-            
+
             # Update balance
             user_token.balance += amount
-            
+
             # Create transaction record
             details = description or f"Purchased {amount} tokens"
             if payment_method:
                 details = f"{details} via {payment_method}"
 
+            transaction_type = "subscription_allocation" if subscription_id else "purchase"
+
             transaction = TokenTransaction(
                 user_id=user_id,
-                transaction_type="purchase",
+                transaction_type=transaction_type,
                 amount=amount,
                 description=details,
-                stripe_payment_intent_id=stripe_payment_intent_id
+                stripe_payment_intent_id=stripe_payment_intent_id,
+                expires_at=expires_at,
+                subscription_id=subscription_id,
             )
             self.db.add(transaction)
-            
+
             self.db.commit()
             logger.info(f"Added {amount} tokens to user {user_id}. New balance: {user_token.balance}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error adding tokens to user {user_id}: {str(e)}")
             self.db.rollback()
@@ -105,6 +112,104 @@ class TokenService:
             TokenTransaction.user_id == user_id
         ).order_by(TokenTransaction.created_at.desc()).limit(limit).all()
         return transactions
+
+    def cleanup_expired_tokens(self) -> dict:
+        """
+        Clean up expired subscription tokens.
+        Returns dict with cleanup statistics.
+        This should be run as a scheduled job (cron/celery).
+        """
+        try:
+            now = datetime.utcnow()
+
+            # Find all expired token allocations
+            expired_transactions = self.db.query(TokenTransaction).filter(
+                TokenTransaction.expires_at.isnot(None),
+                TokenTransaction.expires_at < now,
+                TokenTransaction.transaction_type == 'subscription_allocation'
+            ).all()
+
+            total_expired = len(expired_transactions)
+            users_affected = set()
+            tokens_removed = 0
+
+            for transaction in expired_transactions:
+                # Get user's current balance
+                user_token = self.db.query(UserToken).filter(
+                    UserToken.user_id == transaction.user_id
+                ).first()
+
+                if user_token and user_token.balance >= transaction.amount:
+                    # Deduct expired tokens
+                    user_token.balance -= transaction.amount
+                    tokens_removed += transaction.amount
+                    users_affected.add(transaction.user_id)
+
+                    # Create deduction record
+                    deduction = TokenTransaction(
+                        user_id=transaction.user_id,
+                        transaction_type="deduction",
+                        amount=-transaction.amount,
+                        description=f"Expired subscription tokens (allocated {transaction.created_at.strftime('%Y-%m-%d')})",
+                    )
+                    self.db.add(deduction)
+
+                    # Mark original transaction as expired (we could add a flag if needed)
+                    # For now, we just create a deduction record
+
+            self.db.commit()
+
+            result = {
+                "expired_transactions": total_expired,
+                "users_affected": len(users_affected),
+                "tokens_removed": tokens_removed,
+                "timestamp": now,
+            }
+
+            logger.info(f"Token cleanup completed: {result}")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error cleaning up expired tokens: {str(e)}")
+            self.db.rollback()
+            return {
+                "error": str(e),
+                "expired_transactions": 0,
+                "users_affected": 0,
+                "tokens_removed": 0,
+            }
+
+    def get_expiring_tokens_count(self, user_id: int, days_threshold: int = 7) -> dict:
+        """
+        Get count of tokens expiring within the threshold period.
+        Useful for warning users about upcoming expiration.
+        """
+        try:
+            threshold_date = datetime.utcnow() + timedelta(days=days_threshold)
+
+            expiring = self.db.query(TokenTransaction).filter(
+                TokenTransaction.user_id == user_id,
+                TokenTransaction.expires_at.isnot(None),
+                TokenTransaction.expires_at <= threshold_date,
+                TokenTransaction.expires_at > datetime.utcnow(),
+                TokenTransaction.transaction_type == 'subscription_allocation'
+            ).all()
+
+            total_expiring = sum(t.amount for t in expiring)
+
+            return {
+                "expiring_count": total_expiring,
+                "transactions": len(expiring),
+                "threshold_days": days_threshold,
+            }
+
+        except Exception as e:
+            logger.error(f"Error getting expiring tokens count: {str(e)}")
+            return {
+                "expiring_count": 0,
+                "transactions": 0,
+                "error": str(e),
+            }
 
 # Pricing tiers configuration
 PRICING_TIERS = {
