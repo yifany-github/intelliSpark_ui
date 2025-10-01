@@ -52,9 +52,12 @@ export default function GlobalSidebar() {
   ];
 
   return (
-    <div 
-      className={`${isCollapsed ? 'w-16' : 'w-64'} bg-slate-950/90 border-r border-slate-800/80 backdrop-blur-md fixed left-0 top-14 z-20 overflow-hidden transition-[width] duration-300 ease-in-out flex flex-col hidden sm:flex`}
-      style={{ height: 'calc(100vh - 56px)' }}
+    <div
+      className={`${isCollapsed ? 'w-16' : 'w-64'} fixed left-4 z-20 overflow-hidden transition-[width] duration-300 ease-in-out flex flex-col hidden sm:flex liquid-glass-sidebar rounded-2xl`}
+      style={{
+        top: 'calc(3.5rem + 0.75rem + 0.5rem)',
+        height: 'calc(100vh - 3.5rem - 0.75rem - 1rem - 0.5rem)'
+      }}
     >
       <div className="p-4 flex-1 min-h-0">
         {/* Header spacer (branding handled in TopNavigation) */}

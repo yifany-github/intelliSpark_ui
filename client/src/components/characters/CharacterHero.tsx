@@ -8,7 +8,7 @@ const CharacterHero = () => {
   const { navigateToPath } = useNavigation();
 
   return (
-    <section className="relative overflow-hidden rounded-3xl border border-slate-700 bg-gradient-to-br from-slate-900 via-slate-900/80 to-slate-900/40 p-6 sm:p-10 shadow-xl shadow-slate-900/40">
+    <section className="relative overflow-hidden rounded-3xl p-6 sm:p-10 liquid-glass-hero-dark">
       <div className="absolute inset-0 pointer-events-none">
         <div className="absolute -left-20 -top-20 h-56 w-56 rounded-full bg-brand-secondary/20 blur-3xl" />
         <div className="absolute right-10 -bottom-24 h-72 w-72 rounded-full bg-blue-500/10 blur-3xl" />

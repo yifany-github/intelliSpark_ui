@@ -914,8 +914,8 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
             })();
 
             return (
-              <div 
-                key={character.id} 
+              <div
+                key={character.id}
                 className={`group relative grid w-full aspect-[2/1] min-h-[460px] grid-rows-[6fr_5fr] bg-gradient-surface border rounded-xl overflow-hidden shadow-elevated transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] cursor-pointer focus-within:ring-2 focus-within:ring-brand-secondary focus-within:ring-offset-2 focus-within:ring-offset-zinc-900 ${
                   isFeaturedCard
                     ? 'border-amber-300/70 shadow-[0_0_40px_rgba(251,191,36,0.35)] hover:shadow-[0_0_55px_rgba(251,191,36,0.45)]'
@@ -954,9 +954,9 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                     loading="lazy"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  
+
                   <div className="absolute top-3 right-3 flex items-center space-x-2">
-                    <button 
+                    <button
                       onClick={(e) => {
                         try {
                           e.stopPropagation();
@@ -978,10 +978,10 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                       </div>
                     )}
                   </div>
-                  
+
                   <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4 pointer-events-none">
                     <div className="w-full space-y-2 pointer-events-auto">
-                      <button 
+                      <button
                         onClick={(e) => {
                           try {
                             e.stopPropagation();
@@ -997,8 +997,8 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                           <span>开始聊天</span>
                         </div>
                       </button>
-                      
-                      <button 
+
+                      <button
                         onClick={(e) => {
                           try {
                             e.stopPropagation();

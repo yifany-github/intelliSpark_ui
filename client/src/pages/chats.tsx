@@ -429,7 +429,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     return (
       <div
         key={`${options.pinned ? "pinned" : "chat"}-${chat.id}`}
-        className="rounded-3xl border border-gray-800/70 bg-gray-900/60 p-5 transition-all hover:border-brand-accent/40 hover:bg-gray-900/80 shadow-lg shadow-black/20"
+        className="rounded-3xl p-5 transition-all hover:border-brand-accent/40 shadow-lg shadow-black/20 liquid-glass-hero-dark"
       >
         <div className="flex items-center gap-6">
           <Link
@@ -735,9 +735,10 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
   
   // If we're showing a specific chat
   return (
-    <div className="h-full flex flex-col">
-      {/* Chat Header */}
-      <div className="px-4 pt-4 pb-3 border-b border-secondary sticky top-0 bg-background z-10">
+    <GlobalLayout>
+      <div className="h-full flex flex-col pb-20 sm:pb-0">
+        {/* Chat Header */}
+        <div className="px-4 pt-4 pb-3 border-b border-secondary sticky top-0 bg-background z-10">
         <div className="flex items-center justify-between">
           <div className="flex items-center">
             <button 
@@ -848,10 +849,11 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
         
         <div ref={messagesEndRef} />
       </div>
-      
-      {/* Chat Input */}
-      <ChatInput onSendMessage={sendMessage} isLoading={isSending || isTyping} />
-    </div>
+
+        {/* Chat Input */}
+        <ChatInput onSendMessage={sendMessage} isLoading={isSending || isTyping} />
+      </div>
+    </GlobalLayout>
   );
 };
 

@@ -333,6 +333,8 @@ export type TranslationKey =
   | 'deleteChatConfirm'
   | 'chatDeleted'
   | 'failedToDeleteChat'
+  | 'delete'
+  | 'deleting'
   | 'success'
   | 'error'
   | 'cleared'
@@ -833,7 +835,8 @@ export type TranslationKey =
   | 'myCharactersFilterNsfwBadge'
   | 'myCharactersChatsLabel'
   | 'myCharactersViewsLabel'
-  | 'myCharactersCreated';
+  | 'myCharactersCreated'
+  | 'more';
 
 // Define translations for each language
 const translations: Record<Language, Record<TranslationKey, string>> = {
@@ -1098,6 +1101,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     deleteChatConfirm: 'Are you sure you want to delete this chat?',
     chatDeleted: 'Chat deleted successfully',
     failedToDeleteChat: 'Failed to delete chat',
+    delete: 'Delete',
+    deleting: 'Deleting...',
     success: 'Success',
     error: 'Error',
     cleared: 'cleared successfully',
@@ -1587,6 +1592,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     myCharactersChatsLabel: 'chats',
     myCharactersViewsLabel: 'views',
     myCharactersCreated: 'Created',
+    more: 'More',
   },
   zh: {
     characters: '角色',
@@ -1912,6 +1918,8 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     deleteChatConfirm: '您确定要删除此聊天吗？',
     chatDeleted: '聊天删除成功',
     failedToDeleteChat: '删除聊天失败',
+    delete: '删除',
+    deleting: '删除中...',
     success: '成功',
     error: '错误',
     cleared: '清除成功',
@@ -2338,6 +2346,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     myCharactersChatsLabel: '次聊天',
     myCharactersViewsLabel: '次浏览',
     myCharactersCreated: '创建于',
+    more: '更多',
   },
 };
 

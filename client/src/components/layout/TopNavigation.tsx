@@ -192,28 +192,28 @@ export default function TopNavigation({
   return (
     <>
       <Dialog open={isNSFWConfirmOpen} onOpenChange={setIsNSFWConfirmOpen}>
-        <DialogContent className="max-w-md bg-slate-950 text-slate-100 border-slate-800">
-          <DialogHeader>
-            <DialogTitle>{t('confirmEnableNSFW') || '确认开启成人内容'}</DialogTitle>
-            <DialogDescription className="text-slate-400">
+        <DialogContent className="w-[calc(100vw-3rem)] max-w-[calc(100vw-3rem)] sm:max-w-md bg-slate-950 text-slate-100 border-slate-800">
+          <DialogHeader className="space-y-2">
+            <DialogTitle className="text-base sm:text-lg leading-tight pr-8">{t('confirmEnableNSFW') || '确认开启成人内容'}</DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs sm:text-sm leading-relaxed">
               {t('nsfwDisclaimer') || '成人内容仅面向年满18周岁的用户。开启NSFW模式即表示您确认已年满法定年龄，并对浏览成人向内容负有法律责任。'}
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-md bg-red-500/10 border border-red-500/30 px-4 py-3 text-xs text-red-200">
+          <div className="rounded-md bg-red-500/10 border border-red-500/30 px-3 py-2.5 text-xs leading-relaxed text-red-200">
             {t('nsfwLegalNotice') || '继续操作即表示您知悉当地法律，并同意平台关于成人内容的条款。'}
           </div>
-          <DialogFooter className="mt-4 flex w-full justify-end gap-3">
+          <DialogFooter className="mt-3 flex w-full justify-end gap-2 flex-col-reverse sm:flex-row">
             <Button
               type="button"
               variant="ghost"
               onClick={() => setIsNSFWConfirmOpen(false)}
-              className="text-slate-300"
+              className="text-slate-300 w-full sm:w-auto"
             >
               {t('cancel') || '取消'}
             </Button>
             <Button
               type="button"
-              className="bg-red-500 text-white hover:bg-red-500/90"
+              className="bg-red-500 text-white hover:bg-red-500/90 w-full sm:w-auto"
               onClick={() => {
                 setNsfwEnabled(true);
                 setIsNSFWConfirmOpen(false);
@@ -225,20 +225,20 @@ export default function TopNavigation({
         </DialogContent>
       </Dialog>
 
-      <div className="sticky top-0 z-40 h-16 w-full border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md">
-        <div className="mx-auto flex w-full max-w-[110rem] items-center justify-between gap-4 px-4 sm:px-8 lg:px-12 py-3">
+      <div className="sticky top-0 z-40 w-full px-4 pt-3 pb-2">
+        <div className="mx-auto flex w-full max-w-[110rem] h-14 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 liquid-glass-topnav rounded-2xl">
           <div className="flex flex-1 items-center gap-2 min-w-0">
             {withSidebar ? (
               <button
                 onClick={toggleCollapsed}
-                className="hidden sm:inline-flex items-center justify-center rounded-xl border border-slate-700/70 bg-slate-900/70 p-2 text-slate-300 transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-secondary"
+                className="hidden xl:inline-flex items-center justify-center rounded-xl border border-slate-700/70 bg-slate-900/70 p-2 text-slate-300 transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-secondary"
                 title={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
                 aria-label={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
               >
                 <Menu className="h-5 w-5" />
               </button>
             ) : (
-              <span className="hidden h-10 w-10 items-center justify-center sm:inline-flex" aria-hidden />
+              <span className="hidden h-10 w-10 items-center justify-center xl:inline-flex" aria-hidden />
             )}
             <button
               onClick={navigateToHome}
@@ -247,7 +247,7 @@ export default function TopNavigation({
               <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900/90 shadow-lg">
                 <img src={LogoImage} alt={appNameText} className="h-7 w-7 object-contain" />
               </div>
-              <div className="hidden sm:flex flex-col leading-tight">
+              <div className="hidden xl:flex flex-col leading-tight">
                 <span className="text-sm font-semibold text-slate-100 tracking-wide">
                   {appNameText}
                 </span>
@@ -342,7 +342,7 @@ export default function TopNavigation({
             )}
 
             <div
-              className="relative"
+              className="relative hidden sm:block"
               onMouseEnter={() => setShowUpgradeDetails(true)}
               onMouseLeave={() => setShowUpgradeDetails(false)}
             >
@@ -382,17 +382,17 @@ export default function TopNavigation({
                 setNsfwEnabled(false);
               }}
               title={nsfwEnabled ? (t('nsfwEnabledLabel') || 'NSFW模式已开启') : (t('nsfwDisabledLabel') || '安全模式')}
-              className={`hidden sm:flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-semibold transition-all ${
+              className={`flex items-center rounded-lg border px-1.5 sm:px-3 py-1 sm:py-2 text-xs font-semibold transition-all ${
                 nsfwEnabled
                   ? 'border-red-400/60 bg-red-500/15 text-red-200 hover:border-red-300 hover:bg-red-500/20'
                   : 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200 hover:border-emerald-300 hover:bg-emerald-500/20'
               }`}
             >
-              {nsfwEnabled ? <ShieldOff className="h-4 w-4" /> : <Shield className="h-4 w-4" />}
-              <span className="hidden lg:inline">{nsfwEnabled ? (t('nsfwEnabledLabel') || 'NSFW') : (t('nsfwDisabledLabel') || '安全模式')}</span>
+              {nsfwEnabled ? <ShieldOff className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
+              <span className="hidden lg:inline lg:ml-1.5">{nsfwEnabled ? (t('nsfwEnabledLabel') || 'NSFW') : (t('nsfwDisabledLabel') || '安全模式')}</span>
             </button>
 
-            {isAuthenticated && <NotificationBell className="mx-1" />}
+            {isAuthenticated && <NotificationBell className="mx-1 hidden xl:block" />}
 
             <div className="relative" ref={userMenuRef}>
               {isAuthenticated ? (

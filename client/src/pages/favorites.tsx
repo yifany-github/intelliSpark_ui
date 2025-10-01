@@ -212,10 +212,10 @@ const FavoritesCharacterCard = (
 
   return (
     <div
-      className={`group relative grid w-full aspect-[2/1] min-h-[460px] grid-rows-[6fr_5fr] bg-gradient-surface border rounded-xl overflow-hidden shadow-elevated transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 ${
+      className={`group relative grid w-full aspect-[2/1] min-h-[460px] grid-rows-[6fr_5fr] rounded-xl overflow-hidden shadow-elevated transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 liquid-glass-hero-dark ${
         featured
           ? 'border-amber-300/70 shadow-[0_0_40px_rgba(251,191,36,0.35)] hover:shadow-[0_0_55px_rgba(251,191,36,0.45)]'
-          : 'border-surface-border hover:shadow-premium hover:shadow-glow'
+          : 'hover:shadow-premium hover:shadow-glow'
       }`}
       onClick={() => !isCreating && onStartChat()}
       onKeyDown={(event) => {

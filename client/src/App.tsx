@@ -170,7 +170,7 @@ function MainApp() {
             </Switch>
           </div>
           {/* Show TabNavigation on mobile only, and not on certain pages */}
-          {!location.startsWith('/chat/') && !location.startsWith('/admin') && !location.startsWith('/login') && !location.startsWith('/register') && (
+          {!location.startsWith('/admin') && !location.startsWith('/login') && !location.startsWith('/register') && (
             <div className="sm:hidden">
               <TabNavigation />
             </div>

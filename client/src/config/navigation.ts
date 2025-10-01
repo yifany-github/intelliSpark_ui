@@ -1,4 +1,4 @@
-import { Home, MessageSquare, Heart, Search, Plus, Coins, User, Bell, Settings, Users } from 'lucide-react';
+import { Home, MessageSquare, Heart, Search, Plus, Coins, User, Bell, Settings, Users, Sparkles } from 'lucide-react';
 import { TranslationKey } from '@/contexts/LanguageContext';
 
 export interface NavigationItem {
@@ -11,6 +11,7 @@ export interface NavigationItem {
   showInSidebar?: boolean;
   showInTopNav?: boolean;
   showInMobileTab?: boolean;
+  showInMoreMenu?: boolean;
 }
 
 export const NAVIGATION_CONFIG: NavigationItem[] = [
@@ -27,7 +28,7 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     id: 'characters',
     label: 'characters',
     path: '/characters',
-    icon: Home,
+    icon: Sparkles,
     showInSidebar: false, // Home covers this
     showInTopNav: false,
     showInMobileTab: true  // Primary mobile tab
@@ -50,7 +51,8 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     requiresAuth: true,
     showInSidebar: true,
     showInTopNav: false,
-    showInMobileTab: false
+    showInMobileTab: false,
+    showInMoreMenu: true
   },
   {
     id: 'discover',
@@ -59,7 +61,7 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     icon: Search,
     showInSidebar: true,
     showInTopNav: false,
-    showInMobileTab: false
+    showInMobileTab: true
   },
   {
     id: 'create-character',
@@ -69,7 +71,8 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     requiresAuth: true,
     showInSidebar: true,
     showInTopNav: false,
-    showInMobileTab: false
+    showInMobileTab: false,
+    showInMoreMenu: true
   },
   {
     id: 'my-characters',
@@ -79,7 +82,8 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     requiresAuth: true,
     showInSidebar: true,
     showInTopNav: false,
-    showInMobileTab: false
+    showInMobileTab: false,
+    showInMoreMenu: true
   },
   {
     id: 'payment',
@@ -89,7 +93,8 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     requiresAuth: true,
     showInSidebar: false,
     showInTopNav: false,
-    showInMobileTab: true
+    showInMobileTab: false,
+    showInMoreMenu: true
   },
   {
     id: 'profile',
@@ -99,7 +104,8 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     requiresAuth: true,
     showInSidebar: false,
     showInTopNav: true,
-    showInMobileTab: true
+    showInMobileTab: false,
+    showInMoreMenu: true
   },
   {
     id: 'notifications',
@@ -125,7 +131,7 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
 
 // Helper functions
 export const getVisibleNavItems = (
-  location: 'sidebar' | 'topnav' | 'mobile',
+  location: 'sidebar' | 'topnav' | 'mobile' | 'more',
   isAuthenticated: boolean
 ): NavigationItem[] => {
   return NAVIGATION_CONFIG.filter(item => {
@@ -133,7 +139,7 @@ export const getVisibleNavItems = (
     if (item.requiresAuth && !isAuthenticated) {
       return false;
     }
-    
+
     // Check location visibility
     switch (location) {
       case 'sidebar':
@@ -142,10 +148,16 @@ export const getVisibleNavItems = (
         return item.showInTopNav;
       case 'mobile':
         return item.showInMobileTab;
+      case 'more':
+        return item.showInMoreMenu;
       default:
         return false;
     }
   });
+};
+
+export const getMoreMenuItems = (isAuthenticated: boolean): NavigationItem[] => {
+  return getVisibleNavItems('more', isAuthenticated);
 };
 
 export const isActiveRoute = (itemPath: string, currentLocation: string): boolean => {
