@@ -7,6 +7,7 @@ from models import PremiumSubscription, User
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 import logging
+import os
 
 logger = logging.getLogger(__name__)
 
@@ -17,21 +18,21 @@ SUBSCRIPTION_PLANS = {
         "monthly_tokens": 200,
         "price": 800,  # $8.00 in cents (USD)
         "description": "200 tokens per month - Perfect for casual users",
-        "stripe_price_id": None,  # Will be set from environment or Stripe dashboard
+        "stripe_price_id": os.getenv("STRIPE_PRICE_BASIC"),
     },
     "pro": {
         "name": "Pro Plan",
         "monthly_tokens": 600,
         "price": 1800,  # $18.00 in cents (25% discount vs one-time)
         "description": "600 tokens per month - Best for regular users",
-        "stripe_price_id": None,
+        "stripe_price_id": os.getenv("STRIPE_PRICE_PRO"),
     },
     "premium": {
         "name": "Premium Plan",
         "monthly_tokens": 2000,
         "price": 4500,  # $45.00 in cents (33% discount vs one-time)
         "description": "2000 tokens per month - For power users",
-        "stripe_price_id": None,
+        "stripe_price_id": os.getenv("STRIPE_PRICE_PREMIUM"),
     },
 }
 
