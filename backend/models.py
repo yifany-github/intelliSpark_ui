@@ -171,6 +171,7 @@ class TokenTransaction(Base):
     stripe_payment_intent_id = Column(String(255), nullable=True)
     subscription_id = Column(Integer, ForeignKey("premium_subscriptions.id"), nullable=True)  # Link to subscription if applicable
     expires_at = Column(DateTime, nullable=True, index=True)  # Token expiration for subscription tokens (2 months)
+    stripe_event_id = Column(String(255), nullable=True, unique=True, index=True)  # Stripe webhook event ID for idempotency
     created_at = Column(DateTime, default=func.now())
 
     # Relationships

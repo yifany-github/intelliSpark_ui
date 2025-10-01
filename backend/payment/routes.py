@@ -105,7 +105,8 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         
         # Parse the event
         event = json.loads(payload.decode())
-        
+        event_id = event.get("id")  # Stripe's unique event ID (evt_xxxxx)
+
         # Handle payment success
         if event["type"] == "payment_intent.succeeded":
             payment_intent = event["data"]["object"]
@@ -120,6 +121,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                     description=f"Purchased {payment_data['tokens']} tokens ({payment_data['tier']} tier)",
                     stripe_payment_intent_id=payment_data["payment_intent_id"],
                     payment_method=payment_data.get("payment_method"),
+                    stripe_event_id=event_id,
                 )
                 
                 if success:
@@ -221,6 +223,7 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                         description=f"Monthly subscription allocation ({subscription.plan_tier} plan)",
                         expires_at=expiration_date,
                         subscription_id=subscription.id,
+                        stripe_event_id=event_id,
                     )
 
                     if success:

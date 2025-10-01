@@ -2,7 +2,7 @@ from sqlalchemy.orm import Session
 from models import UserToken, TokenTransaction, User
 from database import get_db
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from utils.exchange_rates import convert_usd_cents_to_cny_fen
 import logging
@@ -33,9 +33,19 @@ class TokenService:
         payment_method: Optional[str] = None,
         expires_at: Optional[datetime] = None,
         subscription_id: Optional[int] = None,
+        stripe_event_id: Optional[str] = None,
     ) -> bool:
         """Add tokens to user's balance (supports both one-time and subscription tokens)"""
         try:
+            # Check for duplicate webhook event (idempotency)
+            if stripe_event_id:
+                existing = self.db.query(TokenTransaction).filter(
+                    TokenTransaction.stripe_event_id == stripe_event_id
+                ).first()
+                if existing:
+                    logger.warning(f"Duplicate webhook event detected: {stripe_event_id}. Skipping token allocation.")
+                    return True  # Return success to acknowledge webhook
+
             # Get or create user token record
             user_token = self.db.query(UserToken).filter(UserToken.user_id == user_id).first()
             if not user_token:
@@ -60,6 +70,7 @@ class TokenService:
                 stripe_payment_intent_id=stripe_payment_intent_id,
                 expires_at=expires_at,
                 subscription_id=subscription_id,
+                stripe_event_id=stripe_event_id,
             )
             self.db.add(transaction)
 
@@ -73,16 +84,22 @@ class TokenService:
             return False
     
     def deduct_tokens(self, user_id: int, amount: int, description: str = None) -> bool:
-        """Deduct tokens from user's balance"""
+        """Deduct tokens from user's balance (wipes expired tokens first)"""
         try:
-            user_token = self.db.query(UserToken).filter(UserToken.user_id == user_id).first()
+            # First, wipe any expired tokens for this user
+            self._remove_expired_tokens_for_user(user_id)
+
+            # Now check balance after expiration cleanup (with row lock for concurrency safety)
+            user_token = self.db.query(UserToken).filter(
+                UserToken.user_id == user_id
+            ).with_for_update().first()
             if not user_token or user_token.balance < amount:
                 logger.warning(f"Insufficient tokens for user {user_id}. Required: {amount}, Available: {user_token.balance if user_token else 0}")
                 return False
-            
+
             # Update balance
             user_token.balance -= amount
-            
+
             # Create transaction record
             transaction = TokenTransaction(
                 user_id=user_id,
@@ -91,15 +108,64 @@ class TokenService:
                 description=description or f"Deducted {amount} tokens for AI generation"
             )
             self.db.add(transaction)
-            
+
             self.db.commit()
             logger.info(f"Deducted {amount} tokens from user {user_id}. New balance: {user_token.balance}")
             return True
-            
+
         except Exception as e:
             logger.error(f"Error deducting tokens from user {user_id}: {str(e)}")
             self.db.rollback()
             return False
+
+    def _remove_expired_tokens_for_user(self, user_id: int):
+        """
+        Remove expired subscription tokens for a specific user.
+        Called automatically before token deduction.
+        """
+        try:
+            now = datetime.now(timezone.utc)
+
+            # Find expired transactions for this user
+            expired_transactions = self.db.query(TokenTransaction).filter(
+                TokenTransaction.user_id == user_id,
+                TokenTransaction.expires_at.isnot(None),
+                TokenTransaction.expires_at < now,
+                TokenTransaction.transaction_type == 'subscription_allocation'
+            ).all()
+
+            if not expired_transactions:
+                return  # No expired tokens
+
+            # Calculate total expired amount
+            total_expired = sum(t.amount for t in expired_transactions)
+
+            # Get user's token balance
+            user_token = self.db.query(UserToken).filter(UserToken.user_id == user_id).first()
+            if not user_token:
+                return
+
+            # Deduct expired tokens from balance
+            tokens_to_remove = min(total_expired, user_token.balance)  # Can't go negative
+            if tokens_to_remove > 0:
+                user_token.balance -= tokens_to_remove
+
+                # Create expiration record
+                expiration_record = TokenTransaction(
+                    user_id=user_id,
+                    transaction_type="expiration",
+                    amount=-tokens_to_remove,
+                    description=f"Expired {len(expired_transactions)} subscription token allocation(s)"
+                )
+                self.db.add(expiration_record)
+
+                logger.info(f"Removed {tokens_to_remove} expired tokens from user {user_id}")
+
+            self.db.commit()
+
+        except Exception as e:
+            logger.error(f"Error removing expired tokens for user {user_id}: {str(e)}")
+            self.db.rollback()
     
     def has_sufficient_balance(self, user_id: int, required_amount: int) -> bool:
         """Check if user has sufficient token balance"""
@@ -120,7 +186,7 @@ class TokenService:
         This should be run as a scheduled job (cron/celery).
         """
         try:
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
 
             # Find all expired token allocations
             expired_transactions = self.db.query(TokenTransaction).filter(
@@ -134,6 +200,17 @@ class TokenService:
             tokens_removed = 0
 
             for transaction in expired_transactions:
+                # Check if this expiration was already processed by _remove_expired_tokens_for_user
+                existing_expiration = self.db.query(TokenTransaction).filter(
+                    TokenTransaction.user_id == transaction.user_id,
+                    TokenTransaction.transaction_type == "expiration",
+                    TokenTransaction.created_at > transaction.created_at
+                ).first()
+
+                if existing_expiration:
+                    # Already processed, skip to prevent double-deduction
+                    continue
+
                 # Get user's current balance
                 user_token = self.db.query(UserToken).filter(
                     UserToken.user_id == transaction.user_id
@@ -185,7 +262,7 @@ class TokenService:
         Useful for warning users about upcoming expiration.
         """
         try:
-            threshold_date = datetime.utcnow() + timedelta(days=days_threshold)
+            threshold_date = datetime.now(timezone.utc) + timedelta(days=days_threshold)
 
             expiring = self.db.query(TokenTransaction).filter(
                 TokenTransaction.user_id == user_id,

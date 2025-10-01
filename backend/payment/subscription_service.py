@@ -4,7 +4,7 @@ Subscription Service - Manages premium subscription lifecycle and token allocati
 
 from sqlalchemy.orm import Session
 from models import PremiumSubscription, User
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict
 import logging
 import os
@@ -191,7 +191,7 @@ class SubscriptionService:
             return False
 
         # Check if we're in a new billing period
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
 
         # If never allocated, allocate now
         if not subscription.last_token_allocation_date:
@@ -214,7 +214,7 @@ class SubscriptionService:
                 return False
 
             subscription.tokens_allocated_this_period = amount
-            subscription.last_token_allocation_date = datetime.utcnow()
+            subscription.last_token_allocation_date = datetime.now(timezone.utc)
 
             self.db.commit()
             return True
@@ -247,7 +247,7 @@ class SubscriptionService:
 
 def get_token_expiration_date() -> datetime:
     """Calculate token expiration date (2 months from now)"""
-    return datetime.utcnow() + timedelta(days=TOKEN_EXPIRATION_MONTHS * 30)
+    return datetime.now(timezone.utc) + timedelta(days=TOKEN_EXPIRATION_MONTHS * 30)
 
 
 def get_all_subscription_plans() -> Dict:
