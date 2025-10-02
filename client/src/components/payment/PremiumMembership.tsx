@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
-import { Crown, Check, Zap, Calendar, AlertCircle, Loader2, X } from 'lucide-react';
+import { Crown, Check, Zap, Calendar, AlertCircle, Loader2, X, TrendingUp, TrendingDown } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
 import { Alert, AlertDescription } from '../ui/alert';
+import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -51,9 +52,16 @@ const cancelSubscription = async (cancelImmediately: boolean = false) => {
   return res.json();
 };
 
+const updateSubscription = async (data: CreateSubscriptionRequest) => {
+  const res = await apiRequest('POST', '/api/payment/update-subscription', data);
+  if (!res.ok) throw new Error('Failed to update subscription');
+  return res.json();
+};
+
 export const PremiumMembership: React.FC = () => {
   const { user } = useAuth();
   const { t } = useLanguage();
+  const { toast } = useToast();
   const stripe = useStripe();
   const elements = useElements();
   const queryClient = useQueryClient();
@@ -62,6 +70,7 @@ export const PremiumMembership: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [isPollingTokens, setIsPollingTokens] = useState(false);
 
   const { data: plans, isLoading: plansLoading } = useQuery({
     queryKey: ['subscriptionPlans'],
@@ -73,6 +82,52 @@ export const PremiumMembership: React.FC = () => {
     queryFn: fetchUserSubscription,
     enabled: !!user,
   });
+
+  // Token polling function - checks for token updates after subscription
+  const pollForTokens = useCallback(async () => {
+    setIsPollingTokens(true);
+    const maxAttempts = 10; // 10 attempts * 3 seconds = 30 seconds max
+    let attempts = 0;
+
+    const checkTokens = async (): Promise<boolean> => {
+      await queryClient.invalidateQueries({ queryKey: ['userTokens'] });
+      await queryClient.invalidateQueries({ queryKey: ['userSubscription'] });
+
+      const sub = queryClient.getQueryData<UserSubscriptionResponse>(['userSubscription']);
+      return sub?.subscription?.tokens_allocated_this_period ? sub.subscription.tokens_allocated_this_period > 0 : false;
+    };
+
+    const poll = async () => {
+      while (attempts < maxAttempts) {
+        attempts++;
+
+        const hasTokens = await checkTokens();
+        if (hasTokens) {
+          toast({
+            title: "Tokens Added!",
+            description: "Your subscription tokens have been added to your account.",
+            variant: "default",
+          });
+          setIsPollingTokens(false);
+          return;
+        }
+
+        if (attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 3000)); // Wait 3 seconds
+        }
+      }
+
+      // Timeout after 30 seconds
+      toast({
+        title: "Processing...",
+        description: "Your tokens are being processed. They should appear shortly.",
+        variant: "default",
+      });
+      setIsPollingTokens(false);
+    };
+
+    await poll();
+  }, [queryClient, toast]);
 
   const createSubscriptionMutation = useMutation({
     mutationFn: createSubscription,
@@ -104,10 +159,16 @@ export const PremiumMembership: React.FC = () => {
         if (result.error) {
           setError(result.error.message || 'Subscription creation failed');
         } else {
-          // Success! Refresh subscription data
-          queryClient.invalidateQueries({ queryKey: ['userSubscription'] });
-          queryClient.invalidateQueries({ queryKey: ['userTokens'] });
+          // Success! Show toast and start polling for tokens
+          toast({
+            title: "Subscription Activated!",
+            description: "Your subscription is now active. Tokens will be added shortly...",
+            variant: "default",
+          });
           setError(null);
+
+          // Start polling for tokens
+          pollForTokens();
         }
       } catch (err) {
         setError('Subscription processing failed');
@@ -132,14 +193,62 @@ export const PremiumMembership: React.FC = () => {
     },
   });
 
+  const updateSubscriptionMutation = useMutation({
+    mutationFn: updateSubscription,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['userSubscription'] });
+      queryClient.invalidateQueries({ queryKey: ['userTokens'] });
+
+      toast({
+        title: data.immediate ? "Upgraded Successfully!" : "Downgrade Scheduled",
+        description: data.message,
+      });
+
+      // Poll for tokens if it's an immediate upgrade
+      if (data.immediate) {
+        pollForTokens();
+      }
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Update Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubscribe = () => {
     if (!selectedTier || !plans) return;
 
     const priceId = STRIPE_PRICE_IDS[selectedTier];
-    createSubscriptionMutation.mutate({
-      tier: selectedTier,
-      price_id: priceId,
-    });
+
+    // If user has active subscription, this is an upgrade/downgrade
+    if (hasActiveSubscription) {
+      const currentTier = userSubscription.subscription?.plan_tier;
+
+      // Prevent selecting the same plan
+      if (currentTier === selectedTier) {
+        toast({
+          title: "Already Subscribed",
+          description: `You already have an active ${selectedTier} plan.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Update subscription (upgrade or downgrade)
+      updateSubscriptionMutation.mutate({
+        tier: selectedTier,
+        price_id: priceId,
+      });
+    } else {
+      // Create new subscription
+      createSubscriptionMutation.mutate({
+        tier: selectedTier,
+        price_id: priceId,
+      });
+    }
   };
 
   const handleCancel = () => {
@@ -295,13 +404,14 @@ export const PremiumMembership: React.FC = () => {
       )}
 
       {/* Pricing Plans */}
-      {!hasActiveSubscription && plans && (
+      {plans && (
         <>
           <div className="grid md:grid-cols-3 gap-6">
             {(Object.keys(plans) as SubscriptionTier[]).map((tier) => {
               const plan = plans[tier];
               const isSelected = selectedTier === tier;
               const isRecommended = tier === 'pro';
+              const isCurrentPlan = hasActiveSubscription && userSubscription.subscription?.plan_tier === tier;
 
               return (
                 <Card
@@ -310,10 +420,18 @@ export const PremiumMembership: React.FC = () => {
                     isSelected
                       ? 'bg-gradient-to-br from-purple-900/60 to-pink-900/60 border-purple-500 scale-105'
                       : 'bg-gray-900/40 border-gray-700 hover:border-purple-500/50'
-                  }`}
+                  } ${isCurrentPlan ? 'ring-2 ring-green-500' : ''}`}
                   onClick={() => setSelectedTier(tier)}
                 >
-                  {isRecommended && (
+                  {isCurrentPlan && (
+                    <div className="absolute -top-3 left-1/2 -translate-x-1/2">
+                      <Badge className="bg-green-500 text-white border-0">
+                        <Check className="h-3 w-3 mr-1" />
+                        CURRENT PLAN
+                      </Badge>
+                    </div>
+                  )}
+                  {!isCurrentPlan && isRecommended && (
                     <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                       <Badge className="bg-gradient-to-r from-purple-500 to-pink-500 text-white border-0">
                         <Zap className="h-3 w-3 mr-1" />
@@ -381,28 +499,92 @@ export const PremiumMembership: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
-                <CardElement options={cardElementOptions} />
-              </div>
+              {/* Only show card input for new subscriptions, not for upgrades/downgrades */}
+              {!hasActiveSubscription && (
+                <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                  <CardElement options={cardElementOptions} />
+                </div>
+              )}
 
-              <Alert className="bg-blue-500/10 border-blue-500/30">
-                <AlertCircle className="h-4 w-4 text-blue-400" />
-                <AlertDescription className="text-blue-300 text-sm">
-                  You'll be charged ${((plans[selectedTier]?.price || 0) / 100).toFixed(2)} today and then monthly until you cancel.
-                  Tokens expire 2 months after allocation.
-                </AlertDescription>
-              </Alert>
+              {hasActiveSubscription && userSubscription.subscription?.plan_tier !== selectedTier && (
+                <Alert className="bg-purple-500/10 border-purple-500/30">
+                  <AlertCircle className="h-4 w-4 text-purple-400" />
+                  <AlertDescription className="text-purple-300 text-sm">
+                    {(() => {
+                      const currentPlan = plans[userSubscription.subscription?.plan_tier || ''];
+                      const newPlan = plans[selectedTier];
+                      const isUpgrade = newPlan && currentPlan && newPlan.price > currentPlan.price;
+
+                      if (isUpgrade) {
+                        return `You'll be charged a prorated amount for the upgrade. Your existing payment method will be used.`;
+                      } else {
+                        return `Your plan will downgrade at the end of the current billing period. You'll keep your current benefits until then.`;
+                      }
+                    })()}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {!hasActiveSubscription && (
+                <Alert className="bg-blue-500/10 border-blue-500/30">
+                  <AlertCircle className="h-4 w-4 text-blue-400" />
+                  <AlertDescription className="text-blue-300 text-sm">
+                    You'll be charged ${((plans[selectedTier]?.price || 0) / 100).toFixed(2)} today and then monthly until you cancel.
+                    Tokens expire 2 months after allocation.
+                  </AlertDescription>
+                </Alert>
+              )}
 
               <Button
                 onClick={handleSubscribe}
-                disabled={!stripe || isProcessing || createSubscriptionMutation.isPending}
-                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-6 text-lg"
+                disabled={
+                  !stripe ||
+                  isProcessing ||
+                  createSubscriptionMutation.isPending ||
+                  updateSubscriptionMutation.isPending ||
+                  isPollingTokens ||
+                  (hasActiveSubscription && userSubscription.subscription?.plan_tier === selectedTier)
+                }
+                className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-6 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isProcessing || createSubscriptionMutation.isPending ? (
+                {isProcessing || createSubscriptionMutation.isPending || updateSubscriptionMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                     Processing...
                   </>
+                ) : isPollingTokens ? (
+                  <>
+                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    Adding tokens...
+                  </>
+                ) : (hasActiveSubscription && userSubscription.subscription?.plan_tier === selectedTier) ? (
+                  <>
+                    <Check className="mr-2 h-5 w-5" />
+                    Current Plan
+                  </>
+                ) : hasActiveSubscription ? (
+                  // Show Upgrade or Downgrade based on price comparison
+                  (() => {
+                    const currentPlan = plans[userSubscription.subscription?.plan_tier || ''];
+                    const newPlan = plans[selectedTier];
+                    const isUpgrade = newPlan && currentPlan && newPlan.price > currentPlan.price;
+
+                    return (
+                      <>
+                        {isUpgrade ? (
+                          <>
+                            <TrendingUp className="mr-2 h-5 w-5" />
+                            Upgrade to {selectedTier.charAt(0).toUpperCase() + selectedTier.slice(1)}
+                          </>
+                        ) : (
+                          <>
+                            <TrendingDown className="mr-2 h-5 w-5" />
+                            Downgrade to {selectedTier.charAt(0).toUpperCase() + selectedTier.slice(1)}
+                          </>
+                        )}
+                      </>
+                    );
+                  })()
                 ) : (
                   <>
                     <Crown className="mr-2 h-5 w-5" />

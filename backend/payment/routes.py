@@ -106,63 +106,69 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         # Parse the event
         event = json.loads(payload.decode())
         event_id = event.get("id")  # Stripe's unique event ID (evt_xxxxx)
+        event_type = event.get("type")
 
-        # Handle payment success
+        logger.info(f"Webhook event: {event_type}")
+
+        # Handle payment success (for one-time token purchases, not subscriptions)
         if event["type"] == "payment_intent.succeeded":
             payment_intent = event["data"]["object"]
-            payment_data = stripe_service.handle_payment_success(payment_intent)
-            
-            if payment_data:
-                # Add tokens to user account
-                token_service = TokenService(db)
-                success = token_service.add_tokens(
-                    user_id=payment_data["user_id"],
-                    amount=payment_data["tokens"],
-                    description=f"Purchased {payment_data['tokens']} tokens ({payment_data['tier']} tier)",
-                    stripe_payment_intent_id=payment_data["payment_intent_id"],
-                    payment_method=payment_data.get("payment_method"),
-                    stripe_event_id=event_id,
-                )
-                
-                if success:
-                    logger.info(f"Successfully added {payment_data['tokens']} tokens to user {payment_data['user_id']}")
-                    
-                    # Create payment success notification
-                    try:
-                        notification_service = get_notification_service(db)
-                        notification_service.create_from_template(
-                            template_name="payment_success",
-                            user_id=payment_data["user_id"],
-                            variables={
-                                "amount": (payment_data.get("amount_cents") or payment_data.get("amount", 0)) // 100,
-                                "tokens": payment_data["tokens"],
-                                "tier": payment_data["tier"],
-                                "payment_id": payment_data["payment_intent_id"],
-                                "payment_method": payment_data.get("payment_method", "card"),
-                            }
-                        )
-                        logger.info(f"Created payment success notification for user {payment_data['user_id']}")
-                    except Exception as e:
-                        logger.error(f"Failed to create payment success notification: {str(e)}")
-                else:
-                    logger.error(f"Failed to add tokens to user {payment_data['user_id']}")
-                    
-                    # Create payment failed notification
-                    try:
-                        notification_service = get_notification_service(db)
-                        notification_service.create_from_template(
-                            template_name="payment_failed",
-                            user_id=payment_data["user_id"],
-                            variables={
-                                "amount": (payment_data.get("amount_cents") or payment_data.get("amount", 0)) // 100,
-                                "tier": payment_data["tier"],
-                                "payment_id": payment_data["payment_intent_id"],
-                                "payment_method": payment_data.get("payment_method", "card"),
-                            }
-                        )
-                        logger.info(f"Created payment failed notification for user {payment_data['user_id']}")
-                    except Exception as e:
-                        logger.error(f"Failed to create payment failed notification: {str(e)}")
+
+            # Skip if this is a subscription payment (handled by invoice.paid instead)
+            if payment_intent.get("invoice"):
+                logger.debug(f"Skipping payment_intent.succeeded for subscription invoice")
+            else:
+                payment_data = stripe_service.handle_payment_success(payment_intent)
+
+                if payment_data:
+                    # Add tokens to user account
+                    token_service = TokenService(db)
+                    success = token_service.add_tokens(
+                        user_id=payment_data["user_id"],
+                        amount=payment_data["tokens"],
+                        description=f"Purchased {payment_data['tokens']} tokens ({payment_data['tier']} tier)",
+                        stripe_payment_intent_id=payment_data["payment_intent_id"],
+                        payment_method=payment_data.get("payment_method"),
+                        stripe_event_id=event_id,
+                    )
+
+                    if success:
+                        logger.info(f"Added {payment_data['tokens']} tokens to user {payment_data['user_id']} (one-time purchase)")
+
+                        # Create payment success notification
+                        try:
+                            notification_service = get_notification_service(db)
+                            notification_service.create_from_template(
+                                template_name="payment_success",
+                                user_id=payment_data["user_id"],
+                                variables={
+                                    "amount": (payment_data.get("amount_cents") or payment_data.get("amount", 0)) // 100,
+                                    "tokens": payment_data["tokens"],
+                                    "tier": payment_data["tier"],
+                                    "payment_id": payment_data["payment_intent_id"],
+                                    "payment_method": payment_data.get("payment_method", "card"),
+                                }
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to create payment success notification: {str(e)}")
+                    else:
+                        logger.error(f"Failed to add tokens to user {payment_data['user_id']}")
+
+                        # Create payment failed notification
+                        try:
+                            notification_service = get_notification_service(db)
+                            notification_service.create_from_template(
+                                template_name="payment_failed",
+                                user_id=payment_data["user_id"],
+                                variables={
+                                    "amount": (payment_data.get("amount_cents") or payment_data.get("amount", 0)) // 100,
+                                    "tier": payment_data["tier"],
+                                    "payment_id": payment_data["payment_intent_id"],
+                                    "payment_method": payment_data.get("payment_method", "card"),
+                                }
+                            )
+                        except Exception as e:
+                            logger.error(f"Failed to create payment failed notification: {str(e)}")
         
         # Handle payment failure
         elif event["type"] == "payment_intent.payment_failed":
@@ -189,49 +195,86 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
                 except Exception as e:
                     logger.error(f"Failed to create payment failed notification: {str(e)}")
 
-        # Handle subscription invoice payment succeeded
-        elif event["type"] == "invoice.payment_succeeded":
+        # Handle invoice.paid (used for subscription provisioning)
+        elif event["type"] == "invoice.paid":
             invoice = event["data"]["object"]
-            stripe_service = StripeService()
-            invoice_data = stripe_service.handle_invoice_payment_succeeded(invoice)
+            billing_reason = invoice.get("billing_reason")
+            customer_id = invoice.get("customer")
 
-            if invoice_data and invoice_data.get("user_id"):
-                subscription_service = SubscriptionService(db)
-                token_service = TokenService(db)
+            # Only process subscription invoices
+            if billing_reason in ("subscription_create", "subscription_cycle"):
+                try:
+                    import stripe
+                    subscription_service = SubscriptionService(db)
+                    token_service = TokenService(db)
 
-                # Get or create subscription record
-                subscription = subscription_service.get_user_subscription(invoice_data["user_id"])
+                    # List all active subscriptions for this customer
+                    subscriptions = stripe.Subscription.list(customer=customer_id, status="active", limit=10)
 
-                if not subscription:
-                    # Create new subscription record
-                    subscription = subscription_service.create_subscription(
-                        user_id=invoice_data["user_id"],
-                        stripe_subscription_id=invoice_data["subscription_id"],
-                        stripe_customer_id=invoice.get("customer"),
-                        plan_tier=invoice_data["tier"],
-                        status=invoice_data["status"],
-                        current_period_start=datetime.fromtimestamp(invoice_data["period_start"]),
-                        current_period_end=datetime.fromtimestamp(invoice_data["period_end"]),
-                    )
+                    if subscriptions.data:
+                        # Get the most recent active subscription
+                        subscription = subscriptions.data[0]
+                        metadata = dict(subscription.metadata) if subscription.metadata else {}
+                        user_id = metadata.get("user_id")
+                        tier = metadata.get("tier")
 
-                if subscription and subscription_service.should_allocate_tokens(subscription):
-                    # Allocate monthly tokens
-                    expiration_date = get_token_expiration_date()
-                    success = token_service.add_tokens(
-                        user_id=invoice_data["user_id"],
-                        amount=subscription.monthly_token_allowance,
-                        description=f"Monthly subscription allocation ({subscription.plan_tier} plan)",
-                        expires_at=expiration_date,
-                        subscription_id=subscription.id,
-                        stripe_event_id=event_id,
-                    )
+                        if user_id and tier:
+                            # Get or create subscription record in our DB
+                            db_subscription = subscription_service.get_user_subscription(int(user_id))
 
-                    if success:
-                        subscription_service.mark_tokens_allocated(
-                            subscription.id,
-                            subscription.monthly_token_allowance
-                        )
-                        logger.info(f"Allocated {subscription.monthly_token_allowance} tokens to user {invoice_data['user_id']}")
+                            if not db_subscription:
+                                # Create new subscription record
+                                db_subscription = subscription_service.create_subscription(
+                                    user_id=int(user_id),
+                                    stripe_subscription_id=subscription.id,
+                                    stripe_customer_id=customer_id,
+                                    plan_tier=tier,
+                                    status=subscription.status,
+                                    current_period_start=datetime.fromtimestamp(subscription.current_period_start),
+                                    current_period_end=datetime.fromtimestamp(subscription.current_period_end),
+                                )
+                            else:
+                                # Update tier if it changed (handles downgrades at period end)
+                                if db_subscription.plan_tier != tier:
+                                    from payment.subscription_service import SUBSCRIPTION_PLANS
+                                    new_plan = SUBSCRIPTION_PLANS.get(tier)
+                                    if new_plan:
+                                        old_tier = db_subscription.plan_tier
+                                        db_subscription.plan_tier = tier
+                                        db_subscription.monthly_token_allowance = new_plan["monthly_tokens"]
+                                        db.commit()
+                                        logger.info(f"Subscription tier changed from {old_tier} to {tier} for user {user_id}")
+
+                            # Allocate tokens if needed
+                            if db_subscription and subscription_service.should_allocate_tokens(db_subscription):
+                                expiration_date = get_token_expiration_date()
+                                success = token_service.add_tokens(
+                                    user_id=int(user_id),
+                                    amount=db_subscription.monthly_token_allowance,
+                                    description=f"Monthly subscription allocation ({db_subscription.plan_tier} plan)",
+                                    expires_at=expiration_date,
+                                    subscription_id=db_subscription.id,
+                                    stripe_event_id=event_id,
+                                )
+
+                                if success:
+                                    subscription_service.mark_tokens_allocated(
+                                        db_subscription.id,
+                                        db_subscription.monthly_token_allowance
+                                    )
+                                    logger.info(f"Allocated {db_subscription.monthly_token_allowance} tokens to user {user_id} from subscription")
+                        else:
+                            logger.warning(f"Subscription {subscription.id} missing user_id or tier in metadata")
+                    else:
+                        logger.warning(f"No active subscriptions found for customer {customer_id}")
+
+                except Exception as e:
+                    logger.error(f"Error processing invoice.paid: {str(e)}", exc_info=True)
+
+        # Handle subscription invoice payment succeeded (not used - using invoice.paid instead)
+        elif event["type"] == "invoice.payment_succeeded":
+            # Token allocation happens in invoice.paid webhook handler above
+            pass
 
         # Handle subscription cancellation
         elif event["type"] == "customer.subscription.deleted":
@@ -247,13 +290,16 @@ async def stripe_webhook(request: Request, db: Session = Depends(get_db)):
         elif event["type"] == "customer.subscription.updated":
             subscription_obj = event["data"]["object"]
             subscription_service = SubscriptionService(db)
-            subscription_service.update_subscription_status(
-                stripe_subscription_id=subscription_obj["id"],
-                status=subscription_obj["status"],
-                current_period_start=datetime.fromtimestamp(subscription_obj["current_period_start"]),
-                current_period_end=datetime.fromtimestamp(subscription_obj["current_period_end"]),
-            )
-            logger.info(f"Subscription {subscription_obj['id']} updated to status {subscription_obj['status']}")
+
+            # Update subscription status in our database if period fields are available
+            if subscription_obj.get("current_period_start") and subscription_obj.get("current_period_end"):
+                subscription_service.update_subscription_status(
+                    stripe_subscription_id=subscription_obj["id"],
+                    status=subscription_obj["status"],
+                    current_period_start=datetime.fromtimestamp(subscription_obj["current_period_start"]),
+                    current_period_end=datetime.fromtimestamp(subscription_obj["current_period_end"]),
+                )
+                logger.info(f"Subscription {subscription_obj['id']} updated to status {subscription_obj['status']}")
 
         return {"status": "success"}
         
@@ -445,6 +491,110 @@ async def get_user_subscription(
     except Exception as e:
         logger.error(f"Error getting user subscription: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to get subscription")
+
+
+@router.post("/update-subscription")
+async def update_subscription(
+    request: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update user's subscription to a different plan (upgrade/downgrade)"""
+    try:
+        new_tier = request.get("tier")
+        new_price_id = request.get("price_id")
+
+        if not new_tier or not new_price_id:
+            raise HTTPException(status_code=400, detail="Missing tier or price_id")
+
+        subscription_service = SubscriptionService(db)
+        subscription = subscription_service.get_user_subscription(current_user.id)
+
+        if not subscription:
+            raise HTTPException(status_code=404, detail="No active subscription found")
+
+        # Get plan configs to compare tiers
+        from payment.subscription_service import SUBSCRIPTION_PLANS
+        old_plan = SUBSCRIPTION_PLANS.get(subscription.plan_tier)
+        new_plan = SUBSCRIPTION_PLANS.get(new_tier)
+
+        if not old_plan or not new_plan:
+            raise HTTPException(status_code=400, detail="Invalid plan tier")
+
+        # Determine if this is an upgrade or downgrade
+        is_upgrade = new_plan["price"] > old_plan["price"]
+
+        stripe_service = StripeService()
+
+        if is_upgrade:
+            # UPGRADE: Immediate change with proration
+            result = stripe_service.update_subscription(
+                subscription_id=subscription.stripe_subscription_id,
+                new_price_id=new_price_id,
+                new_tier=new_tier,
+            )
+
+            if not result:
+                raise HTTPException(status_code=500, detail="Failed to update subscription in Stripe")
+
+            # Update our DB immediately
+            subscription.plan_tier = new_tier
+            subscription.monthly_token_allowance = new_plan["monthly_tokens"]
+            db.commit()
+
+            # Allocate new tier tokens immediately
+            token_service = TokenService(db)
+            expiration_date = get_token_expiration_date()
+
+            # Reset allocation counter since we're giving new tier tokens
+            subscription_service.reset_period_allocation(subscription.id)
+
+            token_service.add_tokens(
+                user_id=current_user.id,
+                amount=new_plan["monthly_tokens"],
+                description=f"Upgraded to {new_tier} plan - immediate token allocation",
+                expires_at=expiration_date,
+                subscription_id=subscription.id,
+            )
+
+            subscription_service.mark_tokens_allocated(subscription.id, new_plan["monthly_tokens"])
+
+            logger.info(f"User {current_user.id} upgraded from {old_plan['name']} to {new_plan['name']}")
+
+            return {
+                "status": "success",
+                "message": f"Upgraded to {new_plan['name']}",
+                "immediate": True,
+                "tokens_allocated": new_plan["monthly_tokens"]
+            }
+
+        else:
+            # DOWNGRADE: Schedule for end of period
+            result = stripe_service.update_subscription(
+                subscription_id=subscription.stripe_subscription_id,
+                new_price_id=new_price_id,
+                new_tier=new_tier,
+            )
+
+            if not result:
+                raise HTTPException(status_code=500, detail="Failed to schedule downgrade in Stripe")
+
+            # Mark in our DB that downgrade is scheduled (will take effect at next renewal)
+            # Note: We don't change plan_tier yet - that happens when the next invoice.paid fires
+            logger.info(f"User {current_user.id} scheduled downgrade from {old_plan['name']} to {new_plan['name']} at period end")
+
+            return {
+                "status": "success",
+                "message": f"Downgrade to {new_plan['name']} scheduled for end of current period",
+                "immediate": False,
+                "effective_date": subscription.current_period_end
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating subscription: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update subscription")
 
 
 @router.post("/cancel-subscription")

@@ -298,20 +298,29 @@ class StripeService:
         self,
         subscription_id: str,
         new_price_id: str,
+        new_tier: Optional[str] = None,
     ) -> Optional[Dict[str, Any]]:
         """Update subscription to a different plan"""
         try:
             subscription = stripe.Subscription.retrieve(subscription_id)
 
-            # Update to new price
-            updated = stripe.Subscription.modify(
-                subscription_id,
-                items=[{
+            # Prepare update params
+            update_params = {
+                "items": [{
                     "id": subscription["items"]["data"][0].id,
                     "price": new_price_id,
                 }],
-                proration_behavior="create_prorations",
-            )
+                "proration_behavior": "create_prorations",
+            }
+
+            # Update metadata tier if provided
+            if new_tier:
+                current_metadata = dict(subscription.metadata) if subscription.metadata else {}
+                current_metadata["tier"] = new_tier
+                update_params["metadata"] = current_metadata
+
+            # Update subscription
+            updated = stripe.Subscription.modify(subscription_id, **update_params)
 
             return {
                 "subscription_id": updated.id,
@@ -348,27 +357,9 @@ class StripeService:
             return None
 
     def handle_invoice_payment_succeeded(self, invoice: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """Handle successful invoice payment (for subscriptions)"""
-        try:
-            subscription_id = invoice.get("subscription")
-            if not subscription_id:
-                return None
-
-            # Get subscription to extract metadata
-            subscription = stripe.Subscription.retrieve(subscription_id)
-            metadata = subscription.get("metadata", {})
-
-            return {
-                "subscription_id": subscription_id,
-                "user_id": int(metadata.get("user_id", 0)),
-                "tier": metadata.get("tier"),
-                "amount": invoice.get("amount_paid"),
-                "currency": invoice.get("currency"),
-                "period_start": subscription.current_period_start,
-                "period_end": subscription.current_period_end,
-                "status": subscription.status,
-            }
-
-        except (ValueError, TypeError, KeyError, stripe.error.StripeError) as e:
-            logger.error(f"Error parsing invoice data: {str(e)}")
-            return None
+        """
+        Handle successful invoice payment (for subscriptions)
+        NOTE: This method is not currently used. Token allocation happens in invoice.paid webhook.
+        Kept for backward compatibility.
+        """
+        return None
