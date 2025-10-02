@@ -6,6 +6,7 @@ import ChatBubble from "@/components/chats/ChatBubble";
 import ChatInput from "@/components/chats/ChatInput";
 import ChatModelSelector from "@/components/chats/ChatModelSelector";
 import { CharacterGallery } from "@/components/chats/CharacterGallery";
+import QuickReplies from "@/components/chats/QuickReplies";
 import TypingIndicator from "@/components/ui/TypingIndicator";
 import { apiRequest } from "@/lib/queryClient";
 import { useRolePlay } from "@/contexts/RolePlayContext";
@@ -37,6 +38,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   const [recentSearch, setRecentSearch] = useState("");
   const [pinnedChatIds, setPinnedChatIds] = useState<number[]>([]);
   const [isBrowserMounted, setIsBrowserMounted] = useState(false);
+  const [quickReplies, setQuickReplies] = useState<string[]>([]);
   
   // Handle "creating" state when user is redirected immediately after clicking start chat
   const isCreatingChat = chatId === 'creating';
@@ -180,9 +182,12 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
       setIsTyping(false);
-      
+
       // Invalidate token balance after AI response generation
       invalidateTokenBalance();
+
+      // Generate quick replies after AI response
+      generateQuickReplies();
     },
     onError: (error: any) => {
       console.error("AI response generation failed:", error);
@@ -245,6 +250,38 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   const regenerateLastMessage = () => {
     setIsTyping(true);
     aiResponse();
+  };
+
+  // Generate quick reply suggestions based on character and context
+  const generateQuickReplies = () => {
+    if (!character) return;
+
+    // Context-aware suggestions based on character traits
+    const baseSuggestions = [
+      t('tellMeMore') || "Tell me more",
+      t('howAreYou') || "How are you?",
+      t('thatsInteresting') || "That's interesting!",
+      t('whatHappensNext') || "What happens next?",
+    ];
+
+    // Character-specific suggestions
+    const characterSuggestions: Record<string, string[]> = {
+      default: baseSuggestions,
+      艾莉丝: [
+        "告诉我更多",
+        "你今天怎么样？",
+        "我想知道...",
+        "有什么建议吗？"
+      ],
+    };
+
+    const suggestions = characterSuggestions[character.name] || characterSuggestions.default;
+    setQuickReplies(suggestions.slice(0, 4));
+  };
+
+  const handleQuickReply = (reply: string) => {
+    sendMessage(reply);
+    setQuickReplies([]); // Clear after selection
   };
 
   useEffect(() => {
@@ -792,6 +829,13 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             
             <div ref={messagesEndRef} />
             </div>
+
+            {/* Quick Replies */}
+            <QuickReplies
+              suggestions={quickReplies}
+              onSelect={handleQuickReply}
+              isLoading={isSending || isTyping || isCreatingChat}
+            />
 
             {/* Chat Input - disabled during creating state */}
             <ChatInput

@@ -23,11 +23,56 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
   const isSystem = message.role === 'system';
   const [displayedContent, setDisplayedContent] = useState(message.content);
   const [isTyping, setIsTyping] = useState(false);
+  const [isSending, setIsSending] = useState(false);
   const hasInitialized = useRef(false);
+  const userMessageInitialized = useRef(false);
 
   const messageTime = message.timestamp
     ? format(new Date(message.timestamp), 'h:mm a')
     : '';
+
+  // Send animation for user messages
+  useEffect(() => {
+    if (isAI || isSystem) return;
+
+    // Check if message was already sent (exists in localStorage)
+    const sentMessagesKey = 'sent_messages';
+    const getSentMessages = () => {
+      try {
+        const stored = localStorage.getItem(sentMessagesKey);
+        return stored ? JSON.parse(stored) : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const sentMessages: number[] = getSentMessages();
+    const wasAlreadySent = sentMessages.includes(message.id);
+
+    if (wasAlreadySent || userMessageInitialized.current) {
+      return;
+    }
+
+    userMessageInitialized.current = true;
+
+    // New user message - apply send animation
+    setIsSending(true);
+
+    const timer = setTimeout(() => {
+      setIsSending(false);
+
+      // Mark this message as sent
+      try {
+        const currentSent = getSentMessages();
+        const updated = [...currentSent, message.id].slice(-50); // Keep last 50
+        localStorage.setItem(sentMessagesKey, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Failed to save sent message', e);
+      }
+    }, 500); // Duration matches CSS animation
+
+    return () => clearTimeout(timer);
+  }, [message.id, isAI, isSystem]);
 
   // Typewriter effect for AI messages
   useEffect(() => {
@@ -128,18 +173,36 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
   return (
     <div className={`flex items-end mb-4 ${!isAI && 'justify-end'}`}>
       {isAI && (
-        <ImageWithFallback
-          src={avatarUrl}
-          alt="Character"
-          fallbackText="AI"
-          size="sm"
-          showSpinner={true}
-          className="mr-2 flex-shrink-0"
-        />
+        <div className="relative mr-2 flex-shrink-0">
+          {isTyping && (
+            <>
+              <div className="absolute -inset-2 rounded-full animate-breathing-glow pointer-events-none"
+                   style={{
+                     background: 'radial-gradient(circle, rgba(236, 72, 153, 0.8) 0%, rgba(168, 85, 247, 0.6) 40%, rgba(99, 102, 241, 0.3) 60%, transparent 80%)',
+                     filter: 'blur(12px)',
+                   }}
+              />
+              <div className="absolute -inset-1 rounded-full animate-breathing-glow-fast pointer-events-none"
+                   style={{
+                     background: 'radial-gradient(circle, rgba(236, 72, 153, 0.6) 0%, rgba(168, 85, 247, 0.4) 50%, transparent 70%)',
+                     filter: 'blur(6px)',
+                   }}
+              />
+            </>
+          )}
+          <ImageWithFallback
+            src={avatarUrl}
+            alt="Character"
+            fallbackText="AI"
+            size="sm"
+            showSpinner={true}
+            className="relative z-10"
+          />
+        </div>
       )}
-      
+
       <div className="max-w-[80%]">
-        <div className={isAI ? "chat-bubble-ai" : "chat-bubble-user"}>
+        <div className={`${isAI ? "chat-bubble-ai" : "chat-bubble-user"} ${isSending ? "message-sending" : ""}`}>
           <div
             dangerouslySetInnerHTML={{
               __html: processContent(isAI ? displayedContent : message.content)

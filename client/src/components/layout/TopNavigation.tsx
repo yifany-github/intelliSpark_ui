@@ -231,7 +231,7 @@ export default function TopNavigation({
             {withSidebar ? (
               <button
                 onClick={toggleCollapsed}
-                className="hidden xl:inline-flex items-center justify-center rounded-xl border border-slate-700/70 bg-slate-900/70 p-2 text-slate-300 transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-secondary"
+                className="hidden xl:inline-flex items-center justify-center p-2 text-slate-300 transition hover:text-pink-400 focus:outline-none"
                 title={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
                 aria-label={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
               >
@@ -242,13 +242,13 @@ export default function TopNavigation({
             )}
             <button
               onClick={navigateToHome}
-              className="flex items-center gap-2 rounded-xl border border-transparent bg-slate-900/80 px-2 py-1.5 transition hover:border-slate-700/70 hover:bg-slate-900"
+              className="flex items-center gap-2 px-2 py-1.5 transition group"
             >
-              <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900/90 shadow-lg">
-                <img src={LogoImage} alt={appNameText} className="h-7 w-7 object-contain" />
+              <div className="flex h-9 w-9 items-center justify-center overflow-hidden">
+                <img src={LogoImage} alt={appNameText} className="h-9 w-9 object-contain transition-transform group-hover:scale-110" />
               </div>
               <div className="hidden xl:flex flex-col leading-tight">
-                <span className="text-sm font-semibold text-slate-100 tracking-wide">
+                <span className="text-sm font-semibold text-slate-100 tracking-wide transition-colors group-hover:text-pink-400">
                   {appNameText}
                 </span>
               </div>

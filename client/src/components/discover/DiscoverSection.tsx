@@ -37,7 +37,11 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import TraitChips from '@/components/characters/TraitChips';
 
-const DiscoverSection = () => {
+interface DiscoverSectionProps {
+  searchQuery?: string;
+}
+
+const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
   const { navigateToPath } = useNavigation();
   const { setSelectedCharacter, nsfwEnabled } = useRolePlay();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
@@ -64,12 +68,11 @@ const DiscoverSection = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [viewMode, setViewMode] = useState<'grid' | 'masonry'>('grid');
   const [activeSegment, setActiveSegment] = useState<'trending' | 'latest' | 'recommended' | 'favorites'>('trending');
-  const [searchTerm, setSearchTerm] = useState('');
   const [visibleCount, setVisibleCount] = useState(6);
 
   useEffect(() => {
     setVisibleCount(6);
-  }, [activeSegment, selectedCategory, searchTerm]);
+  }, [activeSegment, selectedCategory, searchQuery]);
 
   // Mutation for creating a new chat
   const { mutate: createChat, isPending: isCreatingChat } = useMutation({
@@ -218,6 +221,17 @@ const DiscoverSection = () => {
       // First apply NSFW filter
       let filtered = nsfwEnabled ? chars : chars.filter(char => !isCharacterNSFW(char));
 
+      // Then apply search query filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        filtered = filtered.filter(char =>
+          char.name.toLowerCase().includes(query) ||
+          char.description?.toLowerCase().includes(query) ||
+          char.backstory?.toLowerCase().includes(query) ||
+          char.traits?.some(trait => trait.toLowerCase().includes(query))
+        );
+      }
+
       // Then apply category filter
       if (selectedCategory !== 'All') {
         filtered = filtered.filter(char =>
@@ -245,6 +259,7 @@ const DiscoverSection = () => {
       favorites: filterCharacters(favoriteCharacters),
     };
   }, [
+    searchQuery,
     selectedCategory,
     nsfwEnabled,
     trendingCharacters,
@@ -303,7 +318,7 @@ const DiscoverSection = () => {
   const activeSegmentCharacters = useMemo(() => {
     const segment = segmentConfig.find((config) => config.id === activeSegment);
     const base = segment?.data ?? [];
-    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const normalizedSearch = searchQuery.trim().toLowerCase();
 
     if (!normalizedSearch) {
       return base;
@@ -319,7 +334,7 @@ const DiscoverSection = () => {
         || backstory.includes(normalizedSearch)
       );
     });
-  }, [segmentConfig, activeSegment, searchTerm]);
+  }, [segmentConfig, activeSegment, searchQuery]);
 
   const visibleCharacters = activeSegmentCharacters.slice(0, visibleCount);
   const hasMoreCharacters = activeSegmentCharacters.length > visibleCount;
@@ -674,16 +689,6 @@ const DiscoverSection = () => {
             })}
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-            <div className="relative w-full min-w-[220px] sm:w-64">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-              <input
-                type="search"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder={t('searchCharacters')}
-                className="h-11 w-full rounded-xl border border-gray-800 bg-gray-900/60 pl-10 pr-3 text-sm text-white placeholder:text-gray-500 focus:border-brand-secondary focus:outline-none focus:ring-2 focus:ring-brand-secondary/40"
-              />
-            </div>
             <button
               type="button"
               onClick={() => setViewMode(viewMode === 'grid' ? 'masonry' : 'grid')}
@@ -728,21 +733,11 @@ const DiscoverSection = () => {
             <p className="text-base font-medium text-gray-200">
               {activeSegment === 'favorites'
                 ? t('noFavoritesYet')
-                : searchTerm
+                : searchQuery
                   ? t('noMatches')
                   : t('noCharactersFound').replace('{category}', selectedCategory)}
             </p>
             <p className="mt-2 text-sm text-gray-400">{t('searchHint')}</p>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedCategory('All');
-                setSearchTerm('');
-              }}
-              className="mt-5 inline-flex items-center justify-center rounded-full border border-gray-700 px-5 py-2 text-sm font-medium text-gray-200 transition-colors hover:border-brand-secondary hover:text-white"
-            >
-              {t('clearFilters')}
-            </button>
           </div>
         )}
 
