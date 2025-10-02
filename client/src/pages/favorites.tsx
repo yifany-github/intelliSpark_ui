@@ -239,16 +239,16 @@ const FavoritesCharacterCard = (
         </>
       )}
 
-      <div className="relative z-10 overflow-hidden bg-surface-tertiary">
+      <div className="relative z-10 overflow-hidden bg-surface-tertiary transition-all duration-500 ease-out group-hover:absolute group-hover:inset-0">
         <img
           src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}
           alt={`${character.name} character avatar`}
-          className="h-full w-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-105"
+          className="h-full w-full object-cover transition-all duration-700 ease-out group-hover:scale-105 group-hover:brightness-105"
           loading="lazy"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 ease-out" />
 
-        <div className="absolute top-3 right-3 flex items-center space-x-2">
+        <div className="absolute top-3 right-3 flex items-center space-x-2 z-20 transition-all duration-500">
           <button
             onClick={(event) => {
               event.stopPropagation();
@@ -269,7 +269,7 @@ const FavoritesCharacterCard = (
           )}
         </div>
 
-        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4 pointer-events-none">
+        <div className="absolute bottom-0 left-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out pointer-events-none z-20 transform translate-y-4 group-hover:translate-y-0">
           <div className="w-full space-y-2 pointer-events-auto">
             <button
               onClick={(event) => {
@@ -304,9 +304,9 @@ const FavoritesCharacterCard = (
         </div>
       </div>
 
-      <div className="relative z-10 flex flex-col overflow-hidden p-4">
+      <div className="relative z-10 flex flex-col overflow-hidden p-4 transition-all duration-500 ease-out group-hover:opacity-0 group-hover:pointer-events-none group-hover:translate-y-2">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="flex-1 truncate text-lg font-bold text-content-primary transition-colors group-hover:text-brand-secondary">
+          <h3 className="flex-1 truncate text-lg font-bold text-content-primary transition-colors">
             {character.name}
           </h3>
           <div className="flex items-center">{statusBadge && <span>{statusBadge}</span>}</div>

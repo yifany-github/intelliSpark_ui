@@ -281,7 +281,7 @@ export default function TopNavigation({
               </button>
 
               {isSearchPanelOpen && (
-                <div className="absolute left-1/2 z-30 mt-4 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-5 shadow-2xl shadow-black/40 backdrop-blur-xl">
+                <div className="absolute left-1/2 z-[100] mt-4 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-5 shadow-2xl shadow-black/40 backdrop-blur-xl">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-semibold text-slate-200 tracking-wide">{t('searchHistory')}</h3>
@@ -353,7 +353,7 @@ export default function TopNavigation({
                 💎 {t('upgradePlan')}
               </button>
               {showUpgradeDetails && (
-                <div className="absolute right-0 mt-3 w-72 rounded-2xl border border-amber-400/40 bg-slate-950/95 p-4 text-left shadow-2xl shadow-black/50">
+                <div className="absolute right-0 z-[100] mt-3 w-72 rounded-2xl border border-amber-400/40 bg-slate-950/95 p-4 text-left shadow-2xl shadow-black/50 backdrop-blur-xl">
                   <div className="text-sm font-semibold text-amber-300">
                     {t('nextTierPreview')}
                   </div>
@@ -406,7 +406,7 @@ export default function TopNavigation({
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute right-1/2 translate-x-1/2 mt-3 w-56 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-2 shadow-2xl shadow-black/50">
+                    <div className="absolute right-1/2 translate-x-1/2 z-[100] mt-3 w-56 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl">
                       <div className="px-3 py-2 text-xs text-slate-400">
                         {t('tokenBalance')}: {tokenLoading ? '…' : tokenError ? '—' : tokenBalance?.balance ?? 0}
                       </div>

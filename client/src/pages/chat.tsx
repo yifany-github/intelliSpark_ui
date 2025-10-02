@@ -422,108 +422,61 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       mainScrollable={false}
     >
       <div className="flex flex-1 min-h-0 flex-col h-full">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 bg-gray-900/95 px-3 py-3 text-white sm:px-6 sm:py-4">
-          <div className="flex flex-1 items-center gap-2 sm:gap-3 min-w-0">
-            {/* Back button for mobile */}
-            <button 
-              onClick={navigateBack}
-              className="lg:hidden rounded-lg p-1 text-gray-300 transition-colors hover:bg-gray-800"
-              title="Back to previous page"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </button>
-
-            {/* Mobile menu button */}
-            <button 
-              onClick={() => setShowChatList(!showChatList)}
-              className="lg:hidden rounded-lg p-1 text-gray-300 transition-colors hover:bg-gray-800"
-            >
-              {showChatList ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
-
-            {character && (
-              <ImageWithFallback
-                src={character?.avatarUrl}
-                alt={character?.name}
-                fallbackText={character?.name}
-                size="md"
-                showSpinner={true}
-                className="h-9 w-9 rounded-2xl sm:h-11 sm:w-11"
-              />
-            )}
-            <div className="min-w-0">
-              <h1 className="truncate text-base font-semibold sm:text-lg">
-                {isLoadingCharacter ? t('loading') : character?.name}
-              </h1>
-              {chat && (
-                <p className="text-xs text-gray-400 sm:text-sm">
-                  {chat.title || t('untitledChat')}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <ChatModelSelector />
-            <button 
-              onClick={() => setShowCharacterInfo(!showCharacterInfo)}
-              className="xl:hidden rounded-lg p-2 text-gray-300 transition-colors hover:bg-gray-800"
-              title={t('characterInfo')}
-            >
-              <MoreVertical className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex flex-1 min-h-0 overflow-hidden bg-gray-900 text-white">
+        <div className="flex flex-1 min-h-0 overflow-hidden text-white relative bg-gradient-to-br from-slate-950/98 via-slate-900/95 to-slate-950/98">
           {/* Mobile overlay */}
           {showChatList && (
-            <div 
-              className="fixed inset-0 bg-black/50 z-5 lg:hidden" 
+            <div
+              className="fixed inset-0 bg-black/50 z-5 lg:hidden"
               onClick={() => setShowChatList(false)}
             />
           )}
-        
+
           {/* Left Sidebar - Recent Chats */}
           <div
             className={cn(
-              "transition-all duration-300",
-              "bg-gray-800/90 backdrop-blur border-r border-gray-700/80",
+              "transition-all duration-300 relative",
+              "bg-slate-900/70 backdrop-blur-2xl",
+              "border border-pink-500/20 rounded-r-3xl lg:rounded-none",
               "flex-shrink-0 flex flex-col absolute lg:relative z-10 h-full",
-              "shadow-lg shadow-black/40",
+              "shadow-[0_8px_32px_rgba(0,0,0,0.5),0_20px_60px_rgba(236,72,153,0.15)]",
+              "lg:ml-4 lg:my-4 lg:h-[calc(100%-2rem)] lg:rounded-3xl",
               showChatList ? "flex w-full" : "hidden",
               "lg:flex lg:w-[19rem] xl:w-[20rem]"
             )}
           >
-          <div className="px-4 pt-4 pb-3 border-b border-gray-700/60">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs uppercase tracking-wider text-gray-500">
-                  {t('recentChats')}
-                </p>
-                <h2 className="text-lg font-semibold text-white">
-                  {t('chats')}
-                </h2>
-              </div>
-              <div className="flex items-center gap-1 text-gray-400">
-                <button
-                  onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/chats"] })}
-                  className="p-2 rounded-full hover:bg-gray-700/70 transition-colors"
-                  title={t('refreshChats')}
-                >
-                  <Sparkles className="w-4 h-4" />
-                </button>
+          {/* Left sidebar header matching main chat header height */}
+          <div className="px-4 py-3 sm:py-4 border-b border-pink-500/10 flex-shrink-0">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
                 <button
                   onClick={() => setShowChatList(false)}
-                  className="lg:hidden p-2 rounded-full hover:bg-gray-700/70 transition-colors"
+                  className="lg:hidden p-1 rounded-lg hover:bg-gray-700/70 transition-colors"
                   title={t('collapseSidebar')}
                 >
-                  <X className="w-4 h-4" />
+                  <X className="w-5 h-5" />
                 </button>
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-gray-500">
+                    {t('recentChats')}
+                  </p>
+                  <h2 className="text-base sm:text-lg font-semibold text-white">
+                    {t('chats')}
+                  </h2>
+                </div>
               </div>
+              <button
+                onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/chats"] })}
+                className="p-2 rounded-full hover:bg-gray-700/70 transition-colors"
+                title={t('refreshChats')}
+              >
+                <Sparkles className="w-4 h-4" />
+              </button>
             </div>
+          </div>
 
-            <div className="mt-3 relative">
+          {/* Search and filter section */}
+          <div className="px-4 pt-3 pb-3 border-b border-gray-700/60">
+            <div className="relative">
               <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
               <Input
                 value={recentSearch}
@@ -542,7 +495,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
           <div className="flex-1 overflow-y-auto scrollbar-thin">
             {character && (
               <div className="px-4 pt-4">
-                <div className="rounded-2xl border border-brand-accent/40 bg-brand-accent/10 p-3 shadow-inner">
+                <div className="rounded-2xl border-2 border-pink-400/60 bg-gradient-to-br from-pink-500/20 via-purple-500/20 to-indigo-500/20 p-3 shadow-lg backdrop-blur-sm">
                   <div className="flex items-center gap-3">
                     <div className="relative">
                       <ImageWithFallback
@@ -551,19 +504,19 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                         fallbackText={character?.name}
                         size="md"
                         showSpinner={true}
-                        className="w-10 h-10"
+                        className="w-10 h-10 ring-2 ring-pink-400/50"
                       />
-                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 border-2 border-gray-900 rounded-full" />
+                      <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-400 border-2 border-gray-900 rounded-full shadow-glow" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-brand-accent truncate">
+                      <p className="text-sm font-bold text-white drop-shadow-sm truncate">
                         {character?.name}
                       </p>
-                      <p className="text-xs text-brand-accent/80 truncate">
+                      <p className="text-xs text-pink-100 font-medium truncate">
                         {t('currentlyChatting')}
                       </p>
                     </div>
-                    <Badge variant="secondary" className="bg-brand-accent/20 text-brand-accent text-[10px]">
+                    <Badge variant="secondary" className="bg-pink-500/80 text-white font-semibold text-[10px] border border-pink-300/50 shadow-md">
                       {t('activeNow')}
                     </Badge>
                   </div>
@@ -700,9 +653,68 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
           </div>
 
           {/* Main Chat Area */}
-          <div className="flex flex-1 min-h-0 flex-col min-w-0 overflow-hidden">
+          <div className="flex flex-1 min-h-0 flex-col min-w-0 overflow-hidden relative">
+            {/* Subtle gradient background for messages area */}
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-slate-900/20 to-transparent pointer-events-none"></div>
+
+            {/* Chat header matching sidebar header height */}
+            <div className="px-3 py-3 sm:px-6 sm:py-4 border-b border-pink-500/10 flex-shrink-0 relative z-10">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-1 items-center gap-2 sm:gap-3 min-w-0">
+                  {/* Back button for mobile */}
+                  <button
+                    onClick={navigateBack}
+                    className="lg:hidden rounded-lg p-1 text-gray-300 transition-colors hover:bg-gray-800"
+                    title="Back to previous page"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </button>
+
+                  {/* Mobile menu button */}
+                  <button
+                    onClick={() => setShowChatList(!showChatList)}
+                    className="lg:hidden rounded-lg p-1 text-gray-300 transition-colors hover:bg-gray-800"
+                  >
+                    {showChatList ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+                  </button>
+
+                  {character && (
+                    <ImageWithFallback
+                      src={character?.avatarUrl}
+                      alt={character?.name}
+                      fallbackText={character?.name}
+                      size="md"
+                      showSpinner={true}
+                      className="h-9 w-9 rounded-2xl sm:h-11 sm:w-11"
+                    />
+                  )}
+                  <div className="min-w-0">
+                    <h1 className="truncate text-base font-semibold sm:text-lg">
+                      {isLoadingCharacter ? t('loading') : character?.name}
+                    </h1>
+                    {chat && (
+                      <p className="text-xs text-gray-400 sm:text-sm">
+                        {chat.title || t('untitledChat')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <ChatModelSelector />
+                  <button
+                    onClick={() => setShowCharacterInfo(!showCharacterInfo)}
+                    className="xl:hidden rounded-lg p-2 text-gray-300 transition-colors hover:bg-gray-800"
+                    title={t('characterInfo')}
+                  >
+                    <MoreVertical className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* Messages Area */}
-            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 scrollbar-thin">
+            <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 scrollbar-thin relative z-10">
             {/* Creating chat state - show immediate loading UI */}
             {isCreatingChat ? (
               <div className="flex items-start mb-4">
@@ -782,12 +794,12 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             </div>
 
             {/* Chat Input - disabled during creating state */}
-            <ChatInput 
-              onSendMessage={sendMessage} 
-              isLoading={isSending || isTyping || isCreatingChat} 
+            <ChatInput
+              onSendMessage={sendMessage}
+              isLoading={isSending || isTyping || isCreatingChat}
               disabled={isCreatingChat}
               placeholder={isCreatingChat ? t('creatingChat') : undefined}
-              className="border-t border-gray-800/70 bg-gray-900/95"
+              className="border-t border-pink-500/10 bg-slate-900/80 backdrop-blur-xl relative z-10"
             />
           </div>
 
@@ -832,7 +844,23 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
         {/* Right Sidebar - Character Info */}
           {character && (
-            <div className="w-full lg:w-80 bg-gray-800 border-l border-gray-700 flex-shrink-0 hidden xl:flex xl:flex-col h-full overflow-y-auto scrollbar-thin">
+            <div className="w-full lg:w-80 bg-slate-900/70 backdrop-blur-2xl border border-pink-500/20 rounded-l-3xl xl:rounded-3xl flex-shrink-0 hidden xl:flex xl:flex-col scrollbar-thin relative shadow-[0_8px_32px_rgba(0,0,0,0.5),0_20px_60px_rgba(236,72,153,0.15)] xl:mr-4 xl:my-4 xl:h-[calc(100%-2rem)]">
+            {/* Right sidebar header matching other headers */}
+            <div className="px-4 py-3 sm:py-4 border-b border-pink-500/10 flex-shrink-0">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs uppercase tracking-wider text-gray-500">
+                    {t('characterInfo')}
+                  </p>
+                  <h2 className="text-base sm:text-lg font-semibold text-white truncate">
+                    {character?.name}
+                  </h2>
+                </div>
+              </div>
+            </div>
+
+            {/* Scrollable character content */}
+            <div className="flex-1 overflow-y-auto">
             {/* Character Gallery */}
             <div className="relative p-4 flex-shrink-0">
               <CharacterGallery 
@@ -886,6 +914,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                   {t('chatSettings')}
                 </button>
               </div>
+            </div>
             </div>
             </div>
           )}
