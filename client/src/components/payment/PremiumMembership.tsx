@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useStripe, useElements, CardElement } from '@stripe/react-stripe-js';
-import { Crown, Check, Zap, Calendar, AlertCircle, Loader2, X, TrendingUp, TrendingDown } from 'lucide-react';
+import { Crown, Check, Zap, Calendar, AlertCircle, Loader2, X, TrendingUp, TrendingDown, CreditCard, QrCode } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '../ui/card';
 import { Badge } from '../ui/badge';
@@ -10,6 +10,9 @@ import { useToast } from '@/hooks/use-toast';
 import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
+import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector';
+import { QRCodePayment } from '@/components/payment/QRCodePayment';
+import { PaymentMethod } from '@/types/payments';
 import type {
   SubscriptionPlans,
   SubscriptionTier,
@@ -17,6 +20,14 @@ import type {
   CreateSubscriptionRequest,
   CreateSubscriptionResponse,
 } from '@/types/payments';
+
+interface SavedPaymentMethod {
+  id: string;
+  brand: string;
+  last4: string;
+  exp_month: number;
+  exp_year: number;
+}
 
 // Note: You'll need to create these Price IDs in your Stripe Dashboard
 // For testing, use test mode price IDs
@@ -58,6 +69,29 @@ const updateSubscription = async (data: CreateSubscriptionRequest) => {
   return res.json();
 };
 
+const fetchSavedPaymentMethods = async (): Promise<SavedPaymentMethod[]> => {
+  const res = await apiRequest('GET', '/api/payment/saved-payment-methods');
+  if (!res.ok) throw new Error('Failed to fetch saved payment methods');
+  return res.json();
+};
+
+// Create one-time payment for WeChat monthly subscription
+const createWechatMonthlyPayment = async (tier: SubscriptionTier) => {
+  // Backend now supports subscription tiers (basic, pro, premium) directly
+  // No mapping needed - it will use SUBSCRIPTION_PLANS for correct pricing
+  const res = await apiRequest('POST', '/api/payment/create-payment-intent', {
+    tier, // Send subscription tier directly (basic/pro/premium)
+    amount: 0, // Backend derives amount from tier
+    payment_method: 'wechat_pay',
+    save_payment_method: false,
+  });
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => ({}));
+    throw new Error(errorData.detail || `Failed to create WeChat payment (${res.status})`);
+  }
+  return res.json();
+};
+
 export const PremiumMembership: React.FC = () => {
   const { user } = useAuth();
   const { t } = useLanguage();
@@ -71,6 +105,12 @@ export const PremiumMembership: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [isPollingTokens, setIsPollingTokens] = useState(false);
+  const [useSavedCard, setUseSavedCard] = useState(true);
+  const [selectedSavedCardId, setSelectedSavedCardId] = useState<string>('');
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('card');
+  const [wechatQrCode, setWechatQrCode] = useState<string | null>(null);
+  const [wechatPaymentIntentId, setWechatPaymentIntentId] = useState<string | null>(null);
+  const [wechatClientSecret, setWechatClientSecret] = useState<string | null>(null);
 
   const { data: plans, isLoading: plansLoading } = useQuery({
     queryKey: ['subscriptionPlans'],
@@ -82,6 +122,33 @@ export const PremiumMembership: React.FC = () => {
     queryFn: fetchUserSubscription,
     enabled: !!user,
   });
+
+  const { data: savedCardsRaw, isLoading: savedCardsLoading } = useQuery({
+    queryKey: ['savedPaymentMethods'],
+    queryFn: fetchSavedPaymentMethods,
+    enabled: !!user,
+  });
+
+  // Deduplicate saved cards
+  const savedCards = React.useMemo(() => {
+    if (!savedCardsRaw) return [];
+    const uniqueCards = new Map<string, SavedPaymentMethod>();
+    savedCardsRaw.forEach(card => {
+      const key = `${card.brand}-${card.last4}-${card.exp_month}-${card.exp_year}`;
+      if (!uniqueCards.has(key)) {
+        uniqueCards.set(key, card);
+      }
+    });
+    return Array.from(uniqueCards.values());
+  }, [savedCardsRaw]);
+
+  // Auto-select first saved card
+  useEffect(() => {
+    if (savedCards.length > 0 && !selectedSavedCardId) {
+      setSelectedSavedCardId(savedCards[0].id);
+      setUseSavedCard(true);
+    }
+  }, [savedCards, selectedSavedCardId]);
 
   // Token polling function - checks for token updates after subscription
   const pollForTokens = useCallback(async () => {
@@ -141,20 +208,30 @@ export const PremiumMembership: React.FC = () => {
       setError(null);
 
       try {
-        const cardElement = elements?.getElement(CardElement);
-        if (!cardElement) {
-          setError('Card element not found');
-          return;
-        }
+        let result;
 
-        const result = await stripe.confirmCardPayment(data.client_secret, {
-          payment_method: {
-            card: cardElement,
-            billing_details: {
-              email: user?.email,
+        if (useSavedCard && selectedSavedCardId) {
+          // Use saved card
+          result = await stripe.confirmCardPayment(data.client_secret, {
+            payment_method: selectedSavedCardId,
+          });
+        } else {
+          // Use new card
+          const cardElement = elements?.getElement(CardElement);
+          if (!cardElement) {
+            setError('Card element not found');
+            return;
+          }
+
+          result = await stripe.confirmCardPayment(data.client_secret, {
+            payment_method: {
+              card: cardElement,
+              billing_details: {
+                email: user?.email,
+              },
             },
-          },
-        });
+          });
+        }
 
         if (result.error) {
           setError(result.error.message || 'Subscription creation failed');
@@ -218,8 +295,59 @@ export const PremiumMembership: React.FC = () => {
     },
   });
 
+  const wechatPaymentMutation = useMutation({
+    mutationFn: createWechatMonthlyPayment,
+    onSuccess: (data) => {
+      const qrDetails = data.next_action?.wechat_pay_display_qr_code;
+      const qrUrl = qrDetails?.image_url_png || qrDetails?.image_url_svg || qrDetails?.image_data_url;
+
+      if (qrUrl && data.client_secret && data.payment_intent_id) {
+        setWechatQrCode(qrUrl);
+        setWechatPaymentIntentId(data.payment_intent_id);
+        setWechatClientSecret(data.client_secret);
+        setError(null);
+      } else {
+        setError('Unable to generate WeChat QR code - missing required data');
+        // Clear stale state
+        setWechatQrCode(null);
+        setWechatPaymentIntentId(null);
+        setWechatClientSecret(null);
+      }
+    },
+    onError: (error: Error) => {
+      setError(error.message);
+      // Clear stale WeChat state on error
+      setWechatQrCode(null);
+      setWechatPaymentIntentId(null);
+      setWechatClientSecret(null);
+    },
+  });
+
+  const handleWechatPaymentSuccess = () => {
+    setWechatQrCode(null);
+    setWechatPaymentIntentId(null);
+    setWechatClientSecret(null);
+
+    toast({
+      title: "Payment Successful!",
+      description: "Your monthly tokens have been added. Remember to pay again next month!",
+      variant: "default",
+    });
+
+    // Refresh subscription and token data
+    queryClient.invalidateQueries({ queryKey: ['userSubscription'] });
+    queryClient.invalidateQueries({ queryKey: ['userTokens'] });
+    queryClient.invalidateQueries({ queryKey: ['tokenBalance'] });
+  };
+
   const handleSubscribe = () => {
     if (!selectedTier || !plans) return;
+
+    // Handle WeChat Pay separately (one-time monthly payment)
+    if (selectedMethod === 'wechat_pay') {
+      wechatPaymentMutation.mutate(selectedTier);
+      return;
+    }
 
     const priceId = STRIPE_PRICE_IDS[selectedTier];
 
@@ -336,7 +464,7 @@ export const PremiumMembership: React.FC = () => {
             <div className="flex items-center gap-2 text-sm text-gray-300">
               <Calendar className="h-4 w-4" />
               <span>
-                Renews on {new Date(userSubscription.subscription.current_period_end).toLocaleDateString()}
+                Auto-renews on {new Date(userSubscription.subscription.current_period_end).toLocaleDateString()}
               </span>
             </div>
 
@@ -344,7 +472,7 @@ export const PremiumMembership: React.FC = () => {
               <Alert className="bg-yellow-500/10 border-yellow-500/30">
                 <AlertCircle className="h-4 w-4 text-yellow-500" />
                 <AlertDescription className="text-yellow-300">
-                  Your subscription will be canceled at the end of the current period.
+                  Your subscription will end on {new Date(userSubscription.subscription.current_period_end).toLocaleDateString()}. It will not auto-renew.
                 </AlertDescription>
               </Alert>
             )}
@@ -499,12 +627,176 @@ export const PremiumMembership: React.FC = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Only show card input for new subscriptions, not for upgrades/downgrades */}
-              {!hasActiveSubscription && (
-                <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
-                  <CardElement options={cardElementOptions} />
+              {/* Show QR Code if WeChat payment is active */}
+              {wechatQrCode && wechatPaymentIntentId && wechatClientSecret ? (
+                <div className="space-y-4">
+                  <QRCodePayment
+                    clientSecret={wechatClientSecret}
+                    paymentIntentId={wechatPaymentIntentId}
+                    qrImageUrl={wechatQrCode}
+                    amount={plans[selectedTier]?.price_cny || 0}
+                    currency="cny"
+                    method="wechat_pay"
+                    onSuccess={handleWechatPaymentSuccess}
+                  />
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setWechatQrCode(null);
+                      setWechatPaymentIntentId(null);
+                      setWechatClientSecret(null);
+                    }}
+                    className="w-full"
+                  >
+                    Back to Payment Options
+                  </Button>
                 </div>
-              )}
+              ) : (
+              <>
+              {/* Payment method selection for all subscriptions */}
+              <>
+                {/* Payment Method Selector (Card and WeChat only for subscriptions) */}
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-300">选择支付方式</label>
+                  <div className="grid gap-3">
+                    {/* Card Option */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedMethod('card');
+                        setUseSavedCard(savedCards.length > 0);
+                      }}
+                      className={`flex w-full items-start gap-4 rounded-xl border p-4 text-left transition-all bg-gray-800/80 border-gray-700 hover:border-brand-accent hover:bg-gray-800 ${
+                        selectedMethod === 'card' ? 'border-brand-accent ring-2 ring-brand-accent/30' : ''
+                      }`}
+                    >
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                        selectedMethod === 'card' ? 'bg-brand-accent/20 text-brand-accent' : 'bg-gray-700 text-gray-300'
+                      }`}>
+                        <CreditCard className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-white">Credit / Debit Card</span>
+                          {selectedMethod === 'card' && (
+                            <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-400">
+                              Selected
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-sm text-gray-400">Pay securely with Visa, Mastercard, American Express, and more.</p>
+                      </div>
+                    </button>
+
+                    {/* WeChat Pay Option */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedMethod('wechat_pay');
+                        setUseSavedCard(false);
+                      }}
+                      className={`flex w-full items-start gap-4 rounded-xl border p-4 text-left transition-all bg-gray-800/80 border-gray-700 hover:border-brand-accent hover:bg-gray-800 ${
+                        selectedMethod === 'wechat_pay' ? 'border-brand-accent ring-2 ring-brand-accent/30' : ''
+                      }`}
+                    >
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                        selectedMethod === 'wechat_pay' ? 'bg-brand-accent/20 text-brand-accent' : 'bg-gray-700 text-gray-300'
+                      }`}>
+                        <QrCode className="h-5 w-5" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-white">WeChat Pay</span>
+                          <span className="rounded-full bg-brand-accent/20 px-2 py-0.5 text-xs font-medium text-brand-accent">
+                            China
+                          </span>
+                          {selectedMethod === 'wechat_pay' && (
+                            <span className="rounded-full bg-emerald-500/20 px-2 py-0.5 text-xs font-medium text-emerald-400">
+                              Selected
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 text-sm text-gray-400">Scan the QR code with WeChat to complete your purchase.</p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Saved Cards Section (only for card payments) */}
+                {selectedMethod === 'card' && savedCards.length > 0 && useSavedCard && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-gray-300">使用已保存的卡片</label>
+                        <button
+                          type="button"
+                          onClick={() => setUseSavedCard(false)}
+                          className="text-xs font-medium text-purple-400 hover:text-purple-300"
+                        >
+                          + 添加新卡片
+                        </button>
+                      </div>
+                      <div className="space-y-2">
+                        {savedCards.map((card) => (
+                          <button
+                            key={card.id}
+                            type="button"
+                            onClick={() => setSelectedSavedCardId(card.id)}
+                            className={`flex w-full items-center gap-3 rounded-lg border-2 px-4 py-3 text-left transition ${
+                              selectedSavedCardId === card.id
+                                ? 'border-purple-500 bg-purple-500/10'
+                                : 'border-gray-700 bg-gray-800/50 hover:border-gray-600'
+                            }`}
+                          >
+                            <CreditCard className="h-5 w-5 text-purple-400" />
+                            <div className="flex-1">
+                              <div className="text-sm font-semibold text-white">
+                                {card.brand.toUpperCase()} •••• {card.last4}
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                到期 {card.exp_month.toString().padStart(2, '0')}/{card.exp_year}
+                              </div>
+                            </div>
+                            {selectedSavedCardId === card.id && <Check className="h-5 w-5 text-purple-400" />}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* New Card Section (only for card payments) */}
+                  {selectedMethod === 'card' && (!useSavedCard || savedCards.length === 0) && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-gray-300">卡片信息</label>
+                        {savedCards.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setUseSavedCard(true);
+                              setSelectedSavedCardId(savedCards[0]?.id || '');
+                            }}
+                            className="text-xs font-medium text-purple-400 hover:text-purple-300"
+                          >
+                            使用已保存的卡片
+                          </button>
+                        )}
+                      </div>
+                      <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                        <CardElement options={cardElementOptions} />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* WeChat Pay Information */}
+                  {selectedMethod === 'wechat_pay' && (
+                    <Alert className="bg-blue-500/10 border-blue-500/30">
+                      <AlertCircle className="h-4 w-4 text-blue-400" />
+                      <AlertDescription className="text-blue-300 text-sm">
+                        微信支付将按月收费。每月需要手动完成支付，我们会在续费日期临近时提醒您。
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </>
 
               {hasActiveSubscription && userSubscription.subscription?.plan_tier !== selectedTier && (
                 <Alert className="bg-purple-500/10 border-purple-500/30">
@@ -538,19 +830,20 @@ export const PremiumMembership: React.FC = () => {
               <Button
                 onClick={handleSubscribe}
                 disabled={
-                  !stripe ||
+                  (selectedMethod === 'card' && !stripe) ||
                   isProcessing ||
                   createSubscriptionMutation.isPending ||
                   updateSubscriptionMutation.isPending ||
+                  wechatPaymentMutation.isPending ||
                   isPollingTokens ||
                   (hasActiveSubscription && userSubscription.subscription?.plan_tier === selectedTier)
                 }
                 className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-semibold py-6 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isProcessing || createSubscriptionMutation.isPending || updateSubscriptionMutation.isPending ? (
+                {isProcessing || createSubscriptionMutation.isPending || updateSubscriptionMutation.isPending || wechatPaymentMutation.isPending ? (
                   <>
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                    Processing...
+                    {wechatPaymentMutation.isPending ? 'Generating QR Code...' : 'Processing...'}
                   </>
                 ) : isPollingTokens ? (
                   <>
@@ -585,6 +878,11 @@ export const PremiumMembership: React.FC = () => {
                       </>
                     );
                   })()
+                ) : selectedMethod === 'wechat_pay' ? (
+                  <>
+                    <QrCode className="mr-2 h-5 w-5" />
+                    微信支付 - 首月 ¥{((plans[selectedTier]?.price_cny || 0) / 100).toFixed(0)}
+                  </>
                 ) : (
                   <>
                     <Crown className="mr-2 h-5 w-5" />
@@ -596,6 +894,8 @@ export const PremiumMembership: React.FC = () => {
               <p className="text-xs text-gray-500 text-center">
                 By subscribing, you agree to automatic monthly billing. You can cancel anytime from this page.
               </p>
+              </>
+              )}
             </CardContent>
           </Card>
         </>

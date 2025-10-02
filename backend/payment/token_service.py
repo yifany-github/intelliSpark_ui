@@ -317,11 +317,30 @@ def _with_conversion(tier_config: dict) -> dict:
 
 
 def get_pricing_tier(tier_name: str) -> dict:
-    """Get pricing information for a specific tier including live CNY conversion."""
-    config = PRICING_TIERS.get(tier_name.lower())
-    if not config:
-        return None
-    return _with_conversion(config)
+    """Get pricing information for a specific tier including live CNY conversion.
+
+    Supports both one-time purchase tiers (starter, standard, premium) and
+    subscription tiers (basic, pro, premium) for WeChat Pay monthly payments.
+    """
+    tier_lower = tier_name.lower()
+
+    # First try one-time purchase tiers
+    config = PRICING_TIERS.get(tier_lower)
+    if config:
+        return _with_conversion(config)
+
+    # Fall back to subscription tiers (for WeChat monthly payments)
+    from payment.subscription_service import SUBSCRIPTION_PLANS
+    sub_config = SUBSCRIPTION_PLANS.get(tier_lower)
+    if sub_config:
+        # Convert subscription plan format to pricing tier format
+        return _with_conversion({
+            "tokens": sub_config["monthly_tokens"],
+            "price": sub_config["price"],
+            "description": sub_config["description"],
+        })
+
+    return None
 
 
 def get_all_pricing_tiers() -> dict:
