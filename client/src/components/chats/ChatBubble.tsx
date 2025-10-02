@@ -1,12 +1,12 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { ChatMessage } from '../../types';
 import { format } from 'date-fns';
 import { Menu, X, RefreshCw, Copy, Palette } from 'lucide-react';
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger 
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import ImageWithFallback from '@/components/ui/ImageWithFallback';
@@ -21,11 +21,75 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
   const { toast } = useToast();
   const isAI = message.role === 'assistant';
   const isSystem = message.role === 'system';
-  
-  const messageTime = message.timestamp 
+  const [displayedContent, setDisplayedContent] = useState(message.content);
+  const [isTyping, setIsTyping] = useState(false);
+  const hasInitialized = useRef(false);
+
+  const messageTime = message.timestamp
     ? format(new Date(message.timestamp), 'h:mm a')
     : '';
-  
+
+  // Typewriter effect for AI messages
+  useEffect(() => {
+    // Only apply typewriter to AI messages
+    if (!isAI) {
+      setDisplayedContent(message.content);
+      return;
+    }
+
+    // Check if message was already typed (exists in localStorage)
+    const typedMessagesKey = 'typed_messages';
+    const getTypedMessages = () => {
+      try {
+        const stored = localStorage.getItem(typedMessagesKey);
+        return stored ? JSON.parse(stored) : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const typedMessages: number[] = getTypedMessages();
+    const wasAlreadyTyped = typedMessages.includes(message.id);
+
+    if (wasAlreadyTyped || hasInitialized.current) {
+      // Already typed before, show immediately
+      setDisplayedContent(message.content);
+      return;
+    }
+
+    // Mark as initialized to prevent re-typing on updates
+    hasInitialized.current = true;
+
+    // New AI message - apply typewriter effect
+    setIsTyping(true);
+    setDisplayedContent('');
+
+    let currentIndex = 0;
+    const content = message.content;
+    const typingSpeed = 15; // milliseconds per character
+
+    const intervalId = setInterval(() => {
+      if (currentIndex < content.length) {
+        setDisplayedContent(content.substring(0, currentIndex + 1));
+        currentIndex++;
+      } else {
+        setIsTyping(false);
+        clearInterval(intervalId);
+
+        // Mark this message as typed
+        try {
+          const currentTyped = getTypedMessages();
+          const updated = [...currentTyped, message.id].slice(-50); // Keep last 50
+          localStorage.setItem(typedMessagesKey, JSON.stringify(updated));
+        } catch (e) {
+          console.warn('Failed to save typed message', e);
+        }
+      }
+    }, typingSpeed);
+
+    return () => clearInterval(intervalId);
+  }, [message.id, message.content, isAI]);
+
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
     toast({
@@ -33,7 +97,7 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
       duration: 2000,
     });
   };
-  
+
   // Process message content for markdown-like formatting
   const processContent = (content: string) => {
     // Handle *text* for italics
@@ -77,10 +141,13 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
       <div className="max-w-[80%]">
         <div className={isAI ? "chat-bubble-ai" : "chat-bubble-user"}>
           <div
-            dangerouslySetInnerHTML={{ 
-              __html: processContent(message.content) 
+            dangerouslySetInnerHTML={{
+              __html: processContent(isAI ? displayedContent : message.content)
             }}
           />
+          {isAI && isTyping && (
+            <span className="inline-block w-1 h-4 ml-1 bg-pink-300 animate-pulse"></span>
+          )}
           
           {isAI && (
             <DropdownMenu>

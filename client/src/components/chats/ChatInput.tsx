@@ -89,7 +89,7 @@ const ChatInput = ({ onSendMessage, isLoading, disabled = false, placeholder, cl
 
   return (
     <div className={cn("p-3 border-t border-secondary bg-background", className)}>
-      <div className="flex items-center bg-secondary rounded-2xl px-3 py-2">
+      <div className="flex items-center bg-secondary rounded-2xl px-3 py-2 transition-all duration-300 focus-within:ring-2 focus-within:ring-pink-500/30 focus-within:shadow-[0_0_20px_rgba(236,72,153,0.2)]">
         <Popover>
           <PopoverTrigger asChild>
             <button className="text-gray-400 mr-3" disabled={isSubmitDisabled}>
