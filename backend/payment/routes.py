@@ -503,6 +503,7 @@ async def update_subscription(
     try:
         new_tier = request.get("tier")
         new_price_id = request.get("price_id")
+        payment_method_id = request.get("payment_method_id")  # Optional: new payment method
 
         if not new_tier or not new_price_id:
             raise HTTPException(status_code=400, detail="Missing tier or price_id")
@@ -525,6 +526,25 @@ async def update_subscription(
         is_upgrade = new_plan["price"] > old_plan["price"]
 
         stripe_service = StripeService()
+
+        # Update payment method if provided
+        if payment_method_id:
+            import stripe
+            try:
+                # Attach payment method to subscription
+                stripe.PaymentMethod.attach(
+                    payment_method_id,
+                    customer=subscription.stripe_customer_id,
+                )
+                # Set as default payment method for subscription
+                stripe.Subscription.modify(
+                    subscription.stripe_subscription_id,
+                    default_payment_method=payment_method_id,
+                )
+                logger.info(f"Updated payment method for subscription {subscription.stripe_subscription_id}")
+            except stripe.error.StripeError as e:
+                logger.error(f"Failed to update payment method: {str(e)}")
+                raise HTTPException(status_code=400, detail=f"Failed to update payment method: {str(e)}")
 
         if is_upgrade:
             # UPGRADE: Immediate change with proration

@@ -13,7 +13,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/ca
 import { Badge } from '../../components/ui/badge';
 import { Alert, AlertDescription } from '../../components/ui/alert';
 import { Separator } from '../../components/ui/separator';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/tabs';
 import { useNavigation } from '../../contexts/NavigationContext';
 import { ImprovedTokenBalance } from '../../components/payment/ImprovedTokenBalance';
 import { PremiumMembership } from '../../components/payment/PremiumMembership';
@@ -128,11 +127,23 @@ const CardPaymentForm: React.FC<{
   const [selectedSavedMethodId, setSelectedSavedMethodId] = useState<string | null>(null);
   const [savedInit, setSavedInit] = useState(false);
 
-  const { data: savedMethods = [], isLoading: savedMethodsLoading } = useQuery({
+  const { data: savedMethodsRaw = [], isLoading: savedMethodsLoading } = useQuery({
     queryKey: ['savedPaymentMethods'],
     queryFn: fetchSavedPaymentMethods,
     enabled: !!user,
   });
+
+  // Deduplicate saved cards by brand + last4 + exp_month + exp_year
+  const savedMethods = useMemo(() => {
+    const uniqueCards = new Map<string, SavedPaymentMethodSummary>();
+    savedMethodsRaw.forEach(card => {
+      const key = `${card.brand}-${card.last4}-${card.exp_month}-${card.exp_year}`;
+      if (!uniqueCards.has(key)) {
+        uniqueCards.set(key, card);
+      }
+    });
+    return Array.from(uniqueCards.values());
+  }, [savedMethodsRaw]);
 
   const hasSavedMethods = savedMethods.length > 0;
 
@@ -259,7 +270,7 @@ const CardPaymentForm: React.FC<{
   }), []);
 
   return (
-    <Card className="bg-gray-800 border-gray-700">
+    <Card className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 border-purple-500/30">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
           <CreditCard className="h-5 w-5 text-brand-secondary" />
@@ -267,7 +278,7 @@ const CardPaymentForm: React.FC<{
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="mb-4 p-3 bg-gray-700 rounded-lg border border-gray-600">
+        <div className="mb-4 p-3 bg-purple-800/30 rounded-lg border border-purple-500/30">
           <div className="flex justify-between items-center">
             <span className="font-medium text-white">{tierData.description}</span>
             <div className="text-center">
@@ -1020,23 +1031,34 @@ const PaymentPage: React.FC = () => {
 
         <Separator className="my-6" />
 
-        <Tabs defaultValue="one-time" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-8 bg-gray-800/50">
-            <TabsTrigger value="one-time" className="data-[state=active]:bg-gray-700">
-              <Coins className="h-4 w-4 mr-2" />
-              One-Time Purchase
-            </TabsTrigger>
-            <TabsTrigger value="subscription" className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600">
-              <Crown className="h-4 w-4 mr-2" />
-              Premium Membership
-            </TabsTrigger>
-          </TabsList>
+        {/* Premium Membership - Primary Section */}
+        <div className="mb-12">
+          <div className="flex items-center gap-2 mb-4">
+            <Crown className="h-6 w-6 text-yellow-500" />
+            <h2 className="text-2xl font-bold text-white">Premium Membership</h2>
+            <Badge className="ml-2 bg-gradient-to-r from-purple-600 to-pink-600">Recommended</Badge>
+          </div>
+          <p className="text-gray-400 mb-6">
+            Subscribe for recurring tokens every month. Best value for regular users!
+          </p>
+          <Elements stripe={stripePromise}>
+            <PremiumMembership />
+          </Elements>
+        </div>
 
-          <TabsContent value="one-time">
-            <div className="space-y-6">
+        <Separator className="my-8" />
+
+        {/* One-Time Purchase - Secondary Section */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Coins className="h-5 w-5 text-brand-secondary" />
+            <h2 className="text-xl font-semibold text-white">Or Purchase Tokens One-Time</h2>
+          </div>
+          <p className="text-gray-400 mb-6">
+            Buy tokens as you need them. No commitment required.
+          </p>
 
         <div className="mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-white">{t('chooseTokenPackage')}</h2>
           
           {tiersLoading ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -1132,15 +1154,7 @@ const PaymentPage: React.FC = () => {
             <li>• {t('instantDelivery')}</li>
           </ul>
         </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="subscription">
-            <Elements stripe={stripePromise}>
-              <PremiumMembership />
-            </Elements>
-          </TabsContent>
-        </Tabs>
+        </div>
       </div>
     </GlobalLayout>
   );
