@@ -212,10 +212,10 @@ const FavoritesCharacterCard = (
 
   return (
     <div
-      className={`group relative grid w-full aspect-[2/1] min-h-[460px] grid-rows-[6fr_5fr] bg-gradient-surface border rounded-xl overflow-hidden shadow-elevated transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 ${
+      className={`group relative grid w-full aspect-[2/1] min-h-[460px] grid-rows-[6fr_5fr] rounded-xl overflow-hidden shadow-elevated transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] cursor-pointer focus-visible:ring-2 focus-visible:ring-brand-secondary focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 liquid-glass-hero-dark ${
         featured
           ? 'border-amber-300/70 shadow-[0_0_40px_rgba(251,191,36,0.35)] hover:shadow-[0_0_55px_rgba(251,191,36,0.45)]'
-          : 'border-surface-border hover:shadow-premium hover:shadow-glow'
+          : 'hover:shadow-premium hover:shadow-glow'
       }`}
       onClick={() => !isCreating && onStartChat()}
       onKeyDown={(event) => {
@@ -239,16 +239,16 @@ const FavoritesCharacterCard = (
         </>
       )}
 
-      <div className="relative z-10 overflow-hidden bg-surface-tertiary">
+      <div className="relative z-10 overflow-hidden bg-surface-tertiary transition-all duration-500 ease-out group-hover:absolute group-hover:inset-0">
         <img
           src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}
           alt={`${character.name} character avatar`}
-          className="h-full w-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-105"
+          className="h-full w-full object-cover transition-all duration-700 ease-out group-hover:scale-105 group-hover:brightness-105"
           loading="lazy"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 ease-out" />
 
-        <div className="absolute top-3 right-3 flex items-center space-x-2">
+        <div className="absolute top-3 right-3 flex items-center space-x-2 z-20 transition-all duration-500">
           <button
             onClick={(event) => {
               event.stopPropagation();
@@ -269,7 +269,7 @@ const FavoritesCharacterCard = (
           )}
         </div>
 
-        <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4 pointer-events-none">
+        <div className="absolute bottom-0 left-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out pointer-events-none z-20 transform translate-y-4 group-hover:translate-y-0">
           <div className="w-full space-y-2 pointer-events-auto">
             <button
               onClick={(event) => {
@@ -304,9 +304,9 @@ const FavoritesCharacterCard = (
         </div>
       </div>
 
-      <div className="relative z-10 flex flex-col overflow-hidden p-4">
+      <div className="relative z-10 flex flex-col overflow-hidden p-4 transition-all duration-500 ease-out group-hover:opacity-0 group-hover:pointer-events-none group-hover:translate-y-2">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="flex-1 truncate text-lg font-bold text-content-primary transition-colors group-hover:text-brand-secondary">
+          <h3 className="flex-1 truncate text-lg font-bold text-content-primary transition-colors">
             {character.name}
           </h3>
           <div className="flex items-center">{statusBadge && <span>{statusBadge}</span>}</div>
@@ -357,7 +357,7 @@ const FavoritesCharacterCard = (
 
 const FavoritesPage = () => {
   const { navigateToPath, navigateToHome } = useNavigation();
-  const { setSelectedCharacter } = useRolePlay();
+  const { setSelectedCharacter, nsfwEnabled } = useRolePlay();
   const { toggleFavorite, isFavorite } = useFavorites();
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -424,6 +424,11 @@ const FavoritesPage = () => {
       });
     };
 
+    const applyNSFWFilter = (items: Character[]) => {
+      if (nsfwEnabled) return items;
+      return items.filter((character) => !isCharacterNSFW(character));
+    };
+
     const applySort = (items: Character[]) => {
       const sorted = [...items].sort((a, b) => {
         let comparison = 0;
@@ -444,10 +449,10 @@ const FavoritesPage = () => {
       return sorted;
     };
 
-    const applyChain = (items: Character[]) => applySort(applyCategory(applySearch(items)));
+    const applyChain = (items: Character[]) => applySort(applyCategory(applySearch(applyNSFWFilter(items))));
 
     return applyChain(characters);
-  }, [characters, filters]);
+  }, [characters, filters, nsfwEnabled]);
 
   const hasActiveFilters =
     filters.search.trim().length > 0 || filters.category !== 'all' || filters.sortBy !== 'date' || filters.sortOrder !== 'desc';

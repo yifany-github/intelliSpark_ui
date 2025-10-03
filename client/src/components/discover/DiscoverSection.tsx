@@ -37,9 +37,13 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import TraitChips from '@/components/characters/TraitChips';
 
-const DiscoverSection = () => {
+interface DiscoverSectionProps {
+  searchQuery?: string;
+}
+
+const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
   const { navigateToPath } = useNavigation();
-  const { setSelectedCharacter } = useRolePlay();
+  const { setSelectedCharacter, nsfwEnabled } = useRolePlay();
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
   const { t } = useLanguage();
   const { toast } = useToast();
@@ -64,12 +68,11 @@ const DiscoverSection = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [viewMode, setViewMode] = useState<'grid' | 'masonry'>('grid');
   const [activeSegment, setActiveSegment] = useState<'trending' | 'latest' | 'recommended' | 'favorites'>('trending');
-  const [searchTerm, setSearchTerm] = useState('');
   const [visibleCount, setVisibleCount] = useState(6);
 
   useEffect(() => {
     setVisibleCount(6);
-  }, [activeSegment, selectedCategory, searchTerm]);
+  }, [activeSegment, selectedCategory, searchQuery]);
 
   // Mutation for creating a new chat
   const { mutate: createChat, isPending: isCreatingChat } = useMutation({
@@ -212,23 +215,41 @@ const DiscoverSection = () => {
     { id: 'Movies', name: t('moviesTv'), icon: Film, color: 'text-amber-400', bgColor: 'bg-amber-600' }
   ];
 
-  // Filter characters by category
+  // Filter characters by category and NSFW
   const filteredSections = useMemo(() => {
-    const filterCharacters = (chars: Character[]) => 
-      selectedCategory === 'All' 
-        ? chars 
-        : chars.filter(char => 
-            char.traits.some(trait => 
-              trait.toLowerCase().includes(selectedCategory.toLowerCase()) ||
-              selectedCategory.toLowerCase() === 'sci-fi' && (trait.toLowerCase().includes('logical') || trait.toLowerCase().includes('analytical') || trait.toLowerCase().includes('curious')) ||
-              selectedCategory.toLowerCase() === 'adventure' && (trait.toLowerCase().includes('strong') || trait.toLowerCase().includes('warrior') || trait.toLowerCase().includes('honorable')) ||
-              selectedCategory.toLowerCase() === 'mystery' && (trait.toLowerCase().includes('cunning') || trait.toLowerCase().includes('mysterious')) ||
-              selectedCategory.toLowerCase() === 'romance' && (trait.toLowerCase().includes('charismatic') || trait.toLowerCase().includes('diplomatic')) ||
-              selectedCategory.toLowerCase() === 'historical' && (trait.toLowerCase().includes('wise') || trait.toLowerCase().includes('noble')) ||
-              selectedCategory.toLowerCase() === 'modern' && (trait.toLowerCase().includes('intelligent') || trait.toLowerCase().includes('peaceful'))
-            )
-          );
-    
+    const filterCharacters = (chars: Character[]) => {
+      // First apply NSFW filter
+      let filtered = nsfwEnabled ? chars : chars.filter(char => !isCharacterNSFW(char));
+
+      // Then apply search query filter
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        filtered = filtered.filter(char =>
+          char.name.toLowerCase().includes(query) ||
+          char.description?.toLowerCase().includes(query) ||
+          char.backstory?.toLowerCase().includes(query) ||
+          char.traits?.some(trait => trait.toLowerCase().includes(query))
+        );
+      }
+
+      // Then apply category filter
+      if (selectedCategory !== 'All') {
+        filtered = filtered.filter(char =>
+          char.traits.some(trait =>
+            trait.toLowerCase().includes(selectedCategory.toLowerCase()) ||
+            selectedCategory.toLowerCase() === 'sci-fi' && (trait.toLowerCase().includes('logical') || trait.toLowerCase().includes('analytical') || trait.toLowerCase().includes('curious')) ||
+            selectedCategory.toLowerCase() === 'adventure' && (trait.toLowerCase().includes('strong') || trait.toLowerCase().includes('warrior') || trait.toLowerCase().includes('honorable')) ||
+            selectedCategory.toLowerCase() === 'mystery' && (trait.toLowerCase().includes('cunning') || trait.toLowerCase().includes('mysterious')) ||
+            selectedCategory.toLowerCase() === 'romance' && (trait.toLowerCase().includes('charismatic') || trait.toLowerCase().includes('diplomatic')) ||
+            selectedCategory.toLowerCase() === 'historical' && (trait.toLowerCase().includes('wise') || trait.toLowerCase().includes('noble')) ||
+            selectedCategory.toLowerCase() === 'modern' && (trait.toLowerCase().includes('intelligent') || trait.toLowerCase().includes('peaceful'))
+          )
+        );
+      }
+
+      return filtered;
+    };
+
     return {
       trending: filterCharacters(trendingCharacters),
       new: filterCharacters(newCharacters),
@@ -238,7 +259,9 @@ const DiscoverSection = () => {
       favorites: filterCharacters(favoriteCharacters),
     };
   }, [
+    searchQuery,
     selectedCategory,
+    nsfwEnabled,
     trendingCharacters,
     newCharacters,
     popularCharacters,
@@ -295,7 +318,7 @@ const DiscoverSection = () => {
   const activeSegmentCharacters = useMemo(() => {
     const segment = segmentConfig.find((config) => config.id === activeSegment);
     const base = segment?.data ?? [];
-    const normalizedSearch = searchTerm.trim().toLowerCase();
+    const normalizedSearch = searchQuery.trim().toLowerCase();
 
     if (!normalizedSearch) {
       return base;
@@ -311,7 +334,7 @@ const DiscoverSection = () => {
         || backstory.includes(normalizedSearch)
       );
     });
-  }, [segmentConfig, activeSegment, searchTerm]);
+  }, [segmentConfig, activeSegment, searchQuery]);
 
   const visibleCharacters = activeSegmentCharacters.slice(0, visibleCount);
   const hasMoreCharacters = activeSegmentCharacters.length > visibleCount;
@@ -441,16 +464,16 @@ const DiscoverSection = () => {
           </>
         )}
 
-        <div className="relative z-10 overflow-hidden bg-surface-tertiary">
+        <div className="relative z-10 overflow-hidden bg-surface-tertiary transition-all duration-500 ease-out group-hover:absolute group-hover:inset-0">
           <img
             src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}
             alt={`${character.name} avatar`}
-            className="h-full w-full object-cover transition-all duration-500 group-hover:scale-110 group-hover:brightness-105"
+            className="h-full w-full object-cover transition-all duration-700 ease-out group-hover:scale-105 group-hover:brightness-105"
             loading="lazy"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 ease-out" />
 
-          <div className="absolute top-3 right-3 flex items-center space-x-2">
+          <div className="absolute top-3 right-3 flex items-center space-x-2 z-20 transition-all duration-500">
             <button
               onClick={(event) => {
                 event.stopPropagation();
@@ -471,7 +494,7 @@ const DiscoverSection = () => {
             )}
           </div>
 
-          <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-all duration-300 bg-gradient-to-t from-black/80 via-transparent to-transparent flex items-end p-4 pointer-events-none">
+          <div className="absolute bottom-0 left-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out pointer-events-none z-20 transform translate-y-4 group-hover:translate-y-0">
             <div className="w-full space-y-2 pointer-events-auto">
               <button
                 onClick={(event) => {
@@ -506,9 +529,9 @@ const DiscoverSection = () => {
           </div>
         </div>
 
-        <div className="relative z-10 flex flex-col overflow-hidden p-4">
+        <div className="relative z-10 flex flex-col overflow-hidden p-4 transition-all duration-500 ease-out group-hover:opacity-0 group-hover:pointer-events-none group-hover:translate-y-2">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="flex-1 truncate text-lg font-bold text-content-primary transition-colors group-hover:text-brand-secondary">
+            <h3 className="flex-1 truncate text-lg font-bold text-content-primary transition-colors">
               {character.name}
             </h3>
             <div className="flex items-center">{statusBadge}</div>
@@ -666,16 +689,6 @@ const DiscoverSection = () => {
             })}
           </div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-            <div className="relative w-full min-w-[220px] sm:w-64">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" />
-              <input
-                type="search"
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder={t('searchCharacters')}
-                className="h-11 w-full rounded-xl border border-gray-800 bg-gray-900/60 pl-10 pr-3 text-sm text-white placeholder:text-gray-500 focus:border-brand-secondary focus:outline-none focus:ring-2 focus:ring-brand-secondary/40"
-              />
-            </div>
             <button
               type="button"
               onClick={() => setViewMode(viewMode === 'grid' ? 'masonry' : 'grid')}
@@ -720,21 +733,11 @@ const DiscoverSection = () => {
             <p className="text-base font-medium text-gray-200">
               {activeSegment === 'favorites'
                 ? t('noFavoritesYet')
-                : searchTerm
+                : searchQuery
                   ? t('noMatches')
                   : t('noCharactersFound').replace('{category}', selectedCategory)}
             </p>
             <p className="mt-2 text-sm text-gray-400">{t('searchHint')}</p>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedCategory('All');
-                setSearchTerm('');
-              }}
-              className="mt-5 inline-flex items-center justify-center rounded-full border border-gray-700 px-5 py-2 text-sm font-medium text-gray-200 transition-colors hover:border-brand-secondary hover:text-white"
-            >
-              {t('clearFilters')}
-            </button>
           </div>
         )}
 

@@ -1,12 +1,13 @@
 import React from 'react';
-import { 
+import {
   HelpCircle,
   FileText,
   Smartphone,
   Twitter,
   MessageCircle,
   Menu,
-  ChevronLeft
+  ChevronLeft,
+  Globe
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNavigation } from '@/contexts/NavigationContext';
@@ -16,15 +17,15 @@ import { fetchTokenBalance } from '@/services/tokenService';
 
 export default function GlobalSidebar() {
   const { user, isAuthenticated } = useAuth();
-  const { 
-    isCollapsed, 
-    toggleCollapsed, 
-    getSidebarItems, 
-    navigateToHome, 
-    navigateToPath, 
-    isRouteActive 
+  const {
+    isCollapsed,
+    toggleCollapsed,
+    getSidebarItems,
+    navigateToHome,
+    navigateToPath,
+    isRouteActive
   } = useNavigation();
-  const { t } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
 
   const { data: tokenBalance, isLoading: tokenLoading, error: tokenError, refetch } = useQuery({
     queryKey: ['tokenBalance'],
@@ -51,9 +52,12 @@ export default function GlobalSidebar() {
   ];
 
   return (
-    <div 
-      className={`${isCollapsed ? 'w-16' : 'w-64'} bg-slate-950/90 border-r border-slate-800/80 backdrop-blur-md fixed left-0 top-14 z-20 overflow-hidden transition-[width] duration-300 ease-in-out flex flex-col hidden sm:flex`}
-      style={{ height: 'calc(100vh - 56px)' }}
+    <div
+      className={`${isCollapsed ? 'w-16' : 'w-64'} fixed left-4 z-20 overflow-hidden transition-[width] duration-300 ease-in-out flex flex-col hidden sm:flex liquid-glass-sidebar rounded-2xl`}
+      style={{
+        top: 'calc(3.5rem + 0.75rem + 0.5rem)',
+        height: 'calc(100vh - 3.5rem - 0.75rem - 1rem - 0.5rem)'
+      }}
     >
       <div className="p-4 flex-1 min-h-0">
         {/* Header spacer (branding handled in TopNavigation) */}
@@ -65,10 +69,10 @@ export default function GlobalSidebar() {
 
         {/* User Profile */}
         <div className={`flex items-center mb-6 ${isCollapsed ? 'justify-center' : 'space-x-3'}`}>
-          <div 
+          <div
             className="w-10 h-10 bg-slate-800/70 rounded-full flex items-center justify-center hover:bg-slate-700 transition-colors cursor-pointer"
             onClick={navigateToHome}
-            title={isCollapsed ? (isAuthenticated ? (user?.email?.split('@')[0] || t('user')) : t('guest')) : undefined}
+            title={isCollapsed ? (isAuthenticated ? ((user?.email && typeof user.email === 'string') ? user.email.split('@')[0] : t('user')) : t('guest')) : undefined}
           >
             <span className="text-sm text-white font-medium">
               {isAuthenticated ? (user?.email?.[0]?.toUpperCase() || 'U') : 'G'}
@@ -77,7 +81,7 @@ export default function GlobalSidebar() {
           {!isCollapsed && (
             <div>
               <div className="font-medium text-white">
-                {isAuthenticated ? (user?.email?.split('@')[0] || t('user')) : t('guest')}
+                {isAuthenticated ? ((user?.email && typeof user.email === 'string') ? user.email.split('@')[0] : t('user')) : t('guest')}
               </div>
               <div className="text-sm text-brand-secondary flex items-center">
                 <span className="w-2 h-2 bg-brand-secondary rounded-full mr-2"></span>
@@ -137,7 +141,19 @@ export default function GlobalSidebar() {
             </button>
           ))}
         </div>
-        
+
+        {/* Language Switcher */}
+        <button
+          onClick={() => setLanguage(language === 'en' ? 'zh' : 'en')}
+          className={`w-full flex items-center ${isCollapsed ? 'justify-center px-2 py-3' : 'space-x-3 px-3 py-2'} rounded-xl text-gray-400 hover:bg-gray-100/5 hover:text-brand-secondary transition-colors duration-200 ease-in-out group mb-3`}
+          title={isCollapsed ? (language === 'en' ? 'English' : '中文') : undefined}
+        >
+          <Globe className={`${isCollapsed ? 'w-5 h-5' : 'w-4 h-4'} group-hover:text-brand-secondary transition-colors`} />
+          {!isCollapsed && (
+            <span className="text-sm font-normal">{language === 'en' ? 'English' : '中文'}</span>
+          )}
+        </button>
+
         <div className={`flex ${isCollapsed ? 'justify-center' : 'space-x-2 px-3'} py-2`}>
           <Smartphone className={`${isCollapsed ? 'w-5 h-5' : 'w-4 h-4'} text-gray-400`} />
           {!isCollapsed && (

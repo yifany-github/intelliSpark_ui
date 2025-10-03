@@ -48,7 +48,7 @@ export default function GlobalLayout({
   );
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-slate-950 text-white">
+    <div className="flex min-h-screen w-full flex-col text-white">
       {showTopNav && (
         <TopNavigation
           searchQuery={searchQuery}

@@ -168,3 +168,67 @@ async def login_firebase(auth_data: FirebaseAuthRequest, request: Request, db: S
 async def logout():
     """Logout endpoint (client-side token removal)"""
     return {"message": "Successfully logged out"}
+
+@router.get("/me/stats")
+async def get_user_stats(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get current user's statistics"""
+    try:
+        from models import Chat, ChatMessage, Character
+        from sqlalchemy import func, distinct
+
+        # Get total chats count
+        total_chats = db.query(Chat).filter(Chat.user_id == current_user.id).count()
+
+        # Get total messages count (explicitly specify join condition)
+        total_messages = db.query(ChatMessage).join(
+            Chat, ChatMessage.chat_id == Chat.id
+        ).filter(
+            Chat.user_id == current_user.id
+        ).count()
+
+        # Get unique characters chatted with
+        unique_characters = db.query(distinct(Chat.character_id)).filter(
+            Chat.user_id == current_user.id
+        ).count()
+
+        # Get user's created characters count
+        created_characters = db.query(Character).filter(
+            Character.created_by == current_user.id,
+            Character.is_deleted == False
+        ).count()
+
+        # Get recent activity (last 5 chat sessions)
+        recent_chats = db.query(Chat).filter(
+            Chat.user_id == current_user.id
+        ).order_by(Chat.created_at.desc()).limit(5).all()
+
+        recent_activity = []
+        for chat in recent_chats:
+            character = db.query(Character).filter(Character.id == chat.character_id).first()
+            if character:
+                recent_activity.append({
+                    "type": "chat",
+                    "character_name": character.name,
+                    "character_avatar": character.avatar_url,
+                    "created_at": chat.created_at.isoformat() if chat.created_at else None,
+                    "updated_at": chat.updated_at.isoformat() if chat.updated_at else None
+                })
+
+        return {
+            "total_chats": total_chats,
+            "total_messages": total_messages,
+            "unique_characters": unique_characters,
+            "created_characters": created_characters,
+            "recent_activity": recent_activity,
+            "member_since": current_user.created_at.isoformat() if current_user.created_at else None
+        }
+
+    except Exception as e:
+        logger.error(f"Error fetching user stats: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch user statistics"
+        )

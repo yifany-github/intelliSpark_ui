@@ -61,3 +61,44 @@ export const updateTokenBalanceOptimistically = (newBalance: number): void => {
     return oldData;
   });
 };
+
+export interface UserStats {
+  total_chats: number;
+  total_messages: number;
+  unique_characters: number;
+  created_characters: number;
+  recent_activity: Array<{
+    type: string;
+    character_name: string;
+    character_avatar: string;
+    created_at: string | null;
+    updated_at: string | null;
+  }>;
+  member_since: string | null;
+}
+
+/**
+ * Fetches the current user's statistics
+ * @returns Promise<UserStats> The user's statistics data
+ * @throws Error if no auth token found or request fails
+ */
+export const fetchUserStats = async (): Promise<UserStats> => {
+  const token = localStorage.getItem('auth_token');
+  if (!token) {
+    throw new Error('No authentication token found');
+  }
+
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+  const response = await fetch(`${API_BASE_URL}/api/auth/me/stats`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch user stats: ${response.status}`);
+  }
+
+  return response.json();
+};

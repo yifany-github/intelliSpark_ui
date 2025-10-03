@@ -1,12 +1,13 @@
-import { type ReactNode } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { ChatMessage } from '../../types';
 import { format } from 'date-fns';
 import { Menu, X, RefreshCw, Copy, Palette } from 'lucide-react';
-import { 
+import DOMPurify from 'dompurify';
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuTrigger 
+  DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import ImageWithFallback from '@/components/ui/ImageWithFallback';
@@ -21,11 +22,120 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
   const { toast } = useToast();
   const isAI = message.role === 'assistant';
   const isSystem = message.role === 'system';
-  
-  const messageTime = message.timestamp 
+  const [displayedContent, setDisplayedContent] = useState(message.content);
+  const [isTyping, setIsTyping] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const hasInitialized = useRef(false);
+  const userMessageInitialized = useRef(false);
+
+  const messageTime = message.timestamp
     ? format(new Date(message.timestamp), 'h:mm a')
     : '';
-  
+
+  // Send animation for user messages
+  useEffect(() => {
+    if (isAI || isSystem) return;
+
+    // Check if message was already sent (exists in localStorage)
+    const sentMessagesKey = 'sent_messages';
+    const getSentMessages = () => {
+      try {
+        const stored = localStorage.getItem(sentMessagesKey);
+        return stored ? JSON.parse(stored) : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const sentMessages: number[] = getSentMessages();
+    const wasAlreadySent = sentMessages.includes(message.id);
+
+    if (wasAlreadySent || userMessageInitialized.current) {
+      return;
+    }
+
+    userMessageInitialized.current = true;
+
+    // New user message - apply send animation
+    setIsSending(true);
+
+    const timer = setTimeout(() => {
+      setIsSending(false);
+
+      // Mark this message as sent
+      try {
+        const currentSent = getSentMessages();
+        const updated = [...currentSent, message.id].slice(-50); // Keep last 50
+        localStorage.setItem(sentMessagesKey, JSON.stringify(updated));
+      } catch (e) {
+        console.warn('Failed to save sent message', e);
+      }
+    }, 500); // Duration matches CSS animation
+
+    return () => clearTimeout(timer);
+  }, [message.id, isAI, isSystem]);
+
+  // Typewriter effect for AI messages
+  useEffect(() => {
+    // Only apply typewriter to AI messages
+    if (!isAI) {
+      setDisplayedContent(message.content);
+      return;
+    }
+
+    // Check if message was already typed (exists in localStorage)
+    const typedMessagesKey = 'typed_messages';
+    const getTypedMessages = () => {
+      try {
+        const stored = localStorage.getItem(typedMessagesKey);
+        return stored ? JSON.parse(stored) : [];
+      } catch {
+        return [];
+      }
+    };
+
+    const typedMessages: number[] = getTypedMessages();
+    const wasAlreadyTyped = typedMessages.includes(message.id);
+
+    if (wasAlreadyTyped || hasInitialized.current) {
+      // Already typed before, show immediately
+      setDisplayedContent(message.content);
+      return;
+    }
+
+    // Mark as initialized to prevent re-typing on updates
+    hasInitialized.current = true;
+
+    // New AI message - apply typewriter effect
+    setIsTyping(true);
+    setDisplayedContent('');
+
+    let currentIndex = 0;
+    const content = message.content;
+    const typingSpeed = 15; // milliseconds per character
+
+    const intervalId = setInterval(() => {
+      if (currentIndex < content.length) {
+        setDisplayedContent(content.substring(0, currentIndex + 1));
+        currentIndex++;
+      } else {
+        setIsTyping(false);
+        clearInterval(intervalId);
+
+        // Mark this message as typed
+        try {
+          const currentTyped = getTypedMessages();
+          const updated = [...currentTyped, message.id].slice(-50); // Keep last 50
+          localStorage.setItem(typedMessagesKey, JSON.stringify(updated));
+        } catch (e) {
+          console.warn('Failed to save typed message', e);
+        }
+      }
+    }, typingSpeed);
+
+    return () => clearInterval(intervalId);
+  }, [message.id, message.content, isAI]);
+
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
     toast({
@@ -33,67 +143,20 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
       duration: 2000,
     });
   };
-  
-  const renderInlineFormatting = (text: string) => {
-    const nodes: ReactNode[] = [];
-    const regex = /(\*\*[^*]+\*\*|\*[^*]+\*)/g;
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-    let key = 0;
 
-    while ((match = regex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        nodes.push(text.slice(lastIndex, match.index));
-      }
+  // Process message content for markdown-like formatting
+  const processContent = (content: string) => {
+    // Handle *text* for italics
+    content = content.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    // Handle **text** for bold
+    content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Handle paragraphs
+    content = content.split('\n\n').map(p => `<p>${p}</p>`).join('');
+    // Handle line breaks
+    content = content.replace(/\n/g, '<br />');
 
-      const token = match[0];
-      const isStrong = token.startsWith('**');
-      const innerText = token.slice(isStrong ? 2 : 1, token.length - (isStrong ? 2 : 1));
-
-      nodes.push(
-        isStrong ? (
-          <strong key={`strong-${key++}`}>{innerText}</strong>
-        ) : (
-          <em key={`em-${key++}`}>{innerText}</em>
-        )
-      );
-
-      lastIndex = regex.lastIndex;
-    }
-
-    if (lastIndex < text.length) {
-      nodes.push(text.slice(lastIndex));
-    }
-
-    // Convert newline characters inside plain strings to <br />
-    return nodes.flatMap((node, outerIndex) => {
-      if (typeof node !== 'string') {
-        return [node];
-      }
-
-      const segments = node.split('\n');
-      return segments.flatMap((segment, innerIndex) => {
-        const parts: ReactNode[] = [segment];
-        if (innerIndex < segments.length - 1) {
-          parts.push(<br key={`br-${outerIndex}-${innerIndex}`} />);
-        }
-        return parts;
-      });
-    });
-  };
-
-  const renderMessageContent = (content: string) => {
-    const paragraphs = content.split(/\n{2,}/).filter(Boolean);
-
-    if (paragraphs.length === 0) {
-      return null;
-    }
-
-    return paragraphs.map((paragraph, index) => (
-      <p key={`paragraph-${index}`}>
-        {renderInlineFormatting(paragraph)}
-      </p>
-    ));
+    // Sanitize HTML to prevent XSS attacks
+    return DOMPurify.sanitize(content);
   };
   
   // Handle system messages (errors) differently
@@ -112,21 +175,44 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
   return (
     <div className={`flex items-end mb-4 ${!isAI && 'justify-end'}`}>
       {isAI && (
-        <ImageWithFallback
-          src={avatarUrl}
-          alt="Character"
-          fallbackText="AI"
-          size="sm"
-          showSpinner={true}
-          className="mr-2 flex-shrink-0"
-        />
+        <div className="relative mr-2 flex-shrink-0">
+          {isTyping && (
+            <>
+              <div className="absolute -inset-2 rounded-full animate-breathing-glow pointer-events-none"
+                   style={{
+                     background: 'radial-gradient(circle, rgba(236, 72, 153, 0.8) 0%, rgba(168, 85, 247, 0.6) 40%, rgba(99, 102, 241, 0.3) 60%, transparent 80%)',
+                     filter: 'blur(12px)',
+                   }}
+              />
+              <div className="absolute -inset-1 rounded-full animate-breathing-glow-fast pointer-events-none"
+                   style={{
+                     background: 'radial-gradient(circle, rgba(236, 72, 153, 0.6) 0%, rgba(168, 85, 247, 0.4) 50%, transparent 70%)',
+                     filter: 'blur(6px)',
+                   }}
+              />
+            </>
+          )}
+          <ImageWithFallback
+            src={avatarUrl}
+            alt="Character"
+            fallbackText="AI"
+            size="sm"
+            showSpinner={true}
+            className="relative z-10"
+          />
+        </div>
       )}
-      
+
       <div className="max-w-[80%]">
-        <div className={isAI ? "chat-bubble-ai" : "chat-bubble-user"}>
-          <div>
-            {renderMessageContent(message.content)}
-          </div>
+        <div className={`${isAI ? "chat-bubble-ai" : "chat-bubble-user"} ${isSending ? "message-sending" : ""}`}>
+          <div
+            dangerouslySetInnerHTML={{
+              __html: processContent(isAI ? displayedContent : message.content)
+            }}
+          />
+          {isAI && isTyping && (
+            <span className="inline-block w-1 h-4 ml-1 bg-pink-300 animate-pulse"></span>
+          )}
           
           {isAI && (
             <DropdownMenu>

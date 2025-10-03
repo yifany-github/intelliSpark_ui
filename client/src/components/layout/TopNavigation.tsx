@@ -1,13 +1,16 @@
-import { Search, ChevronDown, User, LogOut, LogIn, Menu } from 'lucide-react';
+import { Search, ChevronDown, User, LogOut, LogIn, Menu, Shield, ShieldOff } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useNavigation } from '@/contexts/NavigationContext';
+import { useRolePlay } from '@/contexts/RolePlayContext';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { ImprovedTokenBalance } from '@/components/payment/ImprovedTokenBalance';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { fetchTokenBalance } from '@/services/tokenService';
 import LogoImage from '@/assets/logo.png';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
 
 const SEARCH_HISTORY_KEY = 'character_search_history_v2';
 const MAX_HISTORY_ITEMS = 10;
@@ -55,6 +58,7 @@ export default function TopNavigation({
 }: TopNavigationProps) {
   const { user, isAuthenticated, logout } = useAuth();
   const { language, setLanguage, t } = useLanguage();
+  const { nsfwEnabled, setNsfwEnabled } = useRolePlay();
   const {
     navigateToHome,
     navigateToPayment,
@@ -68,6 +72,7 @@ export default function TopNavigation({
   const [showUpgradeDetails, setShowUpgradeDetails] = useState(false);
   const [isSearchPanelOpen, setIsSearchPanelOpen] = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
+  const [isNSFWConfirmOpen, setIsNSFWConfirmOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
@@ -185,38 +190,73 @@ export default function TopNavigation({
   const appNameText = showChineseName ? (t('appNameChinese') || '歪歪') : (t('appNameEnglish') || 'YY Chat');
 
   return (
-    <div className="sticky top-0 z-40 h-16 w-full border-b border-slate-800/80 bg-slate-950/90 backdrop-blur-md">
-      <div className="mx-auto flex w-full max-w-[110rem] items-center justify-between gap-4 px-4 sm:px-8 lg:px-12 py-3">
-        <div className="flex flex-1 items-center gap-2 min-w-0">
-          {withSidebar ? (
-            <button
-              onClick={toggleCollapsed}
-              className="hidden sm:inline-flex items-center justify-center rounded-xl border border-slate-700/70 bg-slate-900/70 p-2 text-slate-300 transition hover:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-secondary"
-              title={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
-              aria-label={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
+    <>
+      <Dialog open={isNSFWConfirmOpen} onOpenChange={setIsNSFWConfirmOpen}>
+        <DialogContent className="w-[calc(100vw-3rem)] max-w-[calc(100vw-3rem)] sm:max-w-md bg-slate-950 text-slate-100 border-slate-800">
+          <DialogHeader className="space-y-2">
+            <DialogTitle className="text-base sm:text-lg leading-tight pr-8">{t('confirmEnableNSFW') || '确认开启成人内容'}</DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs sm:text-sm leading-relaxed">
+              {t('nsfwDisclaimer') || '成人内容仅面向年满18周岁的用户。开启NSFW模式即表示您确认已年满法定年龄，并对浏览成人向内容负有法律责任。'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="rounded-md bg-red-500/10 border border-red-500/30 px-3 py-2.5 text-xs leading-relaxed text-red-200">
+            {t('nsfwLegalNotice') || '继续操作即表示您知悉当地法律，并同意平台关于成人内容的条款。'}
+          </div>
+          <DialogFooter className="mt-3 flex w-full justify-end gap-2 flex-col-reverse sm:flex-row">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => setIsNSFWConfirmOpen(false)}
+              className="text-slate-300 w-full sm:w-auto"
             >
-              <Menu className="h-5 w-5" />
-            </button>
-          ) : (
-            <span className="hidden h-10 w-10 items-center justify-center sm:inline-flex" aria-hidden />
-          )}
-          <button
-            onClick={navigateToHome}
-            className="flex items-center gap-2 rounded-xl border border-transparent bg-slate-900/80 px-2 py-1.5 transition hover:border-slate-700/70 hover:bg-slate-900"
-          >
-            <div className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-slate-800 bg-slate-900/90 shadow-lg">
-              <img src={LogoImage} alt={appNameText} className="h-7 w-7 object-contain" />
-            </div>
-            <div className="hidden sm:flex flex-col leading-tight">
-              <span className="text-sm font-semibold text-slate-100 tracking-wide">
-                {appNameText}
-              </span>
-            </div>
-          </button>
-        </div>
+              {t('cancel') || '取消'}
+            </Button>
+            <Button
+              type="button"
+              className="bg-red-500 text-white hover:bg-red-500/90 w-full sm:w-auto"
+              onClick={() => {
+                setNsfwEnabled(true);
+                setIsNSFWConfirmOpen(false);
+              }}
+            >
+              {t('confirm') || '确认开启'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        {!hideSearch && (
-          <div className="flex flex-1 justify-center" ref={searchContainerRef}>
+      <div className="sticky top-0 z-40 w-full px-4 pt-3 pb-2">
+        <div className="mx-auto flex w-full max-w-[110rem] h-14 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 liquid-glass-topnav rounded-2xl">
+          <div className="flex flex-1 items-center gap-2 min-w-0">
+            {withSidebar ? (
+              <button
+                onClick={toggleCollapsed}
+                className="hidden xl:inline-flex items-center justify-center p-2 text-slate-300 transition hover:text-pink-400 focus:outline-none"
+                title={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
+                aria-label={isCollapsed ? t('expandSidebar') : t('collapseSidebar')}
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+            ) : (
+              <span className="hidden h-10 w-10 items-center justify-center xl:inline-flex" aria-hidden />
+            )}
+            <button
+              onClick={navigateToHome}
+              className="flex items-center gap-2 px-2 py-1.5 transition group"
+            >
+              <div className="flex h-9 w-9 items-center justify-center overflow-hidden">
+                <img src={LogoImage} alt={appNameText} className="h-9 w-9 object-contain transition-transform group-hover:scale-110" />
+              </div>
+              <div className="hidden xl:flex flex-col leading-tight">
+                <span className="text-sm font-semibold text-slate-100 tracking-wide transition-colors group-hover:text-pink-400">
+                  {appNameText}
+                </span>
+              </div>
+            </button>
+          </div>
+
+          {!hideSearch && (
+            <div className="flex flex-1 justify-center" ref={searchContainerRef}>
             <div className="relative w-full max-w-xl">
               <input
                 type="text"
@@ -241,7 +281,7 @@ export default function TopNavigation({
               </button>
 
               {isSearchPanelOpen && (
-                <div className="absolute left-1/2 z-30 mt-4 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-5 shadow-2xl shadow-black/40 backdrop-blur-xl">
+                <div className="absolute left-1/2 z-[100] mt-4 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-5 shadow-2xl shadow-black/40 backdrop-blur-xl">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-semibold text-slate-200 tracking-wide">{t('searchHistory')}</h3>
@@ -293,123 +333,131 @@ export default function TopNavigation({
                 </div>
               )}
             </div>
-          </div>
-        )}
-
-        <div className="flex flex-1 items-center justify-end gap-2 sm:gap-3">
-          {isAuthenticated && (
-            <ImprovedTokenBalance compact showTitle={false} showStats={false} showActions />
+            </div>
           )}
 
-          <div
-            className="relative"
-            onMouseEnter={() => setShowUpgradeDetails(true)}
-            onMouseLeave={() => setShowUpgradeDetails(false)}
-          >
-            <button
-              onClick={navigateToPayment}
-              className="rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-3 py-2 text-xs font-semibold text-slate-900 shadow-lg transition hover:shadow-amber-400/40"
-            >
-              💎 {t('upgradePlan')}
-            </button>
-            {showUpgradeDetails && (
-              <div className="absolute right-0 mt-3 w-72 rounded-2xl border border-amber-400/40 bg-slate-950/95 p-4 text-left shadow-2xl shadow-black/50">
-                <div className="text-sm font-semibold text-amber-300">
-                  {t('nextTierPreview')}
-                </div>
-                <div className="mt-2 text-xs text-slate-300 leading-relaxed space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span>{t('starterPlan')}</span>
-                    <span className="font-semibold text-amber-200">¥58 / {t('perMonth')}</span>
-                  </div>
-                  <ul className="space-y-1 text-slate-400">
-                    <li>• {t('monthlyTokens')}</li>
-                    <li>• {t('prioritySupport')}</li>
-                    <li>• {t('exclusiveStories')}</li>
-                  </ul>
-                </div>
-              </div>
+          <div className="flex flex-1 items-center justify-end gap-2 sm:gap-3">
+            {isAuthenticated && (
+              <ImprovedTokenBalance compact showTitle={false} showStats={false} showActions />
             )}
-          </div>
 
-          <div className="hidden sm:flex items-center gap-1 text-sm text-slate-400">
-            <span>{language === 'en' ? 'English' : '中文'}</span>
-            <button onClick={() => setLanguage(language === 'en' ? 'zh' : 'en')} className="rounded-lg border border-slate-700/70 p-1 text-slate-300 hover:text-brand-secondary">
-              <ChevronDown className="h-4 w-4" />
-            </button>
-          </div>
-
-          {isAuthenticated && <NotificationBell className="mx-1" />}
-
-          <div className="relative" ref={userMenuRef}>
-            {isAuthenticated ? (
-              <>
-                <button
-                  onClick={() => setShowUserMenu((prev) => !prev)}
-                  className="flex items-center gap-3 rounded-2xl border border-slate-700/70 bg-slate-900/70 px-3 py-2 transition hover:border-brand-secondary"
-                >
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/80 text-sm font-semibold text-slate-100">
-                    {user?.email?.[0]?.toUpperCase() || 'U'}
+            <div
+              className="relative hidden sm:block"
+              onMouseEnter={() => setShowUpgradeDetails(true)}
+              onMouseLeave={() => setShowUpgradeDetails(false)}
+            >
+              <button
+                onClick={navigateToPayment}
+                className="rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-3 py-2 text-xs font-semibold text-slate-900 shadow-lg transition hover:shadow-amber-400/40"
+              >
+                💎 {t('upgradePlan')}
+              </button>
+              {showUpgradeDetails && (
+                <div className="absolute right-0 z-[100] mt-3 w-72 rounded-2xl border border-amber-400/40 bg-slate-950/95 p-4 text-left shadow-2xl shadow-black/50 backdrop-blur-xl">
+                  <div className="text-sm font-semibold text-amber-300">
+                    {t('nextTierPreview')}
                   </div>
-                  <div className="hidden sm:flex flex-col leading-tight text-left">
-                    <span className="text-sm font-medium text-slate-100">{user?.email?.split('@')[0] || fallbackUserName}</span>
-                    <span className="text-xs text-brand-secondary">{subscriptionLabel}</span>
-                  </div>
-                  <ChevronDown className="h-4 w-4 text-slate-400" />
-                </button>
-
-                {showUserMenu && (
-                  <div className="absolute right-0 mt-3 w-56 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-2 shadow-2xl shadow-black/50">
-                    <div className="px-3 py-2 text-xs text-slate-400">
-                      {t('tokenBalance')}: {tokenLoading ? '…' : tokenError ? '—' : tokenBalance?.balance ?? 0}
+                  <div className="mt-2 text-xs text-slate-300 leading-relaxed space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span>{t('starterPlan')}</span>
+                      <span className="font-semibold text-amber-200">¥58 / {t('perMonth')}</span>
                     </div>
-                    {topNavItems.map((item) => (
+                    <ul className="space-y-1 text-slate-400">
+                      <li>• {t('monthlyTokens')}</li>
+                      <li>• {t('prioritySupport')}</li>
+                      <li>• {t('exclusiveStories')}</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!nsfwEnabled) {
+                  setIsNSFWConfirmOpen(true);
+                  return;
+                }
+                setNsfwEnabled(false);
+              }}
+              title={nsfwEnabled ? (t('nsfwEnabledLabel') || 'NSFW模式已开启') : (t('nsfwDisabledLabel') || '安全模式')}
+              className={`flex items-center rounded-lg border px-1.5 sm:px-3 py-1 sm:py-2 text-xs font-semibold transition-all ${
+                nsfwEnabled
+                  ? 'border-red-400/60 bg-red-500/15 text-red-200 hover:border-red-300 hover:bg-red-500/20'
+                  : 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200 hover:border-emerald-300 hover:bg-emerald-500/20'
+              }`}
+            >
+              {nsfwEnabled ? <ShieldOff className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
+              <span className="hidden lg:inline lg:ml-1.5">{nsfwEnabled ? (t('nsfwEnabledLabel') || 'NSFW') : (t('nsfwDisabledLabel') || '安全模式')}</span>
+            </button>
+
+            {isAuthenticated && <NotificationBell className="mx-1 hidden xl:block" />}
+
+            <div className="relative" ref={userMenuRef}>
+              {isAuthenticated ? (
+                <>
+                  <button
+                    onClick={() => setShowUserMenu((prev) => !prev)}
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-700/80 text-sm font-semibold text-slate-100 border-2 border-transparent transition hover:border-brand-secondary hover:bg-slate-700"
+                    title={user?.email || fallbackUserName}
+                  >
+                    {user?.email?.[0]?.toUpperCase() || 'U'}
+                  </button>
+
+                  {showUserMenu && (
+                    <div className="absolute right-1/2 translate-x-1/2 z-[100] mt-3 w-56 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl">
+                      <div className="px-3 py-2 text-xs text-slate-400">
+                        {t('tokenBalance')}: {tokenLoading ? '…' : tokenError ? '—' : tokenBalance?.balance ?? 0}
+                      </div>
+                      {topNavItems.map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => {
+                            navigateToPath(item.path);
+                            setShowUserMenu(false);
+                          }}
+                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-900/80 hover:text-slate-100"
+                        >
+                          <item.icon className="h-4 w-4 text-slate-500" />
+                          <span>{t(item.label)}</span>
+                        </button>
+                      ))}
+                      <div className="my-2 h-px bg-slate-800/70" />
                       <button
-                        key={item.id}
                         onClick={() => {
-                          navigateToPath(item.path);
+                          logout();
                           setShowUserMenu(false);
                         }}
-                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-900/80 hover:text-slate-100"
+                        className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-red-400 transition hover:bg-red-500/10 hover:text-red-300"
                       >
-                        <item.icon className="h-4 w-4 text-slate-500" />
-                        <span>{t(item.label)}</span>
+                        <LogOut className="h-4 w-4" />
+                        <span>{t('logout')}</span>
                       </button>
-                    ))}
-                    <div className="my-2 h-px bg-slate-800/70" />
-                    <button
-                      onClick={() => {
-                        logout();
-                        setShowUserMenu(false);
-                      }}
-                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-sm text-red-400 transition hover:bg-red-500/10 hover:text-red-300"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      <span>{t('logout')}</span>
-                    </button>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={navigateToLogin}
+                    className="flex items-center gap-2 rounded-xl bg-brand-accent px-4 py-2.5 text-sm font-medium text-white shadow-lg transition hover:bg-indigo-500"
+                  >
+                    <LogIn className="h-4 w-4" />
+                    <span>{t('login')}</span>
+                  </button>
+                  <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-700/70 bg-slate-900/70 px-3 py-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/70 text-sm text-slate-300">
+                      <User className="h-4 w-4" />
+                    </div>
+                    <span className="text-sm text-slate-300">{t('guest')}</span>
                   </div>
-                )}
-              </>
-            ) : (
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={navigateToLogin}
-                  className="flex items-center gap-2 rounded-xl bg-brand-accent px-4 py-2.5 text-sm font-medium text-white shadow-lg transition hover:bg-indigo-500"
-                >
-                  <LogIn className="h-4 w-4" />
-                  <span>{t('login')}</span>
-                </button>
-                <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-700/70 bg-slate-900/70 px-3 py-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/70 text-sm text-slate-300">
-                    <User className="h-4 w-4" />
-                  </div>
-                  <span className="text-sm text-slate-300">{t('guest')}</span>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

@@ -86,16 +86,16 @@ const SettingsPage = () => {
         {/* Header */}
         <div className="mb-6">
           <div className="flex items-center space-x-2 mb-2">
-            <SettingsIcon className="w-6 h-6 text-blue-400" />
+            <SettingsIcon className="w-6 h-6 text-brand-secondary" />
             <h1 className="font-poppins font-bold text-2xl text-white">{t('settings')}</h1>
           </div>
           <p className="text-gray-400">{t('customizeAIChat')} {t('applicationPreferences')}</p>
         </div>
-        
+
         {/* Language Settings */}
         <div className="bg-gray-800 rounded-2xl p-6 mb-6">
           <div className="flex items-center space-x-2 mb-4">
-            <Globe className="w-5 h-5 text-green-400" />
+            <Globe className="w-5 h-5 text-brand-secondary" />
             <h3 className="font-semibold text-lg text-white">{t('languageSettings')}</h3>
           </div>
           <div className="space-y-4">
@@ -107,7 +107,7 @@ const SettingsPage = () => {
         {/* AI Settings */}
         <div className="bg-gray-800 rounded-2xl p-6 mb-6">
           <div className="flex items-center space-x-2 mb-4">
-            <Sliders className="w-5 h-5 text-purple-400" />
+            <Sliders className="w-5 h-5 text-brand-secondary" />
             <h3 className="font-semibold text-lg text-white">AI {t('settings')}</h3>
           </div>
           
@@ -134,7 +134,7 @@ const SettingsPage = () => {
         {/* Data & Privacy */}
         <div className="bg-gray-800 rounded-2xl p-6 mb-6">
           <div className="flex items-center space-x-2 mb-4">
-            <Database className="w-5 h-5 text-yellow-400" />
+            <Database className="w-5 h-5 text-brand-secondary" />
             <h3 className="font-semibold text-lg text-white">{t('dataPrivacy')}</h3>
           </div>
           
@@ -177,16 +177,16 @@ const SettingsPage = () => {
         {/* Account Actions */}
         <div className="bg-gray-800 rounded-2xl p-6 mb-6">
           <div className="flex items-center space-x-2 mb-4">
-            <Zap className="w-5 h-5 text-indigo-400" />
+            <Zap className="w-5 h-5 text-brand-secondary" />
             <h3 className="font-semibold text-lg text-white">{t('accountActions')}</h3>
           </div>
-          
+
           <div className="space-y-3">
-            <button 
+            <button
               onClick={navigateToPayment}
-              className="w-full bg-blue-600 hover:bg-blue-700 rounded-lg px-4 py-3 text-white font-medium transition-colors flex items-center justify-center"
+              className="w-full bg-brand-secondary hover:bg-amber-600 rounded-lg px-4 py-3 text-white font-medium transition-colors flex items-center justify-center"
             >
-              <Crown className="mr-2 h-5 w-5" /> 
+              <Crown className="mr-2 h-5 w-5" />
               {t('subscribe')}
             </button>
             
