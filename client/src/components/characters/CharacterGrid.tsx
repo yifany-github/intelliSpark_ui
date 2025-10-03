@@ -114,17 +114,17 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     // Prefer explicit flag from backend
     if ((character.nsfwLevel || 0) > 0) return true;
 
-    // Fallback heuristic for legacy data with no nsfwLevel set
-    const nsfwKeywords = ['nsfw', 'adult', '成人', '性', '娇羞', '淫', '魅惑', '撩人', '敏感', '情色', '欲望', '肉体', '呻吟', '诱惑', '性感'];
-    const hasNsfwTrait = character.traits.some((trait: string) => 
+    // Fallback heuristic for legacy data with no nsfwLevel set (simplified to avoid false positives)
+    const nsfwKeywords = ['nsfw', '色情'];
+    const hasNsfwTrait = character.traits.some((trait: string) =>
       nsfwKeywords.some(keyword => trait.toLowerCase().includes(keyword.toLowerCase()))
     );
     const description = character.description || '';
-    const hasNsfwDescription = nsfwKeywords.some(keyword => 
+    const hasNsfwDescription = nsfwKeywords.some(keyword =>
       description.toLowerCase().includes(keyword.toLowerCase())
     );
     const backstory = character.backstory || '';
-    const hasNsfwBackstory = nsfwKeywords.some(keyword => 
+    const hasNsfwBackstory = nsfwKeywords.some(keyword =>
       backstory.toLowerCase().includes(keyword.toLowerCase())
     );
     return hasNsfwTrait || hasNsfwDescription || hasNsfwBackstory;
