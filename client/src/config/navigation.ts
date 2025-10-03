@@ -41,7 +41,7 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     requiresAuth: true,
     showInSidebar: true,
     showInTopNav: true,
-    showInMobileTab: true
+    showInMobileTab: false  // Removed from mobile tab
   },
   {
     id: 'favorites',
@@ -52,7 +52,7 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     showInSidebar: true,
     showInTopNav: false,
     showInMobileTab: false,
-    showInMoreMenu: true
+    showInMoreMenu: false  // Removed from more menu
   },
   {
     id: 'discover',

@@ -283,9 +283,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const { favorites, toggleFavorite, isFavorite } = useFavorites();
 
   const tabs = [
-    { key: 'Characters', label: t('characters') },
-    { key: 'Chats', label: t('chats') },
-    { key: 'Favorites', label: t('favorites') }
+    { key: 'Characters', label: t('characters') }
   ];
 
   // Ensure characters is an array

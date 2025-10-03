@@ -123,8 +123,8 @@ class CharacterService:
                     self.logger.info(f"Updated metadata (traits/descriptions/gender/category) for characters: {needs_update}")
             else:
                 self.logger.debug("Character file sync disabled via config - skipping file-based updates")
-            
-            return transform_character_list_to_response(characters)
+
+            return transform_character_list_to_response(characters, self.db)
         except Exception as e:
             self.logger.error(f"Error fetching characters: {e}")
             raise CharacterServiceError(f"Failed to fetch characters: {e}")
@@ -176,8 +176,8 @@ class CharacterService:
                     self.db.commit()
             else:
                 self.logger.debug("Character file sync disabled via config - skipping file-based updates for individual character")
-            
-            return transform_character_to_response(character)
+
+            return transform_character_to_response(character, self.db)
         except Exception as e:
             self.logger.error(f"Error fetching character {character_id}: {e}")
             raise CharacterServiceError(f"Failed to fetch character {character_id}: {e}")
@@ -521,7 +521,7 @@ class CharacterService:
                 Character.created_by == user_id,
                 Character.is_deleted == False
             ).all()
-            return transform_character_list_to_response(characters)
+            return transform_character_list_to_response(characters, self.db)
         except Exception as e:
             self.logger.error(f"Error fetching user characters for user {user_id}: {e}")
             raise CharacterServiceError(f"Failed to fetch user characters: {e}")

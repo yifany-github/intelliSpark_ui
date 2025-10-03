@@ -6,6 +6,7 @@ import { useNavigation } from "@/contexts/NavigationContext";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import GlobalLayout from "@/components/layout/GlobalLayout";
 import { fetchUserStats } from "@/services/tokenService";
+import ProfileEditModal from "@/components/profile/ProfileEditModal";
 import {
   Clock,
   Users,
@@ -14,7 +15,8 @@ import {
   User,
   Activity,
   Award,
-  MessageSquare
+  MessageSquare,
+  Edit
 } from "lucide-react";
 import {
   AlertDialog,
@@ -35,6 +37,7 @@ const ProfilePage = () => {
   const { user, logout, isAuthenticated } = useAuth();
   const { toast } = useToast();
   const { navigateToHome, navigateToPath } = useNavigation();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   // Fetch user statistics
   const { data: userStats, isLoading: statsLoading, error: statsError } = useQuery({
@@ -129,30 +132,71 @@ const ProfilePage = () => {
         </div>
         
         {/* User Info Section */}
-        <div className="bg-gray-800 rounded-2xl p-6 mb-6">
-          <div className="flex items-center">
-            <div className="bg-blue-600 p-4 rounded-full mr-4">
-              <User className="text-white h-8 w-8" />
+        <div className="bg-gray-800 rounded-2xl p-6 mb-6 relative">
+          <button
+            onClick={() => setIsEditModalOpen(true)}
+            className="absolute top-4 right-4 p-2 bg-pink-500/20 hover:bg-pink-500/30 border border-pink-500/50 rounded-lg transition-colors group"
+            title="Edit Profile"
+          >
+            <Edit className="w-4 h-4 text-pink-400 group-hover:text-pink-300" />
+          </button>
+
+          <div className="flex items-start gap-4">
+            <div className="relative flex-shrink-0">
+              {(user as any)?.avatar_url ? (
+                <ImageWithFallback
+                  src={(user as any).avatar_url}
+                  alt="Profile"
+                  className="w-20 h-20 rounded-full object-cover border-2 border-pink-500/50"
+                  fallbackClassName="w-20 h-20 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full flex items-center justify-center"
+                  fallbackContent={<User className="text-white h-10 w-10" />}
+                />
+              ) : (
+                <div className="w-20 h-20 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full flex items-center justify-center">
+                  <User className="text-white h-10 w-10" />
+                </div>
+              )}
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-green-500 border-2 border-gray-800 rounded-full flex items-center justify-center">
+                <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              </div>
             </div>
-            <div className="flex-1">
-              <h3 className="font-semibold text-xl text-white mb-1">
-                {(user?.email && typeof user.email === 'string') ? user.email.split('@')[0] : (user?.username || 'User')}
-              </h3>
-              <p className="text-sm text-gray-400">
+
+            <div className="flex-1 min-w-0 pt-1">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-semibold text-xl text-white truncate">
+                  {user?.username || ((user?.email && typeof user.email === 'string') ? user.email.split('@')[0] : 'User')}
+                </h3>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-500/20 text-green-400 text-xs font-medium rounded-full border border-green-500/30">
+                  <div className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+                  Active
+                </span>
+              </div>
+
+              <p className="text-sm text-gray-400 mb-2 truncate">
                 {user?.email || 'No email provided'}
               </p>
-              <p className="text-xs text-gray-500 mt-1">
-                Member since {formatDate(userStats?.member_since || user?.created_at)}
-              </p>
-            </div>
-            <div className="text-right">
-              <div className="flex items-center space-x-2 text-sm text-brand-secondary">
-                <Activity className="w-4 h-4" />
-                <span>Active</span>
+
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-500">
+                <div className="flex items-center gap-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Joined {formatDate(userStats?.member_since || user?.created_at)}</span>
+                </div>
+                {(user as any)?.age && (
+                  <div className="flex items-center gap-1">
+                    <User className="w-3.5 h-3.5" />
+                    <span>{(user as any).age} years old</span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
+
+        {/* Profile Edit Modal */}
+        <ProfileEditModal
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+        />
         
         {/* Token Management Section */}
         <div className="mb-6">

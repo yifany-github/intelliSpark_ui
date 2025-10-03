@@ -399,10 +399,18 @@ export default function TopNavigation({
                 <>
                   <button
                     onClick={() => setShowUserMenu((prev) => !prev)}
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-700/80 text-sm font-semibold text-slate-100 border-2 border-transparent transition hover:border-brand-secondary hover:bg-slate-700"
-                    title={user?.email || fallbackUserName}
+                    className="flex h-10 w-10 items-center justify-center rounded-full overflow-hidden bg-slate-700/80 text-sm font-semibold text-slate-100 border-2 border-transparent transition hover:border-brand-secondary hover:bg-slate-700"
+                    title={user?.username || user?.email || fallbackUserName}
                   >
-                    {user?.email?.[0]?.toUpperCase() || 'U'}
+                    {(user as any)?.avatar_url ? (
+                      <img
+                        src={(user as any).avatar_url}
+                        alt="Avatar"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span>{user?.username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}</span>
+                    )}
                   </button>
 
                   {showUserMenu && (

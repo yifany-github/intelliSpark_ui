@@ -70,24 +70,32 @@ export default function GlobalSidebar() {
         {/* User Profile */}
         <div className={`flex items-center mb-6 ${isCollapsed ? 'justify-center' : 'space-x-3'}`}>
           <div
-            className="w-10 h-10 bg-slate-800/70 rounded-full flex items-center justify-center hover:bg-slate-700 transition-colors cursor-pointer"
+            className="w-10 h-10 bg-slate-800/70 rounded-full flex items-center justify-center overflow-hidden hover:bg-slate-700 transition-colors cursor-pointer"
             onClick={navigateToHome}
-            title={isCollapsed ? (isAuthenticated ? ((user?.email && typeof user.email === 'string') ? user.email.split('@')[0] : t('user')) : t('guest')) : undefined}
+            title={isCollapsed ? (isAuthenticated ? (user?.username || ((user?.email && typeof user.email === 'string') ? user.email.split('@')[0] : t('user'))) : t('guest')) : undefined}
           >
-            <span className="text-sm text-white font-medium">
-              {isAuthenticated ? (user?.email?.[0]?.toUpperCase() || 'U') : 'G'}
-            </span>
+            {isAuthenticated && (user as any)?.avatar_url ? (
+              <img
+                src={(user as any).avatar_url}
+                alt="Avatar"
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-sm text-white font-medium">
+                {isAuthenticated ? (user?.username?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U') : 'G'}
+              </span>
+            )}
           </div>
           {!isCollapsed && (
             <div>
               <div className="font-medium text-white">
-                {isAuthenticated ? ((user?.email && typeof user.email === 'string') ? user.email.split('@')[0] : t('user')) : t('guest')}
+                {isAuthenticated ? (user?.username || ((user?.email && typeof user.email === 'string') ? user.email.split('@')[0] : t('user'))) : t('guest')}
               </div>
               <div className="text-sm text-brand-secondary flex items-center">
                 <span className="w-2 h-2 bg-brand-secondary rounded-full mr-2"></span>
                 {isAuthenticated ? (
-                  tokenLoading ? t('loading') : 
-                  tokenError ? t('errorLoading') : 
+                  tokenLoading ? t('loading') :
+                  tokenError ? t('errorLoading') :
                   `${tokenBalance?.balance ?? '?'} ${t('tokens')}`
                 ) : t('notLoggedIn')}
               </div>
