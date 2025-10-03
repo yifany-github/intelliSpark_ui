@@ -112,7 +112,8 @@ const getCharacterRating = (character: Character): number => {
 const isCharacterNSFW = (character: Character): boolean => {
   if ((character.nsfwLevel || 0) > 0) return true;
 
-  const nsfwKeywords = ['nsfw', 'adult', '色情', '情欲', '性感', '敏感', '情色', '欲望'];
+  // Fallback heuristic for legacy data (simplified to avoid false positives)
+  const nsfwKeywords = ['nsfw', '色情'];
   const traits = character.traits || [];
   const description = `${character.description || ''} ${character.backstory || ''}`.toLowerCase();
 
