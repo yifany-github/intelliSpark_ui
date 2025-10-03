@@ -242,12 +242,27 @@ class UserTokenBalance(BaseSchema):
 class TokenPurchaseRequest(BaseSchema):
     amount: int = Field(..., description="Number of tokens to purchase")
     tier: str = Field(..., description="Pricing tier (starter, standard, premium)")
+    payment_method: str = Field(default="card", description="Stripe payment method type: card, wechat_pay, alipay")
+    return_url: Optional[str] = Field(default=None, description="Optional return URL for redirect-based payments like Alipay")
+    save_payment_method: Optional[bool] = Field(default=True, description="Save payment method for future use (card only)")
+
+
+class SavedPaymentMethod(BaseSchema):
+    id: str
+    brand: str
+    last4: str
+    exp_month: int
+    exp_year: int
+    is_default: bool = False
 
 class TokenPurchaseResponse(BaseSchema):
     client_secret: str
     payment_intent_id: str
     amount: int
     tokens: int
+    currency: str
+    payment_method: str
+    next_action: Optional[Dict[str, Any]] = None
 
 class TokenTransaction(BaseSchema):
     id: int
@@ -256,7 +271,51 @@ class TokenTransaction(BaseSchema):
     amount: int
     description: Optional[str] = None
     stripe_payment_intent_id: Optional[str] = None
+    expires_at: Optional[datetime] = None
     created_at: datetime
+
+
+# Subscription schemas
+class SubscriptionPlan(BaseSchema):
+    name: str
+    monthly_tokens: int
+    price: int
+    price_cny: Optional[int] = None
+    fx_rate: Optional[float] = None
+    description: str
+    stripe_price_id: Optional[str] = None
+
+
+class CreateSubscriptionRequest(BaseSchema):
+    tier: str = Field(..., description="Subscription tier: basic, pro, premium")
+    price_id: str = Field(..., description="Stripe Price ID for the subscription")
+
+
+class CreateSubscriptionResponse(BaseSchema):
+    client_secret: Optional[str] = None
+    subscription_id: str
+    status: str
+
+
+class SubscriptionInfo(BaseSchema):
+    id: int
+    plan_tier: str
+    status: str
+    monthly_token_allowance: int
+    tokens_allocated_this_period: int
+    current_period_start: datetime
+    current_period_end: datetime
+    cancel_at_period_end: bool
+
+
+class UserSubscriptionResponse(BaseSchema):
+    has_subscription: bool
+    subscription: Optional[SubscriptionInfo] = None
+
+
+class CancelSubscriptionRequest(BaseSchema):
+    cancel_immediately: bool = Field(default=False, description="Cancel immediately vs at period end")
+
 
 # Notification schemas
 class NotificationBase(BaseSchema):

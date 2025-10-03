@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Toggle } from "@/components/ui/toggle";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { toast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -49,10 +50,15 @@ import {
   Bell,
   Send,
   AlertTriangle,
-  Loader2
+  Loader2,
+  X
 } from "lucide-react";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const ADMIN_USERNAME = import.meta.env.VITE_ADMIN_USERNAME || "admin";
+const ADMIN_ACCESS_TOKEN_KEY = "adminAccessToken";
+const ADMIN_REFRESH_TOKEN_KEY = "adminRefreshToken";
+const ADMIN_TOKEN_EXPIRY_KEY = "adminAccessTokenExpiresAt";
 
 interface AdminStats {
   totals: {
@@ -104,18 +110,86 @@ interface Character {
   createdBy?: number | null;
 }
 
-interface User {
+interface AdminUser {
   id: number;
   username: string;
+  email: string | null;
+  provider: string | null;
   memory_enabled: boolean;
+  email_verified: boolean;
   created_at: string;
+  last_login_at?: string | null;
+  last_login_ip?: string | null;
+  token_balance: number;
   total_chats: number;
+  is_suspended: boolean;
+  suspended_at?: string | null;
+  suspension_reason?: string | null;
 }
+
+interface AdminUsersResponse {
+  data: AdminUser[];
+  meta: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
+}
+
+interface AdminUserDetail extends AdminUser {
+  recent_chats: Array<{
+    id: number;
+    uuid?: string | null;
+    title: string;
+    character_id: number;
+    character_name?: string | null;
+    created_at: string;
+    updated_at: string;
+  }>;
+  recent_token_transactions: Array<{
+    id: number;
+    transaction_type: string;
+    amount: number;
+    description?: string | null;
+    created_at: string;
+  }>;
+  unread_notifications: number;
+}
+
+interface AdminChatDetail {
+  chat: {
+    id: number;
+    uuid?: string | null;
+    title: string;
+    character_id: number;
+    character_name?: string | null;
+    created_at: string;
+    updated_at: string;
+  };
+  character?: {
+    id: number;
+    name: string;
+  } | null;
+  messages: Array<{
+    id: number;
+    role: string;
+    content: string;
+    timestamp?: string | null;
+  }>;
+}
+
+type AdminTokenResponse = {
+  access_token: string;
+  refresh_token: string;
+  expires_in: number;
+  token_type?: string;
+};
 
 const AdminPage = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loginPassword, setLoginPassword] = useState("");
   const [authToken, setAuthToken] = useState<string | null>(null);
+  const [refreshToken, setRefreshToken] = useState<string | null>(null);
   const [editingCharacter, setEditingCharacter] = useState<Character | null>(null);
   const [showCharacterDialog, setShowCharacterDialog] = useState(false);
   const [editingAnalytics, setEditingAnalytics] = useState<Character | null>(null);
@@ -137,68 +211,263 @@ const AdminPage = () => {
   const [promptPreviewData, setPromptPreviewData] = useState<any>(null);
   const [isCreatingCharacter, setIsCreatingCharacter] = useState(false);
   const [showDeleted, setShowDeleted] = useState(false);
+  const [isSuspendDialogOpen, setIsSuspendDialogOpen] = useState(false);
+  const [suspendTargetUser, setSuspendTargetUser] = useState<AdminUser | null>(null);
+  const [suspendReason, setSuspendReason] = useState("");
+  const [isTokenDialogOpen, setIsTokenDialogOpen] = useState(false);
+  const [tokenTargetUser, setTokenTargetUser] = useState<AdminUser | null>(null);
+  const [tokenAmount, setTokenAmount] = useState<string>("");
+  const [tokenAdjustmentType, setTokenAdjustmentType] = useState<"credit" | "debit">("credit");
+  const [tokenReason, setTokenReason] = useState("");
+  const [isUserDetailDialogOpen, setIsUserDetailDialogOpen] = useState(false);
+  const [selectedUserIdForDetail, setSelectedUserIdForDetail] = useState<number | null>(null);
+  const [selectedUserDetail, setSelectedUserDetail] = useState<AdminUserDetail | null>(null);
+  const [isUserDetailLoading, setIsUserDetailLoading] = useState(false);
+  const [isChatPreviewDialogOpen, setIsChatPreviewDialogOpen] = useState(false);
+  const [chatPreview, setChatPreview] = useState<AdminChatDetail | null>(null);
+  const [isChatPreviewLoading, setIsChatPreviewLoading] = useState(false);
+
+  const USER_PAGE_SIZE = 20;
+  const [userSearchTerm, setUserSearchTerm] = useState("");
+  const [userStatusFilter, setUserStatusFilter] = useState<"all" | "active" | "suspended">("all");
+  const [userProviderFilter, setUserProviderFilter] = useState<string>("all");
+  const [userPage, setUserPage] = useState(0);
 
   const queryClient = useQueryClient();
+  const refreshTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearScheduledRefresh = () => {
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
+    }
+  };
+
+  function handleLogout(showToast = true) {
+    clearScheduledRefresh();
+    setIsAuthenticated(false);
+    setAuthToken(null);
+    setRefreshToken(null);
+    setShowCharacterDialog(false);
+    setEditingCharacter(null);
+    setEditingAnalytics(null);
+    localStorage.removeItem(ADMIN_ACCESS_TOKEN_KEY);
+    localStorage.removeItem(ADMIN_REFRESH_TOKEN_KEY);
+    localStorage.removeItem(ADMIN_TOKEN_EXPIRY_KEY);
+    localStorage.removeItem("adminToken"); // Legacy key cleanup
+    if (showToast) {
+      toast({ 
+        title: "Logged out", 
+        description: "You have been logged out successfully",
+        className: "bg-blue-600 text-white border-blue-500"
+      });
+    }
+  }
+
+  function scheduleTokenRefresh(expiresInSeconds: number, tokenForRefresh: string) {
+    if (!expiresInSeconds || !tokenForRefresh) return;
+    clearScheduledRefresh();
+    const refreshDelay = Math.max((expiresInSeconds - 60) * 1000, 5000);
+    refreshTimeoutRef.current = setTimeout(() => {
+      refreshAdminToken(tokenForRefresh, true);
+    }, refreshDelay);
+  }
+
+  function applyTokenResponse(tokenData: AdminTokenResponse) {
+    setAuthToken(tokenData.access_token);
+    setRefreshToken(tokenData.refresh_token);
+    setIsAuthenticated(true);
+
+    localStorage.setItem(ADMIN_ACCESS_TOKEN_KEY, tokenData.access_token);
+    localStorage.setItem(ADMIN_REFRESH_TOKEN_KEY, tokenData.refresh_token);
+    const expiresAt = Date.now() + tokenData.expires_in * 1000;
+    localStorage.setItem(ADMIN_TOKEN_EXPIRY_KEY, expiresAt.toString());
+
+    scheduleTokenRefresh(tokenData.expires_in, tokenData.refresh_token);
+  }
+
+  async function refreshAdminToken(providedRefreshToken?: string | null, silent = false) {
+    const tokenToUse = providedRefreshToken || refreshToken;
+    if (!tokenToUse) {
+      toast({
+        title: "Admin session expired",
+        description: "Please log in again.",
+        variant: "destructive",
+      });
+      handleLogout(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/admin/refresh`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ refresh_token: tokenToUse }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Refresh failed with status ${response.status}`);
+      }
+
+      const tokenData: AdminTokenResponse = await response.json();
+      applyTokenResponse(tokenData);
+      return tokenData;
+    } catch (error) {
+      console.error("Failed to refresh admin token:", error);
+      toast({
+        title: "Admin session expired",
+        description: "Please log in again.",
+        variant: "destructive",
+      });
+      handleLogout(false);
+    }
+  }
+
+  async function verifyAdminToken(access: string, refreshForFallback: string | null) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/admin/verify`, {
+        headers: {
+          Authorization: `Bearer ${access}`,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`Verification failed with status ${response.status}`);
+      }
+    } catch (error) {
+      console.warn("Admin token verification failed, attempting refresh", error);
+      if (refreshForFallback) {
+        await refreshAdminToken(refreshForFallback, true);
+      } else {
+        handleLogout(false);
+      }
+    }
+  }
 
   useEffect(() => {
-    const token = localStorage.getItem("adminToken");
-    if (token) {
-      setAuthToken(token);
+    const storedAccess = localStorage.getItem(ADMIN_ACCESS_TOKEN_KEY);
+    const storedRefresh = localStorage.getItem(ADMIN_REFRESH_TOKEN_KEY);
+    const storedExpiry = localStorage.getItem(ADMIN_TOKEN_EXPIRY_KEY);
+
+    if (storedAccess && storedRefresh) {
+      setAuthToken(storedAccess);
+      setRefreshToken(storedRefresh);
       setIsAuthenticated(true);
+
+      const expiresAt = storedExpiry ? parseInt(storedExpiry, 10) : NaN;
+      if (!Number.isNaN(expiresAt)) {
+        const msRemaining = expiresAt - Date.now();
+        if (msRemaining <= 60_000) {
+          refreshAdminToken(storedRefresh, true);
+        } else {
+          scheduleTokenRefresh(Math.floor(msRemaining / 1000), storedRefresh);
+        }
+      }
+
+      verifyAdminToken(storedAccess, storedRefresh);
+    } else {
+      // Remove legacy admin token if present to avoid confusion
+      if (localStorage.getItem("adminToken")) {
+        localStorage.removeItem("adminToken");
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const authHeaders = {
-    Authorization: `Bearer ${authToken}`,
-  };
+  useEffect(() => {
+    return () => {
+      clearScheduledRefresh();
+    };
+  }, []);
+
+  const authHeaders = useMemo(() => (
+    authToken ? { Authorization: `Bearer ${authToken}` } : {}
+  ), [authToken]);
 
   const loginMutation = useMutation({
     mutationFn: async (password: string) => {
-      const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/admin/login-jwt`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ username: ADMIN_USERNAME, password }),
       });
       if (!response.ok) {
-        throw new Error("Invalid password");
+        const errorText = await response.text();
+        throw new Error(errorText || "Invalid credentials");
       }
-      return response.json();
+      const data = await response.json();
+      return data as AdminTokenResponse & { admin_user?: Record<string, unknown> };
     },
     onSuccess: (data) => {
-      setAuthToken(data.access_token);
-      setIsAuthenticated(true);
-      localStorage.setItem("adminToken", data.access_token);
+      applyTokenResponse(data);
+      setLoginPassword("");
       toast({ 
         title: "✅ Login successful", 
         description: "Welcome to ProductInsightAI Admin Panel",
         className: "bg-green-600 text-white border-green-500"
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error("Admin login failed", error);
       toast({
         title: "❌ Login failed",
-        description: "Invalid password. Please try again.",
+        description: error?.message || "Invalid password. Please try again.",
         variant: "destructive",
       });
     },
   });
 
   const handleLogin = () => {
-    if (loginPassword) {
+    if (loginPassword && !loginMutation.isPending) {
       loginMutation.mutate(loginPassword);
     }
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setAuthToken(null);
-    localStorage.removeItem("adminToken");
-    toast({ 
-      title: "Logged out", 
-      description: "You have been logged out successfully",
-      className: "bg-blue-600 text-white border-blue-500"
-    });
-  };
+  useEffect(() => {
+    setUserPage(0);
+  }, [userSearchTerm, userStatusFilter, userProviderFilter]);
+
+  useEffect(() => {
+    if (!isUserDetailDialogOpen || selectedUserIdForDetail === null) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    const loadUserDetail = async () => {
+      setIsUserDetailLoading(true);
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/admin/users/${selectedUserIdForDetail}`, {
+          headers: authHeaders,
+          signal: controller.signal
+        });
+        if (!response.ok) {
+          throw new Error("Failed to fetch user detail");
+        }
+        const detail = await response.json();
+        setSelectedUserDetail(detail);
+      } catch (error: any) {
+        if (error?.name !== "AbortError") {
+          console.error("Failed to load user detail", error);
+          toast({
+            title: "Unable to load user details",
+            description: error?.message || 'Please try again later.',
+            variant: "destructive",
+          });
+        }
+      } finally {
+        setIsUserDetailLoading(false);
+      }
+    };
+
+    loadUserDetail();
+
+    return () => {
+      controller.abort();
+    };
+  }, [isUserDetailDialogOpen, selectedUserIdForDetail, authHeaders]);
 
   const { data: stats, refetch: refetchStats } = useQuery<AdminStats>({
     queryKey: ["admin-stats"],
@@ -226,17 +495,49 @@ const AdminPage = () => {
     enabled: isAuthenticated,
   });
 
-  const { data: users = [], refetch: refetchUsers } = useQuery<User[]>({
-    queryKey: ["admin-users"],
+  const { data: usersResponse, refetch: refetchUsers, isFetching: isFetchingUsers } = useQuery<AdminUsersResponse>({
+    queryKey: [
+      "admin-users",
+      userSearchTerm,
+      userStatusFilter,
+      userProviderFilter,
+      userPage,
+      authToken
+    ],
     queryFn: async () => {
-      const response = await fetch(`${API_BASE_URL}/api/admin/users`, {
+      const params = new URLSearchParams({
+        limit: USER_PAGE_SIZE.toString(),
+        offset: (userPage * USER_PAGE_SIZE).toString(),
+      });
+
+      if (userSearchTerm.trim().length > 0) {
+        params.append("search", userSearchTerm.trim());
+      }
+
+      if (userStatusFilter !== "all") {
+        params.append("status", userStatusFilter);
+      }
+
+      if (userProviderFilter !== "all") {
+        params.append("provider", userProviderFilter);
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/admin/users?${params.toString()}`, {
         headers: authHeaders,
       });
       if (!response.ok) throw new Error("Failed to fetch users");
       return response.json();
     },
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && !!authToken,
+    keepPreviousData: true,
   });
+
+  const users = usersResponse?.data ?? [];
+  const usersMeta = usersResponse?.meta;
+  const totalUsers = usersMeta?.total ?? 0;
+  const totalUserPages = Math.max(1, Math.ceil(totalUsers / USER_PAGE_SIZE));
+  const userRangeStart = totalUsers === 0 ? 0 : userPage * USER_PAGE_SIZE + 1;
+  const userRangeEnd = totalUsers === 0 ? 0 : Math.min(totalUsers, (userPage + 1) * USER_PAGE_SIZE);
 
 
 
@@ -359,6 +660,196 @@ const AdminPage = () => {
     },
   });
 
+  const suspendUserMutation = useMutation({
+    mutationFn: async ({ userId, reason }: { userId: number; reason?: string }) => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/suspend`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify({ reason }),
+      });
+      if (!response.ok) throw new Error("Failed to suspend user");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast({ 
+        title: "User suspended",
+        description: data?.message || "The user can no longer log in.",
+        className: "bg-red-600 text-white border-red-500"
+      });
+      setSuspendTargetUser(null);
+      setIsSuspendDialogOpen(false);
+      setSuspendReason("");
+      if (selectedUserDetail && data?.user?.id === selectedUserDetail.id) {
+        setSelectedUserDetail(prev => prev ? { ...prev, ...data.user } : prev);
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to suspend user",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const unsuspendUserMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/unsuspend`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+      });
+      if (!response.ok) throw new Error("Failed to unsuspend user");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast({ 
+        title: "User unsuspended",
+        description: data?.message || "The user can now log in.",
+        className: "border-green-200 bg-green-50"
+      });
+      if (selectedUserDetail && data?.user?.id === selectedUserDetail.id) {
+        setSelectedUserDetail(prev => prev ? { ...prev, ...data.user } : prev);
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to unsuspend user",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const adjustTokensMutation = useMutation({
+    mutationFn: async ({ userId, amount, reason }: { userId: number; amount: number; reason?: string }) => {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${userId}/tokens`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders,
+        },
+        body: JSON.stringify({ amount, reason }),
+      });
+      if (!response.ok) throw new Error(await response.text() || "Failed to adjust tokens");
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      toast({ 
+        title: "Token balance updated",
+        description: data?.message || "Token balance adjusted successfully.",
+        className: "border-blue-200 bg-blue-50"
+      });
+      if (tokenTargetUser && data?.user?.id === tokenTargetUser.id) {
+        setTokenTargetUser(prev => prev ? { ...prev, ...data.user } : prev);
+      }
+      setTokenTargetUser(null);
+      setTokenAmount("");
+      setTokenAdjustmentType("credit");
+      setTokenReason("");
+      setIsTokenDialogOpen(false);
+      if (selectedUserDetail && data?.user?.id === selectedUserDetail.id) {
+        setSelectedUserDetail(prev => prev ? { ...prev, ...data.user } : prev);
+      }
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Failed to update tokens",
+        description: error?.message || "Please try again.",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const openSuspendDialog = (user: AdminUser) => {
+    setSuspendTargetUser(user);
+    setSuspendReason(user.suspension_reason || "");
+    setIsSuspendDialogOpen(true);
+  };
+
+  const handleSuspendSubmit = () => {
+    if (!suspendTargetUser) return;
+    suspendUserMutation.mutate({
+      userId: suspendTargetUser.id,
+      reason: suspendReason.trim() || undefined,
+    });
+  };
+
+  const openTokenDialog = (user: AdminUser) => {
+    setTokenTargetUser(user);
+    setTokenAmount("");
+    setTokenAdjustmentType("credit");
+    setTokenReason("");
+    setIsTokenDialogOpen(true);
+  };
+
+  const handleTokenAdjustSubmit = () => {
+    if (!tokenTargetUser) return;
+    const parsedAmount = Number(tokenAmount);
+    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      toast({
+        title: "Enter a valid amount",
+        description: "Amount must be a positive number.",
+        variant: "destructive",
+      });
+      return;
+    }
+    adjustTokensMutation.mutate({
+      userId: tokenTargetUser.id,
+      amount: tokenAdjustmentType === "credit" ? parsedAmount : -parsedAmount,
+      reason: tokenReason.trim() || undefined,
+    });
+  };
+
+  const handleViewUserDetail = (userId: number) => {
+    setSelectedUserIdForDetail(userId);
+    setSelectedUserDetail(null);
+    setIsUserDetailDialogOpen(true);
+  };
+
+  const openChatPreview = async (chat: {
+    id: number;
+    uuid?: string | null;
+    title: string;
+    character_id: number;
+    character_name?: string | null;
+  }) => {
+    if (!selectedUserDetail) return;
+
+    setChatPreview(null);
+    setIsChatPreviewLoading(true);
+    setIsChatPreviewDialogOpen(true);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/users/${selectedUserDetail.id}/chats/${chat.id}`, {
+        headers: authHeaders,
+      });
+      if (!response.ok) {
+        throw new Error(await response.text() || "Failed to load chat");
+      }
+      const detail: AdminChatDetail = await response.json();
+      setChatPreview(detail);
+    } catch (error: any) {
+      setChatPreview(null);
+      toast({
+        title: "Unable to load chat history",
+        description: error?.message || "Please try again later.",
+        variant: "destructive",
+      });
+      setIsChatPreviewDialogOpen(false);
+    } finally {
+      setIsChatPreviewLoading(false);
+    }
+  };
+
   const filteredCharacters = characters.filter(character => {
     // 文本搜索
     const matchesSearch = character.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -373,10 +864,6 @@ const AdminPage = () => {
       return matchesSearch && character.categories && character.categories.includes(categoryFilter);
     }
   });
-
-  const filteredUsers = users.filter(user =>
-    user.username.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   // Notification mutations
   const sendNotificationMutation = useMutation({
@@ -1202,69 +1689,250 @@ const AdminPage = () => {
           </TabsContent>
 
           <TabsContent value="users" className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-2xl font-bold text-slate-900">User Management</h2>
-                <p className="text-slate-600">Monitor user activity and preferences</p>
+                <p className="text-slate-600">Monitor accounts, balances, and access controls</p>
               </div>
-              <div className="relative">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-                <Input
-                  placeholder="Search users..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 w-64 bg-white border-slate-300 text-slate-900"
-                />
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant="outline"
+                  className="border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  onClick={() => refetchUsers()}
+                  disabled={isFetchingUsers}
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${isFetchingUsers ? 'animate-spin' : ''}`} />
+                  Refresh
+                </Button>
+                <Button
+                  variant="outline"
+                  className="border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                  onClick={() => {
+                    setNotificationForm({
+                      title: "",
+                      content: "",
+                      type: "admin",
+                      priority: "normal",
+                      target: "all",
+                      userIds: [],
+                    });
+                    setShowNotificationDialog(true);
+                  }}
+                >
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Notification
+                </Button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredUsers.map((user) => (
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="relative w-full lg:max-w-xs">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <Input
+                  placeholder="Search by username or email..."
+                  value={userSearchTerm}
+                  onChange={(e) => setUserSearchTerm(e.target.value)}
+                  className="pl-10 bg-white border-slate-300 text-slate-900"
+                />
+              </div>
+              <div className="flex flex-col gap-3 w-full lg:flex-row lg:w-auto">
+                <Select value={userStatusFilter} onValueChange={(value) => setUserStatusFilter(value as "all" | "active" | "suspended")}>
+                  <SelectTrigger className="bg-white border-slate-300 text-slate-900 w-full lg:w-40">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={userProviderFilter} onValueChange={setUserProviderFilter}>
+                  <SelectTrigger className="bg-white border-slate-300 text-slate-900 w-full lg:w-40">
+                    <SelectValue placeholder="Provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All providers</SelectItem>
+                    <SelectItem value="email">Email</SelectItem>
+                    <SelectItem value="google">Google</SelectItem>
+                    <SelectItem value="apple">Apple</SelectItem>
+                    <SelectItem value="firebase">Firebase</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {isFetchingUsers && users.length === 0 && (
+                <Card className="shadow-sm border-slate-200">
+                  <CardContent className="flex items-center justify-center h-40">
+                    <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+                  </CardContent>
+                </Card>
+              )}
+
+              {!isFetchingUsers && users.length === 0 && (
+                <Card className="shadow-sm border-slate-200">
+                  <CardContent className="flex flex-col items-center justify-center h-40 text-center text-slate-500">
+                    <Users className="w-10 h-10 mb-3 text-slate-300" />
+                    {userSearchTerm || userStatusFilter !== "all" || userProviderFilter !== "all"
+                      ? "No users match your current filters."
+                      : "No users found."}
+                  </CardContent>
+                </Card>
+              )}
+
+              {users.map((user) => (
                 <Card key={user.id} className="shadow-sm border-slate-200 hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="text-lg text-slate-900">{user.username}</CardTitle>
-                      <Badge variant="outline" className="bg-slate-100 text-slate-700 border-slate-300">ID: {user.id}</Badge>
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-lg text-slate-900">{user.username}</CardTitle>
+                        <p className="text-xs text-slate-500">User ID: {user.id}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${user.is_suspended ? "bg-red-50 text-red-600 border-red-300" : "bg-emerald-50 text-emerald-600 border-emerald-300"}`}
+                        >
+                          {user.is_suspended ? "Suspended" : "Active"}
+                        </Badge>
+                        <Badge
+                          variant="outline"
+                          className={`text-xs ${user.email_verified ? "bg-green-100 text-green-700 border-green-300" : "bg-amber-50 text-amber-700 border-amber-300"}`}
+                        >
+                          {user.email_verified ? "Verified" : "Unverified"}
+                        </Badge>
+                      </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Total Chats:</span>
-                        <Badge variant="outline" className="bg-blue-50 text-blue-700">
-                          {user.total_chats}
-                        </Badge>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2 text-sm text-slate-700">
+                      <div>
+                        <span className="font-medium text-slate-600">Email:</span> {user.email || "—"}
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Memory:</span>
-                        <Badge variant="outline" className={user.memory_enabled ? "bg-green-100 text-green-700 border-green-300" : "bg-gray-100 text-gray-700 border-gray-300"}>
-                          {user.memory_enabled ? "Enabled" : "Disabled"}
-                        </Badge>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-slate-600">Provider:</span>
+                        {user.provider ? (
+                          <Badge variant="outline" className="text-xs capitalize bg-slate-100 text-slate-700 border-slate-300">{user.provider}</Badge>
+                        ) : (
+                          <span>email</span>
+                        )}
                       </div>
-                      <Separator />
-                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-gray-600">Joined:</span>
-                        <span className="text-sm text-gray-700">
-                          {new Date(user.created_at).toLocaleDateString()}
-                        </span>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <button
+                          type="button"
+                          onClick={() => openTokenDialog(user)}
+                          className="bg-slate-50 border border-slate-200 rounded-md p-2 text-left transition hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                          title="Adjust token balance"
+                        >
+                          <div className="flex items-center justify-between text-xs text-slate-500">
+                            <span>Tokens</span>
+                            <span className="flex items-center gap-1 text-blue-500 font-medium">
+                              <DollarSign className="w-3 h-3" />
+                              Adjust
+                            </span>
+                          </div>
+                          <div className="mt-1 text-lg font-semibold text-slate-900">{user.token_balance}</div>
+                        </button>
+                        <div className="bg-slate-50 border border-slate-200 rounded-md p-2">
+                          <div className="text-xs text-slate-500">Chats</div>
+                          <div className="text-lg font-semibold text-slate-900">{user.total_chats}</div>
+                        </div>
                       </div>
+                      <div>
+                        <div className="font-medium text-slate-600 text-xs uppercase tracking-wide mb-1">Last login</div>
+                        <div>{user.last_login_at ? new Date(user.last_login_at).toLocaleString() : "Never"}</div>
+                        {user.last_login_ip && (
+                          <div className="text-xs text-slate-500">IP: {user.last_login_ip}</div>
+                        )}
+                      </div>
+                      {user.is_suspended && user.suspension_reason && (
+                        <div className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md p-2">
+                          <span className="font-semibold">Reason: </span>{user.suspension_reason}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-slate-300 text-slate-700 bg-white hover:bg-slate-100"
+                        onClick={() => handleViewUserDetail(user.id)}
+                      >
+                        <Eye className="w-4 h-4 mr-1" /> View details
+                      </Button>
+                      {user.is_suspended ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-50"
+                          onClick={() => unsuspendUserMutation.mutate(user.id)}
+                          disabled={unsuspendUserMutation.isPending}
+                        >
+                          {unsuspendUserMutation.isPending ? (
+                            <div className="flex items-center gap-1">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Restoring
+                            </div>
+                          ) : (
+                            "Restore access"
+                          )}
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="border-red-300 text-red-600 bg-white hover:bg-red-50"
+                          onClick={() => openSuspendDialog(user)}
+                          disabled={suspendUserMutation.isPending && suspendTargetUser?.id === user.id}
+                        >
+                          {suspendUserMutation.isPending && suspendTargetUser?.id === user.id ? (
+                            <div className="flex items-center gap-1">
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Suspending...
+                            </div>
+                          ) : (
+                            <><Lock className="w-4 h-4 mr-1" /> Suspend</>
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
-            
-            {filteredUsers.length === 0 && (
-              <Card className="shadow-sm border-slate-200">
-                <CardContent className="flex flex-col items-center justify-center py-16">
-                  <Globe className="w-16 h-16 text-slate-300 mb-4" />
-                  <h3 className="text-lg font-semibold text-slate-700 mb-2">No users found</h3>
-                  <p className="text-gray-500 text-center">
-                    {searchTerm ? "No users match your search criteria." : "No users have registered yet."}
-                  </p>
-                </CardContent>
-              </Card>
-            )}
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm text-slate-600">
+                {totalUsers > 0
+                  ? `Showing ${userRangeStart}–${userRangeEnd} of ${totalUsers} users`
+                  : "No users to display"}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-300 text-slate-700 bg-white hover:bg-slate-50"
+                  onClick={() => setUserPage((prev) => Math.max(prev - 1, 0))}
+                  disabled={userPage === 0 || isFetchingUsers}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-slate-600">
+                  Page {totalUsers === 0 ? 0 : userPage + 1} of {totalUsers === 0 ? 0 : totalUserPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-slate-300 text-slate-700 bg-white hover:bg-slate-50"
+                  onClick={() => setUserPage((prev) => Math.min(prev + 1, totalUserPages - 1))}
+                  disabled={totalUsers === 0 || userPage >= totalUserPages - 1 || isFetchingUsers}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
           </TabsContent>
 
           <TabsContent value="analytics" className="space-y-6">
@@ -1453,7 +2121,7 @@ const AdminPage = () => {
                   <Users className="w-4 h-4 text-slate-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-slate-900">{users.length}</div>
+                  <div className="text-2xl font-bold text-slate-900">{totalUsers}</div>
                   <p className="text-xs text-slate-600">Users who can receive notifications</p>
                 </CardContent>
               </Card>
@@ -1639,6 +2307,351 @@ const AdminPage = () => {
               </Card>
             </div>
           </TabsContent>
+
+          <Dialog
+            open={isSuspendDialogOpen}
+            onOpenChange={(open) => {
+              setIsSuspendDialogOpen(open);
+              if (!open) {
+                setSuspendTargetUser(null);
+                setSuspendReason("");
+              }
+            }}
+          >
+            <DialogContent className="max-w-md bg-white">
+              <DialogHeader className="bg-white">
+                <DialogTitle className="text-xl text-slate-900">
+                  Suspend {suspendTargetUser?.username ?? "user"}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <p className="text-sm text-slate-600">
+                  Suspended users cannot log in until you restore their account. Provide an optional reason for the audit log.
+                </p>
+                <div className="space-y-2">
+                  <Label htmlFor="suspendReason" className="text-sm font-medium text-slate-900">Reason (optional)</Label>
+                  <Textarea
+                    id="suspendReason"
+                    value={suspendReason}
+                    onChange={(e) => setSuspendReason(e.target.value)}
+                    placeholder="Explain why this account is being suspended..."
+                    className="bg-white border-slate-300 text-slate-900"
+                    rows={4}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-slate-300 text-slate-700 bg-white hover:bg-slate-50"
+                    onClick={() => {
+                      setIsSuspendDialogOpen(false);
+                      setSuspendTargetUser(null);
+                      setSuspendReason("");
+                    }}
+                    disabled={suspendUserMutation.isPending}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    className="bg-red-600 hover:bg-red-700 text-white"
+                    onClick={handleSuspendSubmit}
+                    disabled={suspendUserMutation.isPending || !suspendTargetUser}
+                  >
+                    {suspendUserMutation.isPending ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Suspending...
+                      </div>
+                    ) : (
+                      "Confirm suspend"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={isTokenDialogOpen}
+            onOpenChange={(open) => {
+              setIsTokenDialogOpen(open);
+              if (!open) {
+                setTokenTargetUser(null);
+                setTokenAmount(0);
+                setTokenReason("");
+              }
+            }}
+          >
+            <DialogContent className="max-w-md bg-white">
+              <DialogHeader className="bg-white">
+                <DialogTitle className="text-xl text-slate-900">
+                  Adjust tokens for {tokenTargetUser?.username ?? "user"}
+                </DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-2">
+                <div className="p-3 rounded-md bg-slate-50 border border-slate-200 text-sm text-slate-700">
+                  Current balance: <span className="font-semibold text-slate-900">{tokenTargetUser?.token_balance ?? 0}</span> tokens
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tokenAmount" className="text-sm font-medium text-slate-900">Amount</Label>
+                  <Input
+                    id="tokenAmount"
+                    type="number"
+                    min="0"
+                    value={tokenAmount}
+                    onChange={(e) => setTokenAmount(e.target.value)}
+                    placeholder="Enter number of tokens"
+                    className="bg-white border-slate-300 text-slate-900"
+                  />
+                  <p className="text-xs text-slate-500">Choose whether to add or deduct this amount below.</p>
+                </div>
+                <RadioGroup
+                  value={tokenAdjustmentType}
+                  onValueChange={(value) => setTokenAdjustmentType(value as "credit" | "debit")}
+                  className="grid grid-cols-2 gap-2"
+                >
+                  <label className={`border rounded-md p-3 text-sm cursor-pointer transition flex items-center ${tokenAdjustmentType === "credit" ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-slate-300 text-slate-700'}`}>
+                    <RadioGroupItem value="credit" className="mr-2" />
+                    Add tokens
+                  </label>
+                  <label className={`border rounded-md p-3 text-sm cursor-pointer transition flex items-center ${tokenAdjustmentType === "debit" ? 'bg-red-50 border-red-300 text-red-700' : 'bg-white border-slate-300 text-slate-700'}`}>
+                    <RadioGroupItem value="debit" className="mr-2" />
+                    Deduct tokens
+                  </label>
+                </RadioGroup>
+                <div className="space-y-2">
+                  <Label htmlFor="tokenReason" className="text-sm font-medium text-slate-900">Reason (optional)</Label>
+                  <Textarea
+                    id="tokenReason"
+                    value={tokenReason}
+                    onChange={(e) => setTokenReason(e.target.value)}
+                    placeholder="Document why this adjustment is being made..."
+                    className="bg-white border-slate-300 text-slate-900"
+                    rows={4}
+                  />
+                  <p className="text-xs text-slate-500">This note is saved in the user's token transaction history.</p>
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="border-slate-300 text-slate-700 bg-white hover:bg-slate-50"
+                    onClick={() => {
+                      setIsTokenDialogOpen(false);
+                      setTokenTargetUser(null);
+                      setTokenAmount("");
+                      setTokenAdjustmentType("credit");
+                      setTokenReason("");
+                    }}
+                    disabled={adjustTokensMutation.isPending}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={handleTokenAdjustSubmit}
+                    disabled={adjustTokensMutation.isPending || !tokenTargetUser}
+                  >
+                    {adjustTokensMutation.isPending ? (
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Updating...
+                      </div>
+                    ) : (
+                      "Update tokens"
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={isUserDetailDialogOpen}
+            onOpenChange={(open) => {
+              setIsUserDetailDialogOpen(open);
+              if (!open) {
+                setSelectedUserIdForDetail(null);
+                setSelectedUserDetail(null);
+                setIsChatPreviewDialogOpen(false);
+                setChatPreview(null);
+                setIsChatPreviewLoading(false);
+              }
+            }}
+          >
+            <DialogContent className="max-w-3xl bg-white">
+              <DialogHeader className="bg-white">
+                <DialogTitle className="text-xl text-slate-900">
+                  {selectedUserDetail?.username || "User details"}
+                </DialogTitle>
+              </DialogHeader>
+              {isUserDetailLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+                </div>
+              ) : selectedUserDetail ? (
+                <div className="space-y-6 py-2">
+                  <div className="space-y-2 text-sm text-slate-900">
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Email:</span><span className="font-medium break-all">{selectedUserDetail.email || "—"}</span></div>
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Provider:</span><span className="font-medium capitalize">{selectedUserDetail.provider || "email"}</span></div>
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Created:</span><span className="font-medium">{new Date(selectedUserDetail.created_at).toLocaleString()}</span></div>
+                    <div>
+                      <span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Last Login:</span>
+                      <span className="font-medium">{selectedUserDetail.last_login_at ? new Date(selectedUserDetail.last_login_at).toLocaleString() : "Never"}</span>
+                      {selectedUserDetail.last_login_ip && (
+                        <span className="ml-2 text-xs text-slate-500">IP: {selectedUserDetail.last_login_ip}</span>
+                      )}
+                    </div>
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Token balance:</span><span className="font-semibold text-slate-900">{selectedUserDetail.token_balance}</span></div>
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Total chats:</span><span className="font-medium">{selectedUserDetail.total_chats}</span></div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs uppercase tracking-wide text-slate-500">Status:</span>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${selectedUserDetail.is_suspended ? "bg-red-50 text-red-600 border-red-300" : "bg-emerald-50 text-emerald-600 border-emerald-300"}`}
+                      >
+                        {selectedUserDetail.is_suspended ? "Suspended" : "Active"}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${selectedUserDetail.email_verified ? "bg-green-100 text-green-700 border-green-300" : "bg-amber-50 text-amber-700 border-amber-300"}`}
+                      >
+                        {selectedUserDetail.email_verified ? "Email verified" : "Email unverified"}
+                      </Badge>
+                      {selectedUserDetail.is_suspended && selectedUserDetail.suspension_reason && (
+                        <span className="text-xs text-slate-500">Reason: {selectedUserDetail.suspension_reason}</span>
+                      )}
+                    </div>
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Unread notifications:</span><span className="font-medium">{selectedUserDetail.unread_notifications}</span></div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                      <h4 className="text-sm font-semibold text-slate-900 mb-3">Recent Chats</h4>
+                      {selectedUserDetail.recent_chats.length === 0 ? (
+                        <p className="text-sm text-slate-500">No chats yet.</p>
+                      ) : (
+                        <div className="max-h-64 overflow-y-auto pr-2">
+                          <div className="space-y-2">
+                            {selectedUserDetail.recent_chats.map((chat) => {
+                              const characterLabel = chat.character_name ? `${chat.character_name}` : `Character #${chat.character_id}`;
+                              return (
+                                <button
+                                  key={chat.id}
+                                  type="button"
+                                onClick={() => openChatPreview(chat)}
+                                className="w-full text-left bg-white border border-slate-200 rounded-md p-2 transition hover:border-blue-300 hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                              >
+                                <div className="text-sm font-medium text-slate-900">{chat.title}</div>
+                                <div className="text-xs text-slate-500">Chat #{chat.id} · {characterLabel}</div>
+                                  <div className="text-xs text-slate-500">{new Date(chat.created_at).toLocaleString()}</div>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                      <h4 className="text-sm font-semibold text-slate-900 mb-3">Recent Token Activity</h4>
+                      {selectedUserDetail.recent_token_transactions.length === 0 ? (
+                        <p className="text-sm text-slate-500">No token transactions recorded.</p>
+                      ) : (
+                        <div className="max-h-64 overflow-y-auto pr-2">
+                          <div className="space-y-2">
+                            {selectedUserDetail.recent_token_transactions.map((txn) => (
+                              <div key={txn.id} className="bg-white border border-slate-200 rounded-md p-2">
+                                <div className="flex justify-between text-sm text-slate-900">
+                                  <span className="capitalize">{txn.transaction_type}</span>
+                                  <span className={`font-semibold ${txn.amount >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                    {txn.amount}
+                                  </span>
+                                </div>
+                                {txn.description && (
+                                  <div className="text-xs text-slate-500 mt-1 whitespace-pre-line">{txn.description}</div>
+                                )}
+                                <div className="text-xs text-slate-500 mt-1">{new Date(txn.created_at).toLocaleString()}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-10 text-center text-sm text-slate-500">Unable to load user details.</div>
+              )}
+            </DialogContent>
+          </Dialog>
+
+          <Dialog
+            open={isChatPreviewDialogOpen}
+            onOpenChange={(open) => {
+              setIsChatPreviewDialogOpen(open);
+              if (!open) {
+                setChatPreview(null);
+                setIsChatPreviewLoading(false);
+              }
+            }}
+          >
+            <DialogContent className="max-w-3xl bg-white">
+              <button
+                type="button"
+                onClick={() => setIsChatPreviewDialogOpen(false)}
+                className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+              <DialogHeader className="bg-white">
+                <DialogTitle className="text-xl text-slate-900">
+                  {chatPreview?.chat?.title || "Chat preview"}
+                </DialogTitle>
+              </DialogHeader>
+              {isChatPreviewLoading ? (
+                <div className="flex items-center justify-center py-16">
+                  <Loader2 className="w-6 h-6 animate-spin text-slate-500" />
+                </div>
+              ) : chatPreview ? (
+                <div className="space-y-4 py-2">
+                  <div className="text-sm text-slate-700">
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Character:</span><span className="font-medium">{chatPreview.chat.character_name || chatPreview.character?.name || `#${chatPreview.chat.character_id}`}</span></div>
+                    <div><span className="text-xs uppercase tracking-wide text-slate-500 mr-2">Started:</span><span className="font-medium">{new Date(chatPreview.chat.created_at).toLocaleString()}</span></div>
+                  </div>
+                  <div className="max-h-[60vh] overflow-y-auto pr-3">
+                    <div className="space-y-3">
+                      {chatPreview.messages.length === 0 ? (
+                        <div className="text-sm text-slate-500 text-center py-10">No messages recorded in this chat.</div>
+                      ) : (
+                        chatPreview.messages.map((message) => {
+                          const isUser = message.role === "user";
+                          return (
+                            <div
+                              key={message.id}
+                              className={`rounded-md border border-slate-200 p-3 ${isUser ? 'bg-slate-50 border-blue-200' : 'bg-white border-slate-200'}`}
+                            >
+                              <div className="flex justify-between text-xs uppercase tracking-wide text-slate-500 mb-1">
+                                <span>{isUser ? 'User' : 'Assistant'}</span>
+                                <span>{message.timestamp ? new Date(message.timestamp).toLocaleString() : ''}</span>
+                              </div>
+                              <p className="text-sm whitespace-pre-line text-slate-900">{message.content}</p>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="py-10 text-center text-sm text-slate-500">Unable to load chat history.</div>
+              )}
+            </DialogContent>
+          </Dialog>
+
         </Tabs>
       </div>
     </div>
@@ -2113,7 +3126,7 @@ const NotificationForm = ({ form, setForm, users, onSubmit, onCancel, isLoading 
     userIds: number[];
   };
   setForm: (form: any) => void;
-  users: User[];
+  users: AdminUser[];
   onSubmit: () => void;
   onCancel: () => void;
   isLoading: boolean;
@@ -2221,9 +3234,14 @@ const NotificationForm = ({ form, setForm, users, onSubmit, onCancel, isLoading 
                       />
                       <Label
                         htmlFor={`user-${user.id}`}
-                        className="text-sm text-gray-700 cursor-pointer flex-1"
+                        className="cursor-pointer flex-1"
                       >
-                        {user.username} (ID: {user.id})
+                        <div className="flex flex-col">
+                          <span className="text-sm text-slate-800">{user.username}</span>
+                          <span className="text-xs text-slate-500">
+                            {user.email || "No email"} · ID: {user.id}
+                          </span>
+                        </div>
                       </Label>
                     </div>
                   ))}

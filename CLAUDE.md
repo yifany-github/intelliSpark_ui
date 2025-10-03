@@ -26,7 +26,6 @@ npm run check
 
 # Backend specific commands
 cd backend
-pip install -r requirements.txt      # Install Python dependencies first
 python main.py                       # Start backend server
 python -m uvicorn main:app --reload  # Alternative backend start (with auto-reload)
 ```
@@ -36,41 +35,25 @@ python -m uvicorn main:app --reload  # Alternative backend start (with auto-relo
 ### Frontend (client/)
 - **Framework**: React 18 with TypeScript
 - **Routing**: Wouter for client-side routing
-- **State Management**: React Context (RolePlayContext, AuthContext, LanguageContext, FavoritesContext, NavigationContext, AgeVerificationContext)
+- **State Management**: React Context (RolePlayContext, LanguageContext)
 - **UI Components**: Radix UI + shadcn/ui components in `client/src/components/ui/`
 - **Styling**: Tailwind CSS with custom animations
 - **Data Fetching**: TanStack Query (@tanstack/react-query)
-- **Payment Integration**: Stripe (@stripe/stripe-js, @stripe/react-stripe-js)
-- **Error Monitoring**: Sentry (@sentry/react)
 
 ### Backend (backend/)
-- **Runtime**: Python 3.8+ with FastAPI
-- **API**: RESTful endpoints organized in `backend/routes/` directory
-- **Authentication**: Email-based auth with Firebase OAuth integration (JWT tokens)
-- **AI Services**: Multiple AI providers via service layer pattern
-  - Gemini AI integration in `backend/services/gemini_service_new.py`
-  - Grok AI support in `backend/services/grok_service.py`
-  - AI Model Manager in `backend/services/ai_model_manager.py`
+- **Runtime**: Python with FastAPI
+- **API**: RESTful endpoints in `backend/routes.py`
+- **Authentication**: Email-based auth with Firebase OAuth integration
+- **AI Services**: Gemini AI integration in `backend/gemini_service.py`
 - **Database**: SQLAlchemy with SQLite (development) / PostgreSQL (production)
-- **Rate Limiting**: slowapi with Redis support (optional)
-- **Payment Processing**: Stripe integration in `backend/payment/`
-- **File Upload**: Secure file validation and handling with anti-XSS headers
+- **Auth System**: JWT tokens with Firebase social login support
 
 ### Key Architecture Patterns
 - **Context Providers**: Global state management for roleplay settings, language, and authentication
 - **Schema Validation**: Pydantic schemas in `backend/schemas.py` for type-safe API communication
-- **Service Layer Pattern**: Business logic separated from routes
-  - `backend/services/` - Core business logic (character, chat, message, AI services)
-  - `backend/routes/` - HTTP endpoint handlers
-  - `backend/auth/` - Authentication services and routes
-  - `backend/payment/` - Payment and token management services
+- **Service Layer**: AI providers and auth services in `backend/` directory
 - **Asset Management**: Static assets served from `attached_assets/` directory
-  - Character images: `attached_assets/characters_img/`
-  - User-uploaded images: `attached_assets/user_characters_img/`
-  - Character galleries: `attached_assets/character_galleries/`
 - **Authentication Flow**: Firebase frontend auth → JWT backend tokens → SQLAlchemy user management
-- **Security Headers**: Anti-XSS headers for user-uploaded files in `/assets/user_characters_img/`
-- **Rate Limiting**: slowapi integration with optional Redis backend
 
 ### Character Enhancement System
 - **Hardcoded Characters**: Pre-built prompts from `backend/prompts/characters/艾莉丝.py` (260+ examples, uses Gemini cache)
@@ -144,18 +127,10 @@ FIREBASE_API_KEY=your-firebase-api-key  # For token verification
 
 # AI Services
 GEMINI_API_KEY=your-gemini-api-key
-GROK_API_KEY=your-grok-api-key  # Optional, for Grok AI model support
 
 # Payment Processing (REQUIRED)
 STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key_here
 STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
-
-# Optional Configuration
-REDIS_URL=redis://localhost:6379  # Optional, for rate limiting with Redis
-ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5000  # CORS origins (comma-separated)
-ALLOWED_ORIGIN_REGEX=  # Optional regex pattern for allowed origins
-ENABLE_STARTUP_CHARACTER_SYNC=false  # Auto-sync character files on startup (default: false)
-DEBUG=true  # Enable debug mode
 ```
 
 ## Database Schema
@@ -172,33 +147,20 @@ The app uses SQLAlchemy ORM with SQLite (development) or PostgreSQL (production)
 - `nsfw_level`, `temperature`, etc. - User preferences
 
 ### Other Tables
-- `characters` - AI characters with personality traits and backstories
-  - Includes gallery support (`gallery_enabled`, `gallery_primary_image`, `gallery_images_count`)
-  - Analytics fields (`view_count`, `like_count`, `chat_count`, `trending_score`)
-  - Soft delete support (`is_deleted`, `deleted_at`, `deleted_by`, `delete_reason`)
-  - Age and NSFW level constraints (age: 1-200, nsfw_level: 0-3)
+- `characters` - AI characters with personality traits and backstories  
 - `chats` - Chat sessions linking users and characters
-  - Uses UUID for privacy-preserving URLs
 - `chat_messages` - Individual messages within chats
-  - 10KB content limit for DoS protection
-  - Uses both integer ID and UUID
 - `user_tokens` - User token balances for payment system
 - `token_transactions` - Payment and usage transaction history
-- `notifications` - User notifications system
-- `notification_templates` - Reusable notification templates
-- `character_gallery_images` - Multi-image gallery system for characters
 
 Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_chat.db` and restart the backend to recreate with new schema.
 
 ## Key Components
 
 ### Context Management
-- `AuthContext` (`client/src/contexts/AuthContext.tsx`) - Manages user authentication state, login/logout, Firebase integration, JWT token management
-- `RolePlayContext` (`client/src/contexts/RolePlayContext.tsx`) - Manages active character selection, chat state, auth modal for guest users
+- `AuthContext` - Manages user authentication state, login/logout, Firebase integration
+- `RolePlayContext` - Manages active character selection, user preferences (NSFW level, temperature, etc.)
 - `LanguageContext` - Handles internationalization
-- `FavoritesContext` - Manages user's favorite characters
-- `NavigationContext` - Handles navigation state
-- `AgeVerificationContext` - Age gate for adult content
 
 ### Authentication System
 - **Frontend**: Firebase Auth for Google OAuth, custom email/password forms
@@ -248,7 +210,7 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 
 - **Frontend**: Vite dev server with HMR, TypeScript strict mode
 - **Backend**: FastAPI with auto-reload, SQLAlchemy ORM
-- **Static Assets**: Served from `/assets` endpoint
+- **Static Assets**: Served from `/assets` endpoint  
 - **Database**: SQLite for development (auto-created), PostgreSQL for production
 - **Authentication**: Email-based with Firebase OAuth integration
 - **Environment**: Separate .env files for frontend (Vite) and backend (FastAPI)
@@ -257,13 +219,6 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 - **Few-Shot Examples**: Generic conversation examples in `backend/prompts/generic_few_shots.json` can be customized
 - **Cache Debugging**: Check logs for "Cache creation" messages to debug Gemini cache issues
 - **Error Handling**: Comprehensive error boundaries and user-friendly error messages
-- **Security**:
-  - Anti-XSS headers for user-uploaded files
-  - JWT token expiration validation on frontend and backend
-  - CORS configuration with wildcard pattern support
-  - Rate limiting with slowapi (optional Redis backend)
-  - 10KB message content limit for DoS protection
-  - UUID-based chat URLs for privacy
 
 ## Database Migrations
 
@@ -281,54 +236,6 @@ The project uses custom migration scripts in `backend/migrations/` directory:
 ```
 
 When schema changes occur, check if a migration exists in the `backend/migrations/` directory before manually deleting the database.
-
-## Important Routes and Pages
-
-### Frontend Routes (client/src/App.tsx)
-- `/` - Home page (redirects to characters)
-- `/characters` - Browse all characters
-- `/favorites` - User's favorited characters
-- `/discover` - Discover new characters
-- `/create-character` - Create custom character (auth required)
-- `/my-characters` - User's created characters (auth required)
-- `/character/:id/edit` - Edit character (auth required)
-- `/chat-preview` - Preview chat without auth
-- `/chats` - List of user's chats (auth required)
-- `/chats/:id` or `/chat/:id` - Active chat page (auth required)
-- `/profile` - User profile (auth required)
-- `/settings` - User settings (auth required)
-- `/payment` - Token purchase page (auth required)
-- `/notifications` - User notifications (auth required)
-- `/admin` - Admin panel
-- `/login`, `/register` - Authentication pages
-- `/faq`, `/about` - Info pages
-
-### Backend API Routes (backend/main.py)
-- **Characters**: `backend/routes/characters.py`
-- **Chats**: `backend/routes/chats.py`
-- **Auth**: `backend/auth/routes.py`
-- **Payment**: `backend/payment/routes.py`
-- **Admin**: `backend/routes/admin.py` and `backend/admin/routes.py`
-- **User Preferences**: `backend/routes/user_preferences.py`
-- **Notifications**: `backend/notifications_routes.py`
-
-## Python Dependencies (backend/requirements.txt)
-
-Key dependencies:
-- `fastapi==0.116.1` - Web framework
-- `uvicorn[standard]==0.24.0` - ASGI server
-- `sqlalchemy==2.0.23` - ORM
-- `psycopg2-binary==2.9.9` - PostgreSQL adapter
-- `google-genai>=1.26.0` - Gemini AI SDK
-- `openai>=1.0.0` - OpenAI/Grok API client
-- `python-jose[cryptography]==3.3.0` - JWT tokens
-- `passlib[bcrypt]==1.7.4` - Password hashing
-- `firebase-admin==6.4.0` - Firebase authentication
-- `stripe==7.10.0` - Payment processing
-- `slowapi==0.1.9` - Rate limiting
-- `Pillow==10.0.0` - Image processing
-- `python-magic==0.4.27` - File type detection
-- `bleach==6.1.0` - HTML sanitization
 
 # important-instruction-reminders
 Do what has been asked; nothing more, nothing less.

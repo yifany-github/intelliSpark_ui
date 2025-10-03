@@ -5,6 +5,8 @@ export interface User {
   username: string;
   email?: string;
   memory_enabled: boolean;
+  is_premium_member?: boolean;
+  stripe_customer_id?: string;
   created_at: string;
 }
 

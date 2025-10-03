@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   Elements,
@@ -7,7 +7,7 @@ import {
   useElements,
 } from '@stripe/react-stripe-js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Check, Coins, CreditCard, Star } from 'lucide-react';
+import { ArrowLeft, Check, Coins, CreditCard, Loader2, ShieldCheck, Star, Crown } from 'lucide-react';
 import { Button } from '../../components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../../components/ui/card';
 import { Badge } from '../../components/ui/badge';
@@ -15,9 +15,14 @@ import { Alert, AlertDescription } from '../../components/ui/alert';
 import { Separator } from '../../components/ui/separator';
 import { useNavigation } from '../../contexts/NavigationContext';
 import { ImprovedTokenBalance } from '../../components/payment/ImprovedTokenBalance';
+import { PremiumMembership } from '../../components/payment/PremiumMembership';
 import GlobalLayout from '../../components/layout/GlobalLayout';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { apiRequest } from '@/lib/queryClient';
+import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector';
+import { QRCodePayment } from '@/components/payment/QRCodePayment';
+import { PaymentMethod, SavedPaymentMethodSummary } from '@/types/payments';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 // Initialize Stripe (you'll need to set your publishable key in environment variables)
@@ -26,7 +31,9 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 
 interface PricingTier {
   tokens: number;
   price: number;
+  price_cny?: number;
   description: string;
+  fx_rate?: number;
 }
 
 interface PricingTiers {
@@ -40,18 +47,57 @@ const fetchPricingTiers = async (): Promise<PricingTiers> => {
   return res.json();
 };
 
-const createPaymentIntent = async (tier: string) => {
+interface PaymentIntentResponse {
+  client_secret: string;
+  payment_intent_id: string;
+  amount: number;
+  tokens: number;
+  currency: string;
+  payment_method: PaymentMethod;
+  next_action?: Record<string, any>;
+}
+
+const fetchSavedPaymentMethods = async (): Promise<SavedPaymentMethodSummary[]> => {
   const token = localStorage.getItem('auth_token');
   if (!token) {
     throw new Error('No authentication token found');
   }
 
-  const res = await apiRequest('POST', '/api/payment/create-payment-intent', { tier, amount: 0 });
-  if (!res.ok) throw new Error('Failed to create payment intent');
+  const res = await apiRequest('GET', '/api/payment/saved-payment-methods');
+  if (!res.ok) {
+    throw new Error('Failed to fetch saved payment methods');
+  }
   return res.json();
 };
 
-const PaymentForm: React.FC<{ 
+const createPaymentIntent = async (
+  tier: string,
+  paymentMethod: PaymentMethod,
+  returnUrl?: string,
+  savePaymentMethod?: boolean
+) => {
+  const token = localStorage.getItem('auth_token');
+  if (!token) {
+    throw new Error('No authentication token found');
+  }
+
+  const payload: Record<string, unknown> = {
+    tier,
+    amount: 0,
+    payment_method: paymentMethod,
+    return_url: returnUrl,
+  };
+
+  if (typeof savePaymentMethod === 'boolean') {
+    payload.save_payment_method = savePaymentMethod;
+  }
+
+  const res = await apiRequest('POST', '/api/payment/create-payment-intent', payload);
+  if (!res.ok) throw new Error('Failed to create payment intent');
+  return res.json() as Promise<PaymentIntentResponse>;
+};
+
+const CardPaymentForm: React.FC<{ 
   selectedTier: string; 
   tierData: PricingTier;
   onSuccess: () => void; 
@@ -59,11 +105,13 @@ const PaymentForm: React.FC<{
   const stripe = useStripe();
   const elements = useElements();
   const { t } = useLanguage();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [billingDetails, setBillingDetails] = useState({
     name: '',
-    email: '',
+    email: user?.email || '',
     address: {
       line1: '',
       line2: '',
@@ -73,41 +121,103 @@ const PaymentForm: React.FC<{
       country: 'US'
     }
   });
+  const [showAddressFields, setShowAddressFields] = useState(false);
+  const [shouldSaveCard, setShouldSaveCard] = useState(true);
+  const [useSavedMethod, setUseSavedMethod] = useState(false);
+  const [selectedSavedMethodId, setSelectedSavedMethodId] = useState<string | null>(null);
+  const [savedInit, setSavedInit] = useState(false);
+
+  const { data: savedMethodsRaw = [], isLoading: savedMethodsLoading } = useQuery({
+    queryKey: ['savedPaymentMethods'],
+    queryFn: fetchSavedPaymentMethods,
+    enabled: !!user,
+  });
+
+  // Deduplicate saved cards by brand + last4 + exp_month + exp_year
+  const savedMethods = useMemo(() => {
+    const uniqueCards = new Map<string, SavedPaymentMethodSummary>();
+    savedMethodsRaw.forEach(card => {
+      const key = `${card.brand}-${card.last4}-${card.exp_month}-${card.exp_year}`;
+      if (!uniqueCards.has(key)) {
+        uniqueCards.set(key, card);
+      }
+    });
+    return Array.from(uniqueCards.values());
+  }, [savedMethodsRaw]);
+
+  const hasSavedMethods = savedMethods.length > 0;
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    setBillingDetails(prev => ({
+      ...prev,
+      email: prev.email || user.email || '',
+    }));
+  }, [user]);
+
+  useEffect(() => {
+    if (!hasSavedMethods) {
+      setUseSavedMethod(false);
+      setSelectedSavedMethodId(null);
+      return;
+    }
+
+    if (!savedInit && !savedMethodsLoading) {
+      setUseSavedMethod(true);
+      setSelectedSavedMethodId(savedMethods[0]?.id ?? null);
+      setSavedInit(true);
+    }
+  }, [hasSavedMethods, savedMethods, savedInit, savedMethodsLoading]);
 
   const { mutate: createPayment } = useMutation({
-    mutationFn: createPaymentIntent,
+    mutationFn: ({ tier, savePaymentMethod }: { tier: string; savePaymentMethod: boolean }) =>
+      createPaymentIntent(tier, 'card', undefined, savePaymentMethod),
     onSuccess: async (data) => {
-      if (!stripe || !elements) return;
-
-      const cardElement = elements.getElement(CardElement);
-      if (!cardElement) return;
+      if (!stripe) return;
 
       setIsProcessing(true);
       setError(null);
 
       try {
-        const { error: stripeError } = await stripe.confirmCardPayment(data.client_secret, {
-          payment_method: {
-            card: cardElement,
-            billing_details: {
-              name: billingDetails.name,
-              email: billingDetails.email,
-              address: {
-                line1: billingDetails.address.line1,
-                line2: billingDetails.address.line2,
-                city: billingDetails.address.city,
-                state: billingDetails.address.state,
-                postal_code: billingDetails.address.postal_code,
-                country: billingDetails.address.country,
+        let stripeError;
+        if (useSavedMethod && selectedSavedMethodId) {
+          const result = await stripe.confirmCardPayment(data.client_secret, {
+            payment_method: selectedSavedMethodId,
+          });
+          stripeError = result.error;
+        } else {
+          if (!elements) return;
+          const cardElement = elements.getElement(CardElement);
+          if (!cardElement) return;
+
+          const result = await stripe.confirmCardPayment(data.client_secret, {
+            payment_method: {
+              card: cardElement,
+              billing_details: {
+                name: billingDetails.name,
+                email: billingDetails.email,
+                address: {
+                  line1: billingDetails.address.line1,
+                  line2: billingDetails.address.line2,
+                  city: billingDetails.address.city,
+                  state: billingDetails.address.state,
+                  postal_code: billingDetails.address.postal_code,
+                  country: billingDetails.address.country,
+                },
               },
             },
-          },
-        });
+          });
+          stripeError = result.error;
+        }
 
         if (stripeError) {
           setError(stripeError.message || 'Payment failed');
         } else {
           onSuccess();
+          queryClient.invalidateQueries({ queryKey: ['savedPaymentMethods'] });
         }
       } catch (err) {
         setError('Payment processing failed');
@@ -122,29 +232,45 @@ const PaymentForm: React.FC<{
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!stripe || !elements) return;
+    if (!stripe) return;
 
-    createPayment(selectedTier);
+    if (useSavedMethod) {
+      if (!selectedSavedMethodId) {
+        setError(t('selectSavedCard'));
+        return;
+      }
+    } else if (!elements) {
+      return;
+    }
+
+    createPayment({
+      tier: selectedTier,
+      savePaymentMethod: !useSavedMethod && shouldSaveCard,
+    });
   };
 
-  const cardElementOptions = {
+  const cardElementOptions = useMemo(() => ({
     style: {
       base: {
-        fontSize: '16px',
-        color: '#ffffff',
-        backgroundColor: '#1f2937',
+        fontSize: '18px',
+        color: '#F9FAFB',
+        fontFamily: '"Inter", "SF Pro Display", system-ui, sans-serif',
+        iconColor: '#A855F7',
+        letterSpacing: '0.03em',
         '::placeholder': {
-          color: '#9ca3af',
+          color: '#9CA3AF',
         },
       },
       invalid: {
-        color: '#ef4444',
+        color: '#F87171',
+        iconColor: '#F87171',
       },
     },
-  };
+    showIcon: true,
+  }), []);
 
   return (
-    <Card className="bg-gray-800 border-gray-700">
+    <Card className="bg-gradient-to-br from-purple-900/40 to-pink-900/40 border-purple-500/30">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
           <CreditCard className="h-5 w-5 text-brand-secondary" />
@@ -152,7 +278,7 @@ const PaymentForm: React.FC<{
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="mb-4 p-3 bg-gray-700 rounded-lg border border-gray-600">
+        <div className="mb-4 p-3 bg-purple-800/30 rounded-lg border border-purple-500/30">
           <div className="flex justify-between items-center">
             <span className="font-medium text-white">{tierData.description}</span>
             <div className="text-center">
@@ -173,7 +299,13 @@ const PaymentForm: React.FC<{
           {/* Billing Information */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-white">{t('billingInformation')}</h3>
-            
+
+            {user && (
+              <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300 px-3 py-2">
+                {t('prefilledFromProfile')}
+              </div>
+            )}
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">{t('fullName')} *</label>
@@ -183,8 +315,9 @@ const PaymentForm: React.FC<{
                   value={billingDetails.name}
                   onChange={(e) => setBillingDetails(prev => ({ ...prev, name: e.target.value }))}
                   className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
-                  placeholder={t('fullName')}
+                  placeholder={t('nameOnCardPlaceholder')}
                 />
+                <p className="mt-1 text-xs text-gray-500">{t('nameOnCardHint')}</p>
               </div>
               
               <div>
@@ -200,141 +333,233 @@ const PaymentForm: React.FC<{
               </div>
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">{t('addressLine1')} *</label>
-              <input
-                type="text"
-                required
-                value={billingDetails.address.line1}
-                onChange={(e) => setBillingDetails(prev => ({ 
-                  ...prev, 
-                  address: { ...prev.address, line1: e.target.value }
-                }))}
-                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
-                placeholder={t('addressLine1')}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">{t('addressLine2')}</label>
-              <input
-                type="text"
-                value={billingDetails.address.line2}
-                onChange={(e) => setBillingDetails(prev => ({ 
-                  ...prev, 
-                  address: { ...prev.address, line2: e.target.value }
-                }))}
-                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
-                placeholder={`${t('addressLine2')} (${t('optional')})`}
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">{t('city')} *</label>
-                <input
-                  type="text"
-                  required
-                  value={billingDetails.address.city}
-                  onChange={(e) => setBillingDetails(prev => ({ 
-                    ...prev, 
-                    address: { ...prev.address, city: e.target.value }
-                  }))}
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
-                  placeholder={t('city')}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">{t('state')} *</label>
-                <input
-                  type="text"
-                  required
-                  value={billingDetails.address.state}
-                  onChange={(e) => setBillingDetails(prev => ({ 
-                    ...prev, 
-                    address: { ...prev.address, state: e.target.value }
-                  }))}
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
-                  placeholder={t('state')}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">{t('zipCode')} *</label>
-                <input
-                  type="text"
-                  required
-                  value={billingDetails.address.postal_code}
-                  onChange={(e) => setBillingDetails(prev => ({ 
-                    ...prev, 
-                    address: { ...prev.address, postal_code: e.target.value }
-                  }))}
-                  className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
-                  placeholder={t('zipCode')}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-300 mb-2">{t('country')} *</label>
-              <select
-                required
-                value={billingDetails.address.country}
-                onChange={(e) => setBillingDetails(prev => ({ 
-                  ...prev, 
-                  address: { ...prev.address, country: e.target.value }
-                }))}
-                className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-brand-accent"
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={() => setShowAddressFields(prev => !prev)}
+                className="flex w-full items-center justify-between rounded-xl border border-gray-700 bg-gray-800/80 px-4 py-3 text-sm text-gray-300 transition hover:border-brand-accent"
               >
-                <option value="US">{t('unitedStates')}</option>
-                <option value="CA">{t('canada')}</option>
-                <option value="GB">{t('unitedKingdom')}</option>
-                <option value="AU">{t('australia')}</option>
-                <option value="DE">{t('germany')}</option>
-                <option value="FR">{t('france')}</option>
-                <option value="JP">{t('japan')}</option>
-                <option value="KR">{t('southKorea')}</option>
-                <option value="SG">{t('singapore')}</option>
-                <option value="CN">{t('china')}</option>
-              </select>
+                <span className="font-medium">{t('billingAddressOptional')}</span>
+                <span className="text-brand-accent text-xs uppercase tracking-wide">
+                  {showAddressFields ? t('hideAddress') : t('addAddress')}
+                </span>
+              </button>
+
+              {showAddressFields && (
+                <div className="space-y-3 rounded-xl border border-gray-700 bg-gray-800/60 p-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">{t('addressLine1')}</label>
+                    <input
+                      type="text"
+                      value={billingDetails.address.line1}
+                      onChange={(e) => setBillingDetails(prev => ({ 
+                        ...prev, 
+                        address: { ...prev.address, line1: e.target.value }
+                      }))}
+                      className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
+                      placeholder={t('addressLine1')}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">{t('addressLine2')}</label>
+                    <input
+                      type="text"
+                      value={billingDetails.address.line2}
+                      onChange={(e) => setBillingDetails(prev => ({ 
+                        ...prev, 
+                        address: { ...prev.address, line2: e.target.value }
+                      }))}
+                      className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
+                      placeholder={`${t('addressLine2')} (${t('optional')})`}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">{t('city')}</label>
+                      <input
+                        type="text"
+                        value={billingDetails.address.city}
+                        onChange={(e) => setBillingDetails(prev => ({ 
+                          ...prev, 
+                          address: { ...prev.address, city: e.target.value }
+                        }))}
+                        className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
+                        placeholder={t('city')}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">{t('state')}</label>
+                      <input
+                        type="text"
+                        value={billingDetails.address.state}
+                        onChange={(e) => setBillingDetails(prev => ({ 
+                          ...prev, 
+                          address: { ...prev.address, state: e.target.value }
+                        }))}
+                        className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
+                        placeholder={t('state')}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">{t('zipCode')}</label>
+                      <input
+                        type="text"
+                        value={billingDetails.address.postal_code}
+                        onChange={(e) => setBillingDetails(prev => ({ 
+                          ...prev, 
+                          address: { ...prev.address, postal_code: e.target.value }
+                        }))}
+                        className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-brand-accent"
+                        placeholder={t('zipCode')}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-300 mb-2">{t('country')}</label>
+                    <select
+                      value={billingDetails.address.country}
+                      onChange={(e) => setBillingDetails(prev => ({ 
+                        ...prev, 
+                        address: { ...prev.address, country: e.target.value }
+                      }))}
+                      className="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-brand-accent"
+                    >
+                      <option value="US">{t('unitedStates')}</option>
+                      <option value="CA">{t('canada')}</option>
+                      <option value="GB">{t('unitedKingdom')}</option>
+                      <option value="AU">{t('australia')}</option>
+                      <option value="DE">{t('germany')}</option>
+                      <option value="FR">{t('france')}</option>
+                      <option value="JP">{t('japan')}</option>
+                      <option value="KR">{t('southKorea')}</option>
+                      <option value="SG">{t('singapore')}</option>
+                      <option value="CN">{t('china')}</option>
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Payment Method */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-white">{t('paymentMethod')}</h3>
-            <div className="p-3 border border-gray-600 rounded-lg bg-gray-700">
-              <CardElement options={cardElementOptions} />
-            </div>
-          </div>
 
-          {/* Order Summary */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold text-white">{t('orderSummary')}</h3>
-            <div className="bg-gray-700 rounded-lg p-4 border border-gray-600">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-300">{tierData.description}</span>
-                <span className="text-white font-semibold">${(tierData.price / 100).toFixed(2)}</span>
+            {savedMethodsLoading ? (
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                {t('loadingSavedCards')}
               </div>
-              <div className="flex justify-between items-center text-sm text-gray-400 mb-2">
-                <span>{tierData.tokens} {t('tokensPlural')}</span>
-                <span>${((tierData.price / 100) / tierData.tokens).toFixed(3)} {t('perToken')}</span>
-              </div>
-              <div className="border-t border-gray-600 pt-2 mt-2">
-                <div className="flex justify-between items-center font-semibold">
-                  <span className="text-white">{t('total')}</span>
-                  <div className="text-center">
-                    <div className="text-3xl font-bold text-brand-secondary mb-1">
-                      ${(tierData.price / 100).toFixed(2)}
-                    </div>
-                    <div className="text-sm text-content-tertiary uppercase tracking-wide">
-                      {t('usd')} - Premium Tokens
-                    </div>
+            ) : (
+              hasSavedMethods && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm text-gray-300">
+                    <span className="font-medium">{t('savedCards')}</span>
+                    {!useSavedMethod && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setUseSavedMethod(true);
+                          setSelectedSavedMethodId(savedMethods[0]?.id ?? null);
+                          setError(null);
+                        }}
+                        className="text-xs font-medium text-brand-accent hover:text-brand-accent/80"
+                      >
+                        {t('useSavedCard')}
+                      </button>
+                    )}
+                  </div>
+                  <div className="space-y-2">
+                    {savedMethods.map((method) => {
+                      const isActive = useSavedMethod && selectedSavedMethodId === method.id;
+                      return (
+                        <button
+                          key={method.id}
+                          type="button"
+                          onClick={() => {
+                            setUseSavedMethod(true);
+                            setSelectedSavedMethodId(method.id);
+                            setError(null);
+                          }}
+                          className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left transition ${
+                            isActive
+                              ? 'border-brand-accent bg-brand-accent/10 shadow-brand-accent/30'
+                              : 'border-gray-700 bg-gray-800/80 hover:border-brand-accent/60'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`h-10 w-10 rounded-full bg-gray-900/60 flex items-center justify-center text-sm font-semibold uppercase ${
+                              isActive ? 'text-brand-accent' : 'text-gray-300'
+                            }`}>
+                              {(method.brand?.slice(0, 2) || 'CC').toUpperCase()}
+                            </div>
+                            <div>
+                              <div className="text-sm font-semibold text-white">
+                                {(method.brand || 'Card').toUpperCase()} •••• {method.last4 || '0000'}
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                {t('expires')} {(method.exp_month ?? 0).toString().padStart(2, '0')}/{(method.exp_year ?? 0).toString()}
+                              </div>
+                            </div>
+                          </div>
+                          {isActive && <Check className="h-5 w-5 text-brand-accent" />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {useSavedMethod && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUseSavedMethod(false);
+                        setSelectedSavedMethodId(null);
+                        setShouldSaveCard(true);
+                        setError(null);
+                      }}
+                      className="text-xs font-medium text-brand-accent hover:text-brand-accent/80"
+                    >
+                      {t('useDifferentCard')}
+                    </button>
+                  )}
+                </div>
+              )
+            )}
+
+            {!useSavedMethod && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm text-gray-300">
+                  <span className="font-medium">{t('cardInformation')}</span>
+                  <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-gray-400">
+                    <span>Visa</span>
+                    <span>Mastercard</span>
+                    <span>Amex</span>
                   </div>
                 </div>
+                <div className="group rounded-2xl border border-gray-600 bg-gray-900/60 px-5 py-4 shadow-inner transition-all duration-200 focus-within:border-brand-accent focus-within:ring-2 focus-within:ring-brand-accent/30">
+                  <CardElement options={cardElementOptions} className="text-lg outline-none" />
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-400">
+                  <p className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-brand-secondary" />
+                    {t('cardDetailsSecure')}
+                  </p>
+                  <label className="flex items-center gap-2 text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={shouldSaveCard}
+                      onChange={(e) => setShouldSaveCard(e.target.checked)}
+                      className="rounded border-gray-600 bg-gray-700 text-brand-accent focus:ring-brand-accent"
+                    />
+                    <span>{t('saveCardForNextTime')}</span>
+                  </label>
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Terms and Conditions */}
@@ -395,13 +620,322 @@ const PaymentForm: React.FC<{
   );
 };
 
+const OrderSummary: React.FC<{ tierData: PricingTier; method: PaymentMethod }> = ({ tierData, method }) => {
+  const { t } = useLanguage();
+  const usdTotal = (tierData.price / 100).toFixed(2);
+  const pricePerToken = ((tierData.price / 100) / tierData.tokens).toFixed(3);
+  const cnyTotal = tierData.price_cny ? (tierData.price_cny / 100).toFixed(2) : null;
+
+  return (
+    <Card className="bg-gray-800 border-gray-700">
+      <CardHeader>
+        <CardTitle className="text-white">{t('orderSummary')}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-gray-300">{tierData.description}</span>
+          <span className="text-white font-semibold">${usdTotal}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm text-gray-400">
+          <span>{tierData.tokens} {t('tokensPlural')}</span>
+          <span>${pricePerToken} {t('perToken')}</span>
+        </div>
+
+        {cnyTotal && method !== 'card' && (
+          <div className="flex items-center justify-between text-sm text-gray-400">
+            <span>Amount in CNY</span>
+            <span>¥{cnyTotal}</span>
+          </div>
+        )}
+
+        <Separator className="border-gray-700" />
+
+        <div className="text-center">
+          <div className="text-3xl font-bold text-brand-secondary mb-1">
+            ${usdTotal}
+          </div>
+          <div className="text-sm text-content-tertiary uppercase tracking-wide">
+            {t('usd')} • {t('tokensPlural')}
+          </div>
+        </div>
+
+        {cnyTotal && method !== 'card' && (
+          <div className="rounded-lg bg-gray-700/60 p-3 text-sm text-gray-300">
+            <div className="font-medium text-white">WeChat/Alipay amount</div>
+            <div>¥{cnyTotal}</div>
+            <p className="mt-1 text-xs text-gray-400">Final amount may vary slightly due to currency conversion.</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
+
+interface PaymentCheckoutProps {
+  selectedTier: string;
+  tierData: PricingTier;
+  onSuccess: () => void;
+  onBack: () => void;
+}
+
+interface QRSessionState {
+  clientSecret: string;
+  paymentIntentId: string;
+  qrImageUrl: string;
+  amount: number;
+  currency: string;
+  expiresAt?: number;
+  method: PaymentMethod;
+}
+
+const PaymentCheckout: React.FC<PaymentCheckoutProps> = ({ selectedTier, tierData, onSuccess, onBack }) => {
+  const { t } = useLanguage();
+  const stripe = useStripe();
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('card');
+  const [qrSession, setQrSession] = useState<QRSessionState | null>(null);
+  const [isAltProcessing, setIsAltProcessing] = useState(false);
+  const [altError, setAltError] = useState<string | null>(null);
+
+  const createAlternativePayment = useMutation<PaymentIntentResponse, Error, PaymentMethod>({
+    mutationFn: (method: PaymentMethod) => {
+      const returnUrl = new URL(window.location.pathname, window.location.origin);
+      returnUrl.searchParams.set('payment', method);
+      returnUrl.searchParams.set('status', 'success');
+      const encodedReturnUrl = method === 'alipay' ? returnUrl.toString() : undefined;
+      return createPaymentIntent(selectedTier, method, encodedReturnUrl, false);
+    },
+    onSuccess: async (data: PaymentIntentResponse, method: PaymentMethod) => {
+      if (method === 'wechat_pay') {
+        const qrDetails = data.next_action?.wechat_pay_display_qr_code;
+        const qrUrl = qrDetails?.image_url_png || qrDetails?.image_url_svg || qrDetails?.image_data_url;
+        if (!qrUrl) {
+          setAltError('Unable to load WeChat Pay QR code. Please try again.');
+          return;
+        }
+        setQrSession({
+          clientSecret: data.client_secret,
+          paymentIntentId: data.payment_intent_id,
+          qrImageUrl: qrUrl,
+          amount: data.amount,
+          currency: data.currency,
+          expiresAt: qrDetails?.expires_at,
+          method,
+        });
+        setAltError(null);
+      } else if (method === 'alipay') {
+        if (!stripe) {
+          setAltError('Stripe is not ready yet. Please try again.');
+          return;
+        }
+        try {
+          const returnUrl = new URL(window.location.pathname, window.location.origin);
+          returnUrl.searchParams.set('payment', 'alipay');
+          returnUrl.searchParams.set('status', 'success');
+          const { error } = await stripe.confirmAlipayPayment(data.client_secret, {
+            return_url: returnUrl.toString(),
+          });
+          if (error) {
+            setAltError(error.message || 'Alipay confirmation failed.');
+          }
+        } catch (err: any) {
+          setAltError(err?.message || 'Unable to redirect to Alipay.');
+        }
+      }
+    },
+    onError: (error: any) => {
+      setAltError(error?.message || 'Unable to start payment. Please try again.');
+    },
+    onSettled: () => {
+      setIsAltProcessing(false);
+    },
+  });
+
+  useEffect(() => {
+    if (selectedMethod !== 'wechat_pay') {
+      setQrSession(null);
+    }
+  }, [selectedMethod]);
+
+  const handleMethodChange = (method: PaymentMethod) => {
+    setSelectedMethod(method);
+    setAltError(null);
+    if (method !== 'wechat_pay') {
+      setQrSession(null);
+    }
+  };
+
+  const handleQrSuccess = () => {
+    setQrSession(null);
+    onSuccess();
+  };
+
+  const handleStartAlternativePayment = () => {
+    if (isAltProcessing) {
+      return;
+    }
+    setAltError(null);
+    setIsAltProcessing(true);
+    createAlternativePayment.mutate(selectedMethod);
+  };
+
+  const showAlternativeFlow = selectedMethod !== 'card';
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <Button 
+          variant="ghost" 
+          onClick={onBack}
+          className="mb-2"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          {t('backToPricing')}
+        </Button>
+      </div>
+
+      <h1 className="text-3xl font-bold text-white">{t('completePurchase')}</h1>
+
+      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
+        <div className="space-y-6">
+          <div>
+            <h3 className="mb-3 text-lg font-semibold text-white">{t('paymentMethod')}</h3>
+            <PaymentMethodSelector selected={selectedMethod} onSelect={handleMethodChange} />
+          </div>
+
+          {showAlternativeFlow ? (
+            <Card className="bg-gray-800 border-gray-700">
+              <CardHeader>
+                <CardTitle className="text-white">
+                  {selectedMethod === 'wechat_pay' ? 'WeChat Pay' : 'Alipay'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {selectedMethod === 'wechat_pay' && qrSession ? (
+                  <QRCodePayment
+                    clientSecret={qrSession.clientSecret}
+                    paymentIntentId={qrSession.paymentIntentId}
+                    qrImageUrl={qrSession.qrImageUrl}
+                    amount={qrSession.amount}
+                    currency={qrSession.currency}
+                    expiresAt={qrSession.expiresAt}
+                    method={qrSession.method}
+                    onSuccess={handleQrSuccess}
+                    onExpired={() => {
+                      setQrSession(null);
+                      handleStartAlternativePayment();
+                    }}
+                  />
+                ) : (
+                  <div className="space-y-4 text-gray-300">
+                    <p>
+                      {selectedMethod === 'wechat_pay'
+                        ? 'Generate a QR code and scan it with your WeChat app to complete the payment.'
+                        : 'You will be redirected to Alipay to confirm and complete your purchase.'}
+                    </p>
+
+                    {selectedMethod === 'alipay' && (
+                      <div className="rounded-lg bg-gray-700/60 p-3 text-sm text-gray-300">
+                        <p className="font-medium text-white mb-1">What to expect</p>
+                        <p>• A new tab or window will open with the Stripe Alipay simulator.</p>
+                        <p>• Follow the prompts to approve the payment.</p>
+                        <p>• You will be brought back here automatically after completing the approval.</p>
+                      </div>
+                    )}
+
+                    <Button
+                      type="button"
+                      disabled={isAltProcessing}
+                      onClick={handleStartAlternativePayment}
+                      className="w-full bg-brand-accent text-black hover:bg-brand-accent/90"
+                    >
+                      {isAltProcessing ? (
+                        <span className="flex items-center justify-center gap-2 text-sm">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          {t('processing')}...
+                        </span>
+                      ) : (
+                        selectedMethod === 'wechat_pay' ? 'Generate QR Code' : 'Continue to Alipay'
+                      )}
+                    </Button>
+
+                    <p className="text-xs text-gray-500">
+                      Payment Intent will be created under your account: {tierData.tokens} tokens purchase.
+                    </p>
+                  </div>
+                )}
+
+                {altError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{altError}</AlertDescription>
+                  </Alert>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            <CardPaymentForm selectedTier={selectedTier} tierData={tierData} onSuccess={onSuccess} />
+          )}
+        </div>
+
+        <OrderSummary tierData={tierData} method={selectedMethod} />
+      </div>
+    </div>
+  );
+};
+
 const PaymentPage: React.FC = () => {
-  const { navigateToPath } = useNavigation();
+  const { navigateToPath, navigateToHome } = useNavigation();
   const { t } = useLanguage();
   const [selectedTier, setSelectedTier] = useState<string>('standard');
   const [showPaymentForm, setShowPaymentForm] = useState(false);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentMethodParam = params.get('payment');
+    const statusParam = params.get('status');
+
+    if (paymentMethodParam === 'alipay' && statusParam === 'success') {
+      setPaymentSuccess(true);
+      setShowPaymentForm(false);
+      queryClient.invalidateQueries({ queryKey: ['tokenBalance'] });
+
+      params.delete('payment');
+      params.delete('status');
+      const newQuery = params.toString();
+      const newUrl = `${window.location.pathname}${newQuery ? `?${newQuery}` : ''}`;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, [queryClient]);
+
+  useEffect(() => {
+    if (!paymentSuccess) {
+      return;
+    }
+
+    let attempts = 0;
+    const maxAttempts = 6; // Refresh for ~30 seconds after success
+    let intervalId: number | null = null;
+
+    const refreshBalance = () => {
+      queryClient.invalidateQueries({ queryKey: ['tokenBalance'] });
+      attempts += 1;
+      if (attempts >= maxAttempts && intervalId !== null) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    refreshBalance();
+    intervalId = window.setInterval(refreshBalance, 5000);
+
+    return () => {
+      if (intervalId !== null) {
+        window.clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+  }, [paymentSuccess, queryClient]);
 
   const { 
     data: pricingTiers, 
@@ -416,6 +950,11 @@ const PaymentPage: React.FC = () => {
     setShowPaymentForm(false);
     // Refetch token balance
     queryClient.invalidateQueries({ queryKey: ['tokenBalance'] });
+  };
+
+  const handleBuyMoreTokens = () => {
+    setPaymentSuccess(false);
+    setShowPaymentForm(false);
   };
 
   // Back function for sub-pages only
@@ -437,10 +976,15 @@ const PaymentPage: React.FC = () => {
                 {t('tokensAddedToAccount')}
               </p>
               <div className="mb-6">
-                <ImprovedTokenBalance showTitle={false} compact={false} showStats={false} />
+                <ImprovedTokenBalance
+                  showTitle={false}
+                  compact={false}
+                  showStats={false}
+                  onPurchaseClick={handleBuyMoreTokens}
+                />
               </div>
               <div className="flex gap-3 justify-center">
-                <Button onClick={() => navigateToPath('/chats')} size="lg" className="bg-brand-accent hover:bg-indigo-500 rounded-2xl shadow-surface">
+                <Button onClick={navigateToHome} size="lg" className="bg-brand-accent hover:bg-indigo-500 rounded-2xl shadow-surface">
                   {t('startChatting')}
                 </Button>
                 <Button onClick={handleBackToProfile} variant="outline" size="lg" className="bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl">
@@ -457,24 +1001,13 @@ const PaymentPage: React.FC = () => {
   if (showPaymentForm && pricingTiers && selectedTier) {
     return (
       <GlobalLayout>
-        <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-2xl">
-          <div className="mb-6">
-            <Button 
-              variant="ghost" 
-              onClick={() => setShowPaymentForm(false)}
-              className="mb-4"
-            >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              {t('backToPricing')}
-            </Button>
-            <h1 className="text-3xl font-bold text-white">{t('completePurchase')}</h1>
-          </div>
-
+        <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-4xl">
           <Elements stripe={stripePromise}>
-            <PaymentForm 
+            <PaymentCheckout
               selectedTier={selectedTier}
               tierData={pricingTiers[selectedTier]}
               onSuccess={handlePaymentSuccess}
+              onBack={() => setShowPaymentForm(false)}
             />
           </Elements>
         </div>
@@ -484,7 +1017,7 @@ const PaymentPage: React.FC = () => {
 
   return (
     <GlobalLayout>
-      <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-4xl">
+      <div className="container mx-auto px-2 sm:px-4 py-4 sm:py-8 max-w-6xl">
         <div className="mb-6">
           <h1 className="text-3xl font-bold mb-2 text-white">{t('buyTokens')}</h1>
           <p className="text-gray-400">
@@ -498,8 +1031,34 @@ const PaymentPage: React.FC = () => {
 
         <Separator className="my-6" />
 
+        {/* Premium Membership - Primary Section */}
+        <div className="mb-12">
+          <div className="flex items-center gap-2 mb-4">
+            <Crown className="h-6 w-6 text-yellow-500" />
+            <h2 className="text-2xl font-bold text-white">Premium Membership</h2>
+            <Badge className="ml-2 bg-gradient-to-r from-purple-600 to-pink-600">Recommended</Badge>
+          </div>
+          <p className="text-gray-400 mb-6">
+            Subscribe for recurring tokens every month. Best value for regular users!
+          </p>
+          <Elements stripe={stripePromise}>
+            <PremiumMembership />
+          </Elements>
+        </div>
+
+        <Separator className="my-8" />
+
+        {/* One-Time Purchase - Secondary Section */}
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Coins className="h-5 w-5 text-brand-secondary" />
+            <h2 className="text-xl font-semibold text-white">Or Purchase Tokens One-Time</h2>
+          </div>
+          <p className="text-gray-400 mb-6">
+            Buy tokens as you need them. No commitment required.
+          </p>
+
         <div className="mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-white">{t('chooseTokenPackage')}</h2>
           
           {tiersLoading ? (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -594,6 +1153,7 @@ const PaymentPage: React.FC = () => {
             <li>• {t('securePaymentsStripe')}</li>
             <li>• {t('instantDelivery')}</li>
           </ul>
+        </div>
         </div>
       </div>
     </GlobalLayout>
