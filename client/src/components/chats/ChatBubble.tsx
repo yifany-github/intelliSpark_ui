@@ -2,6 +2,7 @@ import { useRef, useState, useEffect } from 'react';
 import { ChatMessage } from '../../types';
 import { format } from 'date-fns';
 import { Menu, X, RefreshCw, Copy, Palette } from 'lucide-react';
+import DOMPurify from 'dompurify';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -153,8 +154,9 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
     content = content.split('\n\n').map(p => `<p>${p}</p>`).join('');
     // Handle line breaks
     content = content.replace(/\n/g, '<br />');
-    
-    return content;
+
+    // Sanitize HTML to prevent XSS attacks
+    return DOMPurify.sanitize(content);
   };
   
   // Handle system messages (errors) differently
