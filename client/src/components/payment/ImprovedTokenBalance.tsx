@@ -102,7 +102,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
 
   if (isLoading) {
     return (
-      <Card className={cn("bg-gray-800 border-gray-700", compact && "p-2", className)}>
+      <Card className={cn("bg-gradient-to-br from-purple-900/40 to-pink-900/40 border-purple-500/30", compact && "p-2", className)}>
         {showTitle && !compact && (
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
@@ -113,8 +113,8 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
         )}
         <CardContent className={cn("pt-2", compact && "p-2")}>
           <div className="space-y-2">
-            <Skeleton className="h-8 w-24 bg-gray-700" />
-            <Skeleton className="h-4 w-32 bg-gray-700" />
+            <Skeleton className="h-8 w-24 bg-purple-800/50" />
+            <Skeleton className="h-4 w-32 bg-purple-800/50" />
           </div>
         </CardContent>
       </Card>
@@ -123,7 +123,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
 
   if (error) {
     return (
-      <Card className={cn("bg-gray-800 border-gray-700", compact && "p-2", className)}>
+      <Card className={cn("bg-gradient-to-br from-purple-900/40 to-pink-900/40 border-purple-500/30", compact && "p-2", className)}>
         {showTitle && !compact && (
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
@@ -135,11 +135,11 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
         <CardContent className={cn("pt-2", compact && "p-2")}>
           <div className="text-center space-y-2">
             <div className="text-sm text-red-400">{t('failedToLoadBalance')}</div>
-            <Button 
-              size="sm" 
-              variant="outline" 
+            <Button
+              size="sm"
+              variant="outline"
               onClick={() => refetch()}
-              className="w-full bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl"
+              className="w-full bg-purple-600 border-purple-500 hover:bg-purple-700 text-white rounded-2xl"
             >
               <RefreshCw className="h-4 w-4 mr-2" />
               {t('retry')}
@@ -179,7 +179,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
   }
 
   return (
-    <Card className={cn("bg-gray-800 border-gray-700", className)}>
+    <Card className={cn("bg-gradient-to-br from-purple-900/40 to-pink-900/40 border-purple-500/30", className)}>
       {showTitle && (
         <CardHeader className="pb-3">
           <CardTitle className="text-sm font-medium text-white flex items-center gap-2">
@@ -196,12 +196,12 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
               <span className={cn("text-3xl font-bold", balanceStatus.color)}>
                 {balance}
               </span>
-              <span className="text-sm text-gray-400">{t('tokens')}</span>
+              <span className="text-sm text-gray-300">{t('tokens')}</span>
             </div>
-            <Badge 
-              variant="outline" 
+            <Badge
+              variant="outline"
               className={cn(
-                "text-xs border", 
+                "text-xs border",
                 balanceStatus.color,
                 balanceStatus.bgColor
               )}
@@ -211,8 +211,8 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
             </Badge>
           </div>
           {showActions && (
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               onClick={handleBuyTokens}
               className="flex items-center gap-1 bg-brand-accent hover:bg-indigo-500 rounded-2xl"
             >
@@ -231,20 +231,20 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
 
         {/* Statistics */}
         {showStats && (
-          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-700">
+          <div className="grid grid-cols-2 gap-4 pt-2 border-t border-purple-500/30">
             <div className="text-center">
-              <div className="text-sm text-gray-400">{t('messagesAvailable')}</div>
+              <div className="text-sm text-gray-300">{t('messagesAvailable')}</div>
               <div className="text-lg font-semibold text-white">{balance}</div>
             </div>
             <div className="text-center">
-              <div className="text-sm text-gray-400">{t('costPerMessage')}</div>
+              <div className="text-sm text-gray-300">{t('costPerMessage')}</div>
               <div className="text-lg font-semibold text-white">{t('oneToken')}</div>
             </div>
           </div>
         )}
 
         {/* Last Updated */}
-        <div className="text-xs text-gray-500 flex items-center gap-1">
+        <div className="text-xs text-gray-400 flex items-center gap-1">
           <Clock className="h-3 w-3" />
           {t('lastUpdated')}: {new Date(tokenBalance?.updated_at || '').toLocaleString()}
         </div>
@@ -252,8 +252,8 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
         {/* Quick Actions */}
         {showActions && (isLowBalance || isCriticalBalance) && (
           <div className="flex gap-2">
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               variant="outline"
               onClick={handleBuyTokens}
               className="flex-1 bg-brand-accent hover:bg-indigo-500 border-brand-accent text-white rounded-2xl"
@@ -261,11 +261,11 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
               <Gift className="h-4 w-4 mr-2" />
               {t('quickBuy')}
             </Button>
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               variant="outline"
               onClick={onHistoryClick ? onHistoryClick : () => navigateToPath('/payment')}
-              className="flex-1 bg-secondary border-secondary hover:bg-secondary/80 text-white rounded-2xl"
+              className="flex-1 bg-purple-600 border-purple-500 hover:bg-purple-700 text-white rounded-2xl"
             >
               {onHistoryClick ? t('viewHistory') : t('viewPlans')}
             </Button>

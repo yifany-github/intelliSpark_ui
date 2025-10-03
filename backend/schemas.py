@@ -271,7 +271,51 @@ class TokenTransaction(BaseSchema):
     amount: int
     description: Optional[str] = None
     stripe_payment_intent_id: Optional[str] = None
+    expires_at: Optional[datetime] = None
     created_at: datetime
+
+
+# Subscription schemas
+class SubscriptionPlan(BaseSchema):
+    name: str
+    monthly_tokens: int
+    price: int
+    price_cny: Optional[int] = None
+    fx_rate: Optional[float] = None
+    description: str
+    stripe_price_id: Optional[str] = None
+
+
+class CreateSubscriptionRequest(BaseSchema):
+    tier: str = Field(..., description="Subscription tier: basic, pro, premium")
+    price_id: str = Field(..., description="Stripe Price ID for the subscription")
+
+
+class CreateSubscriptionResponse(BaseSchema):
+    client_secret: Optional[str] = None
+    subscription_id: str
+    status: str
+
+
+class SubscriptionInfo(BaseSchema):
+    id: int
+    plan_tier: str
+    status: str
+    monthly_token_allowance: int
+    tokens_allocated_this_period: int
+    current_period_start: datetime
+    current_period_end: datetime
+    cancel_at_period_end: bool
+
+
+class UserSubscriptionResponse(BaseSchema):
+    has_subscription: bool
+    subscription: Optional[SubscriptionInfo] = None
+
+
+class CancelSubscriptionRequest(BaseSchema):
+    cancel_immediately: bool = Field(default=False, description="Cancel immediately vs at period end")
+
 
 # Notification schemas
 class NotificationBase(BaseSchema):
