@@ -288,22 +288,27 @@ class TokenService:
                 "error": str(e),
             }
 
-# Pricing tiers configuration
+# Pricing tiers configuration - One-time token purchases
 PRICING_TIERS = {
+    "test": {
+        "tokens": 1,
+        "price": 50,  # $0.50 in cents (USD) - MINIMAL TEST AMOUNT
+        "description": "Test - 1 token",
+    },
     "starter": {
         "tokens": 100,
-        "price": 500,  # $5.00 in cents (USD)
-        "description": "Starter Pack - 100 tokens",
+        "price": 299,  # $2.99 in cents (USD)
+        "description": "Starter Pack - 100 messages",
     },
     "standard": {
         "tokens": 500,
-        "price": 2000,  # $20.00 in cents (25% bonus)
-        "description": "Standard Pack - 500 tokens",
+        "price": 999,  # $9.99 in cents
+        "description": "Standard Pack - 500 messages",
     },
     "premium": {
-        "tokens": 1500,
-        "price": 5000,  # $50.00 in cents (50% bonus)
-        "description": "Premium Pack - 1500 tokens",
+        "tokens": 2000,
+        "price": 2499,  # $24.99 in cents
+        "description": "Premium Pack - 2000 messages",
     },
 }
 

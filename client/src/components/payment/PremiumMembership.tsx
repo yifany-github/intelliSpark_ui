@@ -577,15 +577,10 @@ export const PremiumMembership: React.FC = () => {
                     <div className="space-y-1">
                       <div className="flex items-baseline gap-1">
                         <span className="text-4xl font-bold text-white">
-                          ${(plan.price / 100).toFixed(0)}
+                          ${(plan.price / 100).toFixed(2)}
                         </span>
                         <span className="text-gray-400">/month</span>
                       </div>
-                      {plan.price_cny && (
-                        <p className="text-sm text-gray-500">
-                          ¥{(plan.price_cny / 100).toFixed(0)} CNY
-                        </p>
-                      )}
                     </div>
 
                     <div className="space-y-2">
@@ -688,8 +683,8 @@ export const PremiumMembership: React.FC = () => {
                       </div>
                     </button>
 
-                    {/* WeChat Pay Option */}
-                    <button
+                    {/* WeChat Pay Option - Temporarily disabled (provider approval pending) */}
+                    {/* <button
                       type="button"
                       onClick={() => {
                         setSelectedMethod('wechat_pay');
@@ -718,7 +713,7 @@ export const PremiumMembership: React.FC = () => {
                         </div>
                         <p className="mt-1 text-sm text-gray-400">Scan the QR code with WeChat to complete your purchase.</p>
                       </div>
-                    </button>
+                    </button> */}
                   </div>
                 </div>
 
@@ -726,14 +721,17 @@ export const PremiumMembership: React.FC = () => {
                 {selectedMethod === 'card' && savedCards.length > 0 && useSavedCard && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium text-gray-300">使用已保存的卡片</label>
-                        <button
+                        <label className="text-base font-semibold text-white">Saved Cards</label>
+                        <Button
                           type="button"
+                          variant="outline"
+                          size="sm"
                           onClick={() => setUseSavedCard(false)}
-                          className="text-xs font-medium text-purple-400 hover:text-purple-300"
+                          className="border-purple-500/50 text-purple-400 hover:bg-purple-500/10 hover:text-purple-300"
                         >
-                          + 添加新卡片
-                        </button>
+                          <CreditCard className="h-4 w-4 mr-2" />
+                          Add New Card
+                        </Button>
                       </div>
                       <div className="space-y-2">
                         {savedCards.map((card) => (
@@ -767,23 +765,31 @@ export const PremiumMembership: React.FC = () => {
                   {selectedMethod === 'card' && (!useSavedCard || savedCards.length === 0) && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium text-gray-300">卡片信息</label>
+                        <label className="text-base font-semibold text-white">Card Information</label>
                         {savedCards.length > 0 && (
-                          <button
+                          <Button
                             type="button"
+                            variant="outline"
+                            size="sm"
                             onClick={() => {
                               setUseSavedCard(true);
                               setSelectedSavedCardId(savedCards[0]?.id || '');
                             }}
-                            className="text-xs font-medium text-purple-400 hover:text-purple-300"
+                            className="border-purple-500/50 text-purple-400 hover:bg-purple-500/10 hover:text-purple-300"
                           >
-                            使用已保存的卡片
-                          </button>
+                            Use Saved Card
+                          </Button>
                         )}
                       </div>
-                      <div className="p-4 bg-gray-800/50 rounded-lg border border-gray-700">
+                      <div className="p-5 bg-gray-800/50 rounded-lg border-2 border-gray-700 focus-within:border-purple-500 transition-colors">
                         <CardElement options={cardElementOptions} />
                       </div>
+                      <Alert className="bg-blue-500/10 border-blue-500/30">
+                        <AlertCircle className="h-4 w-4 text-blue-400" />
+                        <AlertDescription className="text-blue-300 text-sm">
+                          💡 Postal code is optional for most cards. Stripe will validate your card automatically.
+                        </AlertDescription>
+                      </Alert>
                     </div>
                   )}
 

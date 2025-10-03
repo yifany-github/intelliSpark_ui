@@ -23,20 +23,21 @@ const methodOptions: MethodOption[] = [
     description: 'Pay securely with Visa, Mastercard, American Express, and more.',
     icon: <CreditCard className="h-5 w-5" />,
   },
-  {
-    key: 'wechat_pay',
-    title: 'WeChat Pay',
-    description: 'Scan the QR code with WeChat to complete your purchase.',
-    badge: 'China',
-    icon: <QrCode className="h-5 w-5" />,
-  },
-  {
-    key: 'alipay',
-    title: 'Alipay',
-    description: 'Redirect to Alipay for a familiar checkout experience.',
-    badge: 'Popular',
-    icon: <Landmark className="h-5 w-5" />,
-  },
+  // WeChat Pay and Alipay temporarily disabled - pending provider approval
+  // {
+  //   key: 'wechat_pay',
+  //   title: 'WeChat Pay',
+  //   description: 'Scan the QR code with WeChat to complete your purchase.',
+  //   badge: 'China',
+  //   icon: <QrCode className="h-5 w-5" />,
+  // },
+  // {
+  //   key: 'alipay',
+  //   title: 'Alipay',
+  //   description: 'Redirect to Alipay for a familiar checkout experience.',
+  //   badge: 'Popular',
+  //   icon: <Landmark className="h-5 w-5" />,
+  // },
 ];
 
 export const PaymentMethodSelector: FC<PaymentMethodSelectorProps> = ({ selected, onSelect }) => {

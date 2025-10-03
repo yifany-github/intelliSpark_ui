@@ -14,24 +14,24 @@ logger = logging.getLogger(__name__)
 # Subscription plan configuration
 SUBSCRIPTION_PLANS = {
     "basic": {
-        "name": "Basic Plan",
-        "monthly_tokens": 200,
-        "price": 800,  # $8.00 in cents (USD)
-        "description": "200 tokens per month - Perfect for casual users",
+        "name": "Starter Plan",
+        "monthly_tokens": 300,
+        "price": 499,  # $4.99 in cents (USD)
+        "description": "300 messages/month - Perfect for casual users",
         "stripe_price_id": os.getenv("STRIPE_PRICE_BASIC"),
     },
     "pro": {
         "name": "Pro Plan",
-        "monthly_tokens": 600,
-        "price": 1800,  # $18.00 in cents (25% discount vs one-time)
-        "description": "600 tokens per month - Best for regular users",
+        "monthly_tokens": 1000,
+        "price": 999,  # $9.99 in cents - Best value
+        "description": "1000 messages/month - Best for regular users",
         "stripe_price_id": os.getenv("STRIPE_PRICE_PRO"),
     },
     "premium": {
         "name": "Premium Plan",
-        "monthly_tokens": 2000,
-        "price": 4500,  # $45.00 in cents (33% discount vs one-time)
-        "description": "2000 tokens per month - For power users",
+        "monthly_tokens": 3000,
+        "price": 1999,  # $19.99 in cents - For power users
+        "description": "3000 messages/month - Unlimited conversations",
         "stripe_price_id": os.getenv("STRIPE_PRICE_PREMIUM"),
     },
 }
