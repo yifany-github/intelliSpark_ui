@@ -290,11 +290,6 @@ class TokenService:
 
 # Pricing tiers configuration - One-time token purchases
 PRICING_TIERS = {
-    "test": {
-        "tokens": 1,
-        "price": 50,  # $0.50 in cents (USD) - MINIMAL TEST AMOUNT
-        "description": "Test - 1 token",
-    },
     "starter": {
         "tokens": 100,
         "price": 299,  # $2.99 in cents (USD)
