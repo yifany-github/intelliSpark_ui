@@ -281,29 +281,29 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
   const segmentConfig = useMemo(() => ([
     {
       id: 'trending' as const,
-      label: t('trendingThisWeek'),
-      description: t('hotPicksCommunity'),
+      label: t('trending'),
+      description: t('trendingThisWeek'),
       icon: TrendingUp,
       data: filteredSections.trending,
     },
     {
       id: 'latest' as const,
-      label: t('newArrivals'),
-      description: t('freshCharactersAdded'),
+      label: t('latest'),
+      description: t('newArrivals'),
       icon: Calendar,
       data: filteredSections.new,
     },
     {
       id: 'recommended' as const,
-      label: t('recommendedForYou'),
+      label: t('recommended'),
       description: t('basedOnPreferences'),
-      icon: Sparkles,
+      icon: Users,
       data: filteredSections.recommended,
     },
     {
       id: 'favorites' as const,
-      label: t('myFavorites'),
-      description: favorites.length > 0 ? t('favorites') : t('noFavoritesYet'),
+      label: t('favorites'),
+      description: t('myFavorites'),
       icon: Heart,
       data: filteredSections.favorites,
     },
@@ -313,7 +313,6 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
     filteredSections.recommended,
     filteredSections.favorites,
     t,
-    favorites.length,
   ]);
 
   const activeSegmentCharacters = useMemo(() => {
@@ -732,13 +731,15 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
         {!showSkeleton && activeSegmentCharacters.length === 0 && (
           <div className="rounded-2xl border border-dashed border-gray-800 bg-gray-900/40 p-10 text-center shadow-inner">
             <p className="text-base font-medium text-gray-200">
-              {activeSegment === 'favorites'
+              {searchQuery
+                ? t('noMatches')
+                : activeSegment === 'favorites'
                 ? t('noFavoritesYet')
-                : searchQuery
-                  ? t('noMatches')
-                  : t('noCharactersFound').replace('{category}', selectedCategory)}
+                : t('noCharactersFound').replace('{category}', selectedCategory)}
             </p>
-            <p className="mt-2 text-sm text-gray-400">{t('searchHint')}</p>
+            <p className="mt-2 text-sm text-gray-400">
+              {activeSegment === 'favorites' ? t('startFavoritingCharacters') : t('searchHint')}
+            </p>
           </div>
         )}
 

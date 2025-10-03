@@ -31,6 +31,7 @@ export interface Character {
   isPublic?: boolean;     // Public/private toggle from Issue #146
   galleryEnabled?: boolean; // Gallery feature toggle from Issue #146
   createdBy?: number;     // User ID of character creator (for ownership checks)
+  createdByUsername?: string;  // Username of character creator
   createdAt: string;
   // Admin management and analytics fields
   isFeatured?: boolean;

@@ -46,6 +46,8 @@ class User(Base):
     provider = Column(String(50), default='email')  # 'email', 'google', 'apple'
     firebase_uid = Column(String(255), unique=True, nullable=True)  # Firebase user ID
     email_verified = Column(Boolean, default=False)
+    avatar_url = Column(String(500), nullable=True)  # User avatar URL
+    age = Column(Integer, nullable=True)  # User age
     memory_enabled = Column(Boolean, default=True)
     preferred_ai_model = Column(String(50), default='gemini')  # User's preferred AI model: 'gemini', 'grok', etc.
     stripe_customer_id = Column(String(255), nullable=True, unique=True)

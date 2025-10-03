@@ -36,7 +36,7 @@ limiter = Limiter(key_func=get_remote_address)
 
 @router.get("")
 async def get_characters(db: Session = Depends(get_db)):
-    """Get all characters"""
+    """Get all characters with creator usernames"""
     try:
         service = CharacterService(db)
         characters = await service.get_all_characters()
@@ -47,7 +47,7 @@ async def get_characters(db: Session = Depends(get_db)):
 
 @router.get("/{character_id}")
 async def get_character(character_id: int, db: Session = Depends(get_db)):
-    """Get character by ID"""
+    """Get character by ID with creator username"""
     try:
         service = CharacterService(db)
         character = await service.get_character(character_id)

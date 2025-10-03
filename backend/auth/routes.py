@@ -1,8 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 import logging
+import os
+import shutil
+from typing import Optional
 
 from database import get_db
 from models import User
@@ -231,4 +234,119 @@ async def get_user_stats(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to fetch user statistics"
+        )
+
+@router.get("/check-username")
+async def check_username(username: str, db: Session = Depends(get_db)):
+    """Check if username is available"""
+    try:
+        # Check if username exists
+        existing_user = db.query(User).filter(User.username == username).first()
+        return {"available": existing_user is None}
+    except Exception as e:
+        logger.error(f"Error checking username: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to check username availability"
+        )
+
+@router.put("/profile", response_model=UserSchema)
+async def update_profile(
+    username: str = Form(...),
+    email: str = Form(...),
+    age: Optional[int] = Form(None),
+    preset_avatar_id: Optional[int] = Form(None),
+    avatar: Optional[UploadFile] = File(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update user profile"""
+    try:
+        # Check if username is being changed and if it's taken
+        if username != current_user.username:
+            existing_user = db.query(User).filter(User.username == username).first()
+            if existing_user:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Username already taken"
+                )
+
+        # Check if email is being changed and if it's taken
+        if email != current_user.email:
+            existing_email = db.query(User).filter(User.email == email).first()
+            if existing_email:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already registered"
+                )
+
+        # Validate age if provided
+        if age is not None and (age < 13 or age > 120):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Age must be between 13 and 120"
+            )
+
+        # Update basic fields
+        current_user.username = username
+        current_user.email = email
+        current_user.age = age
+
+        # Handle avatar update
+        if preset_avatar_id is not None:
+            # Use preset avatar
+            api_base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+            current_user.avatar_url = f"{api_base_url}/assets/user_avatar_img/avatar_{preset_avatar_id}.png"
+        elif avatar is not None:
+            # Handle custom avatar upload
+            # Validate file type
+            allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif']
+            file_ext = os.path.splitext(avatar.filename)[1].lower()
+            if file_ext not in allowed_extensions:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid file type. Only JPG, PNG, and GIF are allowed"
+                )
+
+            # Validate file size (5MB limit)
+            avatar.file.seek(0, 2)  # Seek to end
+            file_size = avatar.file.tell()
+            avatar.file.seek(0)  # Reset to beginning
+
+            if file_size > 5 * 1024 * 1024:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="File size exceeds 5MB limit"
+                )
+
+            # Create avatars directory if it doesn't exist
+            avatars_dir = os.path.join("attached_assets", "avatars")
+            os.makedirs(avatars_dir, exist_ok=True)
+
+            # Save file with unique name
+            file_name = f"user_{current_user.id}_{avatar.filename}"
+            file_path = os.path.join(avatars_dir, file_name)
+
+            with open(file_path, "wb") as buffer:
+                shutil.copyfileobj(avatar.file, buffer)
+
+            # Update avatar URL
+            api_base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
+            current_user.avatar_url = f"{api_base_url}/assets/avatars/{file_name}"
+
+        # Commit changes
+        db.commit()
+        db.refresh(current_user)
+
+        logger.info(f"Profile updated for user: {current_user.email}")
+        return current_user
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating profile: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update profile"
         )

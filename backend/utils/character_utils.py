@@ -38,12 +38,16 @@ def ensure_avatar_url(character: Character) -> str:
     return "/assets/characters_img/Elara.jpeg"
 
 
-def transform_character_to_response(character: Character) -> Dict[str, Any]:
+def transform_character_to_response(character: Character, db_session=None) -> Dict[str, Any]:
     """
     Transform a database Character model to frontend-compatible response format.
     Handles snake_case to camelCase conversion consistently across all endpoints.
+
+    Args:
+        character: Character model to transform
+        db_session: Optional database session to enrich with creator username
     """
-    return {
+    response = {
         "id": character.id,
         "name": character.name,
         "description": character.description,
@@ -75,12 +79,25 @@ def transform_character_to_response(character: Character) -> Dict[str, Any]:
         "lastActivity": character.last_activity.isoformat() + "Z" if character.last_activity else None
     }
 
+    # Enrich with creator username if db_session provided and character has creator
+    if db_session and character.created_by:
+        from models import User
+        creator = db_session.query(User).filter(User.id == character.created_by).first()
+        if creator:
+            response["createdByUsername"] = creator.username
 
-def transform_character_list_to_response(characters: list[Character]) -> list[Dict[str, Any]]:
+    return response
+
+
+def transform_character_list_to_response(characters: list[Character], db_session=None) -> list[Dict[str, Any]]:
     """
     Transform a list of Character models to frontend-compatible response format.
+
+    Args:
+        characters: List of Character models to transform
+        db_session: Optional database session to enrich with creator usernames
     """
-    return [transform_character_to_response(character) for character in characters]
+    return [transform_character_to_response(character, db_session) for character in characters]
 
 
 # CSV Archetype-based trait extraction functions (Issue #112)

@@ -19,6 +19,8 @@ class UserBase(BaseSchema):
     provider: str = 'email'
     memory_enabled: bool = True
     is_admin: bool = False
+    avatar_url: Optional[str] = None
+    age: Optional[int] = None
 
 class UserCreate(BaseSchema):
     username: str
@@ -140,8 +142,9 @@ class CharacterAdminUpdate(BaseSchema):
 class Character(CharacterBase):
     id: int
     createdBy: Optional[int] = Field(default=None, alias="created_by")
+    createdByUsername: Optional[str] = Field(default=None, alias="created_by_username")
     createdAt: datetime = Field(alias="created_at")  # Map database field to frontend field
-    
+
     # Admin management and analytics fields
     isFeatured: bool = Field(default=False, alias="is_featured")
     viewCount: int = Field(default=0, alias="view_count")
@@ -149,7 +152,7 @@ class Character(CharacterBase):
     chatCount: int = Field(default=0, alias="chat_count")
     trendingScore: float = Field(default=0.0, alias="trending_score")
     lastActivity: Optional[datetime] = Field(default=None, alias="last_activity")
-    
+
     # Soft delete fields (Issue #162)
     isDeleted: Optional[bool] = Field(default=False, alias="is_deleted")
     deletedAt: Optional[datetime] = Field(default=None, alias="deleted_at")
