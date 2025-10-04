@@ -15,6 +15,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { fetchTokenBalance } from '@/services/tokenService';
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const resolveAvatarUrl = (url?: string | null): string | undefined => {
+  if (!url) return undefined;
+  return url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+};
+
 export default function GlobalSidebar() {
   const { user, isAuthenticated } = useAuth();
   const {
@@ -76,7 +82,7 @@ export default function GlobalSidebar() {
           >
             {isAuthenticated && (user as any)?.avatar_url ? (
               <img
-                src={(user as any).avatar_url}
+                src={resolveAvatarUrl((user as any).avatar_url)}
                 alt="Avatar"
                 className="w-full h-full object-cover"
               />

@@ -18,6 +18,11 @@ const PRESET_AVATARS = Array.from({ length: 9 }, (_, i) => ({
   url: `${API_BASE_URL}/assets/user_avatar_img/avatar_${i + 1}.png`,
 }));
 
+const resolveAvatarUrl = (url?: string | null): string => {
+  if (!url) return '';
+  return url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+};
+
 interface ProfileEditModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -171,7 +176,7 @@ const ProfileEditModal = ({ isOpen, onClose }: ProfileEditModalProps) => {
     if (avatarMode === 'preset' && selectedPresetAvatar) {
       return PRESET_AVATARS.find(a => a.id === selectedPresetAvatar)?.url;
     }
-    return (user as any)?.avatar_url;
+    return resolveAvatarUrl((user as any)?.avatar_url);
   };
 
   return (

@@ -5,7 +5,9 @@ from sqlalchemy.exc import IntegrityError
 import logging
 import os
 import shutil
+from pathlib import Path
 from typing import Optional
+from uuid import uuid4
 
 from database import get_db
 from models import User
@@ -20,6 +22,16 @@ router = APIRouter()
 
 # Security scheme
 security = HTTPBearer()
+
+
+def resolve_assets_root() -> Path:
+    """Resolve shared assets directory for both local and deployed environments."""
+    fly_path = Path("/app/attached_assets")
+    if os.getenv("FLY_APP_NAME"):
+        return fly_path
+    if fly_path.exists():
+        return fly_path
+    return Path(__file__).resolve().parent.parent / "attached_assets"
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     """Dependency to get current authenticated user"""
@@ -295,8 +307,7 @@ async def update_profile(
         # Handle avatar update
         if preset_avatar_id is not None:
             # Use preset avatar
-            api_base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
-            current_user.avatar_url = f"{api_base_url}/assets/user_avatar_img/avatar_{preset_avatar_id}.png"
+            current_user.avatar_url = f"/assets/user_avatar_img/avatar_{preset_avatar_id}.png"
         elif avatar is not None:
             # Handle custom avatar upload
             # Validate file type
@@ -319,20 +330,20 @@ async def update_profile(
                     detail="File size exceeds 5MB limit"
                 )
 
-            # Create avatars directory if it doesn't exist
-            avatars_dir = os.path.join("attached_assets", "avatars")
-            os.makedirs(avatars_dir, exist_ok=True)
+            assets_root = resolve_assets_root()
+            avatars_dir = assets_root / "avatars"
+            avatars_dir.mkdir(parents=True, exist_ok=True)
 
             # Save file with unique name
-            file_name = f"user_{current_user.id}_{avatar.filename}"
-            file_path = os.path.join(avatars_dir, file_name)
+            sanitized_ext = file_ext or '.png'
+            file_name = f"user_{current_user.id}_{uuid4().hex}{sanitized_ext}"
+            file_path = avatars_dir / file_name
 
             with open(file_path, "wb") as buffer:
                 shutil.copyfileobj(avatar.file, buffer)
 
             # Update avatar URL
-            api_base_url = os.getenv("API_BASE_URL", "http://localhost:8000")
-            current_user.avatar_url = f"{api_base_url}/assets/avatars/{file_name}"
+            current_user.avatar_url = f"/assets/avatars/{file_name}"
 
         # Commit changes
         db.commit()

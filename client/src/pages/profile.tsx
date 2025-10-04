@@ -32,6 +32,12 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { TokenManagement } from "@/components/payment/TokenManagement";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const resolveAvatarUrl = (url?: string | null): string | undefined => {
+  if (!url) return undefined;
+  return url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+};
+
 const ProfilePage = () => {
   const { t } = useLanguage();
   const { user, logout, isAuthenticated } = useAuth();
@@ -145,7 +151,7 @@ const ProfilePage = () => {
             <div className="relative flex-shrink-0">
               {(user as any)?.avatar_url ? (
                 <ImageWithFallback
-                  src={(user as any).avatar_url}
+                  src={resolveAvatarUrl((user as any).avatar_url)}
                   alt="Profile"
                   className="w-20 h-20 rounded-full object-cover border-2 border-pink-500/50"
                   fallbackClassName="w-20 h-20 bg-gradient-to-br from-pink-500 to-purple-500 rounded-full flex items-center justify-center"

@@ -16,6 +16,12 @@ const SEARCH_HISTORY_KEY = 'character_search_history_v2';
 const MAX_HISTORY_ITEMS = 10;
 const PLACEHOLDER_ROTATION_INTERVAL = 4000;
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+const resolveAvatarUrl = (url?: string | null): string | undefined => {
+  if (!url) return undefined;
+  return url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+};
+
 const HOT_SEARCH_TERMS: Record<'en' | 'zh', string[]> = {
   en: [
     'Cyberpunk detective',
@@ -404,7 +410,7 @@ export default function TopNavigation({
                   >
                     {(user as any)?.avatar_url ? (
                       <img
-                        src={(user as any).avatar_url}
+                        src={resolveAvatarUrl((user as any).avatar_url)}
                         alt="Avatar"
                         className="w-full h-full object-cover"
                       />
