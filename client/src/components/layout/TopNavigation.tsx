@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { ImprovedTokenBalance } from '@/components/payment/ImprovedTokenBalance';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { fetchTokenBalance } from '@/services/tokenService';
+import { fetchTrendingSearches, extractTrendingNames } from '@/services/searchService';
 import LogoImage from '@/assets/logo.png';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -77,9 +78,25 @@ export default function TopNavigation({
   const searchContainerRef = useRef<HTMLDivElement>(null);
 
   const topNavItems = getTopNavItems();
-  const hotSearches = HOT_SEARCH_TERMS[language] ?? HOT_SEARCH_TERMS.en;
-  const currentPlaceholder = hotSearches[placeholderIndex % hotSearches.length];
   const fallbackUserName = language === 'zh' ? '用户' : 'User';
+
+  // Fetch real trending searches from backend
+  const { data: trendingData, isLoading: trendingLoading } = useQuery({
+    queryKey: ['trendingSearches'],
+    queryFn: () => fetchTrendingSearches(10),
+    staleTime: 30 * 60 * 1000, // Cache for 30 minutes
+    retry: 1,
+  });
+
+  // Use real trending data if available, otherwise fallback to hard-coded terms
+  const hotSearches = useMemo(() => {
+    if (trendingData && trendingData.length > 0) {
+      return extractTrendingNames(trendingData);
+    }
+    return HOT_SEARCH_TERMS[language] ?? HOT_SEARCH_TERMS.en;
+  }, [trendingData, language]);
+
+  const currentPlaceholder = hotSearches[placeholderIndex % hotSearches.length];
 
   const { data: tokenBalance, isLoading: tokenLoading, error: tokenError, refetch } = useQuery({
     queryKey: ['tokenBalance'],

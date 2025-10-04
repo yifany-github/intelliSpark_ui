@@ -17,6 +17,7 @@ load_dotenv()
 from routes.characters import router as characters_router
 from routes.chats import router as chats_router
 from routes.admin import router as new_admin_router  # New AI admin routes
+from routes.search import router as search_router  # Search routes
 from admin.routes import router as admin_router
 from auth.routes import router as auth_router
 from auth.admin_routes import router as admin_auth_router  # New JWT admin auth
@@ -108,6 +109,7 @@ parent_dir = Path(__file__).parent
 app.include_router(characters_router, prefix="/api")
 app.include_router(chats_router, prefix="/api")
 app.include_router(new_admin_router, prefix="/api")  # New AI admin routes
+app.include_router(search_router, prefix="/api")  # Search routes
 app.include_router(preferences_router, prefix="/api")  # User preferences routes
 app.include_router(admin_router, prefix="/api/admin")  # Legacy admin routes
 app.include_router(auth_router, prefix="/api/auth", tags=["authentication"])
