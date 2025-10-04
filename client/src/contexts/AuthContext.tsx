@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useRef } from 'react';
 import { User } from '../types';
 import { useFirebaseAuth } from '../firebase/useFirebaseAuth';
 import { User as FirebaseUser } from 'firebase/auth';
@@ -29,6 +29,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isExchangingToken, setIsExchangingToken] = useState(false);
+  const [exchangeError, setExchangeError] = useState<string | null>(null);
+  const exchangePromiseRef = useRef<Promise<void> | null>(null);
   
   const firebaseAuth = useFirebaseAuth();
 
@@ -69,18 +71,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Handle Firebase auth state changes
   useEffect(() => {
-    if (!firebaseAuth.loading && firebaseAuth.user && !token && !isExchangingToken) {
-      // Firebase user is authenticated but we don't have a backend token
-      // This happens after successful Firebase authentication
-      setIsExchangingToken(true);
-      handleFirebaseAuthSuccess(firebaseAuth.user)
-        .finally(() => setIsExchangingToken(false));
+    if (!firebaseAuth.loading && firebaseAuth.user && (!token || !isTokenValid(token))) {
+      // Ensure only one exchange runs at a time
+      startTokenExchange(firebaseAuth.user).catch(error => {
+        console.error('Error exchanging Firebase token:', error);
+        setExchangeError(error instanceof Error ? error.message : 'Authentication failed');
+      });
     } else if (!firebaseAuth.loading && !firebaseAuth.user && token) {
       // Firebase user is logged out but we still have a backend token
       // This shouldn't normally happen, but clean up if it does
       logout();
     }
-  }, [firebaseAuth.user, firebaseAuth.loading, token, isExchangingToken]);
+  }, [firebaseAuth.user, firebaseAuth.loading, token]);
+
+  useEffect(() => {
+    return () => {
+      exchangePromiseRef.current = null;
+    };
+  }, []);
 
   // Listen for token expiration events from API requests
   useEffect(() => {
@@ -120,6 +128,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // Store token
       localStorage.setItem('auth_token', authToken);
       setToken(authToken);
+      setExchangeError(null);
 
       // Get user info
       await getCurrentUser(authToken);
@@ -127,6 +136,29 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.error('Error handling Firebase auth success:', error);
       throw error;
     }
+  };
+
+  const startTokenExchange = (firebaseUser: FirebaseUser): Promise<void> => {
+    if (!firebaseUser) {
+      return Promise.reject(new Error('Firebase user is required for token exchange'));
+    }
+
+    if (exchangePromiseRef.current) {
+      return exchangePromiseRef.current;
+    }
+
+    const exchangePromise = (async () => {
+      setIsExchangingToken(true);
+      try {
+        await handleFirebaseAuthSuccess(firebaseUser);
+      } finally {
+        setIsExchangingToken(false);
+        exchangePromiseRef.current = null;
+      }
+    })();
+
+    exchangePromiseRef.current = exchangePromise;
+    return exchangePromise;
   };
 
   // Get current user from API
@@ -140,17 +172,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       });
 
       if (!response.ok) {
-        throw new Error('Failed to get user info');
+        const detail = await response.text();
+        throw new Error(detail || 'Failed to get user info');
       }
 
       const userData = await response.json();
       setUser(userData);
     } catch (error) {
       console.error('Error getting current user:', error);
-      // Clear invalid token
-      localStorage.removeItem('auth_token');
-      setToken(null);
-      setUser(null);
+      // Only clear auth state if this token is still the active one
+      const currentStoredToken = localStorage.getItem('auth_token');
+      if (currentStoredToken === authToken) {
+        localStorage.removeItem('auth_token');
+        setToken(null);
+        setUser(null);
+      } else {
+        console.log('Token exchange already updated auth state, skipping clear');
+      }
       throw error;
     }
   };
@@ -160,9 +198,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       // First authenticate with Firebase
       const firebaseUser = await firebaseAuth.signInWithEmail(email, password);
-      
-      // Firebase auth success handler will exchange token with backend
-      await handleFirebaseAuthSuccess(firebaseUser);
+
+      // Ensure token exchange runs in a single flight
+      await startTokenExchange(firebaseUser);
     } catch (error) {
       console.error('Login error:', error);
       throw error;
@@ -174,9 +212,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       // First create account with Firebase
       const firebaseUser = await firebaseAuth.signUpWithEmail(email, password);
-      
-      // Firebase auth success handler will create user in backend and get token
-      await handleFirebaseAuthSuccess(firebaseUser);
+
+      // Run backend token exchange once
+      await startTokenExchange(firebaseUser);
     } catch (error) {
       console.error('Registration error:', error);
       throw error;
@@ -187,9 +225,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const loginWithGoogle = async (): Promise<void> => {
     try {
       // Authenticate with Google via Firebase
-      await firebaseAuth.signInWithGoogle();
-      
-      // Let useEffect handle the backend exchange automatically
+      const firebaseUser = await firebaseAuth.signInWithGoogle();
+
+      await startTokenExchange(firebaseUser);
     } catch (error) {
       console.error('Google login error:', error);
       throw error;
