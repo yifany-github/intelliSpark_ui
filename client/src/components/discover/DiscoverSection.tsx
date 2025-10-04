@@ -36,6 +36,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000
 import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 import TraitChips from '@/components/characters/TraitChips';
+import { fuzzySearchCharacters } from '@/utils/fuzzySearch';
 
 interface DiscoverSectionProps {
   searchQuery?: string;
@@ -318,22 +319,13 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
   const activeSegmentCharacters = useMemo(() => {
     const segment = segmentConfig.find((config) => config.id === activeSegment);
     const base = segment?.data ?? [];
-    const normalizedSearch = searchQuery.trim().toLowerCase();
 
-    if (!normalizedSearch) {
-      return base;
+    // Use fuzzy search if there's a search query
+    if (searchQuery && searchQuery.trim()) {
+      return fuzzySearchCharacters(base, searchQuery);
     }
 
-    return base.filter((character) => {
-      const name = character.name?.toLowerCase() ?? '';
-      const description = character.description?.toLowerCase() ?? '';
-      const backstory = character.backstory?.toLowerCase() ?? '';
-      return (
-        name.includes(normalizedSearch)
-        || description.includes(normalizedSearch)
-        || backstory.includes(normalizedSearch)
-      );
-    });
+    return base;
   }, [segmentConfig, activeSegment, searchQuery]);
 
   const visibleCharacters = activeSegmentCharacters.slice(0, visibleCount);
