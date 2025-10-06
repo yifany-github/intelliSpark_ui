@@ -375,7 +375,7 @@ export default function TopNavigation({
 
           <div className="flex items-center justify-end gap-1.5 sm:gap-2 md:gap-3 shrink-0">
             {isAuthenticated && (
-              <div className="hidden md:block">
+              <div className="block">
                 <ImprovedTokenBalance compact showTitle={false} showStats={false} showActions />
               </div>
             )}
