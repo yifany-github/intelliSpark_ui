@@ -920,6 +920,20 @@
       overflow-y: auto !important;
     }
 
+    /* Left sheet - filter panel */
+    [role="dialog"][class*="inset-y-0"][class*="left-0"] {
+      position: fixed !important;
+      left: 0 !important;
+      top: 0 !important;
+      bottom: 0 !important;
+      right: auto !important;
+      width: min(280px, 75vw) !important;
+      max-width: 75vw !important;
+      min-width: 280px !important;
+      transform: none !important;
+      margin: 0 !important;
+    }
+
     /* Optimize character cards for mobile to match PC layout */
     [role="grid"] > [role="button"][aria-label*="Select character"],
     [role="grid"] > [role="button"][aria-label*="选择角色"],
