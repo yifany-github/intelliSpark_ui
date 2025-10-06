@@ -929,6 +929,12 @@
     }
 
     /* Centered dialogs - NSFW confirmation, etc. */
+    [role="dialog"][data-dialog-type="nsfw-confirm"] {
+      width: calc(100vw - 2rem) !important;
+      max-width: 28rem !important;
+    }
+
+    /* All other centered dialogs (not sheets) */
     [role="dialog"]:not([class*="inset-y-0"]) {
       width: calc(100vw - 2rem) !important;
       max-width: 28rem !important;
