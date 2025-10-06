@@ -932,6 +932,9 @@
     [role="dialog"][data-dialog-type="nsfw-confirm"] {
       width: calc(100vw - 2rem) !important;
       max-width: 28rem !important;
+      left: 50% !important;
+      right: auto !important;
+      transform: translate(-50%, -50%) !important;
     }
 
     /* All other centered dialogs (not sheets) */
