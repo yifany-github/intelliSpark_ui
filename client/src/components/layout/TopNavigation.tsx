@@ -215,10 +215,7 @@ export default function TopNavigation({
   return (
     <>
       <Dialog open={isNSFWConfirmOpen} onOpenChange={setIsNSFWConfirmOpen}>
-        <DialogContent
-          className="sm:max-w-md bg-slate-950 text-slate-100 border-slate-800"
-          style={{ width: 'calc(100vw - 2rem)', maxWidth: 'min(28rem, calc(100vw - 2rem))' }}
-        >
+        <DialogContent className="max-w-md bg-slate-950 text-slate-100 border-slate-800">
           <DialogHeader className="space-y-2">
             <DialogTitle className="text-base sm:text-lg leading-tight pr-8">{t('confirmEnableNSFW') || '确认开启成人内容'}</DialogTitle>
             <DialogDescription className="text-slate-400 text-xs sm:text-sm leading-relaxed">
