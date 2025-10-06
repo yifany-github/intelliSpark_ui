@@ -221,8 +221,8 @@ export default function TopNavigation({
           style={{ width: 'calc(100vw - 2rem)', maxWidth: '28rem' }}
         >
           <DialogHeader className="space-y-2">
-            <DialogTitle className="text-base sm:text-lg leading-tight pr-8">{t('confirmEnableNSFW') || '确认开启成人内容'}</DialogTitle>
-            <DialogDescription className="text-slate-400 text-xs sm:text-sm leading-relaxed">
+            <DialogTitle className="text-base sm:text-lg leading-tight pr-8 break-words">{t('confirmEnableNSFW') || '确认开启成人内容'}</DialogTitle>
+            <DialogDescription className="text-slate-400 text-xs sm:text-sm leading-relaxed break-words whitespace-normal">
               {t('nsfwDisclaimer') || '成人内容仅面向年满18周岁的用户。开启NSFW模式即表示您确认已年满法定年龄，并对浏览成人向内容负有法律责任。'}
             </DialogDescription>
           </DialogHeader>
