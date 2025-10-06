@@ -216,7 +216,7 @@ export default function TopNavigation({
     <>
       <Dialog open={isNSFWConfirmOpen} onOpenChange={setIsNSFWConfirmOpen}>
         <DialogContent
-          className="w-[calc(100vw-2rem)] max-w-md bg-slate-950 text-slate-100 border-slate-800"
+          className="w-[calc(100vw_-_2rem)] max-w-md bg-slate-950 text-slate-100 border-slate-800"
           data-dialog-type="nsfw-confirm"
         >
           <DialogHeader className="space-y-2">
