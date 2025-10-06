@@ -769,12 +769,6 @@
       border-radius: 0.75rem !important;
     }
 
-    /* Better modal/dialog sizing and centering - only for centered dialogs */
-    [role="dialog"][class*="left-[50%]"][class*="top-[50%]"],
-    [role="dialog"]:not([class*="inset-"]) {
-      width: calc(100vw - 2rem) !important;
-      max-width: min(32rem, calc(100vw - 2rem)) !important;
-    }
 
     /* Optimize character grid cards for mobile */
     .grid.grid-cols-1 {
