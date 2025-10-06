@@ -59,7 +59,7 @@ const TabNavigation = () => {
   ];
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-sm border-t border-gray-700/50 z-20">
+    <div className="fixed bottom-0 left-0 right-0 bg-gray-900/95 backdrop-blur-sm border-t border-gray-700/50 z-20 safe-area-bottom">
       <div className="max-w-5xl mx-auto flex justify-around items-center">
         {tabs.map((tab) => {
           // Use icon from tab or fallback to iconMap
@@ -76,20 +76,21 @@ const TabNavigation = () => {
                 }
                 setActiveTab(tab.id);
               }}
-              className={`flex flex-col items-center py-4 px-3 relative transition-all duration-200 rounded-xl ${
+              className={`flex flex-col items-center justify-center min-h-[56px] min-w-[56px] py-2 px-4 relative transition-all duration-200 rounded-xl touch-manipulation ${
                 activeTab === tab.id
                   ? "text-white"
                   : "text-gray-400 hover:text-gray-200 active:scale-95"
               }`}
+              aria-label={t(tab.label)}
             >
               {IconComponent ? (
-                <IconComponent className={`w-5 h-5 transition-colors ${
+                <IconComponent className={`w-6 h-6 transition-colors ${
                   activeTab === tab.id ? "text-white" : "text-gray-400"
                 }`} />
               ) : (
-                <div className="w-5 h-5 bg-gray-600 rounded" title={`No icon for ${tab.id}`} />
+                <div className="w-6 h-6 bg-gray-600 rounded" title={`No icon for ${tab.id}`} />
               )}
-              <span className={`text-xs mt-1.5 font-medium transition-colors ${
+              <span className={`text-xs mt-1 font-medium transition-colors leading-tight ${
                 activeTab === tab.id ? "text-white" : "text-gray-400"
               }`}>{t(tab.label)}</span>
               {activeTab === tab.id && (
@@ -103,10 +104,11 @@ const TabNavigation = () => {
         <Sheet open={isMoreMenuOpen} onOpenChange={setIsMoreMenuOpen}>
           <SheetTrigger asChild>
             <button
-              className="flex flex-col items-center py-4 px-3 relative transition-all duration-200 rounded-xl text-gray-400 hover:text-gray-200 active:scale-95"
+              className="flex flex-col items-center justify-center min-h-[56px] min-w-[56px] py-2 px-4 relative transition-all duration-200 rounded-xl text-gray-400 hover:text-gray-200 active:scale-95 touch-manipulation"
+              aria-label={t('more')}
             >
-              <MoreHorizontal className="w-5 h-5" />
-              <span className="text-xs mt-1.5 font-medium">{t('more')}</span>
+              <MoreHorizontal className="w-6 h-6" />
+              <span className="text-xs mt-1 font-medium leading-tight">{t('more')}</span>
             </button>
           </SheetTrigger>
           <SheetContent side="bottom" className="bg-gray-900 border-gray-700">

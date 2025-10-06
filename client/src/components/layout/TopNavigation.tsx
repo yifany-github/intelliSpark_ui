@@ -248,9 +248,9 @@ export default function TopNavigation({
         </DialogContent>
       </Dialog>
 
-      <div className="sticky top-0 z-40 w-full px-4 pt-3 pb-2">
-        <div className="mx-auto flex w-full max-w-[110rem] h-14 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 liquid-glass-topnav rounded-2xl">
-          <div className="flex flex-1 items-center gap-2 min-w-0">
+      <div className="sticky top-0 z-40 w-full px-2 sm:px-4 pt-2 sm:pt-3 pb-2">
+        <div className="mx-auto flex w-full max-w-[110rem] min-h-[56px] sm:h-14 items-center justify-between gap-2 sm:gap-4 px-3 sm:px-4 lg:px-8 liquid-glass-topnav rounded-2xl">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {withSidebar ? (
               <button
                 onClick={toggleCollapsed}
@@ -265,12 +265,13 @@ export default function TopNavigation({
             )}
             <button
               onClick={navigateToHome}
-              className="flex items-center gap-2 px-2 py-1.5 transition group"
+              className="flex items-center gap-1 sm:gap-2 px-1 sm:px-2 py-1.5 transition group"
+              aria-label={appNameText}
             >
-              <div className="flex h-9 w-9 items-center justify-center overflow-hidden">
-                <img src={LogoImage} alt={appNameText} className="h-9 w-9 object-contain transition-transform group-hover:scale-110" />
+              <div className="flex h-8 w-8 sm:h-9 sm:w-9 items-center justify-center overflow-hidden shrink-0">
+                <img src={LogoImage} alt={appNameText} className="h-full w-full object-contain transition-transform group-hover:scale-110" />
               </div>
-              <div className="hidden xl:flex flex-col leading-tight">
+              <div className="hidden sm:flex xl:flex flex-col leading-tight">
                 <span className="text-sm font-semibold text-slate-100 tracking-wide transition-colors group-hover:text-pink-400">
                   {appNameText}
                 </span>
@@ -279,7 +280,7 @@ export default function TopNavigation({
           </div>
 
           {!hideSearch && (
-            <div className="flex flex-1 justify-center" ref={searchContainerRef}>
+            <div className="flex flex-1 justify-center mx-2 sm:mx-0" ref={searchContainerRef}>
             <div className="relative w-full max-w-xl">
               <input
                 type="text"
@@ -293,18 +294,19 @@ export default function TopNavigation({
                   }
                 }}
                 placeholder={currentPlaceholder}
-                className="w-full rounded-2xl border border-slate-700/70 bg-slate-900/80 py-2.5 pl-5 pr-16 text-sm text-slate-100 shadow-inner shadow-slate-950/40 placeholder-slate-500 focus:border-brand-secondary focus:outline-none focus:ring-2 focus:ring-brand-secondary/60"
+                className="w-full rounded-2xl border border-slate-700/70 bg-slate-900/80 py-2 sm:py-2.5 pl-4 sm:pl-5 pr-12 sm:pr-16 text-sm text-slate-100 shadow-inner shadow-slate-950/40 placeholder-slate-500 focus:border-brand-secondary focus:outline-none focus:ring-2 focus:ring-brand-secondary/60 touch-manipulation"
               />
               <button
                 onClick={() => handleSearchSubmit()}
-                className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-2 rounded-xl bg-brand-secondary px-3 py-1.5 text-xs font-semibold text-slate-900 transition hover:bg-brand-secondary/80"
+                className="absolute right-1.5 sm:right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 sm:gap-2 rounded-xl bg-brand-secondary px-2 sm:px-3 py-1.5 text-xs font-semibold text-slate-900 transition hover:bg-brand-secondary/80 touch-manipulation"
+                aria-label={t('search')}
               >
                 <span className="hidden sm:inline">{t('search')}</span>
                 <Search className="h-4 w-4" />
               </button>
 
               {isSearchPanelOpen && (
-                <div className="absolute left-1/2 z-[100] mt-4 w-[min(36rem,calc(100vw-2rem))] -translate-x-1/2 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-5 shadow-2xl shadow-black/40 backdrop-blur-xl">
+                <div className="absolute left-0 right-0 sm:left-1/2 sm:right-auto z-[100] mt-2 sm:mt-4 w-full sm:w-[min(36rem,calc(100vw-2rem))] sm:-translate-x-1/2 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-4 sm:p-5 shadow-2xl shadow-black/40 backdrop-blur-xl max-h-[calc(100vh-200px)] overflow-y-auto">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-semibold text-slate-200 tracking-wide">{t('searchHistory')}</h3>
@@ -335,7 +337,19 @@ export default function TopNavigation({
 
                     <div className="pt-2">
                       <h3 className="text-sm font-semibold text-slate-200 tracking-wide">{t('popularSearches')}</h3>
-                      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div className="mt-3 space-y-2 sm:hidden">
+                        {hotSearches.slice(0, 5).map((term, index) => (
+                          <button
+                            key={term}
+                            onClick={() => handleSearchSubmit(term)}
+                            className="flex w-full items-center gap-3 rounded-xl border border-slate-800/70 bg-slate-900/70 px-3 py-2 text-left text-sm text-slate-200 transition hover:border-brand-secondary hover:text-brand-secondary touch-manipulation"
+                          >
+                            <span className="text-xs font-semibold text-slate-500 shrink-0">{index + 1}.</span>
+                            <span className="truncate">{term}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="mt-3 hidden sm:grid grid-cols-2 gap-3">
                         {hotSearchColumns.map((column, columnIndex) => (
                           <div key={columnIndex} className="space-y-2">
                             {column.map((term, index) => (
@@ -359,21 +373,24 @@ export default function TopNavigation({
             </div>
           )}
 
-          <div className="flex flex-1 items-center justify-end gap-2 sm:gap-3">
+          <div className="flex items-center justify-end gap-1.5 sm:gap-2 md:gap-3 shrink-0">
             {isAuthenticated && (
-              <ImprovedTokenBalance compact showTitle={false} showStats={false} showActions />
+              <div className="hidden md:block">
+                <ImprovedTokenBalance compact showTitle={false} showStats={false} showActions />
+              </div>
             )}
 
             <div
-              className="relative hidden sm:block"
+              className="relative hidden md:block"
               onMouseEnter={() => setShowUpgradeDetails(true)}
               onMouseLeave={() => setShowUpgradeDetails(false)}
             >
               <button
                 onClick={navigateToPayment}
-                className="rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-3 py-2 text-xs font-semibold text-slate-900 shadow-lg transition hover:shadow-amber-400/40"
+                className="rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-2.5 sm:px-3 py-1.5 sm:py-2 text-xs font-semibold text-slate-900 shadow-lg transition hover:shadow-amber-400/40 touch-manipulation whitespace-nowrap"
+                aria-label={t('upgradePlan')}
               >
-                💎 {t('upgradePlan')}
+                💎 <span className="hidden lg:inline">{t('upgradePlan')}</span>
               </button>
               {showUpgradeDetails && (
                 <div className="absolute right-0 z-[100] mt-3 w-72 rounded-2xl border border-amber-400/40 bg-slate-950/95 p-4 text-left shadow-2xl shadow-black/50 backdrop-blur-xl">
@@ -405,13 +422,14 @@ export default function TopNavigation({
                 setNsfwEnabled(false);
               }}
               title={nsfwEnabled ? (t('nsfwEnabledLabel') || 'NSFW模式已开启') : (t('nsfwDisabledLabel') || '安全模式')}
-              className={`flex items-center rounded-lg border px-1.5 sm:px-3 py-1 sm:py-2 text-xs font-semibold transition-all ${
+              className={`flex items-center justify-center min-h-[44px] min-w-[44px] rounded-lg border px-2 sm:px-3 py-1.5 sm:py-2 text-xs font-semibold transition-all touch-manipulation ${
                 nsfwEnabled
                   ? 'border-red-400/60 bg-red-500/15 text-red-200 hover:border-red-300 hover:bg-red-500/20'
                   : 'border-emerald-400/50 bg-emerald-500/15 text-emerald-200 hover:border-emerald-300 hover:bg-emerald-500/20'
               }`}
+              aria-label={nsfwEnabled ? (t('nsfwEnabledLabel') || 'NSFW') : (t('nsfwDisabledLabel') || '安全模式')}
             >
-              {nsfwEnabled ? <ShieldOff className="h-3.5 w-3.5 sm:h-4 sm:w-4" /> : <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4" />}
+              {nsfwEnabled ? <ShieldOff className="h-4 w-4 sm:h-4 sm:w-4" /> : <Shield className="h-4 w-4 sm:h-4 sm:w-4" />}
               <span className="hidden lg:inline lg:ml-1.5">{nsfwEnabled ? (t('nsfwEnabledLabel') || 'NSFW') : (t('nsfwDisabledLabel') || '安全模式')}</span>
             </button>
 
@@ -422,8 +440,9 @@ export default function TopNavigation({
                 <>
                   <button
                     onClick={() => setShowUserMenu((prev) => !prev)}
-                    className="flex h-10 w-10 items-center justify-center rounded-full overflow-hidden bg-slate-700/80 text-sm font-semibold text-slate-100 border-2 border-transparent transition hover:border-brand-secondary hover:bg-slate-700"
+                    className="flex h-10 w-10 sm:h-11 sm:w-11 items-center justify-center rounded-full overflow-hidden bg-slate-700/80 text-sm font-semibold text-slate-100 border-2 border-transparent transition hover:border-brand-secondary hover:bg-slate-700 touch-manipulation"
                     title={user?.username || user?.email || fallbackUserName}
+                    aria-label={user?.username || user?.email || fallbackUserName}
                   >
                     {(user as any)?.avatar_url ? (
                       <img
@@ -437,7 +456,7 @@ export default function TopNavigation({
                   </button>
 
                   {showUserMenu && (
-                    <div className="absolute right-1/2 translate-x-1/2 z-[100] mt-3 w-56 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl">
+                    <div className="absolute right-0 z-[100] mt-2 sm:mt-3 w-56 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-2 shadow-2xl shadow-black/50 backdrop-blur-xl">
                       <div className="px-3 py-2 text-xs text-slate-400">
                         {t('tokenBalance')}: {tokenLoading ? '…' : tokenError ? '—' : tokenBalance?.balance ?? 0}
                       </div>
@@ -469,15 +488,16 @@ export default function TopNavigation({
                   )}
                 </>
               ) : (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3">
                   <button
                     onClick={navigateToLogin}
-                    className="flex items-center gap-2 rounded-xl bg-brand-accent px-4 py-2.5 text-sm font-medium text-white shadow-lg transition hover:bg-indigo-500"
+                    className="flex items-center justify-center gap-2 min-h-[44px] rounded-xl bg-brand-accent px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-medium text-white shadow-lg transition hover:bg-indigo-500 touch-manipulation whitespace-nowrap"
+                    aria-label={t('login')}
                   >
                     <LogIn className="h-4 w-4" />
-                    <span>{t('login')}</span>
+                    <span className="hidden sm:inline">{t('login')}</span>
                   </button>
-                  <div className="hidden sm:flex items-center gap-2 rounded-xl border border-slate-700/70 bg-slate-900/70 px-3 py-2">
+                  <div className="hidden md:flex items-center gap-2 rounded-xl border border-slate-700/70 bg-slate-900/70 px-3 py-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-700/70 text-sm text-slate-300">
                       <User className="h-4 w-4" />
                     </div>
