@@ -929,7 +929,7 @@
     }
 
     /* Centered dialogs - NSFW confirmation, etc. */
-    [role="dialog"][class*="translate-x-[-50%]"][class*="translate-y-[-50%]"] {
+    [role="dialog"]:not([class*="inset-y-0"]) {
       width: calc(100vw - 2rem) !important;
       max-width: 28rem !important;
     }
