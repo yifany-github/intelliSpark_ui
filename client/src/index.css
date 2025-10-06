@@ -928,6 +928,12 @@
       margin: 0 !important;
     }
 
+    /* Centered dialogs - NSFW confirmation, etc. */
+    [role="dialog"][class*="translate-x-[-50%]"][class*="translate-y-[-50%]"] {
+      width: calc(100vw - 2rem) !important;
+      max-width: 28rem !important;
+    }
+
     /* Optimize character cards for mobile to match PC layout */
     [role="grid"] > [role="button"][aria-label*="Select character"],
     [role="grid"] > [role="button"][aria-label*="选择角色"],
