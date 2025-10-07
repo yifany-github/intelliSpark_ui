@@ -75,8 +75,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: !!chatId && !isCreatingChat,
     refetchInterval: (query) => {
       const data = query.state.data as ChatMessage[] | undefined;
-      // Poll for messages if we have a chat but no messages yet (opening line being generated)
-      return (!data || data.length === 0) && chat ? 2000 : false;
+      const waitingForFirstMessage = (!data || data.length === 0) && !!chat;
+      return isTyping || waitingForFirstMessage ? 500 : false;
     }
   });
   
@@ -142,11 +142,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
       setIsTyping(true);
-      
-      // Generate AI response after a delay
-      setTimeout(() => {
-        aiResponse();
-      }, 1000);
+
+      // Kick off AI response immediately
+      aiResponse();
     },
     onError: (error: any) => {
       console.error("Message sending failed:", error);

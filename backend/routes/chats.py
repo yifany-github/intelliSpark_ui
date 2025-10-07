@@ -17,7 +17,7 @@ Routes:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Union
 import logging
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -52,7 +52,7 @@ def parse_chat_identifier(chat_id: str) -> tuple[bool, Union[int, UUID]]:
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid chat identifier format")
 
-from database import get_db
+from database import get_async_db
 from auth.routes import get_current_user
 from services.chat_service import ChatService, ChatServiceError
 from services.message_service import MessageService, MessageServiceError
@@ -72,7 +72,7 @@ router = APIRouter(prefix="/chats", tags=["chats"])
 
 @router.get("", response_model=List[EnrichedChat])
 async def get_chats(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get user's chats with character data"""
@@ -86,7 +86,7 @@ async def get_chats(
 @router.get("/{chat_id}", response_model=ChatSchema)
 async def get_chat(
     chat_id: str,  # Accept string to handle both int and UUID
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get specific chat by ID or UUID"""
@@ -112,7 +112,7 @@ async def get_chat(
 @router.post("", response_model=ChatSchema)
 async def create_chat(
     chat_data: ChatCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create new chat immediately and trigger background AI opening line generation"""
@@ -142,7 +142,7 @@ async def create_chat(
 @router.get("/{chat_id}/messages", response_model=List[ChatMessageSchema])
 async def get_chat_messages(
     chat_id: str,  # Accept string to handle both int and UUID
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get messages for a specific chat by ID or UUID"""
@@ -165,7 +165,7 @@ async def add_message_to_chat(
     request: Request,
     chat_id: str,  # Accept string to handle both int and UUID
     message_data: ChatMessageCreate,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """Add a message to a chat by ID or UUID"""
@@ -192,7 +192,7 @@ async def add_message_to_chat(
 async def generate_ai_response(
     request: Request,
     chat_id: str,  # Accept string to handle both int and UUID
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """Generate AI response for chat by ID or UUID"""
@@ -224,7 +224,7 @@ async def generate_ai_response(
 async def generate_opening_line(
     request: Request,
     chat_id: str,  # Accept string to handle both int and UUID
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """Generate opening line for chat by ID or UUID"""
@@ -248,7 +248,7 @@ async def generate_opening_line(
 
 @router.delete("", response_model=MessageResponse)
 async def delete_all_chats(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """Delete all chats for the current user"""
@@ -267,7 +267,7 @@ async def delete_all_chats(
 @router.delete("/{chat_id}", response_model=MessageResponse)
 async def delete_chat(
     chat_id: str,  # Accept string to handle both int and UUID
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """Delete a specific chat by ID or UUID"""
