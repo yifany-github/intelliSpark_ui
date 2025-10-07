@@ -30,6 +30,7 @@ class ChatService:
     TOKENS_PER_MESSAGE = 1
 
     def __init__(self, db: AsyncSession):
+        """Initialize with a session managed by FastAPI's dependency system."""
         self.db = db
         self.logger = logging.getLogger(__name__)
         self.ai_service = AIService()
