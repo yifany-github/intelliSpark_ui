@@ -27,8 +27,14 @@ def _build_async_database_url(url: str) -> str:
 
 # Async engine/session used by the FastAPI request lifecycle
 ASYNC_DATABASE_URL = _build_async_database_url(settings.database_url)
+async_connect_args: dict[str, object] = {}
+if ASYNC_DATABASE_URL.startswith("postgresql+asyncpg://"):
+    # Prevent asyncpg from reusing prepared statement names across pooled connections.
+    async_connect_args["statement_cache_size"] = 0
+
 async_engine = create_async_engine(
     ASYNC_DATABASE_URL,
+    connect_args=async_connect_args,
     pool_pre_ping=True,
     echo=settings.debug,
 )
