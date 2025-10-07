@@ -216,43 +216,43 @@ export default function TopNavigation({
     <>
       <Dialog open={isNSFWConfirmOpen} onOpenChange={setIsNSFWConfirmOpen}>
         <DialogContent
-          className="bg-slate-950 text-slate-100 border-slate-800"
+          className="bg-slate-950 text-slate-100 border-slate-800 w-[90%] sm:w-full max-w-md"
           data-dialog-type="nsfw-confirm"
         >
-          <DialogHeader className="space-y-2">
+          <DialogHeader className="space-y-1.5 mb-2">
             <DialogTitle className="text-base sm:text-lg leading-tight pr-8 break-words">{t('confirmEnableNSFW') || '确认开启成人内容'}</DialogTitle>
-            <DialogDescription className="text-slate-400 text-xs sm:text-sm leading-relaxed break-words whitespace-normal">
-              {t('nsfwDisclaimer') || '成人内容仅面向年满18周岁的用户。开启NSFW模式即表示您确认已年满法定年龄，并对浏览成人向内容负有法律责任。'}
+            <DialogDescription className="text-slate-400 text-xs leading-snug break-words whitespace-normal">
+              {t('nsfwDisclaimer') || '成人内容仅适用于年满18岁的用户。开启后，您确认已达到法定年龄并承担相应法律责任。'}
             </DialogDescription>
           </DialogHeader>
-          <div className="rounded-md bg-red-500/10 border border-red-500/30 px-3 py-2.5 text-xs leading-relaxed text-red-200">
-            {t('nsfwLegalNotice') || '继续操作即表示您知悉当地法律，并同意平台关于成人内容的条款。'}
+          <div className="rounded-md bg-red-500/10 border border-red-500/30 px-2.5 py-2 text-xs leading-snug text-red-200 mb-3">
+            {t('nsfwLegalNotice') || '继续操作即表示您遵守本地法律并同意平台成人内容条款。'}
           </div>
-          <DialogFooter className="mt-3 flex w-full justify-end gap-2 flex-col-reverse sm:flex-row">
+          <DialogFooter className="flex w-full justify-end gap-2 flex-col-reverse sm:flex-row pt-1">
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               onClick={() => setIsNSFWConfirmOpen(false)}
-              className="text-slate-300 w-full sm:w-auto"
+              className="text-slate-300 border-slate-700 w-full sm:w-auto min-h-[44px] touch-manipulation"
             >
               {t('cancel') || '取消'}
             </Button>
             <Button
               type="button"
-              className="bg-red-500 text-white hover:bg-red-500/90 w-full sm:w-auto"
+              className="bg-red-500 text-white hover:bg-red-500/90 w-full sm:w-auto min-h-[44px] touch-manipulation"
               onClick={() => {
                 setNsfwEnabled(true);
                 setIsNSFWConfirmOpen(false);
               }}
             >
-              {t('confirm') || '确认开启'}
+              {t('confirm') || '确认'}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <div className="sticky top-0 z-40 w-full px-2 sm:px-4 pt-2 sm:pt-3 pb-2">
-        <div className="mx-auto flex w-full max-w-[110rem] min-h-[56px] sm:h-14 items-center justify-between gap-2 sm:gap-4 px-3 sm:px-4 lg:px-8 liquid-glass-topnav rounded-2xl">
+      <div className="sticky md:fixed top-0 left-0 right-0 z-40 w-full px-2 sm:px-4 pt-2 sm:pt-3 pb-2">
+        <div className="mx-auto flex w-full max-w-full min-h-[56px] sm:h-14 items-center justify-between gap-2 sm:gap-4 px-3 sm:px-4 lg:px-8 liquid-glass-topnav rounded-2xl">
           <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             {withSidebar ? (
               <button
@@ -309,7 +309,7 @@ export default function TopNavigation({
               </button>
 
               {isSearchPanelOpen && (
-                <div className="absolute left-0 right-0 sm:left-1/2 sm:right-auto z-[100] mt-2 sm:mt-4 w-full sm:w-[min(36rem,calc(100vw-2rem))] sm:-translate-x-1/2 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-4 sm:p-5 shadow-2xl shadow-black/40 backdrop-blur-xl max-h-[calc(100vh-200px)] overflow-y-auto">
+                <div className="absolute left-0 right-0 sm:left-1/2 sm:right-auto z-[100] mt-2 sm:mt-4 w-full sm:w-[min(36rem,calc(100vw-2rem))] sm:-translate-x-1/2 rounded-2xl border border-slate-800/80 bg-slate-950/95 p-4 sm:p-5 shadow-2xl shadow-black/40 backdrop-blur-xl max-h-[calc(100vh-150px)] sm:max-h-[calc(100vh-200px)] overflow-y-auto">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-semibold text-slate-200 tracking-wide">{t('searchHistory')}</h3>
@@ -494,7 +494,7 @@ export default function TopNavigation({
                 <div className="flex items-center gap-2 sm:gap-3">
                   <button
                     onClick={navigateToLogin}
-                    className="flex items-center justify-center gap-2 min-h-[44px] rounded-xl bg-brand-accent px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-medium text-white shadow-lg transition hover:bg-indigo-500 touch-manipulation whitespace-nowrap"
+                    className="hidden md:flex items-center justify-center gap-2 min-h-[44px] rounded-xl bg-brand-accent px-3 sm:px-4 py-2 sm:py-2.5 text-sm font-medium text-white shadow-lg transition hover:bg-indigo-500 touch-manipulation whitespace-nowrap"
                     aria-label={t('login')}
                   >
                     <LogIn className="h-4 w-4" />

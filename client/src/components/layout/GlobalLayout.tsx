@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 interface GlobalLayoutProps {
   children: ReactNode;
   showTopNav?: boolean;
+  showTopNavOnMobile?: boolean;
   showSidebar?: boolean;
   searchQuery?: string;
   onSearchChange?: (query: string) => void;
@@ -21,6 +22,7 @@ interface GlobalLayoutProps {
 export default function GlobalLayout({
   children,
   showTopNav = true,
+  showTopNavOnMobile = true,
   showSidebar = true,
   searchQuery,
   onSearchChange,
@@ -43,19 +45,21 @@ export default function GlobalLayout({
     'flex-1 min-h-0',
     mainScrollable ? 'overflow-y-auto' : 'overflow-hidden',
     sidebarPadding,
-    showTopNav && contentTopPadding && 'pt-4',
+    showTopNav && contentTopPadding && 'pt-4 md:pt-[76px]',
     mainClassName,
   );
 
   return (
     <div className="flex min-h-screen w-full flex-col text-white">
       {showTopNav && (
-        <TopNavigation
-          searchQuery={searchQuery}
-          onSearchChange={onSearchChange}
-          withSidebar={showSidebar}
-          hideSearch={hideSearch}
-        />
+        <div className={cn(!showTopNavOnMobile && "hidden md:block")}>
+          <TopNavigation
+            searchQuery={searchQuery}
+            onSearchChange={onSearchChange}
+            withSidebar={showSidebar}
+            hideSearch={hideSearch}
+          />
+        </div>
       )}
       <div className="flex flex-1">
         {showSidebar && <GlobalSidebar />}
