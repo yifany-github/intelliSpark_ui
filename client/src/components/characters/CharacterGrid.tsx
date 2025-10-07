@@ -360,25 +360,16 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const sortedCharacters = [...tabFilteredCharacters].sort((a: Character, b: Character) => {
     switch (selectedFilter) {
       case 'popular':
-        // Calculate popularity score based on multiple factors
-        const getPopularityScore = (char: Character) => {
-          const ageInDays = (Date.now() - new Date(char.createdAt).getTime()) / (1000 * 60 * 60 * 24);
-          const recencyBonus = Math.max(0, (30 - ageInDays) * 0.1); // Bonus for newer characters (up to 30 days)
-          
-          // Mock popularity calculation until we have real analytics data
-          // Higher ID = newer character, gets slight popularity boost
-          const mockPopularity = char.id * 0.01;
-          
-          // Characters with more traits are considered more detailed/popular
-          const traitBonus = char.traits.length * 0.5;
-          
-          // Longer backstories indicate more effort/quality
-          const backstoryBonus = (char.backstory?.length || 0) * 0.001;
-          
-          return mockPopularity + traitBonus + backstoryBonus + recencyBonus;
-        };
-        
-        return getPopularityScore(b) - getPopularityScore(a);
+        // Featured characters first, then alphabetical by name
+        const aIsFeatured = !!(a as any).isFeatured;
+        const bIsFeatured = !!(b as any).isFeatured;
+
+        // Featured characters come first
+        if (aIsFeatured && !bIsFeatured) return -1;
+        if (!aIsFeatured && bIsFeatured) return 1;
+
+        // Within same featured status, sort alphabetically by name
+        return a.name.localeCompare(b.name, 'zh-CN');
       case 'trending':
         // Calculate trending score based on recent activity and momentum  
         const getTrendingScore = (char: Character) => {
@@ -461,7 +452,16 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
         
         return getEditorScore(b) - getEditorScore(a);
       default:
-        return 0;
+        // Default sorting: featured characters first, then alphabetical by name
+        const aIsFeaturedDefault = !!(a as any).isFeatured;
+        const bIsFeaturedDefault = !!(b as any).isFeatured;
+
+        // Featured characters come first
+        if (aIsFeaturedDefault && !bIsFeaturedDefault) return -1;
+        if (!aIsFeaturedDefault && bIsFeaturedDefault) return 1;
+
+        // Within same featured status, sort alphabetically by name
+        return a.name.localeCompare(b.name, 'zh-CN');
     }
   });
 
