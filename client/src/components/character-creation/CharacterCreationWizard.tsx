@@ -58,8 +58,39 @@ export default function CharacterCreationWizard({
             {progressLabel}
           </div>
         </div>
-        
-        <div className="flex items-center justify-between">
+
+        {/* Mobile Step Indicator - Only circles */}
+        <div className="flex sm:hidden items-center justify-between">
+          {steps.map((step, index) => (
+            <div key={step.id} className="flex items-center flex-1">
+              {/* Step Circle */}
+              <div
+                className={`relative flex items-center justify-center w-10 h-10 rounded-full cursor-pointer transition-colors ${
+                  currentStep === step.id
+                    ? 'bg-blue-600 text-white'
+                    : currentStep > step.id
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-700 text-gray-400'
+                }`}
+                onClick={() => onGoToStep(step.id)}
+              >
+                {currentStep > step.id ? (
+                  <Check className="w-5 h-5" />
+                ) : (
+                  <span className="text-sm font-medium">{step.id}</span>
+                )}
+              </div>
+
+              {/* Connector Line */}
+              {index < steps.length - 1 && (
+                <div className="flex-1 h-0.5 bg-gray-700 mx-2" />
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Desktop Step Indicator - With titles and descriptions */}
+        <div className="hidden sm:flex items-center justify-between">
           {steps.map((step, index) => (
             <div key={step.id} className="flex items-center">
               {/* Step Circle */}
@@ -79,13 +110,13 @@ export default function CharacterCreationWizard({
                   <span className="text-sm font-medium">{step.id}</span>
                 )}
               </div>
-              
+
               {/* Step Info */}
               <div className="ml-3 min-w-0">
                 <div className="text-sm font-medium text-white">{step.title}</div>
                 <div className="text-xs text-gray-400">{step.description}</div>
               </div>
-              
+
               {/* Connector Line */}
               {index < steps.length - 1 && (
                 <div className="flex-1 h-0.5 bg-gray-700 mx-6" />

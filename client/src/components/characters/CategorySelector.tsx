@@ -71,6 +71,21 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
   className = ""
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  const handleToggleExpand = () => {
+    if (isExpanded) {
+      // 收起时先触发退出动画
+      setIsAnimating(true);
+      setTimeout(() => {
+        setIsExpanded(false);
+        setIsAnimating(false);
+      }, 200); // 匹配动画持续时间
+    } else {
+      // 展开时直接显示
+      setIsExpanded(true);
+    }
+  };
 
   const handleCategoryToggle = (categoryKey: string) => {
     if (selectedCategories.includes(categoryKey)) {
@@ -125,12 +140,12 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
           <label className="text-sm font-medium">选择角色分类</label>
           <button
             type="button"
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="flex items-center space-x-1 px-3 py-1.5 rounded-full text-xs bg-surface-secondary text-content-secondary hover:bg-zinc-600 transition-colors"
+            onClick={handleToggleExpand}
+            className="flex items-center space-x-1 px-3 py-1.5 rounded-full text-xs bg-surface-secondary text-content-secondary hover:bg-zinc-600 transition-all duration-200 active:scale-95"
           >
             <Filter className="w-3 h-3" />
             <span>{isExpanded ? '收起' : '展开分类'}</span>
-            <ChevronDown className={`w-3 h-3 transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-3 h-3 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
           </button>
         </div>
 
@@ -160,7 +175,7 @@ export const CategorySelector: React.FC<CategorySelectorProps> = ({
 
         {/* 展开的分类标签 */}
         {isExpanded && (
-          <div className="space-y-3 p-4 bg-surface-secondary/30 rounded-lg border border-surface-border animate-in slide-in-from-top-2 duration-200">
+          <div className={`space-y-3 p-4 bg-surface-secondary/30 rounded-lg border border-surface-border overflow-hidden ${isAnimating ? 'animate-slideUp' : 'animate-slideDown'}`}>
             {categoryGroups.map(group => (
               <div key={group.key} className="space-y-2">
                 <h4 className="text-xs font-medium text-content-tertiary uppercase tracking-wider px-1">
