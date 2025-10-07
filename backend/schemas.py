@@ -383,3 +383,14 @@ class AdminNotificationCreate(BaseSchema):
     action_type: Optional[str] = None
     action_data: Optional[Dict[str, Any]] = None
     expires_at: Optional[datetime] = None
+
+# Default Avatar schemas
+class DefaultAvatar(BaseSchema):
+    id: str
+    name: str
+    url: str
+    thumbnail_url: str
+    category: str = Field(..., description="Category: female_safe, male_safe, female_suggestive, male_suggestive, neutral")
+    gender: str = Field(..., description="Gender: female, male, neutral")
+    style: str = Field(..., description="Style description")
+    nsfw_level: int = Field(default=0, ge=0, le=1, description="0=safe, 1=suggestive")

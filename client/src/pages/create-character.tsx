@@ -12,6 +12,7 @@ import CharacterCreationSuccess from '@/components/character-creation/CharacterC
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 import CharacterCreationWizard, { CharacterCreationStep } from '@/components/character-creation/CharacterCreationWizard';
 import CategorySelector from '@/components/characters/CategorySelector';
+import DefaultAvatarGrid from '@/components/characters/DefaultAvatarGrid';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -561,7 +562,8 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading, ste
 
           {step === 2 && (
             <div className="space-y-6">
-              <div className="flex items-center gap-6">
+              {/* Avatar Preview */}
+              <div className="flex items-center gap-4">
                 <ImageWithFallback
                   src={formData.avatar || undefined}
                   alt={t('characterAvatar')}
@@ -569,47 +571,46 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading, ste
                   size="xl"
                   className="bg-slate-100"
                 />
-                <div className="flex-1 space-y-3">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    ref={fileInputRef}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        handleImageUpload(file);
-                      }
-                    }}
-                    style={{ display: 'none' }}
-                  />
-                  <div className="flex flex-wrap gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (fileInputRef.current) {
-                          fileInputRef.current.click();
-                        }
-                      }}
-                    >
-                      {t('chooseAvatarImage')}
-                    </Button>
-                    {formData.avatar && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setFormData({ ...formData, avatar: null })}
-                      >
-                        {t('resetToDefault')}
-                      </Button>
-                    )}
-                  </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-medium">{t('selectedAvatar') || 'Selected Avatar'}</h3>
                   <p className="text-sm text-muted-foreground">
-                    {t('uploadImageOrDefault')}
+                    {formData.avatar
+                      ? (t('customAvatarSelected') || 'Custom avatar or default selected')
+                      : (t('noAvatarSelected') || 'No avatar selected yet')}
                   </p>
                 </div>
+              </div>
+
+              {/* Hidden file input for custom upload */}
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleImageUpload(file);
+                  }
+                }}
+                style={{ display: 'none' }}
+              />
+
+              {/* Default Avatar Grid */}
+              <div>
+                <Label className="text-sm font-medium mb-3 block">
+                  {t('chooseDefaultOrUpload') || 'Choose a default avatar or upload your own'}
+                </Label>
+                <DefaultAvatarGrid
+                  selectedAvatarUrl={formData.avatar}
+                  onAvatarSelect={(url) => setFormData({ ...formData, avatar: url })}
+                  onUploadClick={() => {
+                    if (fileInputRef.current) {
+                      fileInputRef.current.click();
+                    }
+                  }}
+                  filterGender={formData.gender}
+                  filterNsfwLevel={formData.isNsfw ? 1 : 0}
+                />
               </div>
             </div>
           )}
