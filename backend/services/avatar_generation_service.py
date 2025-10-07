@@ -22,6 +22,7 @@ import io
 from typing import Tuple, Optional
 from datetime import datetime
 import json
+import re
 
 class AvatarGenerationError(Exception):
     """Avatar generation specific errors"""
@@ -81,8 +82,11 @@ class AvatarGenerationService:
         try:
             self.logger.info(f"Generating avatar for {character_name} with style {style}")
 
+            # Translate Chinese to English if needed
+            translated_prompt = await self._translate_if_chinese(prompt)
+
             # Build optimized prompt
-            full_prompt = self._build_prompt(prompt, gender, style)
+            full_prompt = self._build_prompt(translated_prompt, gender, style)
             self.logger.debug(f"Full prompt: {full_prompt}")
 
             # Generate image using Pollinations.AI
@@ -116,6 +120,50 @@ class AvatarGenerationService:
             error_msg = f"Failed to generate avatar: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
             return False, None, error_msg
+
+    async def _translate_if_chinese(self, text: str) -> str:
+        """
+        Detect and translate Chinese text to English for better AI image generation
+
+        Uses a simple translation approach via Google Translate (free, no API key)
+        """
+        if not text or not text.strip():
+            return text
+
+        # Check if text contains Chinese characters
+        chinese_char_pattern = re.compile(r'[\u4e00-\u9fff]+')
+        if not chinese_char_pattern.search(text):
+            # No Chinese characters, return as-is
+            self.logger.debug("No Chinese characters detected, using original prompt")
+            return text
+
+        try:
+            self.logger.info(f"Translating Chinese prompt to English: {text[:50]}...")
+
+            # Use Google Translate via requests (free, no API key needed)
+            import urllib.parse
+            encoded_text = urllib.parse.quote(text)
+            translate_url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=zh-CN&tl=en&dt=t&q={encoded_text}"
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(translate_url, timeout=aiohttp.ClientTimeout(total=10)) as response:
+                    if response.status == 200:
+                        result = await response.json()
+                        # Parse the response format: [[[translated_text, original_text, null, null, ...], ...], ...]
+                        if result and len(result) > 0 and len(result[0]) > 0:
+                            translated = result[0][0][0]
+                            self.logger.info(f"Translated to: {translated}")
+                            return translated
+                        else:
+                            self.logger.warning("Translation response format unexpected, using original")
+                            return text
+                    else:
+                        self.logger.warning(f"Translation failed with status {response.status}, using original")
+                        return text
+
+        except Exception as e:
+            self.logger.warning(f"Translation error: {str(e)}, using original prompt")
+            return text
 
     async def _generate_via_pollinations(self, prompt: str) -> Optional[bytes]:
         """
