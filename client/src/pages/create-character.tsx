@@ -12,7 +12,6 @@ import CharacterCreationSuccess from '@/components/character-creation/CharacterC
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 import CharacterCreationWizard, { CharacterCreationStep } from '@/components/character-creation/CharacterCreationWizard';
 import CategorySelector from '@/components/characters/CategorySelector';
-import DefaultAvatarGrid from '@/components/characters/DefaultAvatarGrid';
 import AIAvatarGenerator from '@/components/characters/AIAvatarGenerator';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,7 +33,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Toggle } from '@/components/ui/toggle';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Upload } from 'lucide-react';
 
 enum CreationStep {
   FORM = 'form',
@@ -604,22 +603,24 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading, ste
                 onAvatarGenerated={(url) => setFormData({ ...formData, avatar: url })}
               />
 
-              {/* Default Avatar Grid */}
+              {/* Upload Button */}
               <div>
                 <Label className="text-sm font-medium mb-3 block">
-                  {t('chooseDefaultOrUpload') || 'Or choose a default avatar / upload your own'}
+                  {t('uploadYourOwnImage') || 'Upload Your Own Image'}
                 </Label>
-                <DefaultAvatarGrid
-                  selectedAvatarUrl={formData.avatar}
-                  onAvatarSelect={(url) => setFormData({ ...formData, avatar: url })}
-                  onUploadClick={() => {
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
                     if (fileInputRef.current) {
                       fileInputRef.current.click();
                     }
                   }}
-                  filterGender={formData.gender}
-                  filterNsfwLevel={formData.isNsfw ? 1 : 0}
-                />
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {t('uploadAvatar') || 'Upload Avatar'}
+                </Button>
               </div>
             </div>
           )}

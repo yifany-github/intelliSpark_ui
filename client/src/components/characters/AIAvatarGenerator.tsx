@@ -25,7 +25,8 @@ const AIAvatarGenerator = ({
   const { toast } = useToast();
   const [isGenerating, setIsGenerating] = useState(false);
   const [prompt, setPrompt] = useState(characterDescription || '');
-  const [style, setStyle] = useState<string>('fantasy');
+  const [style, setStyle] = useState<string>('realistic');
+  const [generatedAvatars, setGeneratedAvatars] = useState<string[]>([]);
 
   const styleOptions = [
     { value: 'fantasy', label: t('fantasyStyle') || 'Fantasy' },
@@ -65,6 +66,7 @@ const AIAvatarGenerator = ({
       const result = await response.json();
 
       if (result.avatarUrl) {
+        setGeneratedAvatars(prev => [result.avatarUrl, ...prev]);
         onAvatarGenerated(result.avatarUrl);
         toast({
           title: t('success') || 'Success',
@@ -86,26 +88,26 @@ const AIAvatarGenerator = ({
   };
 
   return (
-    <div className="space-y-4 p-4 border border-slate-200 rounded-lg bg-gradient-to-br from-purple-50 to-blue-50">
+    <div className="space-y-4 p-4 border border-slate-700 rounded-lg bg-slate-800/50">
       {/* Header */}
       <div className="flex items-center gap-2">
-        <Sparkles className="w-5 h-5 text-purple-600" />
-        <h3 className="text-lg font-semibold text-slate-900">
+        <Sparkles className="w-5 h-5 text-purple-400" />
+        <h3 className="text-lg font-semibold text-white">
           {t('aiAvatarGenerator') || 'AI Avatar Generator'}
         </h3>
       </div>
 
       {/* Info Banner */}
-      <div className="flex items-start gap-2 p-3 bg-blue-50 border border-blue-200 rounded-md">
-        <AlertCircle className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
-        <p className="text-xs text-blue-800">
+      <div className="flex items-start gap-2 p-3 bg-blue-950/30 border border-blue-800/50 rounded-md">
+        <AlertCircle className="w-4 h-4 text-blue-400 flex-shrink-0 mt-0.5" />
+        <p className="text-xs text-blue-200">
           {t('aiGeneratorInfo') || 'Describe your character and our AI will generate a unique avatar. Generation takes 10-30 seconds.'}
         </p>
       </div>
 
       {/* Prompt Input */}
       <div className="space-y-2">
-        <Label htmlFor="ai-prompt" className="text-sm font-medium">
+        <Label htmlFor="ai-prompt" className="text-sm font-medium text-slate-200">
           {t('characterDescription') || 'Character Description'}
         </Label>
         <Input
@@ -113,21 +115,21 @@ const AIAvatarGenerator = ({
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder={t('aiPromptPlaceholder') || 'e.g., elegant warrior with long silver hair, blue eyes, mystical aura'}
-          className="bg-white"
+          className="bg-slate-900 border-slate-700 text-white placeholder:text-slate-500"
           disabled={isGenerating}
         />
-        <p className="text-xs text-muted-foreground">
+        <p className="text-xs text-slate-400">
           {t('aiPromptHelp') || 'Describe appearance, clothing, mood, or special features'}
         </p>
       </div>
 
       {/* Style Selector */}
       <div className="space-y-2">
-        <Label className="text-sm font-medium">
+        <Label className="text-sm font-medium text-slate-200">
           {t('artStyle') || 'Art Style'}
         </Label>
         <Select value={style} onValueChange={setStyle} disabled={isGenerating}>
-          <SelectTrigger className="bg-white">
+          <SelectTrigger className="bg-slate-900 border-slate-700 text-white">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -160,9 +162,39 @@ const AIAvatarGenerator = ({
       </Button>
 
       {/* Rate Limit Info */}
-      <p className="text-xs text-center text-muted-foreground">
+      <p className="text-xs text-center text-slate-400">
         {t('rateLimitInfo') || 'Limit: 5 generations/min, 20/hour'}
       </p>
+
+      {/* Generated Avatars History */}
+      {generatedAvatars.length > 0 && (
+        <div className="space-y-3 pt-4 border-t border-slate-700">
+          <Label className="text-sm font-medium text-slate-200">
+            {t('generatedAvatars') || 'Generated Avatars'}
+          </Label>
+          <div className="grid grid-cols-3 gap-3">
+            {generatedAvatars.map((avatarUrl, index) => (
+              <div key={index} className="relative group">
+                <img
+                  src={avatarUrl}
+                  alt={`Generated avatar ${index + 1}`}
+                  className="w-full h-auto aspect-square object-cover rounded-lg border-2 border-slate-700"
+                />
+                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => onAvatarGenerated(avatarUrl)}
+                    className="bg-white/90 hover:bg-white text-slate-900 text-xs px-2 py-1"
+                  >
+                    {t('useThisAvatar') || 'Use'}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
