@@ -248,7 +248,7 @@ async def generate_opening_line(
 
 @router.delete("", response_model=MessageResponse)
 async def delete_all_chats(
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """Delete all chats for the current user"""
@@ -267,7 +267,7 @@ async def delete_all_chats(
 @router.delete("/{chat_id}", response_model=MessageResponse)
 async def delete_chat(
     chat_id: str,  # Accept string to handle both int and UUID
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """Delete a specific chat by ID or UUID"""
