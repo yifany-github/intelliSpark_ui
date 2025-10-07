@@ -88,18 +88,18 @@ const ChatInput = ({ onSendMessage, isLoading, disabled = false, placeholder, cl
   };
 
   return (
-    <div className={cn("p-3 border-t border-secondary bg-background", className)}>
-      <div className="flex items-center bg-secondary rounded-2xl px-3 py-2 transition-all duration-300 focus-within:ring-2 focus-within:ring-pink-500/30 focus-within:shadow-[0_0_20px_rgba(236,72,153,0.2)]">
+    <div className={cn("px-3 pt-3 pb-0 sm:p-3 border-t border-secondary bg-background", className)}>
+      <div className="flex items-end bg-secondary rounded-2xl px-3 py-2 transition-all duration-300 focus-within:ring-2 focus-within:ring-pink-500/30 focus-within:shadow-[0_0_20px_rgba(236,72,153,0.2)] gap-2">
         <Popover>
           <PopoverTrigger asChild>
-            <button className="text-gray-400 mr-3" disabled={isSubmitDisabled}>
+            <button className="text-gray-400 shrink-0 mb-1 hidden sm:block" disabled={isSubmitDisabled}>
               <Smile className="h-5 w-5" />
             </button>
           </PopoverTrigger>
           <PopoverContent className="w-64 p-2">
             <div className="grid grid-cols-5 gap-2">
               {['😊', '😂', '😍', '🤔', '😮', '😢', '😡', '👍', '❤️', '🙏'].map(emoji => (
-                <button 
+                <button
                   key={emoji}
                   className="h-8 w-8 flex items-center justify-center hover:bg-primary/20 rounded"
                   onClick={() => setMessage(prev => prev + emoji)}
@@ -110,32 +110,33 @@ const ChatInput = ({ onSendMessage, isLoading, disabled = false, placeholder, cl
             </div>
           </PopoverContent>
         </Popover>
-        
+
         <textarea
           ref={inputRef}
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder ?? t('typeMessage')}
-          className="flex-grow bg-transparent border-0 focus:outline-none text-white resize-none max-h-24"
+          className="flex-grow bg-transparent border-0 focus:outline-none text-white resize-none max-h-24 min-h-[40px] py-2"
           rows={1}
           disabled={isSubmitDisabled}
         />
-        
-        <button className="ml-3 text-gray-400" disabled={isSubmitDisabled}>
+
+        <button className="text-gray-400 shrink-0 mb-1 hidden sm:block" disabled={isSubmitDisabled}>
           <Paperclip className="h-5 w-5" />
         </button>
-        
+
         <button
           className={cn(
-            "ml-3 w-10 h-10 rounded-full flex items-center justify-center text-white relative overflow-hidden transition-all duration-300",
+            "shrink-0 min-w-[44px] min-h-[44px] w-11 h-11 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-white relative overflow-hidden transition-all duration-300 touch-manipulation",
             isSubmitDisabled || !message.trim()
               ? 'bg-gray-700/50 cursor-not-allowed'
-              : 'bg-gradient-to-br from-pink-500 via-purple-500 to-indigo-500 hover:shadow-[0_0_20px_rgba(236,72,153,0.6)] hover:scale-110 cursor-pointer',
+              : 'bg-gradient-to-br from-pink-500 via-purple-500 to-indigo-500 hover:shadow-[0_0_20px_rgba(236,72,153,0.6)] hover:scale-110 active:scale-95 cursor-pointer',
             isLoading && 'animate-pulse'
           )}
           onClick={handleSend}
           disabled={isSubmitDisabled || !message.trim()}
+          aria-label="Send message"
           style={{
             backdropFilter: 'blur(10px) saturate(180%)',
             WebkitBackdropFilter: 'blur(10px) saturate(180%)',
@@ -152,8 +153,8 @@ const ChatInput = ({ onSendMessage, isLoading, disabled = false, placeholder, cl
           <Send className="h-5 w-5 relative z-10 drop-shadow-sm" />
         </button>
       </div>
-      
-      <div className="flex justify-between items-center mt-2 px-1 text-xs text-gray-400">
+
+      <div className="hidden sm:flex justify-between items-center mt-2 px-1 text-xs text-gray-400">
         <div className="flex">
           <Popover>
             <PopoverTrigger asChild>
@@ -176,7 +177,7 @@ const ChatInput = ({ onSendMessage, isLoading, disabled = false, placeholder, cl
               </div>
             </PopoverContent>
           </Popover>
-          
+
           <Popover>
             <PopoverTrigger asChild>
               <button className="flex items-center" disabled={isSubmitDisabled}>
@@ -199,7 +200,7 @@ const ChatInput = ({ onSendMessage, isLoading, disabled = false, placeholder, cl
             </PopoverContent>
           </Popover>
         </div>
-        
+
         <div>{t('markdownSupported')}</div>
       </div>
     </div>

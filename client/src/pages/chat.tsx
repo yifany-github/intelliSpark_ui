@@ -14,7 +14,14 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { invalidateTokenBalance } from "@/services/tokenService";
 import { queryClient } from "@/lib/queryClient";
-import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft, Sparkles, Filter, Pin, Trash2 } from "lucide-react";
+import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft, Sparkles, Filter, Pin, Trash2, Info } from "lucide-react";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import { ImprovedTokenBalance } from "@/components/payment/ImprovedTokenBalance";
 import GlobalLayout from "@/components/layout/GlobalLayout";
@@ -452,13 +459,14 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   return (
     <GlobalLayout
       showSidebar={false}
+      showTopNavOnMobile={false}
       contentTopPadding={false}
       contentPaddingClass="flex min-h-0 h-full flex-1 flex-col p-0"
       maxContentWidthClass="max-w-full"
-      mainClassName="flex flex-1 flex-col min-h-0 h-[calc(100vh-4rem)]"
+      mainClassName="flex flex-1 flex-col min-h-0 md:pt-[76px] md:h-screen"
       mainScrollable={false}
     >
-      <div className="flex flex-1 min-h-0 flex-col h-full">
+      <div className="flex flex-1 min-h-0 flex-col fixed md:relative inset-0 md:inset-auto md:h-[calc(100vh-76px)] pt-safe pb-[calc(env(safe-area-inset-bottom)+3.5rem)] md:pt-0 md:pb-0">
         <div className="flex flex-1 min-h-0 overflow-hidden text-white relative bg-gradient-to-br from-slate-950/98 via-slate-900/95 to-slate-950/98">
           {/* Mobile overlay */}
           {showChatList && (
@@ -468,17 +476,16 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             />
           )}
 
-          {/* Left Sidebar - Recent Chats */}
+          {/* Left Sidebar - Recent Chats - Hidden on mobile */}
           <div
             className={cn(
               "transition-all duration-300 relative",
               "bg-slate-900/70 backdrop-blur-2xl",
               "border border-pink-500/20 rounded-r-3xl lg:rounded-none",
-              "flex-shrink-0 flex flex-col absolute lg:relative z-10 h-full",
+              "flex-shrink-0 flex-col absolute lg:relative z-10 h-full",
               "shadow-[0_8px_32px_rgba(0,0,0,0.5),0_20px_60px_rgba(236,72,153,0.15)]",
               "lg:ml-4 lg:my-4 lg:h-[calc(100%-2rem)] lg:rounded-3xl",
-              showChatList ? "flex w-full" : "hidden",
-              "lg:flex lg:w-[19rem] xl:w-[20rem]"
+              "hidden lg:flex lg:w-[19rem] xl:w-[20rem]"
             )}
           >
           {/* Left sidebar header matching main chat header height */}
@@ -707,13 +714,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                     <ArrowLeft className="h-5 w-5" />
                   </button>
 
-                  {/* Mobile menu button */}
-                  <button
-                    onClick={() => setShowChatList(!showChatList)}
-                    className="lg:hidden rounded-lg p-1 text-gray-300 transition-colors hover:bg-gray-800"
-                  >
-                    {showChatList ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-                  </button>
+                  {/* Mobile menu button - Hidden on mobile, sidebar not available */}
 
                   {character && (
                     <ImageWithFallback
@@ -847,44 +848,42 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             />
           </div>
 
-          {/* Character Info Modal for mobile/tablet */}
-          {showCharacterInfo && character && (
-            <div className="fixed inset-0 bg-black/50 z-20 xl:hidden flex items-center justify-center p-4">
-            <div className="bg-gray-800 rounded-lg max-w-md w-full max-h-[80vh] overflow-y-auto">
-              <div className="sticky top-0 bg-gray-800 border-b border-gray-700 p-4 flex items-center justify-between">
-                <h3 className="text-lg font-semibold">{t('characterInfo')}</h3>
-                <button 
-                  onClick={() => setShowCharacterInfo(false)}
-                  className="p-1 hover:bg-gray-700 rounded"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="p-4">
-                <div className="mb-4">
-                  <CharacterGallery 
-                    characterId={character.id}
-                    className="mb-4"
+          {/* Character Info Sheet for mobile/tablet */}
+          <Sheet open={showCharacterInfo} onOpenChange={setShowCharacterInfo}>
+            <SheetContent side="bottom" className="xl:hidden bg-gray-900 border-gray-700 rounded-t-3xl overflow-y-auto max-h-[70vh]">
+              <SheetHeader className="pb-2 pt-2 sticky top-0 bg-gray-900 z-10 border-b border-gray-700">
+                <SheetTitle className="text-white text-base">{t('characterInfo')}</SheetTitle>
+              </SheetHeader>
+              <div className="pb-4 pt-3">
+                <div className="w-full max-h-[35vh] mb-3 overflow-hidden rounded-lg mx-auto max-w-sm">
+                  <CharacterGallery
+                    characterId={character?.id || 0}
+                    className="w-full h-full object-contain"
                   />
-                  <div className="text-center">
-                    <h4 className="font-semibold text-lg mb-2">{character?.name}</h4>
-                    <p className="text-sm text-gray-300 mb-4">{character?.description}</p>
-                  </div>
-                  <div className="flex flex-wrap gap-2 justify-center">
-                    {character?.traits?.map((trait, index) => (
-                      <span 
-                        key={index}
-                        className="px-2 py-1 rounded-full text-xs font-medium bg-gray-600 text-white"
-                      >
-                        {trait}
-                      </span>
-                    ))}
-                  </div>
+                </div>
+                <div className="px-4">
+                  <h4 className="font-bold text-lg mb-2 text-center">{character?.name}</h4>
+                  <p className="text-xs text-gray-300 mb-3 leading-relaxed">{character?.description}</p>
+
+                  {character?.traits && character.traits.length > 0 && (
+                    <div className="mb-3">
+                      <h5 className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">{t('traits') || 'Traits'}</h5>
+                      <div className="flex flex-wrap gap-1.5">
+                        {character.traits.map((trait, index) => (
+                          <span
+                            key={index}
+                            className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-gradient-to-br from-pink-500/20 to-purple-500/20 border border-pink-500/30 text-white"
+                          >
+                            {trait}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
-            </div>
-          </div>
-        )}
+            </SheetContent>
+          </Sheet>
 
         {/* Right Sidebar - Character Info */}
           {character && (

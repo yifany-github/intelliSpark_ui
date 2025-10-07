@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import {
   Star,
@@ -389,11 +389,23 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
   ]);
 
   const CharacterCard = ({ character }: { character: Character }) => {
+    const cardRef = useRef<HTMLDivElement>(null);
     const analytics = getCharacterAnalytics(character);
     const totalActivity = analytics.viewCount + analytics.chatCount;
     const rating = getCharacterRating(character);
     const isFeaturedCard = isCharacterFeatured(character);
     const nsfw = isCharacterNSFW(character);
+
+    useEffect(() => {
+      // Force mobile card height with JavaScript
+      if (cardRef.current && window.innerWidth < 640) {
+        const card = cardRef.current;
+        card.style.setProperty('height', '150px', 'important');
+        card.style.setProperty('min-height', '150px', 'important');
+        card.style.setProperty('max-height', '150px', 'important');
+        card.style.setProperty('grid-template-rows', '150px', 'important');
+      }
+    }, []);
 
     const statusBadge = (() => {
       if (isFeaturedCard) {
@@ -430,21 +442,14 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
 
     return (
       <div
-        className={`group relative grid w-full aspect-[2/1] min-h-[460px] grid-rows-[6fr_5fr] bg-gradient-surface border rounded-xl overflow-hidden shadow-elevated transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] cursor-pointer focus-within:ring-2 focus-within:ring-brand-secondary focus-within:ring-offset-2 focus-within:ring-offset-zinc-900 ${
-          isFeaturedCard
-            ? 'border-amber-300/70 shadow-[0_0_40px_rgba(251,191,36,0.35)] hover:shadow-[0_0_55px_rgba(251,191,36,0.45)]'
-            : 'border-surface-border hover:shadow-premium hover:shadow-glow'
+        ref={cardRef}
+        data-card-id={character.id}
+        data-card-name={character.name}
+        className={`mobile-card-100 group relative w-full border shadow-elevated overflow-hidden rounded-lg backdrop-blur-xl
+          ${isFeaturedCard
+            ? 'bg-gradient-to-br from-amber-900/20 via-zinc-900/40 to-zinc-900/60 border-amber-300/40 shadow-[0_0_40px_rgba(251,191,36,0.25)]'
+            : 'bg-zinc-900/40 border-zinc-700/50'
         }`}
-        onClick={() => handleCharacterClick(character)}
-        onKeyDown={(event) => {
-          if (event.key === 'Enter' || event.key === ' ') {
-            event.preventDefault();
-            handleCharacterClick(character);
-          }
-        }}
-        tabIndex={0}
-        role="button"
-        aria-label={`选择角色 ${character.name}`}
       >
         {isFeaturedCard && (
           <>
@@ -456,16 +461,28 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
           </>
         )}
 
-        <div className="relative z-10 overflow-hidden bg-surface-tertiary transition-all duration-500 ease-out group-hover:absolute group-hover:inset-0">
+        {/* Mobile: Left side image - Desktop: Top image */}
+        <div
+          className="relative z-10 overflow-hidden bg-surface-tertiary transition-all duration-500 ease-out cursor-pointer
+            rounded-l-lg sm:rounded-l-none sm:rounded-t-xl sm:group-hover:absolute sm:group-hover:inset-0"
+          onClick={(e) => {
+            e.stopPropagation();
+            handlePreviewOpen(character);
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={`预览角色 ${character.name}`}
+        >
           <img
             src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}
             alt={`${character.name} avatar`}
-            className="h-full w-full object-cover transition-all duration-700 ease-out group-hover:scale-105 group-hover:brightness-105"
+            className="h-full w-full object-cover object-top transition-all duration-700 ease-out sm:group-hover:scale-105 sm:group-hover:brightness-105"
             loading="lazy"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 ease-out" />
+          <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/80 via-transparent to-transparent opacity-0 sm:group-hover:opacity-100 transition-opacity duration-500 ease-out" />
 
-          <div className="absolute top-3 right-3 flex items-center space-x-2 z-20 transition-all duration-500">
+          {/* Desktop only - hidden on mobile for compact layout */}
+          <div className="hidden sm:flex absolute top-3 right-3 items-center space-x-2 z-20 transition-all duration-500">
             <button
               onClick={(event) => {
                 event.stopPropagation();
@@ -486,7 +503,8 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
             )}
           </div>
 
-          <div className="absolute bottom-0 left-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out pointer-events-none z-20 transform translate-y-4 group-hover:translate-y-0">
+          {/* Desktop hover actions - hidden on mobile */}
+          <div className="hidden sm:block absolute bottom-0 left-0 right-0 p-4 opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out pointer-events-none z-20 transform translate-y-4 group-hover:translate-y-0">
             <div className="w-full space-y-2 pointer-events-auto">
               <button
                 onClick={(event) => {
@@ -521,46 +539,77 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
           </div>
         </div>
 
-        <div className="relative z-10 flex flex-col overflow-hidden p-4 transition-all duration-500 ease-out group-hover:opacity-0 group-hover:pointer-events-none group-hover:translate-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <h3 className="flex-1 truncate text-lg font-bold text-content-primary transition-colors">
+        {/* Mobile: Right side content - Desktop: Bottom content */}
+        <div
+          className="relative z-10 flex flex-col overflow-hidden py-2.5 px-2.5 sm:p-4 min-w-0 cursor-pointer transition-all duration-500 ease-out sm:group-hover:opacity-0 sm:group-hover:pointer-events-none sm:group-hover:translate-y-2 active:bg-surface-secondary/30"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isCreatingChat) {
+              handleStartChat(character);
+            }
+          }}
+          role="button"
+          tabIndex={0}
+          aria-label={`与 ${character.name} 开始聊天`}
+        >
+          {/* 标题 */}
+          <div className="flex items-center justify-between gap-1.5 mb-1">
+            <h3 className="flex-1 truncate text-sm sm:text-lg font-bold text-content-primary transition-colors min-w-0 leading-tight">
               {character.name}
             </h3>
-            <div className="flex items-center">{statusBadge}</div>
+            {/* Mobile: Show NSFW badge in title area */}
+            <div className="flex items-center gap-1 shrink-0">
+              {nsfw && (
+                <div className="sm:hidden w-5 h-5 bg-red-500/90 backdrop-blur-sm rounded-full border border-red-400/50 flex items-center justify-center">
+                  <span className="text-[8px] text-white font-bold leading-none">18+</span>
+                </div>
+              )}
+              <div className="hidden sm:flex">{statusBadge}</div>
+            </div>
           </div>
 
-          <p className="mt-2 text-sm leading-relaxed text-content-tertiary line-clamp-3">
-            {character.description || character.backstory}
-          </p>
+          {/* 描述 - 固定最大高度：4行 x 1.45行高 x 14px字体 ≈ 81px */}
+          <div className="flex-1 mb-1.5 sm:mb-0 sm:mt-2 min-w-0 overflow-hidden max-h-[81px]">
+            <p className="text-sm sm:text-sm leading-[1.45] sm:leading-relaxed text-content-tertiary line-clamp-4 sm:line-clamp-3">
+              {character.description || character.backstory}
+            </p>
+          </div>
 
-          <div className="mt-auto space-y-2">
+          {/* 底部统计信息 */}
+          <div className="space-y-0.5 sm:space-y-2">
+            {/* Hide traits on mobile for compact layout */}
             {character.traits?.length > 0 && (
-              <TraitChips
-                traits={character.traits}
-                maxVisible={2}
-                size="xs"
-                className="flex-nowrap"
-                chipClassName="px-2.5 py-1 bg-brand-secondary/15 text-brand-secondary border border-brand-secondary/25"
-                moreChipClassName="px-2.5 py-1 bg-surface-tertiary text-content-tertiary border border-surface-border"
-              />
+              <div className="hidden sm:block">
+                <TraitChips
+                  traits={character.traits}
+                  maxVisible={2}
+                  size="xs"
+                  className="flex-nowrap"
+                  chipClassName="px-2.5 py-1 text-xs bg-brand-secondary/15 text-brand-secondary border border-brand-secondary/25"
+                  moreChipClassName="px-2.5 py-1 text-xs bg-surface-tertiary text-content-tertiary border border-surface-border"
+                />
+              </div>
             )}
 
-            <div className="flex items-center justify-between text-xs text-content-tertiary">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-1">
-                  <Star className="w-3.5 h-3.5 text-brand-secondary fill-current" />
+            <div className="flex items-center justify-between text-[9px] sm:text-xs text-content-tertiary min-w-0 pt-0.5">
+              <div className="flex items-center gap-1.5 sm:gap-4 min-w-0 flex-1 overflow-hidden">
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <Star className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-brand-secondary fill-current" />
                   <span className="font-semibold text-content-secondary">{rating}</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <Heart className="w-3.5 h-3.5 text-brand-secondary" />
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <Heart className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-brand-secondary" />
                   <span className="font-medium">{formatNumber(analytics.likeCount)}</span>
                 </div>
-                <div className="flex items-center gap-1">
-                  <MessageCircle className="w-3.5 h-3.5 text-content-tertiary" />
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <MessageCircle className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-content-tertiary" />
                   <span className="text-content-tertiary">{formatNumber(analytics.chatCount)}</span>
                 </div>
               </div>
-              <div className="flex items-center gap-1">
+              {/* Mobile: show status instead of view count */}
+              <div className="sm:hidden text-[8px] shrink-0 ml-1">{statusBadge}</div>
+              {/* Desktop: show view count */}
+              <div className="hidden sm:flex items-center gap-1 shrink-0">
                 <Eye className="w-3.5 h-3.5 text-content-tertiary" />
                 <span className="text-content-tertiary">{formatNumber(analytics.viewCount)}</span>
               </div>
@@ -656,7 +705,7 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
                   type="button"
                   onClick={() => setActiveSegment(option.id)}
                   className={cn(
-                    'flex min-w-[220px] flex-1 items-center gap-3 rounded-2xl border px-4 py-3 transition-all sm:min-w-[240px]',
+                    'flex items-center gap-2 sm:gap-3 rounded-xl sm:rounded-2xl border px-3 py-2 sm:px-4 sm:py-3 transition-all sm:min-w-[240px] sm:flex-1',
                     isActive
                       ? 'border-brand-secondary/70 bg-brand-secondary/15 text-white shadow-[0_10px_30px_rgba(245,158,11,0.25)]'
                       : 'border-gray-800 bg-gray-900/70 text-gray-200 hover:border-gray-700 hover:text-white'
@@ -664,17 +713,17 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
                 >
                   <div
                     className={cn(
-                      'flex h-10 w-10 items-center justify-center rounded-xl border',
+                      'flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg sm:rounded-xl border shrink-0',
                       isActive
                         ? 'border-brand-secondary/70 bg-brand-secondary/20 text-brand-secondary/80'
                         : 'border-gray-700 bg-gray-800 text-gray-300'
                     )}
                   >
-                    <IconComponent className="h-5 w-5" />
+                    <IconComponent className="h-4 w-4 sm:h-5 sm:w-5" />
                   </div>
                   <div className="flex flex-col items-start text-left">
-                    <span className="text-sm font-semibold leading-tight">{option.label}</span>
-                    <span className="text-xs text-gray-400 line-clamp-1">{option.description}</span>
+                    <span className="text-xs sm:text-sm font-semibold leading-tight">{option.label}</span>
+                    <span className="hidden sm:block text-xs text-gray-400 line-clamp-1">{option.description}</span>
                   </div>
                 </button>
               );
@@ -697,7 +746,7 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
             'transition-all duration-200',
             viewMode === 'masonry'
               ? 'columns-1 gap-6 [column-gap:1.5rem] sm:columns-2 lg:columns-3'
-              : 'grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-6 xl:gap-8'
+              : 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 sm:gap-6 xl:gap-8'
           )}
         >
           {showSkeleton
@@ -713,7 +762,7 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
             : visibleCharacters.map((character) => (
                 <div
                   key={character.id}
-                  className={cn('h-full', viewMode === 'masonry' && 'mb-6 break-inside-avoid')}
+                  className={cn('h-auto sm:h-full', viewMode === 'masonry' && 'mb-6 break-inside-avoid')}
                 >
                   <CharacterCard character={character} />
                 </div>
@@ -764,7 +813,7 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
             </button>
           )}
         </div>
-        <div className="flex gap-3 overflow-x-auto pb-2">
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide [-webkit-overflow-scrolling:touch]">
           {exploreCategories.map((category) => {
             const IconComponent = category.icon;
             const isSelected = selectedCategory === category.id;
@@ -774,7 +823,7 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
                 type="button"
                 onClick={() => setSelectedCategory(category.id)}
                 className={cn(
-                  'flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition-all',
+                  'flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-sm transition-all duration-200 active:scale-95 transform-gpu',
                   isSelected
                     ? 'border-brand-secondary/80 bg-brand-secondary/15 text-white shadow-[0_8px_24px_rgba(245,158,11,0.25)]'
                     : 'border-gray-800 bg-gray-900/60 text-gray-300 hover:border-gray-700 hover:text-white'
@@ -816,7 +865,7 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
                 </button>
               </div>
               <div className="p-4 sm:p-6">
-                <div className="grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-6">
                   {section.data.slice(0, 6).map((character) => (
                     <CharacterCard
                       key={`${section.key}-${character.id}`}

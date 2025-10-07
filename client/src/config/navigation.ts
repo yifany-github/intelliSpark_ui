@@ -41,7 +41,8 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     requiresAuth: true,
     showInSidebar: true,
     showInTopNav: true,
-    showInMobileTab: false  // Removed from mobile tab
+    showInMobileTab: false,  // Removed from mobile tab
+    showInMoreMenu: true     // Added to more menu for mobile
   },
   {
     id: 'favorites',
@@ -125,7 +126,8 @@ export const NAVIGATION_CONFIG: NavigationItem[] = [
     requiresAuth: true,
     showInSidebar: true,
     showInTopNav: false,
-    showInMobileTab: false
+    showInMobileTab: false,
+    showInMoreMenu: true
   }
 ];
 

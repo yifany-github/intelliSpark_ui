@@ -686,7 +686,11 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 <ChevronDown className={`h-4 w-4 transition-transform ${isFilterPanelOpen ? 'rotate-180' : 'rotate-0'}`} />
               </button>
             </SheetTrigger>
-            <SheetContent className="max-w-sm overflow-y-auto px-4 pb-6 pt-4" side="left">
+            <SheetContent
+              className="overflow-y-auto"
+              side="left"
+              style={{ width: 'min(280px, 75vw)', maxWidth: '75vw' }}
+            >
               <div className="flex flex-col gap-5">
                 <div className="flex flex-wrap gap-2">
                   {filterKeys.map(filterKey => (
