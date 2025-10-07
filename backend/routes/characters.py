@@ -23,6 +23,7 @@ from auth.routes import get_current_user
 from services.character_service import CharacterService, CharacterServiceError
 from services.upload_service import UploadService
 from services.character_gallery_service import CharacterGalleryService
+from services.avatar_generation_service import AvatarGenerationService
 from schemas import Character as CharacterSchema, CharacterCreate, CharacterUpdate, DefaultAvatar
 from models import User
 from routes.admin import is_admin
@@ -151,6 +152,57 @@ async def create_character(
         return character
     except CharacterServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/generate-avatar")
+@limiter.limit("5/minute")  # Maximum 5 generations per minute per IP
+@limiter.limit("20/hour")   # Maximum 20 generations per hour per IP
+async def generate_character_avatar(
+    request: Request,
+    prompt: str = Form(...),
+    character_name: str = Form(...),
+    gender: str = Form("female"),
+    style: str = Form("fantasy"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate character avatar using AI (Perchance)
+
+    Args:
+        prompt: Description or custom prompt for avatar generation
+        character_name: Character name (used for filename)
+        gender: Character gender (female/male/neutral)
+        style: Art style (fantasy/realistic/anime/chinese/scifi/medieval)
+
+    Returns:
+        Generated avatar URL
+
+    Rate Limits:
+        - 5 generations per minute per IP
+        - 20 generations per hour per IP
+    """
+    try:
+        service = AvatarGenerationService()
+        success, avatar_url, error = await service.generate_avatar(
+            prompt=prompt,
+            character_name=character_name,
+            gender=gender,
+            style=style
+        )
+
+        if not success:
+            raise HTTPException(status_code=500, detail=error or "Failed to generate avatar")
+
+        return {
+            "avatarUrl": avatar_url,
+            "message": "Avatar generated successfully",
+            "style": style,
+            "gender": gender
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Avatar generation failed: {str(e)}")
 
 
 @router.post("/upload-avatar")

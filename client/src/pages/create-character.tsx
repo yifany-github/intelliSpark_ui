@@ -13,6 +13,7 @@ import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal
 import CharacterCreationWizard, { CharacterCreationStep } from '@/components/character-creation/CharacterCreationWizard';
 import CategorySelector from '@/components/characters/CategorySelector';
 import DefaultAvatarGrid from '@/components/characters/DefaultAvatarGrid';
+import AIAvatarGenerator from '@/components/characters/AIAvatarGenerator';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -595,10 +596,18 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading, ste
                 style={{ display: 'none' }}
               />
 
+              {/* AI Avatar Generator */}
+              <AIAvatarGenerator
+                characterName={formData.name}
+                characterGender={formData.gender}
+                characterDescription={formData.description}
+                onAvatarGenerated={(url) => setFormData({ ...formData, avatar: url })}
+              />
+
               {/* Default Avatar Grid */}
               <div>
                 <Label className="text-sm font-medium mb-3 block">
-                  {t('chooseDefaultOrUpload') || 'Choose a default avatar or upload your own'}
+                  {t('chooseDefaultOrUpload') || 'Or choose a default avatar / upload your own'}
                 </Label>
                 <DefaultAvatarGrid
                   selectedAvatarUrl={formData.avatar}
