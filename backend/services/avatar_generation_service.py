@@ -13,7 +13,7 @@ Features:
 """
 
 import asyncio
-import perchance
+import aiohttp
 from PIL import Image
 from pathlib import Path
 import aiofiles
@@ -21,6 +21,7 @@ import logging
 import io
 from typing import Tuple, Optional
 from datetime import datetime
+import json
 
 class AvatarGenerationError(Exception):
     """Avatar generation specific errors"""
@@ -32,7 +33,8 @@ class AvatarGenerationService:
 
     def __init__(self):
         self.logger = logging.getLogger(__name__)
-        self.generator = perchance.ImageGenerator()
+        # Use Pollinations.AI as a free, reliable alternative to Perchance
+        self.api_url = "https://image.pollinations.ai/prompt/{prompt}"
 
         # Path resolution: prioritize Fly.io volume, fallback to local development
         fly_volume_path = Path("/app/attached_assets")
@@ -83,33 +85,68 @@ class AvatarGenerationService:
             full_prompt = self._build_prompt(prompt, gender, style)
             self.logger.debug(f"Full prompt: {full_prompt}")
 
-            # Generate image using Perchance
-            async with await self.generator.image(full_prompt) as result:
-                binary = await result.download()
-                image = Image.open(binary)
+            # Generate image using Pollinations.AI
+            image_data = await self._generate_via_pollinations(full_prompt)
 
-                # Process and optimize image
-                processed_image = self._process_image(image)
+            if not image_data:
+                return False, None, "Failed to generate image from AI service"
 
-                # Generate unique filename
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                safe_name = character_name.replace(' ', '_').replace('/', '_')[:50]
-                filename = f"{safe_name}_{timestamp}_avatar.png"
-                file_path = self.output_dir / filename
+            # Open image from bytes
+            image = Image.open(io.BytesIO(image_data))
 
-                # Save processed image
-                processed_image.save(file_path, format='PNG', optimize=True, quality=85)
+            # Process and optimize image
+            processed_image = self._process_image(image)
 
-                self.logger.info(f"Avatar generated successfully: {filename}")
+            # Generate unique filename
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_name = character_name.replace(' ', '_').replace('/', '_')[:50]
+            filename = f"{safe_name}_{timestamp}_avatar.png"
+            file_path = self.output_dir / filename
 
-                # Return URL path for asset serving
-                avatar_url = f"/assets/generated_avatars/{filename}"
-                return True, avatar_url, None
+            # Save processed image
+            processed_image.save(file_path, format='PNG', optimize=True, quality=85)
+
+            self.logger.info(f"Avatar generated successfully: {filename}")
+
+            # Return URL path for asset serving
+            avatar_url = f"/assets/generated_avatars/{filename}"
+            return True, avatar_url, None
 
         except Exception as e:
             error_msg = f"Failed to generate avatar: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
             return False, None, error_msg
+
+    async def _generate_via_pollinations(self, prompt: str) -> Optional[bytes]:
+        """
+        Generate image using Pollinations.AI API
+
+        Pollinations.AI is a free, open-source text-to-image service
+        that doesn't require API keys or authentication.
+        """
+        try:
+            # URL encode the prompt
+            import urllib.parse
+            encoded_prompt = urllib.parse.quote(prompt)
+            url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512&nologo=true"
+
+            self.logger.info(f"Requesting image from Pollinations.AI...")
+
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as response:
+                    if response.status == 200:
+                        image_data = await response.read()
+                        self.logger.info(f"Image generated successfully, size: {len(image_data)} bytes")
+                        return image_data
+                    else:
+                        self.logger.error(f"Pollinations.AI returned status {response.status}")
+                        return None
+        except asyncio.TimeoutError:
+            self.logger.error("Timeout while generating image")
+            return None
+        except Exception as e:
+            self.logger.error(f"Error generating image via Pollinations.AI: {str(e)}")
+            return None
 
     def _build_prompt(self, base_prompt: str, gender: str, style: str) -> str:
         """
