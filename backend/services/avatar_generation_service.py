@@ -123,29 +123,44 @@ class AvatarGenerationService:
 
         Pollinations.AI is a free, open-source text-to-image service
         that doesn't require API keys or authentication.
+
+        Uses Flux model for better quality and prompt adherence.
         """
         try:
             # URL encode the prompt
             import urllib.parse
             encoded_prompt = urllib.parse.quote(prompt)
-            url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512&nologo=true"
 
-            self.logger.info(f"Requesting image from Pollinations.AI...")
+            # Use Flux model with specific parameters for better quality
+            # model: flux for best quality and prompt following
+            # width/height: 512x512 for avatar size
+            # nologo: remove watermark
+            # seed: random for variety
+            url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width=512&height=512&nologo=true&model=flux&enhance=true"
+
+            self.logger.info(f"Requesting image from Pollinations.AI with Flux model...")
+            self.logger.debug(f"URL: {url[:200]}...")  # Log first 200 chars of URL
 
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=60)) as response:
+                async with session.get(url, timeout=aiohttp.ClientTimeout(total=90)) as response:
                     if response.status == 200:
                         image_data = await response.read()
                         self.logger.info(f"Image generated successfully, size: {len(image_data)} bytes")
                         return image_data
                     else:
                         self.logger.error(f"Pollinations.AI returned status {response.status}")
+                        # Try to get error message
+                        try:
+                            error_text = await response.text()
+                            self.logger.error(f"Error response: {error_text[:200]}")
+                        except:
+                            pass
                         return None
         except asyncio.TimeoutError:
-            self.logger.error("Timeout while generating image")
+            self.logger.error("Timeout while generating image (90s limit exceeded)")
             return None
         except Exception as e:
-            self.logger.error(f"Error generating image via Pollinations.AI: {str(e)}")
+            self.logger.error(f"Error generating image via Pollinations.AI: {str(e)}", exc_info=True)
             return None
 
     def _build_prompt(self, base_prompt: str, gender: str, style: str) -> str:
@@ -154,21 +169,21 @@ class AvatarGenerationService:
 
         Combines user input with style-specific modifiers and quality tags
         """
-        # Style-specific modifiers
+        # Style-specific modifiers with detailed descriptions
         style_modifiers = {
-            "fantasy": "fantasy art style, detailed, high quality, beautiful lighting",
-            "realistic": "photorealistic portrait, detailed, professional photography, studio lighting",
-            "anime": "anime style, manga art, detailed, vibrant colors, clean lines",
-            "chinese": "traditional chinese art style, elegant, ink painting style, artistic",
-            "scifi": "sci-fi character, futuristic, detailed, high tech aesthetic",
-            "medieval": "medieval fantasy, detailed armor or clothing, historical accuracy"
+            "fantasy": "fantasy art, magical atmosphere, ethereal lighting, epic, digital painting, artstation quality",
+            "realistic": "photorealistic, professional portrait photography, studio lighting, 8k, dslr, bokeh background",
+            "anime": "anime style, manga illustration, cel shaded, vibrant colors, detailed eyes, studio trigger style",
+            "chinese": "traditional chinese ink painting, elegant watercolor, artistic, cultural attire, ming dynasty style",
+            "scifi": "cyberpunk, futuristic, neon lights, high tech, sci-fi character design, concept art",
+            "medieval": "medieval fantasy, rpg character, detailed armor, castle background, dramatic lighting"
         }
 
-        # Gender-specific terms
+        # Gender-specific terms with more detail
         gender_terms = {
-            "female": "beautiful woman",
-            "male": "handsome man",
-            "non-binary": "person",
+            "female": "beautiful young woman",
+            "male": "handsome young man",
+            "non-binary": "attractive person",
             "neutral": "person",
             "other": "person",
             "not-specified": "person"
@@ -178,19 +193,22 @@ class AvatarGenerationService:
         style_mod = style_modifiers.get(style.lower(), style_modifiers["fantasy"])
         gender_term = gender_terms.get(gender.lower(), gender_terms["neutral"])
 
-        # Quality tags
-        quality_tags = "masterpiece, best quality, highly detailed, sharp focus"
+        # Quality and technical tags for better results
+        quality_tags = "highly detailed face, expressive eyes, masterpiece, best quality, 4k, sharp focus"
 
         # Portrait framing
-        framing = "portrait, head and shoulders, centered, professional composition"
+        framing = "portrait, upper body, centered composition, facing camera"
 
-        # Construct final prompt
+        # Construct final prompt with proper structure
         if base_prompt and base_prompt.strip():
-            # User provided custom prompt
-            full_prompt = f"{gender_term}, {base_prompt}, {style_mod}, {framing}, {quality_tags}"
+            # User provided custom prompt - give it priority
+            full_prompt = f"{gender_term} {base_prompt}, {style_mod}, {framing}, {quality_tags}"
         else:
-            # Generate generic prompt based on style
-            full_prompt = f"{gender_term}, {style_mod}, {framing}, {quality_tags}"
+            # Generate generic prompt based on style and gender
+            full_prompt = f"{gender_term} character portrait, {style_mod}, {framing}, {quality_tags}"
+
+        # Log the prompt for debugging
+        self.logger.info(f"Generated prompt: {full_prompt}")
 
         return full_prompt
 
