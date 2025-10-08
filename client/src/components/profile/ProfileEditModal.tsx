@@ -11,16 +11,26 @@ import { User, Mail, Calendar, Upload, X, Check, AlertCircle, Loader2 } from 'lu
 import { cn } from '@/lib/utils';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const SUPABASE_ASSETS_BASE =
+  (import.meta.env.VITE_SUPABASE_ASSETS_BASE_URL as string | undefined)?.replace(/\/$/, '') ||
+  `${API_BASE_URL}/assets`;
 
-// Preset avatars from attached_assets
+// Preset avatars from Supabase (fallback to legacy /assets path in dev)
 const PRESET_AVATARS = Array.from({ length: 9 }, (_, i) => ({
   id: i + 1,
-  url: `${API_BASE_URL}/assets/user_avatar_img/avatar_${i + 1}.png`,
+  url: `${SUPABASE_ASSETS_BASE}/user_avatar_img/avatar_${i + 1}.png`,
 }));
 
 const resolveAvatarUrl = (url?: string | null): string => {
   if (!url) return '';
-  return url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
+  if (url.startsWith('http')) {
+    return url;
+  }
+  // Allow legacy /assets paths to resolve through the same base we use for presets
+  if (url.startsWith('/assets/')) {
+    return `${SUPABASE_ASSETS_BASE}${url.replace('/assets', '')}`;
+  }
+  return `${API_BASE_URL}${url}`;
 };
 
 interface ProfileEditModalProps {

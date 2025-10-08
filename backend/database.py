@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import AsyncGenerator
+import ssl
 
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -31,6 +32,8 @@ async_connect_args: dict[str, object] = {}
 if ASYNC_DATABASE_URL.startswith("postgresql+asyncpg://"):
     # Prevent asyncpg from reusing prepared statement names across pooled connections.
     async_connect_args["statement_cache_size"] = 0
+    # Require TLS when connecting to Supabase/PostgreSQL
+    async_connect_args["ssl"] = ssl.create_default_context()
 
 async_engine = create_async_engine(
     ASYNC_DATABASE_URL,
@@ -42,9 +45,18 @@ AsyncSessionLocal = async_sessionmaker(async_engine, expire_on_commit=False)
 
 # Synchronous engine retained for scripts and background utilities that still
 # rely on the blocking ORM patterns (e.g. APScheduler jobs).
+sync_connect_args: dict[str, object] = {}
+if settings.database_url.startswith("sqlite"):
+    sync_connect_args["check_same_thread"] = False
+elif settings.database_url.startswith("postgresql"):
+    # Disable prepared statements for sync engine with pgbouncer
+    sync_connect_args["prepare_threshold"] = None
+    # Ensure TLS is required for PostgreSQL connections
+    sync_connect_args["sslmode"] = "require"
+
 sync_engine = create_engine(
     settings.database_url,
-    connect_args={"check_same_thread": False} if settings.database_url.startswith("sqlite") else {},
+    connect_args=sync_connect_args,
     pool_pre_ping=True,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)

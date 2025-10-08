@@ -3,6 +3,8 @@ Utility functions for character data handling and transformation
 """
 from models import Character
 from typing import Dict, Any, Optional, List
+from config import settings
+from services.storage_manager import get_storage_manager, StorageManagerError
 
 # Constants for persona parsing
 PERSONA_DESCRIPTION_PATTERN = r'你是([^#]+?)(?=\n\n|\n####|$)'
@@ -14,6 +16,23 @@ MAX_METADATA_FILE_SIZE = 10000  # 10KB limit for metadata files
 _PERSONA_CACHE = {}
 
 
+def resolve_asset_url(relative_path: str) -> str:
+    """Convert /assets/ URL to Supabase public URL when storage is enabled."""
+    if not relative_path or not relative_path.startswith('/assets/'):
+        return relative_path
+
+    storage_path = relative_path.replace('/assets/', '', 1)
+
+    if settings.supabase_storage_enabled:
+        try:
+            storage = get_storage_manager()
+            return storage.build_public_url(storage_path)
+        except StorageManagerError:
+            pass
+
+    return relative_path
+
+
 def ensure_avatar_url(character: Character) -> str:
     """
     Backend ensures every character has valid avatar URL - no frontend fallbacks needed.
@@ -23,19 +42,19 @@ def ensure_avatar_url(character: Character) -> str:
     # First priority: Gallery primary image (if gallery is enabled)
     if (hasattr(character, 'gallery_enabled') and character.gallery_enabled and 
         hasattr(character, 'gallery_primary_image') and character.gallery_primary_image):
-        return character.gallery_primary_image
+        return resolve_asset_url(character.gallery_primary_image)
     
     # Second priority: Check if avatar_url exists and is not None/empty
     if character.avatar_url and isinstance(character.avatar_url, str) and character.avatar_url.strip():
         if character.avatar_url.startswith('/assets'):
-            # Local asset URL - return as-is
-            return character.avatar_url
+            # Local asset URL - convert if using external storage
+            return resolve_asset_url(character.avatar_url)
         elif character.avatar_url.startswith('http'):
             # External URL (legacy) - still return, but these will be migrated
             return character.avatar_url
     
     # No avatar set, None, empty string, or invalid - return local placeholder
-    return "/assets/characters_img/Elara.jpeg"
+    return resolve_asset_url("/assets/characters_img/Elara.jpeg")
 
 
 def transform_character_to_response(character: Character, db_session=None) -> Dict[str, Any]:

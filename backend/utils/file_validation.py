@@ -263,7 +263,8 @@ def comprehensive_image_validation(file_content: bytes, declared_mime_type: str,
         'secure_filename': '',
         'dimensions': None,
         'file_size': len(file_content),
-        'was_resized': False
+        'was_resized': False,
+        'mime_type': declared_mime_type,
     }
     
     # 1. File type validation (validate early to avoid processing bad files)

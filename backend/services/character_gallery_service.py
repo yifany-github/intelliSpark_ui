@@ -28,6 +28,7 @@ from datetime import datetime
 from models import Character, CharacterGalleryImage, User
 from services.upload_service import UploadService
 from utils.file_validation import comprehensive_image_validation
+from utils.character_utils import resolve_asset_url
 
 
 class CharacterGalleryServiceError(Exception):
@@ -145,7 +146,7 @@ class CharacterGalleryService:
                 "images": formatted_images,
                 "categories": await self._get_image_categories(gallery_images),
                 "last_updated": character.gallery_updated_at.isoformat() + "Z" if character.gallery_updated_at else None,
-                "fallback_avatar": character.avatar_url  # Backward compatibility
+                "fallback_avatar": resolve_asset_url(character.avatar_url) if character.avatar_url else None
             }
             
             self.logger.info(f"Retrieved gallery for character '{character.name}': {len(gallery_images)} images")
@@ -368,7 +369,7 @@ class CharacterGalleryService:
         if character.avatar_url:
             return {
                 "id": None,
-                "url": character.avatar_url,
+                "url": resolve_asset_url(character.avatar_url),
                 "thumbnail_url": None,
                 "alt_text": f"{character.name} character image",
                 "category": "portrait",
@@ -379,7 +380,7 @@ class CharacterGalleryService:
         # No image available
         return {
             "id": None,
-            "url": "/assets/default-character.png",  # Default placeholder
+            "url": resolve_asset_url("/assets/default-character.png"),  # Default placeholder
             "thumbnail_url": None,
             "alt_text": f"{character.name}",
             "category": "default",
@@ -391,8 +392,8 @@ class CharacterGalleryService:
         """Format gallery image for API response"""
         return {
             "id": gallery_image.id,
-            "url": gallery_image.image_url,
-            "thumbnail_url": gallery_image.thumbnail_url,
+            "url": resolve_asset_url(gallery_image.image_url),
+            "thumbnail_url": resolve_asset_url(gallery_image.thumbnail_url) if gallery_image.thumbnail_url else None,
             "alt_text": gallery_image.alt_text,
             "category": gallery_image.category,
             "display_order": gallery_image.display_order,

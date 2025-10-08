@@ -15,11 +15,11 @@ Features:
 from typing import List, Optional, Tuple, Dict, Any
 from sqlalchemy.orm import Session
 import logging
-import os
 
 from models import Character
 from schemas import CharacterCreate
 from utils.character_utils import transform_character_to_response, transform_character_list_to_response
+from services.storage_manager import get_storage_manager, StorageManagerError
 
 
 class CharacterServiceError(Exception):
@@ -725,43 +725,33 @@ class CharacterService:
 
         This only runs for hard deletes. Soft-deleted characters retain files.
         """
-        from pathlib import Path
-        import shutil
-        # Path resolution: prioritize Fly.io volume, fallback to local development
-        fly_volume_path = Path("/app/attached_assets")
-        local_dev_path = Path(__file__).parent.parent.parent / "attached_assets"
-        
-        # Check for deployment environment
-        is_deployed = (
-            os.getenv('FLY_APP_NAME') is not None or 
-            Path('/.dockerenv').exists() or
-            fly_volume_path.exists()
-        )
-        
-        if is_deployed and fly_volume_path.exists():
-            base_assets = fly_volume_path
-        else:
-            base_assets = local_dev_path
+        storage = get_storage_manager()
 
-        # Remove gallery directory: attached_assets/character_galleries/character_{id}
+        # Remove gallery objects stored under character-specific prefix
+        gallery_prefix = f"character_galleries/character_{character.id}"
         try:
-            gallery_dir = base_assets / "character_galleries" / f"character_{character.id}"
-            if gallery_dir.exists() and gallery_dir.is_dir():
-                shutil.rmtree(gallery_dir)
-                self.logger.info(f"Removed gallery directory for character {character.id}: {gallery_dir}")
-        except Exception as e:
-            self.logger.warning(f"Failed to remove gallery dir for character {character.id}: {e}")
+            await storage.delete_prefix(gallery_prefix)
+            self.logger.info(
+                f"Removed gallery assets for character {character.id}: {gallery_prefix}"
+            )
+        except StorageManagerError as error:
+            self.logger.warning(
+                f"Failed to remove gallery assets for character {character.id}: {error}"
+            )
 
-        # Remove avatar file if it's a local asset under /assets/user_characters_img/
+        # Remove avatar file if it was stored in our managed storage
         try:
-            if character.avatar_url and str(character.avatar_url).startswith('/assets/user_characters_img/'):
-                rel = str(character.avatar_url).replace('/assets/', '')
-                avatar_path = base_assets / rel
-                if avatar_path.exists() and avatar_path.is_file():
-                    avatar_path.unlink()
-                    self.logger.info(f"Removed avatar file for character {character.id}: {avatar_path}")
-        except Exception as e:
-            self.logger.warning(f"Failed to remove avatar file for character {character.id}: {e}")
+            if character.avatar_url:
+                storage_path = storage.path_from_public_url(character.avatar_url)
+                if storage_path:
+                    await storage.delete_object(storage_path)
+                    self.logger.info(
+                        f"Removed avatar asset for character {character.id}: {storage_path}"
+                    )
+        except StorageManagerError as error:
+            self.logger.warning(
+                f"Failed to remove avatar asset for character {character.id}: {error}"
+            )
 
     async def admin_soft_delete_character(self, character_id: int, admin_user_id: int, reason: Optional[str] = None) -> Tuple[bool, Optional[str]]:
         """
