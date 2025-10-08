@@ -75,7 +75,9 @@ class AvatarGenerationService:
 
             # Generate unique filename and store via storage manager
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            safe_name = character_name.replace(" ", "_").replace("/", "_")[:50]
+            # Supabase object keys must be ASCII; strip other characters
+            sanitized = re.sub(r"[^A-Za-z0-9_-]", "_", character_name)
+            safe_name = sanitized[:50] or "avatar"
             filename = f"{safe_name}_{timestamp}_avatar.png"
             storage_path = f"generated_avatars/{filename}"
 
