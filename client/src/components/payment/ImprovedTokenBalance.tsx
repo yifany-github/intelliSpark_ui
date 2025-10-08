@@ -152,29 +152,33 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
 
   if (compact) {
     return (
-      <div className={cn("flex items-center gap-2", className)}>
+      <button
+        onClick={handleBuyTokens}
+        className={cn(
+          "flex items-center gap-2 px-2 py-1.5 rounded-lg transition-all duration-200 active:scale-95 hover:bg-slate-800/50 min-h-[44px] touch-manipulation",
+          className
+        )}
+        aria-label={`${t('tokenBalance')}: ${balance}. ${t('clickToBuyTokens')}`}
+      >
         <div className="flex items-center gap-1">
           <Coins className="h-4 w-4 text-yellow-400" />
-          <span className={cn("font-medium", 
-            isCriticalBalance ? 'text-red-400' : 
-            isLowBalance ? 'text-orange-400' : 
+          <span className={cn("font-medium text-sm",
+            isCriticalBalance ? 'text-red-400' :
+            isLowBalance ? 'text-orange-400' :
             'text-brand-secondary'
           )}>
             {balance}
           </span>
         </div>
-        {(isLowBalance || isCriticalBalance) && showActions && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={handleBuyTokens}
-            className="h-6 text-xs px-2 bg-brand-secondary hover:bg-amber-600 border-brand-secondary text-white rounded-full"
-          >
-            <Plus className="h-3 w-3 mr-1" />
-            {t('buy')}
-          </Button>
+        {showActions && (
+          <Plus className={cn(
+            "h-3.5 w-3.5",
+            isCriticalBalance ? 'text-red-400' :
+            isLowBalance ? 'text-orange-400' :
+            'text-brand-secondary/70'
+          )} />
         )}
-      </div>
+      </button>
     );
   }
 

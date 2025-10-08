@@ -1,31 +1,30 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `client/src` contains the React UI; feature folders under `pages`, `components`, `contexts`, and `hooks` reuse utilities via the `@/...` alias from `tsconfig.json`.
-- `backend/` hosts the FastAPI service layer with `routes/`, `services/`, `models.py`, `schemas.py`, and prompt assets in `prompts/`.
-- Tests live in `backend/tests` with settings in `backend/pytest.ini`; deployment helpers reside in `scripts/`, `docker-compose.yml`, and the repo Dockerfiles.
+- `client/src` contains the React UI. Feature code sits under `pages`, `components`, `contexts`, and `hooks`, reusing shared utilities via the `@/...` alias from `tsconfig.json`.
+- `backend/` houses the FastAPI service with `routes/`, `services/`, `models.py`, `schemas.py`, and reusable prompt assets in `prompts/`.
+- Tests live in `backend/tests` with pytest settings in `backend/pytest.ini`; deployment helpers reside in `scripts/`, `docker-compose.yml`, and the root Dockerfiles.
 
 ## Build, Test, and Development Commands
-- `npm install` syncs frontend packages; `pip install -r backend/requirements.txt` prepares the API.
-- `npm run dev` starts Vite on :5173; run `cd backend && python main.py` or `uvicorn main:app --reload` for FastAPI on :8000.
-- `npm run build` creates a production bundle; `npm run check` runs TypeScript type checks; `cd backend && pytest` executes backend unit and integration tests.
-- Use `./build-prod.sh` or `docker-compose up` only when validating containerized deployments.
+- `npm install` / `pip install -r backend/requirements.txt` set up frontend and backend dependencies.
+- `npm run dev` starts Vite on :5173; run `cd backend && uvicorn main:app --reload` (or `python main.py`) for the API on :8000.
+- `npm run build` produces the production bundle; `npm run check` runs TypeScript type checks.
+- `cd backend && pytest` executes backend unit and integration tests; prefer `./build-prod.sh` or `docker-compose up` only for release validation.
 
 ## Coding Style & Naming Conventions
-- Frontend TypeScript and TSX use 2-space indentation, ES module imports, PascalCase component files, and camelCase hooks, contexts, and utilities.
-- Tailwind utility classes should stay ordered layout -> spacing -> color, mirroring existing components; shared primitives live in `client/src/components/ui`.
-- Python modules follow PEP 8 with 4-space indentation; keep FastAPI routes thin and delegate logic to the `services/` layer.
+- Frontend TypeScript uses 2-space indentation, ES module imports, PascalCase component files, and camelCase hooks, contexts, and utilities.
+- Tailwind classes stay ordered layout → spacing → color, matching existing components; shared primitives belong in `client/src/components/ui`.
+- Python follows PEP 8 with 4-space indentation. Keep FastAPI routes thin and delegate logic to `services/`.
 
 ## Testing Guidelines
-- Prefer pytest for backend coverage; colocate new tests under `backend/tests/<feature>/` and mirror module names (`test_<module>.py`).
-- Reuse fixtures in `backend/tests/conftest.py` for database or auth setup; extend them instead of rebuilding setup code.
-- For frontend changes that touch APIs, add contract checks or story fixtures and verify via `npm run dev` while monitoring server logs.
+- Pytest is the primary framework; place new tests under `backend/tests/<feature>/` using `test_<module>.py` naming.
+- Reuse fixtures from `backend/tests/conftest.py` for database or auth setup, extending them as needed instead of duplicating setup code.
+- Run `pytest` before pushing; add focused integration checks when changing service logic.
 
 ## Commit & Pull Request Guidelines
-- Recent history mixes conventional commits (`feat(chats): ...`, `chore: ...`) with ad hoc messages; default to `<type>(scope): summary` for clarity.
-- Scope PRs narrowly, link issues, and include screenshots or curl responses when UX or API behavior changes.
-- Note environment prerequisites in PR descriptions (`.env`, `backend/.env`) and confirm `npm run build` plus `pytest` pass locally before requesting review.
+- Follow `<type>(scope): summary` commit messages (e.g., `feat(chats): add streaming endpoint`), aligning with existing history.
+- Keep PRs scoped tightly, reference related issues, include screenshots or `curl` snippets for UX/API changes, and confirm `npm run build` plus `pytest` pass locally.
 
-## Environment & Configuration Tips
-- Copy `.env.example` values into root `.env` and `backend/.env` before running services and keep secrets untracked.
-- Update `tailwind.config.ts`, `components.json`, and `vite.config.ts` together when adding design tokens or aliases to avoid build regressions.
+## Security & Configuration Tips
+- Copy `.env.example` into root `.env` and `backend/.env` before running services; keep secrets out of version control.
+- When adjusting design tokens or aliases, update `tailwind.config.ts`, `components.json`, and `vite.config.ts` together to avoid build regressions.
