@@ -1,28 +1,18 @@
-"""
-Avatar Generation Service using Perchance AI
+"""Avatar generation service leveraging Pollinations.AI or Supabase storage."""
 
-This service provides AI-powered avatar generation for character creation
-using the Perchance text-to-image API.
-
-Features:
-- Generate avatars from text prompts
-- Support for multiple styles (fantasy, realistic, anime, chinese)
-- Gender-specific prompt optimization
-- Automatic image resizing and optimization
-- Secure file handling and storage
-"""
+from __future__ import annotations
 
 import asyncio
+import io
+import logging
+import re
+from datetime import datetime
+from typing import Optional, Tuple
+
 import aiohttp
 from PIL import Image
-from pathlib import Path
-import aiofiles
-import logging
-import io
-from typing import Tuple, Optional
-from datetime import datetime
-import json
-import re
+
+from services.storage_manager import StorageManagerError, get_storage_manager
 
 class AvatarGenerationError(Exception):
     """Avatar generation specific errors"""
@@ -30,35 +20,12 @@ class AvatarGenerationError(Exception):
 
 
 class AvatarGenerationService:
-    """Service for AI-powered avatar generation using Perchance"""
+    """Service for AI-powered avatar generation using Pollinations.AI."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.logger = logging.getLogger(__name__)
-        # Use Pollinations.AI as a free, reliable alternative to Perchance
         self.api_url = "https://image.pollinations.ai/prompt/{prompt}"
-
-        # Path resolution: prioritize Fly.io volume, fallback to local development
-        fly_volume_path = Path("/app/attached_assets")
-        local_dev_path = Path(__file__).parent.parent.parent / "attached_assets"
-
-        # Check for deployment environment
-        import os
-        is_deployed = (
-            os.getenv('FLY_APP_NAME') is not None or
-            Path('/.dockerenv').exists() or
-            fly_volume_path.exists()
-        )
-
-        if is_deployed and fly_volume_path.exists():
-            base_dir = fly_volume_path
-        elif local_dev_path.exists():
-            base_dir = local_dev_path
-        else:
-            local_dev_path.mkdir(parents=True, exist_ok=True)
-            base_dir = local_dev_path
-
-        self.output_dir = base_dir / "generated_avatars"
-        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.storage = get_storage_manager()
 
     async def generate_avatar(
         self,
@@ -101,21 +68,30 @@ class AvatarGenerationService:
             # Process and optimize image
             processed_image = self._process_image(image)
 
-            # Generate unique filename
+            # Serialize to PNG bytes
+            buffer = io.BytesIO()
+            processed_image.save(buffer, format="PNG", optimize=True, quality=85)
+            content = buffer.getvalue()
+
+            # Generate unique filename and store via storage manager
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            safe_name = character_name.replace(' ', '_').replace('/', '_')[:50]
+            safe_name = character_name.replace(" ", "_").replace("/", "_")[:50]
             filename = f"{safe_name}_{timestamp}_avatar.png"
-            file_path = self.output_dir / filename
+            storage_path = f"generated_avatars/{filename}"
 
-            # Save processed image
-            processed_image.save(file_path, format='PNG', optimize=True, quality=85)
+            stored_file = await self.storage.upload(
+                storage_path,
+                content,
+                mimetype="image/png",
+            )
 
-            self.logger.info(f"Avatar generated successfully: {filename}")
+            self.logger.info(f"Avatar generated successfully: {stored_file.path}")
+            return True, stored_file.public_url, None
 
-            # Return URL path for asset serving
-            avatar_url = f"/assets/generated_avatars/{filename}"
-            return True, avatar_url, None
-
+        except StorageManagerError as storage_error:
+            error_msg = f"Failed to store generated avatar: {storage_error}"
+            self.logger.error(error_msg, exc_info=True)
+            return False, None, error_msg
         except Exception as e:
             error_msg = f"Failed to generate avatar: {str(e)}"
             self.logger.error(error_msg, exc_info=True)
