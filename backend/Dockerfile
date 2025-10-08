@@ -4,13 +4,18 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
+# Copy Supabase SSL certificate before installing ca-certificates
+COPY prod-ca-2021.crt /usr/local/share/ca-certificates/supabase-prod.crt
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     gcc \
     g++ \
     libpq-dev \
     libmagic1 \
+    ca-certificates \
     gosu \
+    && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching

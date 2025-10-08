@@ -3,16 +3,14 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 import logging
-import os
-import shutil
-from pathlib import Path
 from typing import Optional
-from uuid import uuid4
 
 from database import get_db
 from models import User
 from schemas import UserLogin, UserLoginLegacy, UserRegister, FirebaseAuthRequest, Token, User as UserSchema
 from auth.auth_service import AuthService
+from services.upload_service import UploadService
+from utils.character_utils import resolve_asset_url
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -23,15 +21,6 @@ router = APIRouter()
 # Security scheme
 security = HTTPBearer()
 
-
-def resolve_assets_root() -> Path:
-    """Resolve shared assets directory for both local and deployed environments."""
-    fly_path = Path("/app/attached_assets")
-    if os.getenv("FLY_APP_NAME"):
-        return fly_path
-    if fly_path.exists():
-        return fly_path
-    return Path(__file__).resolve().parent.parent / "attached_assets"
 
 def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
     """Dependency to get current authenticated user"""
@@ -264,6 +253,7 @@ async def check_username(username: str, db: Session = Depends(get_db)):
 
 @router.put("/profile", response_model=UserSchema)
 async def update_profile(
+    request: Request,
     username: str = Form(...),
     email: str = Form(...),
     age: Optional[int] = Form(None),
@@ -307,43 +297,24 @@ async def update_profile(
         # Handle avatar update
         if preset_avatar_id is not None:
             # Use preset avatar
-            current_user.avatar_url = f"/assets/user_avatar_img/avatar_{preset_avatar_id}.png"
+            preset_path = f"/assets/user_avatar_img/avatar_{preset_avatar_id}.png"
+            current_user.avatar_url = resolve_asset_url(preset_path)
         elif avatar is not None:
-            # Handle custom avatar upload
-            # Validate file type
-            allowed_extensions = ['.jpg', '.jpeg', '.png', '.gif']
-            file_ext = os.path.splitext(avatar.filename)[1].lower()
-            if file_ext not in allowed_extensions:
+            upload_service = UploadService()
+            success, upload_data, error = await upload_service.process_avatar_upload(
+                file=avatar,
+                user_id=current_user.id,
+                request=request,
+                upload_type="user_profile",
+            )
+
+            if not success or not upload_data:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Invalid file type. Only JPG, PNG, and GIF are allowed"
+                    detail=error or "Failed to upload avatar"
                 )
 
-            # Validate file size (5MB limit)
-            avatar.file.seek(0, 2)  # Seek to end
-            file_size = avatar.file.tell()
-            avatar.file.seek(0)  # Reset to beginning
-
-            if file_size > 5 * 1024 * 1024:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="File size exceeds 5MB limit"
-                )
-
-            assets_root = resolve_assets_root()
-            avatars_dir = assets_root / "avatars"
-            avatars_dir.mkdir(parents=True, exist_ok=True)
-
-            # Save file with unique name
-            sanitized_ext = file_ext or '.png'
-            file_name = f"user_{current_user.id}_{uuid4().hex}{sanitized_ext}"
-            file_path = avatars_dir / file_name
-
-            with open(file_path, "wb") as buffer:
-                shutil.copyfileobj(avatar.file, buffer)
-
-            # Update avatar URL
-            current_user.avatar_url = f"/assets/avatars/{file_name}"
+            current_user.avatar_url = upload_data.get("url") or upload_data.get("avatarUrl")
 
         # Commit changes
         db.commit()

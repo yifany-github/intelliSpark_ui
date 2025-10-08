@@ -108,11 +108,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
       queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
       setIsTyping(true);
       
-      // Simulate AI response after a delay
-      // This would be replaced by the actual streaming response from the API
-      setTimeout(() => {
-        aiResponse();
-      }, 1000);
+      aiResponse();
     },
   });
   

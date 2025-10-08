@@ -17,12 +17,15 @@ Features:
 from typing import Tuple, Dict, Any, Optional
 from fastapi import UploadFile, Request, HTTPException
 from pathlib import Path
-import aiofiles
 import logging
 import os
 from slowapi.util import get_remote_address
 
 from utils.file_validation import comprehensive_image_validation, resize_image_if_needed
+from services.storage_manager import (
+    StorageManagerError,
+    get_storage_manager,
+)
 
 
 class UploadServiceError(Exception):
@@ -36,27 +39,31 @@ class UploadService:
     def __init__(self):
         self.logger = logging.getLogger(__name__)
         self.security_logger = logging.getLogger('security')
-        # Path resolution: prioritize Fly.io volume, fallback to local development
-        fly_volume_path = Path("/app/attached_assets")
-        local_dev_path = Path(__file__).parent.parent.parent / "attached_assets"
+        try:
+            self.storage = get_storage_manager()
+        except StorageManagerError as error:
+            self.logger.error(f"Storage manager initialization failed: {error}")
+            raise
         
-        # Check for deployment environment (Fly.io/Docker)
-        is_deployed = (
-            os.getenv('FLY_APP_NAME') is not None or 
-            Path('/.dockerenv').exists() or
-            fly_volume_path.exists()
-        )
-        
-        if is_deployed and fly_volume_path.exists():
-            # Use Fly.io volume in production
-            self.upload_base_dir = fly_volume_path
-        elif local_dev_path.exists():
-            # Use local development path
-            self.upload_base_dir = local_dev_path
-        else:
-            # Create local directory if it doesn't exist (development setup)
-            local_dev_path.mkdir(parents=True, exist_ok=True)
-            self.upload_base_dir = local_dev_path
+        # Local filesystem base directory is only used when Supabase Storage is disabled.
+        self.upload_base_dir: Optional[Path] = None
+        if not self.storage.using_supabase:
+            fly_volume_path = Path("/app/attached_assets")
+            local_dev_path = Path(__file__).parent.parent.parent / "attached_assets"
+
+            is_deployed = (
+                os.getenv('FLY_APP_NAME') is not None or
+                Path('/.dockerenv').exists() or
+                fly_volume_path.exists()
+            )
+
+            if is_deployed and fly_volume_path.exists():
+                self.upload_base_dir = fly_volume_path
+            elif local_dev_path.exists():
+                self.upload_base_dir = local_dev_path
+            else:
+                local_dev_path.mkdir(parents=True, exist_ok=True)
+                self.upload_base_dir = local_dev_path
     
     async def process_avatar_upload(
         self, 
@@ -117,88 +124,73 @@ class UploadService:
             return False, {}, "Internal upload processing error"
     
     async def _save_validated_file(
-        self, 
-        validation_result: dict, 
-        upload_type: str, 
-        user_id: int, 
+        self,
+        validation_result: dict,
+        upload_type: str,
+        user_id: int,
         client_ip: str,
         character_id: int = None
     ) -> Dict[str, Any]:
-        """Save validated file to appropriate directory"""
+        """Persist validated file and return upload metadata."""
         try:
-            # Determine upload directory based on type
-            upload_dir = self._get_upload_directory(upload_type, character_id)
-            upload_dir.mkdir(parents=True, exist_ok=True)
-            
-            # Security check: verify directory is within expected bounds
-            if not self._is_safe_upload_path(upload_dir, upload_type):
-                self.security_logger.error(f"Directory traversal attempt: {upload_dir}")
-                raise HTTPException(status_code=500, detail="Invalid upload directory")
-            
-            # Extract validated data
             processed_content = validation_result['processed_content']
             secure_filename = validation_result['secure_filename']
-            dimensions = validation_result['dimensions']
+            dimensions = validation_result.get('dimensions')
             was_resized = validation_result['was_resized']
-            
-            # Save file securely using async I/O
-            file_path = upload_dir / secure_filename
-            
-            async with aiofiles.open(file_path, 'wb') as f:
-                await f.write(processed_content)
-            
-            # Verify file was written correctly
-            if not file_path.exists() or file_path.stat().st_size == 0:
-                self.security_logger.error(f"File upload verification failed: {file_path}")
-                raise HTTPException(status_code=500, detail="File upload verification failed")
-            
-            # Generate a thumbnail (small preview) for grids
+            mimetype = validation_result.get('mime_type') or 'application/octet-stream'
+
+            storage_path = self._build_storage_path(upload_type, secure_filename, character_id)
+            stored_file = await self.storage.upload(storage_path, processed_content, mimetype)
+
             thumbnail_url = None
             try:
                 thumb_content, _ = resize_image_if_needed(processed_content, max_size=256)
-                thumb_stem = file_path.stem
-                thumb_ext = file_path.suffix
-                thumb_filename = f"{thumb_stem}_thumb{thumb_ext}"
-                thumb_path = upload_dir / thumb_filename
-                async with aiofiles.open(thumb_path, 'wb') as tf:
-                    await tf.write(thumb_content)
-                if thumb_path.exists() and thumb_path.stat().st_size > 0:
-                    thumbnail_url = f"/assets/{self._get_asset_path(upload_type, character_id)}/{thumb_filename}"
+                if thumb_content and len(thumb_content) > 0:
+                    thumb_filename = self._build_thumbnail_name(secure_filename)
+                    thumb_path = self._build_storage_path(upload_type, thumb_filename, character_id)
+                    thumb_mimetype = stored_file.mimetype or mimetype
+                    thumb_file = await self.storage.upload(thumb_path, thumb_content, thumb_mimetype)
+                    thumbnail_url = thumb_file.public_url
             except Exception:
-                # Non-fatal if thumbnail generation fails
                 thumbnail_url = None
 
-            # Generate response data
-            asset_url = f"/assets/{self._get_asset_path(upload_type, character_id)}/{secure_filename}"
-            
+            dimensions_text = None
+            if dimensions and dimensions[0] and dimensions[1]:
+                dimensions_text = f"{dimensions[0]}x{dimensions[1]}"
+
             response_data = {
-                'avatarUrl': asset_url,
-                'url': asset_url,  # Alias for clarity in non-avatar contexts
+                'avatarUrl': stored_file.public_url,
+                'url': stored_file.public_url,
                 'filename': secure_filename,
-                'size': len(processed_content),
-                'dimensions': f"{dimensions[0]}x{dimensions[1]}",
-                'message': 'Upload successful'
+                'size': stored_file.size,
+                'dimensions': dimensions_text,
+                'message': 'Upload successful',
             }
 
             if thumbnail_url:
                 response_data['thumbnailUrl'] = thumbnail_url
-            
-            # Add optimization info if resized
+
             if was_resized and validation_result.get('warnings'):
                 response_data['optimized'] = True
                 response_data['optimization_info'] = validation_result['warnings'][0]
-            
+
+            # Include internal storage path for administrative tooling
+            response_data['storagePath'] = stored_file.path
+
             return {
-                'success': True, 
-                'data': response_data, 
+                'success': True,
+                'data': response_data,
                 'error': None,
                 'processed_content': processed_content,
                 'was_resized': was_resized,
-                'dimensions': dimensions
+                'dimensions': dimensions,
             }
-            
+
         except HTTPException:
             raise
+        except StorageManagerError as storage_error:
+            self.logger.error(f"Storage error while saving file: {storage_error}")
+            return {'success': False, 'error': str(storage_error)}
         except Exception as e:
             self.logger.error(f"Failed to save uploaded file: {e}")
             return {'success': False, 'error': f'File save failed: {str(e)}'}
@@ -215,8 +207,10 @@ class UploadService:
         }
         
         subdir = upload_dirs.get(upload_type, 'general')
+        if self.upload_base_dir is None:
+            raise StorageManagerError("Local upload directory requested while external storage is active")
         return self.upload_base_dir / subdir
-    
+
     def _get_asset_path(self, upload_type: str, character_id: int = None) -> str:
         """Get asset path for URL generation"""
         asset_paths = {
@@ -228,17 +222,19 @@ class UploadService:
         }
         
         return asset_paths.get(upload_type, 'general')
-    
-    def _is_safe_upload_path(self, upload_path: Path, upload_type: str) -> bool:
-        """Verify upload path is within expected bounds (path traversal protection)"""
-        try:
-            resolved_path = upload_path.resolve()
-            expected_base = self.upload_base_dir.resolve()
-            # Proper path validation instead of string comparison to prevent path traversal
-            return expected_base in resolved_path.parents or resolved_path == expected_base
-        except Exception:
-            return False
-    
+
+    def _build_storage_path(self, upload_type: str, filename: str, character_id: int = None) -> str:
+        """Build the storage key for the current backend."""
+        base = self._get_asset_path(upload_type, character_id)
+        path = Path(base) / filename if base else Path(filename)
+        return path.as_posix()
+
+    @staticmethod
+    def _build_thumbnail_name(filename: str) -> str:
+        stem = Path(filename).stem
+        suffix = Path(filename).suffix or '.jpg'
+        return f"{stem}_thumb{suffix}"
+
     async def _log_upload_rejection(
         self, 
         user_id: int, 
