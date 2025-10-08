@@ -51,4 +51,4 @@ RUN chmod +x /app/docker-entrypoint.sh
 
 # Use entrypoint to adjust volume permissions, then drop to appuser
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "4"]
