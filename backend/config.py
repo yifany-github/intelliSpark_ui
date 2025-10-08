@@ -46,7 +46,23 @@ class Settings(BaseSettings):
     enable_hardcoded_character_loading: bool = False  # Default disabled
     enable_character_file_sync: bool = False          # Default disabled
     enable_startup_character_sync: bool = False       # Default disabled
-    
+
+    # Supabase storage configuration
+    supabase_url: Optional[str] = None
+    supabase_service_role_key: Optional[str] = None
+    supabase_anon_key: Optional[str] = None
+    supabase_storage_bucket: Optional[str] = None
+    supabase_public_bucket_base_url: Optional[str] = None  # Optional override for public URL base
+
+    @property
+    def supabase_storage_enabled(self) -> bool:
+        """Return True when Supabase Storage credentials are configured."""
+        return bool(
+            self.supabase_url
+            and self.supabase_service_role_key
+            and self.supabase_storage_bucket
+        )
+
     class Config:
         env_file = ".env"
         case_sensitive = False

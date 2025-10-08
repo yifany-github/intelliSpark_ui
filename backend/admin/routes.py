@@ -23,6 +23,7 @@ from services.prompt_engine import create_prompt_preview
 from auth.admin_routes import get_current_admin
 from auth.admin_jwt import TokenPayload, create_token_pair
 from payment.token_service import TokenService
+from services.storage_manager import get_storage_manager, StorageManagerError
 
 # Login request schema
 class LoginRequest(BaseModel):
@@ -859,55 +860,70 @@ async def get_asset_images(
 ):
     """Get available images from attached_assets directory"""
     try:
-        # Path resolution: prioritize Fly.io volume, fallback to local development
+        storage = get_storage_manager()
+
+        if asset_type != "characters":
+            raise HTTPException(status_code=400, detail="Invalid asset type. Only 'characters' is supported")
+
+        supported_extensions = ('.jpg', '.jpeg', '.png', '.gif', '.webp')
+
+        if storage.using_supabase:
+            objects = await storage.list_objects('characters_img')
+            images = []
+            for obj in objects:
+                path = obj.get('path')
+                if not path or not path.lower().endswith(supported_extensions):
+                    continue
+                filename = Path(path).name
+                images.append({
+                    "filename": filename,
+                    "name": Path(filename).stem,
+                    "url": storage.build_public_url(path),
+                    "size": obj.get('size', 0)
+                })
+            images.sort(key=lambda x: x['filename'])
+            return {"images": images}
+
+        # Local filesystem fallback mirrors previous behaviour
         fly_volume_path = Path("/app/attached_assets")
         local_dev_path = Path(__file__).resolve().parent.parent.parent / "attached_assets"
-        
-        # Check for deployment environment
+
         is_deployed = (
-            os.getenv('FLY_APP_NAME') is not None or 
+            os.getenv('FLY_APP_NAME') is not None or
             Path('/.dockerenv').exists() or
             fly_volume_path.exists()
         )
-        
-        if is_deployed and fly_volume_path.exists():
-            assets_dir = fly_volume_path
-        else:
-            assets_dir = local_dev_path
-        
-        if asset_type == "characters":
-            image_dir = assets_dir / "characters_img"
-        else:
-            raise HTTPException(status_code=400, detail="Invalid asset type. Only 'characters' is supported")
-        
+
+        assets_dir = fly_volume_path if (is_deployed and fly_volume_path.exists()) else local_dev_path
+        image_dir = assets_dir / "characters_img"
         if not image_dir.exists():
-            # Create directory if it doesn't exist
             image_dir.mkdir(parents=True, exist_ok=True)
             return {"images": []}
-        
-        # Supported image extensions
-        supported_extensions = ["*.jpg", "*.jpeg", "*.png", "*.gif", "*.webp"]
-        
+
+        image_paths = []
+        for pattern in supported_extensions:
+            image_paths.extend(glob.glob(str(image_dir / pattern)))
+            image_paths.extend(glob.glob(str(image_dir / pattern.upper())))
+
         images = []
-        for ext in supported_extensions:
-            image_files = glob.glob(str(image_dir / ext))
-            image_files.extend(glob.glob(str(image_dir / ext.upper())))
-            
-            for image_file in image_files:
-                file_path = Path(image_file)
-                relative_path = f"/assets/{asset_type}_img/{file_path.name}"
-                images.append({
+        for image_file in image_paths:
+            file_path = Path(image_file)
+            relative_path = f"/assets/{asset_type}_img/{file_path.name}"
+            images.append(
+                {
                     "filename": file_path.name,
-                    "name": file_path.stem,  # filename without extension
+                    "name": file_path.stem,
                     "url": relative_path,
-                    "size": file_path.stat().st_size if file_path.exists() else 0
-                })
-        
-        # Sort by filename
+                    "size": file_path.stat().st_size if file_path.exists() else 0,
+                }
+            )
+
         images.sort(key=lambda x: x['filename'])
-        
         return {"images": images}
-    
+
+    except StorageManagerError as error:
+        logger.error(f"Storage error fetching asset images: {error}")
+        raise HTTPException(status_code=500, detail="Failed to fetch asset images")
     except Exception as e:
         logger.error(f"Error fetching asset images: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch asset images")
