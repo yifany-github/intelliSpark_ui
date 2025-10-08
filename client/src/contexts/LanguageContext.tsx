@@ -836,7 +836,33 @@ export type TranslationKey =
   | 'myCharactersChatsLabel'
   | 'myCharactersViewsLabel'
   | 'myCharactersCreated'
-  | 'more';
+  | 'more'
+  // AI Avatar Generator keys
+  | 'aiAvatarGenerator'
+  | 'aiGeneratorInfo'
+  | 'aiPromptPlaceholder'
+  | 'aiPromptHelp'
+  | 'artStyle'
+  | 'generateAvatar'
+  | 'generating'
+  | 'generationFailed'
+  | 'avatarGeneratedSuccessfully'
+  | 'pleaseEnterCharacterName'
+  | 'fantasyStyle'
+  | 'realisticStyle'
+  | 'animeStyle'
+  | 'chineseStyle'
+  | 'scifiStyle'
+  | 'medievalStyle'
+  | 'rateLimitInfo'
+  | 'selectedAvatar'
+  | 'customAvatarSelected'
+  | 'noAvatarSelected'
+  | 'chooseDefaultOrUpload'
+  | 'uploadYourOwnImage'
+  | 'generatedAvatar'
+  | 'generatedAvatars'
+  | 'useThisAvatar';
 
 // Define translations for each language
 const translations: Record<Language, Record<TranslationKey, string>> = {
@@ -1593,6 +1619,32 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     myCharactersViewsLabel: 'views',
     myCharactersCreated: 'Created',
     more: 'More',
+    // AI Avatar Generator
+    aiAvatarGenerator: 'AI Avatar Generator',
+    aiGeneratorInfo: 'Describe your character and our AI will generate a unique avatar. Generation takes 10-30 seconds.',
+    aiPromptPlaceholder: 'e.g., elegant warrior with long silver hair, blue eyes, mystical aura',
+    aiPromptHelp: 'Describe appearance, clothing, mood, or special features',
+    artStyle: 'Art Style',
+    generateAvatar: 'Generate Avatar',
+    generating: 'Generating...',
+    generationFailed: 'Generation Failed',
+    avatarGeneratedSuccessfully: 'Avatar generated successfully!',
+    pleaseEnterCharacterName: 'Please enter a character name first',
+    fantasyStyle: 'Fantasy',
+    realisticStyle: 'Realistic',
+    animeStyle: 'Anime',
+    chineseStyle: 'Traditional Chinese',
+    scifiStyle: 'Sci-Fi',
+    medievalStyle: 'Medieval',
+    rateLimitInfo: 'Limit: 5 generations/min, 20/hour',
+    selectedAvatar: 'Selected Avatar',
+    customAvatarSelected: 'Custom avatar or default selected',
+    noAvatarSelected: 'No avatar selected yet',
+    chooseDefaultOrUpload: 'Or choose a default avatar / upload your own',
+    uploadYourOwnImage: 'Upload Your Own Image',
+    generatedAvatar: 'Generated Avatar',
+    generatedAvatars: 'Generated Avatars',
+    useThisAvatar: 'Use This Avatar',
   },
   zh: {
     characters: '角色',
@@ -2347,6 +2399,32 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     myCharactersViewsLabel: '次浏览',
     myCharactersCreated: '创建于',
     more: '更多',
+    // AI Avatar Generator
+    aiAvatarGenerator: 'AI 头像生成器',
+    aiGeneratorInfo: '描述您的角色，我们的 AI 将生成独特的头像。生成需要 10-30 秒。',
+    aiPromptPlaceholder: '例如：银发蓝眼的优雅女战士，身穿神秘长袍',
+    aiPromptHelp: '描述外貌、服装、情绪或特殊特征',
+    artStyle: '艺术风格',
+    generateAvatar: '生成头像',
+    generating: '生成中...',
+    generationFailed: '生成失败',
+    avatarGeneratedSuccessfully: '头像生成成功！',
+    pleaseEnterCharacterName: '请先输入角色名称',
+    fantasyStyle: '奇幻',
+    realisticStyle: '写实',
+    animeStyle: '动漫',
+    chineseStyle: '传统中国风',
+    scifiStyle: '科幻',
+    medievalStyle: '中世纪',
+    rateLimitInfo: '限制：每分钟 5 次，每小时 20 次',
+    selectedAvatar: '已选头像',
+    customAvatarSelected: '已选择自定义或默认头像',
+    noAvatarSelected: '尚未选择头像',
+    chooseDefaultOrUpload: '或选择默认头像 / 上传自己的图片',
+    uploadYourOwnImage: '上传您自己的图片',
+    generatedAvatar: '已生成的头像',
+    generatedAvatars: '已生成的头像',
+    useThisAvatar: '使用此头像',
   },
 };
 

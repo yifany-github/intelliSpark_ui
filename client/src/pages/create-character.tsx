@@ -12,6 +12,7 @@ import CharacterCreationSuccess from '@/components/character-creation/CharacterC
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 import CharacterCreationWizard, { CharacterCreationStep } from '@/components/character-creation/CharacterCreationWizard';
 import CategorySelector from '@/components/characters/CategorySelector';
+import AIAvatarGenerator from '@/components/characters/AIAvatarGenerator';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -32,7 +33,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Toggle } from '@/components/ui/toggle';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Upload } from 'lucide-react';
 
 enum CreationStep {
   FORM = 'form',
@@ -561,7 +562,8 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading, ste
 
           {step === 2 && (
             <div className="space-y-6">
-              <div className="flex items-center gap-6">
+              {/* Avatar Preview */}
+              <div className="flex items-center gap-4">
                 <ImageWithFallback
                   src={formData.avatar || undefined}
                   alt={t('characterAvatar')}
@@ -569,47 +571,56 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading, ste
                   size="xl"
                   className="bg-slate-100"
                 />
-                <div className="flex-1 space-y-3">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    ref={fileInputRef}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        handleImageUpload(file);
-                      }
-                    }}
-                    style={{ display: 'none' }}
-                  />
-                  <div className="flex flex-wrap gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (fileInputRef.current) {
-                          fileInputRef.current.click();
-                        }
-                      }}
-                    >
-                      {t('chooseAvatarImage')}
-                    </Button>
-                    {formData.avatar && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setFormData({ ...formData, avatar: null })}
-                      >
-                        {t('resetToDefault')}
-                      </Button>
-                    )}
-                  </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-medium">{t('selectedAvatar') || 'Selected Avatar'}</h3>
                   <p className="text-sm text-muted-foreground">
-                    {t('uploadImageOrDefault')}
+                    {formData.avatar
+                      ? (t('customAvatarSelected') || 'Custom avatar or default selected')
+                      : (t('noAvatarSelected') || 'No avatar selected yet')}
                   </p>
                 </div>
+              </div>
+
+              {/* Hidden file input for custom upload */}
+              <input
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    handleImageUpload(file);
+                  }
+                }}
+                style={{ display: 'none' }}
+              />
+
+              {/* AI Avatar Generator */}
+              <AIAvatarGenerator
+                characterName={formData.name}
+                characterGender={formData.gender}
+                characterDescription={formData.description}
+                onAvatarGenerated={(url) => setFormData({ ...formData, avatar: url })}
+              />
+
+              {/* Upload Button */}
+              <div>
+                <Label className="text-sm font-medium mb-3 block">
+                  {t('uploadYourOwnImage') || 'Upload Your Own Image'}
+                </Label>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    if (fileInputRef.current) {
+                      fileInputRef.current.click();
+                    }
+                  }}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  {t('uploadAvatar') || 'Upload Avatar'}
+                </Button>
               </div>
             </div>
           )}

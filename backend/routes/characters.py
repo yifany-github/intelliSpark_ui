@@ -23,15 +23,91 @@ from auth.routes import get_current_user
 from services.character_service import CharacterService, CharacterServiceError
 from services.upload_service import UploadService
 from services.character_gallery_service import CharacterGalleryService
-from schemas import Character as CharacterSchema, CharacterCreate, CharacterUpdate
+from services.avatar_generation_service import AvatarGenerationService
+from schemas import Character as CharacterSchema, CharacterCreate, CharacterUpdate, DefaultAvatar
 from models import User
 from routes.admin import is_admin
+from pathlib import Path
+import os
 
 # Create router with prefix and tags
 router = APIRouter(prefix="/characters", tags=["characters"])
 
 # Initialize rate limiter
 limiter = Limiter(key_func=get_remote_address)
+
+
+@router.get("/default-avatars")
+async def get_default_avatars():
+    """Get list of default avatar options for character creation"""
+    try:
+        # Define default avatars with metadata
+        default_avatars = [
+            {
+                "id": "elara",
+                "name": "Elara",
+                "url": "/assets/characters_img/Elara.jpeg",
+                "thumbnail_url": "/assets/characters_img/Elara.jpeg",
+                "category": "female_safe",
+                "gender": "female",
+                "style": "Fantasy Elf",
+                "nsfw_level": 0
+            },
+            {
+                "id": "elarad",
+                "name": "Elarad",
+                "url": "/assets/characters_img/Elarad.jpeg",
+                "thumbnail_url": "/assets/characters_img/Elarad.jpeg",
+                "category": "male_safe",
+                "gender": "male",
+                "style": "Fantasy Warrior",
+                "nsfw_level": 0
+            },
+            {
+                "id": "huangrong_1",
+                "name": "Huang Rong (Style 1)",
+                "url": "/assets/characters_img/黄蓉1.png",
+                "thumbnail_url": "/assets/characters_img/黄蓉1.png",
+                "category": "female_safe",
+                "gender": "female",
+                "style": "Traditional Chinese",
+                "nsfw_level": 0
+            },
+            {
+                "id": "huangrong_2",
+                "name": "Huang Rong (Style 2)",
+                "url": "/assets/characters_img/黄蓉2.png",
+                "thumbnail_url": "/assets/characters_img/黄蓉2.png",
+                "category": "female_safe",
+                "gender": "female",
+                "style": "Traditional Chinese",
+                "nsfw_level": 0
+            },
+            {
+                "id": "huangrong_9",
+                "name": "Huang Rong (Style 9)",
+                "url": "/assets/characters_img/黄蓉9.png",
+                "thumbnail_url": "/assets/characters_img/黄蓉9.png",
+                "category": "female_safe",
+                "gender": "female",
+                "style": "Traditional Chinese",
+                "nsfw_level": 0
+            },
+            {
+                "id": "huangrong_10",
+                "name": "Huang Rong (Style 10)",
+                "url": "/assets/characters_img/黄蓉10.png",
+                "thumbnail_url": "/assets/characters_img/黄蓉10.png",
+                "category": "female_safe",
+                "gender": "female",
+                "style": "Traditional Chinese",
+                "nsfw_level": 0
+            }
+        ]
+
+        return {"avatars": default_avatars}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get default avatars: {str(e)}")
 
 
 @router.get("")
@@ -76,6 +152,57 @@ async def create_character(
         return character
     except CharacterServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/generate-avatar")
+@limiter.limit("5/minute")  # Maximum 5 generations per minute per IP
+@limiter.limit("20/hour")   # Maximum 20 generations per hour per IP
+async def generate_character_avatar(
+    request: Request,
+    prompt: str = Form(...),
+    character_name: str = Form(...),
+    gender: str = Form("female"),
+    style: str = Form("fantasy"),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    Generate character avatar using AI (Perchance)
+
+    Args:
+        prompt: Description or custom prompt for avatar generation
+        character_name: Character name (used for filename)
+        gender: Character gender (female/male/neutral)
+        style: Art style (fantasy/realistic/anime/chinese/scifi/medieval)
+
+    Returns:
+        Generated avatar URL
+
+    Rate Limits:
+        - 5 generations per minute per IP
+        - 20 generations per hour per IP
+    """
+    try:
+        service = AvatarGenerationService()
+        success, avatar_url, error = await service.generate_avatar(
+            prompt=prompt,
+            character_name=character_name,
+            gender=gender,
+            style=style
+        )
+
+        if not success:
+            raise HTTPException(status_code=500, detail=error or "Failed to generate avatar")
+
+        return {
+            "avatarUrl": avatar_url,
+            "message": "Avatar generated successfully",
+            "style": style,
+            "gender": gender
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Avatar generation failed: {str(e)}")
 
 
 @router.post("/upload-avatar")

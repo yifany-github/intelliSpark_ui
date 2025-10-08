@@ -73,3 +73,15 @@ export interface EnrichedChat extends Chat {
     traits?: string[];
   } | null;
 }
+
+// Default Avatar types for character creation
+export interface DefaultAvatar {
+  id: string;
+  name: string;
+  url: string;
+  thumbnail_url: string;
+  category: 'female_safe' | 'male_safe' | 'female_suggestive' | 'male_suggestive' | 'neutral';
+  gender: 'female' | 'male' | 'neutral';
+  style: string;
+  nsfw_level: 0 | 1;
+}
