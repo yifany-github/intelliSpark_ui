@@ -494,16 +494,13 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       navigateToLogin();
       return;
     }
-    
+
     // ✅ STORE CHARACTER: Set character data immediately for instant avatar loading
     setSelectedCharacter(character);
-    
-    // ✅ IMMEDIATE: Navigate to chat with character data pre-loaded
-    // This gives instant feedback while chat is being created
-    navigateToPath(`/chat/creating?characterId=${character.id}&name=${encodeURIComponent(character.name)}`);
     handlePreviewClose();
-    
-    // 🚀 BACKGROUND: Create chat asynchronously 
+
+    // 🚀 CREATE CHAT THEN NAVIGATE: Wait for chat creation (instant) then navigate once
+    // This eliminates URL flicker and provides smooth transition
     createChat({
       characterId: character.id
     });
@@ -992,11 +989,12 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                             console.error('Failed to start chat:', error);
                           }
                         }}
-                        className="w-full py-3 bg-brand-secondary text-zinc-900 rounded-lg font-bold text-sm hover:bg-brand-secondary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-black"
+                        disabled={isCreatingChat}
+                        className="w-full py-3 bg-brand-secondary text-zinc-900 rounded-lg font-bold text-sm hover:bg-brand-secondary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-black disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <div className="flex items-center justify-center space-x-2">
                           <MessageCircle className="w-4 h-4" />
-                          <span>开始聊天</span>
+                          <span>{isCreatingChat ? '创建中...' : '开始聊天'}</span>
                         </div>
                       </button>
 

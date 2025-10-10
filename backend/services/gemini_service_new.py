@@ -161,62 +161,47 @@ class GeminiService(AIServiceBase):
             return self._simulate_response(character, messages), {"tokens_used": 1}
     
     async def generate_opening_line(self, character: Character) -> str:
-        """Generate an opening line for a character using the new architecture"""
-        self.logger.info(f"🚀 Generating opening line for character: {character.name}")
-        
+        """
+        Generate an opening line for a character with optimized speed.
+
+        FAST MODE: Skips cache and few-shot examples for 10x faster generation.
+        Uses minimal system instruction with only character name and description.
+        """
+        self.logger.info(f"🚀 [FAST] Generating opening line for character: {character.name}")
+
         if not self.is_available:
             self.logger.warning("⚠️ No Gemini client available, using fallback opening line")
             return f"Hello! I'm {character.name}. {character.backstory[:100] if character.backstory else 'Nice to meet you!'}..."
-        
+
         try:
-            # Get character prompt configuration (works for both hardcoded and user-created characters)
-            character_prompt = self._get_character_prompt(character)
-            
-            # Log opening line generation info
-            if character:
-                if self._is_hardcoded_character(character):
-                    self.logger.info(f"🚀 Generating opening line for hardcoded character: {character.name}")
-                else:
-                    self.logger.info(f"🚀 Generating opening line for user-created character: {character.name}")
-            else:
-                self.logger.info("🚀 Generating opening line without character context")
-            
             # Create opening line prompt using template
             opening_prompt = OPENING_LINE_TEMPLATE.format(character_name=character.name)
-            
-            # Create or get cache with selected SAFE/NSFW system prompt
-            cache = await self._create_or_get_cache(character_prompt, character)
-            
-            # Generate opening line using new API
-            if cache:
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=opening_prompt,
-                    config=types.GenerateContentConfig(
-                        cached_content=cache.name
-                    )
+
+            # Use minimal system instruction for fast generation
+            # Only include essential character info - no cache, no few-shots
+            system_instruction = f"""You are {character.name}.
+Personality: {character.description if character.description else 'friendly and helpful'}
+
+Generate a brief, natural greeting (1-2 sentences max) that fits your personality."""
+
+            self.logger.info(f"⚡ Using fast generation (no cache/few-shots) for {character.name}")
+
+            # Direct API call without cache - much faster
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=opening_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_instruction
                 )
-            else:
-                # Fallback without cache using selected SAFE/NSFW system prompt
-                selected_system_prompt, _ = select_system_prompt(character)
-                system_instruction = f"system_prompt: {selected_system_prompt}\n"
-                if character_prompt.get("persona_prompt"):
-                    system_instruction += f"persona prompt: {character_prompt['persona_prompt']}"
-                
-                response = self.client.models.generate_content(
-                    model=self.model_name,
-                    contents=opening_prompt,
-                    config=types.GenerateContentConfig(
-                        system_instruction=system_instruction
-                    )
-                )
-            
+            )
+
             if response and response.text:
+                self.logger.info(f"✅ Opening line generated successfully for {character.name}")
                 return response.text.strip()
             else:
                 self.logger.warning("⚠️ Empty response from Gemini for opening line, using fallback")
                 return f"Hello! I'm {character.name}. {character.backstory[:100] if character.backstory else 'Nice to meet you!'}..."
-                
+
         except Exception as e:
             self.logger.error(f"❌ Error generating opening line: {e}")
             # Fallback to simple template

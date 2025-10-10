@@ -47,21 +47,17 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   const [isBrowserMounted, setIsBrowserMounted] = useState(false);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
   
-  // Handle "creating" state when user is redirected immediately after clicking start chat
-  const isCreatingChat = chatId === 'creating';
-  const creatingCharacterId = isCreatingChat ? new URLSearchParams(window.location.search).get('characterId') : null;
-  
   // If no chatId is provided, show chat list
   const showChatListOnly = !chatId;
   
-  // Fetch chat details if chatId is provided (but not for creating state)
+  // Fetch chat details if chatId is provided
   const {
     data: chat,
     isLoading: isLoadingChat,
     error: chatError
   } = useQuery<Chat>({
     queryKey: [`/api/chats/${chatId}`],
-    enabled: !!chatId && !isCreatingChat,
+    enabled: !!chatId,
   });
   
   // Fetch all chats for the chat list
@@ -72,28 +68,19 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     queryKey: ["/api/chats"],
   });
   
-  // Fetch chat messages if chatId is provided (but not for creating state)
+  // Fetch chat messages if chatId is provided
   const {
     data: messages = [],
     isLoading: isLoadingMessages,
     error: messagesError
   } = useQuery<ChatMessage[]>({
     queryKey: [`/api/chats/${chatId}/messages`],
-    enabled: !!chatId && !isCreatingChat,
+    enabled: !!chatId,
     refetchInterval: (query) => {
       const data = query.state.data as ChatMessage[] | undefined;
       const waitingForFirstMessage = (!data || data.length === 0) && !!chat;
       return isTyping || waitingForFirstMessage ? 500 : false;
     }
-  });
-  
-  // Fetch character data for creating state
-  const {
-    data: creatingCharacter,
-    isLoading: isLoadingCreatingCharacter
-  } = useQuery<Character>({
-    queryKey: [`/api/characters/${creatingCharacterId}`],
-    enabled: isCreatingChat && !!creatingCharacterId,
   });
   
   // Fallback character fetch if not found in enriched chats
@@ -107,35 +94,31 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: !!fallbackCharacterId && !chats.find(c => c.id === parseInt(chatId || '0'))?.character,
   });
 
-  // Get character data from the enriched chats list with fallback, or from creating state
+  // Get character data from the enriched chats list with fallback
   type ChatCharacter = Character | NonNullable<EnrichedChat["character"]>;
 
   const character = useMemo<ChatCharacter | null>(() => {
-    // ✅ PRIORITY 1: If in creating state, use selectedCharacter from RolePlayContext (immediately available)
-    if (isCreatingChat && selectedCharacter) {
-      return selectedCharacter;
-    }
-    
-    // ✅ PRIORITY 2: If in creating state but no selectedCharacter, use API-fetched character
-    if (isCreatingChat && creatingCharacter) {
-      return creatingCharacter;
-    }
-    
-    // Regular chat - use existing logic
+    // Try to find character from enriched chats list
     const foundCharacter = chats.find(c => c.id === parseInt(chatId || '0'))?.character;
-    
+
     if (foundCharacter) {
       return foundCharacter;
     }
-    
+
+    // Use fallback character from direct API fetch
     if (fallbackCharacter) {
       return fallbackCharacter;
     }
 
+    // Last resort: use selectedCharacter from context (set during navigation)
+    if (selectedCharacter) {
+      return selectedCharacter;
+    }
+
     return null;
-  }, [chats, chatId, fallbackCharacter, isCreatingChat, creatingCharacter, selectedCharacter]);
-  
-  const isLoadingCharacter = isLoadingChats || isLoadingFallbackCharacter || (isCreatingChat && !selectedCharacter && isLoadingCreatingCharacter);
+  }, [chats, chatId, fallbackCharacter, selectedCharacter]);
+
+  const isLoadingCharacter = isLoadingChats || isLoadingFallbackCharacter;
   
   // Mutation for sending messages
   const { mutate: sendMessage, isPending: isSending } = useMutation({
@@ -751,33 +734,11 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 scrollbar-thin relative z-10">
-            {/* Creating chat state - show immediate loading UI */}
-            {isCreatingChat ? (
-              <div className="flex items-start mb-4">
-                <ImageWithFallback
-                  src={character?.avatarUrl}
-                  alt={character?.name || "Character"}
-                  fallbackText={character?.name || "?"}
-                  size="sm"
-                  className="mr-3"
-                />
-                <div className="bg-gray-800 rounded-lg px-4 py-3 max-w-xs lg:max-w-sm">
-                  <TypingIndicator />
-                  <p className="text-xs text-gray-400 mt-1">
-                    {character?.name} {t('isPreparingMessage')}
-                  </p>
-                </div>
-              </div>
-            ) : isLoadingMessages || isLoadingCharacter ? (
-              <div className="text-center py-4">
-                <p className="text-gray-400">{t('loadingMessages')}</p>
-              </div>
-            ) : messagesError ? (
+            {messagesError ? (
               <div className="text-center py-4">
                 <p className="text-red-500">{t('errorLoading')}</p>
               </div>
             ) : messages.length === 0 && chat ? (
-              /* Show typing indicator when chat exists but no messages (opening line generating) */
               <div className="flex items-start mb-4">
                 <ImageWithFallback
                   src={character?.avatarUrl}
@@ -793,20 +754,16 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                   </p>
                 </div>
               </div>
-            ) : messages.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-gray-400">{t('noMessagesYet')}</p>
-              </div>
-            ) : (
+            ) : messages.length > 0 ? (
               messages.map(message => (
-                <ChatBubble 
-                  key={message.id} 
-                  message={message} 
+                <ChatBubble
+                  key={message.id}
+                  message={message}
                   avatarUrl={character?.avatarUrl}
                   onRegenerate={message.role === 'assistant' ? regenerateLastMessage : undefined}
                 />
               ))
-            )}
+            ) : null}
             
             {isTyping && (
               <div className="flex items-end mb-4">
@@ -833,15 +790,15 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             <QuickReplies
               suggestions={quickReplies}
               onSelect={handleQuickReply}
-              isLoading={isSending || isTyping || isCreatingChat}
+              isLoading={isSending || isTyping}
             />
 
-            {/* Chat Input - disabled during creating state */}
+            {/* Chat Input */}
             <ChatInput
               onSendMessage={sendMessage}
-              isLoading={isSending || isTyping || isCreatingChat}
-              disabled={isCreatingChat}
-              placeholder={isCreatingChat ? t('creatingChat') : undefined}
+              isLoading={isSending || isTyping}
+              disabled={!chat}
+              placeholder={!chat ? t('loadingMessages') : undefined}
               className="border-t border-pink-500/10 bg-slate-900/80 backdrop-blur-xl relative z-10"
             />
           </div>
