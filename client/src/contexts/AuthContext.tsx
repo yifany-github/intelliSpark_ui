@@ -31,7 +31,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isExchangingToken, setIsExchangingToken] = useState(false);
   const [exchangeError, setExchangeError] = useState<string | null>(null);
   const exchangePromiseRef = useRef<Promise<void> | null>(null);
-  
+  const queryClient = useQueryClient();
+
   const firebaseAuth = useFirebaseAuth();
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -96,12 +97,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('Token expired event received, logging out...');
       setToken(null);
       setUser(null);
+      queryClient.clear();
       // Note: localStorage is already cleared by apiRequest
     };
 
     window.addEventListener('auth-token-expired', handleTokenExpired);
     return () => window.removeEventListener('auth-token-expired', handleTokenExpired);
-  }, []);
+  }, [queryClient]);
 
   // Handle successful Firebase authentication
   const handleFirebaseAuthSuccess = async (firebaseUser: FirebaseUser): Promise<void> => {
@@ -264,8 +266,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       throw error;
     }
   };
-
-  const queryClient = useQueryClient();
 
   // Logout function
   const logout = (): void => {

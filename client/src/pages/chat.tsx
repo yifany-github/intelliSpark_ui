@@ -46,6 +46,10 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   const [pinnedChatIds, setPinnedChatIds] = useState<number[]>([]);
   const [isBrowserMounted, setIsBrowserMounted] = useState(false);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
+  const typingStartedAtRef = useRef<number | null>(null);
+  const slowTypingNotifiedRef = useRef(false);
+  const typingTimedOutRef = useRef(false);
+  const lastAssistantMessageIdRef = useRef<number | null>(null);
   
   // If no chatId is provided, show chat list
   const showChatListOnly = !chatId;
@@ -78,10 +82,115 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: !!chatId,
     refetchInterval: (query) => {
       const data = query.state.data as ChatMessage[] | undefined;
-      const waitingForFirstMessage = (!data || data.length === 0) && !!chat;
-      return isTyping || waitingForFirstMessage ? 500 : false;
+      const waitingForFirstMessage = !!chat && (!data || data.length === 0);
+      const shouldPoll = waitingForFirstMessage || isTyping;
+
+      if (!shouldPoll) {
+        typingStartedAtRef.current = null;
+        return false;
+      }
+
+      if (typingStartedAtRef.current === null) {
+        typingStartedAtRef.current = Date.now();
+      }
+
+      const now = Date.now();
+      const baseline = typingStartedAtRef.current ?? query.state.dataUpdatedAt ?? now;
+      const elapsed = Math.max(0, now - baseline);
+
+      if (elapsed >= 60000) {
+        return false;
+      }
+
+      if (elapsed >= 30000) {
+        return waitingForFirstMessage ? 4000 : 5000;
+      }
+
+      if (elapsed >= 15000) {
+        return waitingForFirstMessage ? 2000 : 2500;
+      }
+
+      return waitingForFirstMessage ? 1000 : 750;
     }
   });
+
+  useEffect(() => {
+    const waitingForFirstMessage = !!chat && messages.length === 0;
+
+    if (isTyping || waitingForFirstMessage) {
+      if (typingStartedAtRef.current === null) {
+        typingStartedAtRef.current = Date.now();
+      }
+      return;
+    }
+
+    typingStartedAtRef.current = null;
+    slowTypingNotifiedRef.current = false;
+    typingTimedOutRef.current = false;
+  }, [isTyping, messages, chat]);
+
+  useEffect(() => {
+    if (!isTyping) {
+      return;
+    }
+
+    const warningTimer = window.setTimeout(() => {
+      if (slowTypingNotifiedRef.current) {
+        return;
+      }
+      slowTypingNotifiedRef.current = true;
+      toast({
+        title: "Still working…",
+        description: "The assistant response is taking longer than usual. We'll keep checking for updates.",
+      });
+    }, 20000);
+
+    return () => window.clearTimeout(warningTimer);
+  }, [isTyping, toast]);
+
+  useEffect(() => {
+    if (!isTyping) {
+      return;
+    }
+
+    const timeoutTimer = window.setTimeout(() => {
+      if (typingTimedOutRef.current) {
+        return;
+      }
+      typingTimedOutRef.current = true;
+      setIsTyping(false);
+      toast({
+        title: "Response timed out",
+        description: "We didn't receive a reply from the assistant. Try regenerating the response or sending a new message.",
+        variant: "destructive",
+      });
+    }, 60000);
+
+    return () => window.clearTimeout(timeoutTimer);
+  }, [isTyping, setIsTyping, toast]);
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      lastAssistantMessageIdRef.current = null;
+      return;
+    }
+
+    const lastAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant");
+
+    if (!lastAssistantMessage) {
+      return;
+    }
+
+    if (lastAssistantMessageIdRef.current === lastAssistantMessage.id) {
+      return;
+    }
+
+    lastAssistantMessageIdRef.current = lastAssistantMessage.id;
+
+    if (isTyping) {
+      setIsTyping(false);
+    }
+  }, [messages, isTyping, setIsTyping]);
   
   // Fallback character fetch if not found in enriched chats
   const fallbackCharacterId = chat?.characterId ?? (chat as { character_id?: number } | undefined)?.character_id;
