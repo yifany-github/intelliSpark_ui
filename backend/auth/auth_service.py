@@ -1,19 +1,108 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
+import secrets
+import hashlib
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-from models import User
+from models import User, RefreshToken
 from config import settings
 
 SECRET_KEY = settings.secret_key
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_MINUTES = 15
+REFRESH_TOKEN_EXPIRE_DAYS = 14
+REFRESH_TOKEN_BYTE_LENGTH = 48
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 class AuthService:
+
+    @staticmethod
+    def generate_refresh_token() -> str:
+        return secrets.token_urlsafe(REFRESH_TOKEN_BYTE_LENGTH)
+
+    @staticmethod
+    def hash_refresh_token(token: str) -> str:
+        return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def create_refresh_token_record(
+        db: Session,
+        user: User,
+        refresh_token: str,
+        user_agent: Optional[str] = None,
+    ) -> RefreshToken:
+        now = datetime.now(timezone.utc)
+        record = RefreshToken(
+            user_id=user.id,
+            token_hash=AuthService.hash_refresh_token(refresh_token),
+            user_agent=user_agent[:255] if user_agent else None,
+            created_at=now,
+            last_used_at=now,
+            expires_at=now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS),
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        return record
+
+    @staticmethod
+    def verify_refresh_token(db: Session, refresh_token: str) -> RefreshToken:
+        hashed = AuthService.hash_refresh_token(refresh_token)
+        now = datetime.now(timezone.utc)
+        record = (
+            db.query(RefreshToken)
+            .filter(
+                RefreshToken.token_hash == hashed,
+                RefreshToken.revoked_at.is_(None),
+                RefreshToken.expires_at > now,
+            )
+            .first()
+        )
+        if not record:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token",
+            )
+        record.last_used_at = now
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        return record
+
+    @staticmethod
+    def rotate_refresh_token(
+        db: Session,
+        record: RefreshToken,
+        new_token: str,
+        user_agent: Optional[str] = None,
+    ) -> RefreshToken:
+        record.token_hash = AuthService.hash_refresh_token(new_token)
+        record.expires_at = datetime.now(timezone.utc) + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        record.last_used_at = datetime.now(timezone.utc)
+        if user_agent:
+            record.user_agent = user_agent[:255]
+        record.revoked_at = None
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        return record
+
+    @staticmethod
+    def revoke_refresh_token(db: Session, refresh_token: str) -> None:
+        hashed = AuthService.hash_refresh_token(refresh_token)
+        record = (
+            db.query(RefreshToken)
+            .filter(RefreshToken.token_hash == hashed, RefreshToken.revoked_at.is_(None))
+            .first()
+        )
+        if record:
+            record.revoked_at = datetime.now(timezone.utc)
+            db.add(record)
+            db.commit()
+
     
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:

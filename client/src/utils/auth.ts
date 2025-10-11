@@ -15,7 +15,7 @@ export interface JWTPayload {
  */
 export const AUTH_CONFIG = {
   TOKEN_BUFFER_SECONDS: 60,
-  TOKEN_CACHE_DURATION_MS: 30000, // 30 seconds
+  TOKEN_CACHE_DURATION_MS: 5000, // 5 seconds cache to avoid stale validity
 } as const;
 
 /**

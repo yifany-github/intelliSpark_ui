@@ -11,6 +11,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { queryClient } from "@/lib/queryClient";
 import { invalidateTokenBalance } from "@/services/tokenService";
+import { useChatQueryLifecycle } from "@/hooks/useChatQueryLifecycle";
 import { ChevronLeft, MoreVertical, Trash2, Filter, Pin, Sparkles, Clock, Star } from "lucide-react";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import { ImprovedTokenBalance } from "@/components/payment/ImprovedTokenBalance";
@@ -52,6 +53,8 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
   const [pinnedChatIds, setPinnedChatIds] = useState<number[]>([]);
   const [sortMode, setSortMode] = useState<"recent" | "alphabetical">("recent");
   const [isInitialized, setIsInitialized] = useState(false);
+
+  useChatQueryLifecycle(chatId);
   
   // If no chatId is provided, show chat list
   const showChatList = !chatId;
@@ -104,8 +107,12 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
         { content, role: "user" }
       );
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: [`/api/chats/${chatId}/messages`],
+        type: "active",
+        exact: true,
+      });
       setIsTyping(true);
       
       aiResponse();
@@ -121,8 +128,12 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
         {}
       );
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: [`/api/chats/${chatId}/messages`],
+        type: "active",
+        exact: true,
+      });
       setIsTyping(false);
       
       // Invalidate token balance after AI response generation

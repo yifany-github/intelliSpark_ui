@@ -49,7 +49,18 @@ class FirebaseAuthRequest(BaseSchema):
 
 class Token(BaseSchema):
     access_token: str
+    refresh_token: str
     token_type: str
+    expires_in: Optional[int] = None
+
+
+class RefreshTokenRequest(BaseSchema):
+    refresh_token: str
+    user_agent: Optional[str] = None
+
+
+class LogoutRequest(BaseSchema):
+    refresh_token: Optional[str] = None
 
 class TokenData(BaseSchema):
     username: Optional[str] = None

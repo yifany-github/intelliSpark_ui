@@ -1,5 +1,16 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { isTokenValid } from "../utils/auth";
+import {
+  isTokenValid,
+  willTokenExpireSoon,
+  clearTokenValidationCache,
+} from "../utils/auth";
+import {
+  getAccessToken,
+  getRefreshToken,
+  setAccessToken,
+  setRefreshToken,
+  clearStoredTokens,
+} from "../utils/tokenManager";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -10,15 +21,76 @@ async function throwIfResNotOk(res: Response) {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-// Helper function to clear expired token and redirect
 function handleExpiredToken() {
-  console.log('Token expired, clearing and redirecting to login...');
-  localStorage.removeItem('auth_token');
-  
-  // Dispatch custom event to notify auth context
-  window.dispatchEvent(new CustomEvent('auth-token-expired'));
-  
-  // Don't redirect here - let the auth context handle it
+  console.log("Token expired, clearing and redirecting to login...");
+  clearStoredTokens();
+  clearTokenValidationCache();
+  window.dispatchEvent(new CustomEvent("auth-token-expired"));
+}
+
+let refreshPromise: Promise<string> | null = null;
+
+async function requestRefreshToken(): Promise<string> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) {
+    throw new Error("Refresh token missing");
+  }
+
+  if (!refreshPromise) {
+    const userAgent = typeof navigator !== "undefined" ? navigator.userAgent : undefined;
+    refreshPromise = fetch(`${API_BASE_URL}/api/auth/refresh`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ refresh_token: refreshToken, user_agent: userAgent }),
+      credentials: "include",
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const text = (await res.text()) || res.statusText;
+          throw new Error(text);
+        }
+        return res.json();
+      })
+      .then((data) => {
+        if (!data?.access_token || !data?.refresh_token) {
+          throw new Error("Invalid refresh response");
+        }
+        setAccessToken(data.access_token);
+        setRefreshToken(data.refresh_token);
+        clearTokenValidationCache();
+        window.dispatchEvent(
+          new CustomEvent("auth-token-refreshed", { detail: { token: data.access_token } }),
+        );
+        return data.access_token as string;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+
+  return refreshPromise;
+}
+
+export async function forceRefreshAccessToken() {
+  return requestRefreshToken();
+}
+
+async function ensureAccessTokenFresh() {
+  const token = getAccessToken();
+
+  if (!token) {
+    const refreshToken = getRefreshToken();
+    if (refreshToken) {
+      await requestRefreshToken();
+    }
+    return;
+  }
+
+  if (!isTokenValid(token) || willTokenExpireSoon(token)) {
+    await requestRefreshToken();
+  }
 }
 
 export async function apiRequest(
@@ -26,49 +98,56 @@ export async function apiRequest(
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
-  const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
-  
-  // Get auth token from localStorage
-  const token = localStorage.getItem('auth_token');
-  
-  // Check if token is expired before making the request
-  if (token && !isTokenValid(token)) {
-    handleExpiredToken();
-    throw new Error('401: {"detail":"Token expired"}');
-  }
-  
-  const headers: Record<string, string> = {};
-  
-  // Handle FormData vs JSON
+  const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+
   let body: BodyInit | undefined;
+  const baseHeaders: Record<string, string> = {};
+
   if (data) {
     if (data instanceof FormData) {
-      // Let browser set Content-Type for FormData (includes boundary)
       body = data;
     } else {
-      headers["Content-Type"] = "application/json";
+      baseHeaders["Content-Type"] = "application/json";
       body = JSON.stringify(data);
     }
   }
-  
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-  
-  const res = await fetch(fullUrl, {
-    method,
-    headers,
-    body,
-    credentials: "include",
-  });
 
-  // Handle 401 responses by clearing expired token
-  if (res.status === 401) {
-    handleExpiredToken();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await ensureAccessTokenFresh();
+    } catch (error) {
+      handleExpiredToken();
+      throw error;
+    }
+
+    const token = getAccessToken();
+    const headers = { ...baseHeaders };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(fullUrl, {
+      method,
+      headers,
+      body,
+      credentials: "include",
+    });
+
+    if (res.status !== 401) {
+      await throwIfResNotOk(res);
+      return res;
+    }
+
+    try {
+      await requestRefreshToken();
+    } catch (refreshError) {
+      handleExpiredToken();
+      throw refreshError;
+    }
   }
 
-  await throwIfResNotOk(res);
-  return res;
+  handleExpiredToken();
+  throw new Error('401: {"detail":"Token expired"}');
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -78,41 +157,53 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const url = queryKey[0] as string;
-    const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
-    
-    // Get auth token from localStorage
-    const token = localStorage.getItem('auth_token');
-    
-    // Check if token is expired before making request
-    if (token && !isTokenValid(token)) {
-      handleExpiredToken();
-      if (unauthorizedBehavior === "throw") {
-        throw new Error('401: {"detail":"Token expired"}');
+    const fullUrl = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      try {
+        await ensureAccessTokenFresh();
+      } catch (error) {
+        handleExpiredToken();
+        if (unauthorizedBehavior === "throw") {
+          throw error;
+        }
+        return null;
       }
-      return null;
-    }
-    
-    const headers: Record<string, string> = {};
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-    
-    const res = await fetch(fullUrl, {
-      headers,
-      credentials: "include",
-    });
 
-    // Handle 401 responses by clearing expired token
-    if (res.status === 401) {
-      handleExpiredToken();
+      const token = getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const res = await fetch(fullUrl, {
+        headers,
+        credentials: "include",
+      });
+
+      if (res.status !== 401) {
+        await throwIfResNotOk(res);
+        return await res.json();
+      }
+
+      if (unauthorizedBehavior === "returnNull") {
+        handleExpiredToken();
+        return null;
+      }
+
+      try {
+        await requestRefreshToken();
+      } catch (refreshError) {
+        handleExpiredToken();
+        throw refreshError;
+      }
     }
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
+    handleExpiredToken();
+    if (unauthorizedBehavior === "throw") {
+      throw new Error('401: {"detail":"Token expired"}');
     }
-
-    await throwIfResNotOk(res);
-    return await res.json();
+    return null;
   };
 
 export const queryClient = new QueryClient({
@@ -121,24 +212,24 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: (query) => {
-        // Refetch character data when window gains focus to ensure latest descriptions
         const queryKey = query.queryKey[0] as string;
-        // More targeted: only character list and individual character queries
-        return queryKey === '/api/characters' || /^\/api\/characters\/\d+$/.test(queryKey);
+        if (queryKey === "/api/characters" || /^\/api\/characters\/\d+$/.test(queryKey)) {
+          return true;
+        }
+        if (queryKey === "/api/chats" || /^\/api\/chats\/.+\/messages$/.test(queryKey)) {
+          return "always";
+        }
+        return false;
       },
       staleTime: (query) => {
-        // Character-related queries should refresh more frequently to pick up 
-        // real-time description/trait updates from persona prompts (Issue #119)
         const queryKey = query.queryKey[0] as string;
-        // More targeted caching: only character endpoints, not all chats
-        if (queryKey === '/api/characters' || queryKey.match(/^\/api\/characters\/\d+$/)) {
-          return 5 * 60 * 1000; // 5 minutes for character data (more reasonable)
+        if (queryKey === "/api/characters" || queryKey.match(/^\/api\/characters\/\d+$/)) {
+          return 5 * 60 * 1000;
         }
-        // Chat list can be cached longer since character data in chats is updated via real-time sync
-        if (queryKey === '/api/chats') {
-          return 2 * 60 * 1000; // 2 minutes for chat list
+        if (queryKey === "/api/chats" || /^\/api\/chats\/.+\/messages$/.test(queryKey)) {
+          return 0;
         }
-        return Infinity; // Other data cached forever
+        return 30 * 1000;
       },
       retry: false,
     },

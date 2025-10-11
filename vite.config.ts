@@ -34,6 +34,8 @@ export default defineConfig(async ({ mode }) => {
       alias: {
         "@": path.resolve(rootDir, "client", "src"),
         "@assets": path.resolve(rootDir, "attached_assets"),
+        "use-sync-external-store/shim/index.js": path.resolve(rootDir, "client", "shims", "use-sync-external-store", "shim", "index.ts"),
+        "use-sync-external-store": path.resolve(rootDir, "client", "shims", "use-sync-external-store"),
       },
     },
     root: path.resolve(rootDir, "client"),

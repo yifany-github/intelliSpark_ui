@@ -4,6 +4,7 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
+    "prebuild": "node scripts/ensure-rollup-parseAst.js && node scripts/ensure-clsx-dist.js",
     "dev": "vite",
     "build": "NODE_OPTIONS='--max-old-space-size=4096' vite build",
     "build:ci": "NODE_OPTIONS='--max-old-space-size=4096' VITE_SKIP_TS_CHECK=true vite build --mode production",
@@ -83,6 +84,7 @@
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
+    "rollup": "^4.46.2",
     "tailwindcss": "^3.4.17",
     "typescript": "^5.6.3",
     "vite": "^5.4.14"

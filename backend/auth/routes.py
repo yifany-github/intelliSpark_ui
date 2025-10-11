@@ -7,8 +7,17 @@ from typing import Optional
 
 from database import get_db
 from models import User
-from schemas import UserLogin, UserLoginLegacy, UserRegister, FirebaseAuthRequest, Token, User as UserSchema
-from auth.auth_service import AuthService
+from schemas import (
+    UserLogin,
+    UserLoginLegacy,
+    UserRegister,
+    FirebaseAuthRequest,
+    Token,
+    User as UserSchema,
+    RefreshTokenRequest,
+    LogoutRequest,
+)
+from auth.auth_service import AuthService, ACCESS_TOKEN_EXPIRE_MINUTES
 from services.upload_service import UploadService
 from utils.character_utils import resolve_asset_url
 
@@ -82,7 +91,21 @@ async def login(user_data: UserLogin, request: Request, db: Session = Depends(ge
         except Exception as e:
             logger.warning(f"Failed to record login metadata for user {user.email}: {e}")
 
-        return {"access_token": access_token, "token_type": "bearer"}
+        refresh_token = AuthService.generate_refresh_token()
+        AuthService.create_refresh_token_record(
+            db,
+            user,
+            refresh_token,
+            request.headers.get("user-agent"),
+        )
+
+        expires_in = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "expires_in": expires_in,
+        }
         
     except HTTPException:
         raise
@@ -122,7 +145,21 @@ async def login_legacy(user_data: UserLoginLegacy, request: Request, db: Session
         except Exception as e:
             logger.warning(f"Failed to record login metadata for user {user.username}: {e}")
 
-        return {"access_token": access_token, "token_type": "bearer"}
+        refresh_token = AuthService.generate_refresh_token()
+        AuthService.create_refresh_token_record(
+            db,
+            user,
+            refresh_token,
+            request.headers.get("user-agent"),
+        )
+
+        expires_in = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "expires_in": expires_in,
+        }
         
     except HTTPException:
         raise
@@ -157,7 +194,21 @@ async def login_firebase(auth_data: FirebaseAuthRequest, request: Request, db: S
         except Exception as e:
             logger.warning(f"Failed to record login metadata for user {user.email}: {e}")
 
-        return {"access_token": access_token, "token_type": "bearer"}
+        refresh_token = AuthService.generate_refresh_token()
+        AuthService.create_refresh_token_record(
+            db,
+            user,
+            refresh_token,
+            request.headers.get("user-agent"),
+        )
+
+        expires_in = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer",
+            "expires_in": expires_in,
+        }
         
     except HTTPException:
         raise
@@ -168,9 +219,58 @@ async def login_firebase(auth_data: FirebaseAuthRequest, request: Request, db: S
             detail="Firebase login failed"
         )
 
+@router.post("/refresh", response_model=Token)
+async def refresh_access_token(
+    refresh_data: RefreshTokenRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    try:
+        record = AuthService.verify_refresh_token(db, refresh_data.refresh_token)
+        user = db.query(User).filter(User.id == record.user_id).first()
+        if not user:
+            AuthService.revoke_refresh_token(db, refresh_data.refresh_token)
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+            )
+
+        AuthService.ensure_user_is_active(user)
+
+        access_token = AuthService.create_access_token({"sub": user.email})
+        new_refresh_token = AuthService.generate_refresh_token()
+        AuthService.rotate_refresh_token(
+            db,
+            record,
+            new_refresh_token,
+            refresh_data.user_agent or request.headers.get("user-agent"),
+        )
+
+        expires_in = ACCESS_TOKEN_EXPIRE_MINUTES * 60
+        return {
+            "access_token": access_token,
+            "refresh_token": new_refresh_token,
+            "token_type": "bearer",
+            "expires_in": expires_in,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error refreshing access token: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to refresh access token"
+        )
+
 @router.post("/logout")
-async def logout():
-    """Logout endpoint (client-side token removal)"""
+async def logout(logout_data: LogoutRequest | None = None, db: Session = Depends(get_db)):
+    """Logout endpoint revoking provided refresh token"""
+    if logout_data and logout_data.refresh_token:
+        try:
+            AuthService.revoke_refresh_token(db, logout_data.refresh_token)
+        except Exception as e:
+            logger.warning(f"Failed to revoke refresh token on logout: {e}")
     return {"message": "Successfully logged out"}
 
 @router.get("/me/stats")

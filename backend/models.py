@@ -63,6 +63,7 @@ class User(Base):
     chats = relationship("Chat", back_populates="user")
     token_balance = relationship("UserToken", back_populates="user", uselist=False)
     token_transactions = relationship("TokenTransaction", back_populates="user")
+    refresh_tokens = relationship("RefreshToken", back_populates="user", cascade="all, delete-orphan")
     notifications = relationship("Notification", back_populates="user")
     premium_subscription = relationship("PremiumSubscription", back_populates="user", uselist=False)
 
@@ -161,6 +162,21 @@ class UserToken(Base):
     
     # Relationships
     user = relationship("User", back_populates="token_balance")
+
+
+class RefreshToken(Base):
+    __tablename__ = "user_refresh_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    token_hash = Column(String(128), nullable=False, unique=True, index=True)
+    user_agent = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=func.now())
+    last_used_at = Column(DateTime, nullable=True)
+    expires_at = Column(DateTime, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+
+    user = relationship("User", back_populates="refresh_tokens")
 
 class TokenTransaction(Base):
     __tablename__ = "token_transactions"

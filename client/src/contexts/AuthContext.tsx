@@ -3,7 +3,17 @@ import { User } from '../types';
 import { useFirebaseAuth } from '../firebase/useFirebaseAuth';
 import { User as FirebaseUser } from 'firebase/auth';
 import { useQueryClient } from '@tanstack/react-query';
-import { isTokenValid } from '../utils/auth';
+import { isTokenValid, clearTokenValidationCache } from '../utils/auth';
+import {
+  getAccessToken as getStoredAccessToken,
+  getRefreshToken as getStoredRefreshToken,
+  setAccessToken as persistAccessToken,
+  setRefreshToken as persistRefreshToken,
+  clearStoredTokens,
+  ACCESS_TOKEN_UPDATED_EVENT,
+  TOKENS_CLEARED_EVENT,
+} from '../utils/tokenManager';
+import { forceRefreshAccessToken, apiRequest } from '@/lib/queryClient';
 
 // Authentication context type
 interface AuthContextType {
@@ -31,39 +41,52 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isExchangingToken, setIsExchangingToken] = useState(false);
   const [exchangeError, setExchangeError] = useState<string | null>(null);
   const exchangePromiseRef = useRef<Promise<void> | null>(null);
-  const queryClient = useQueryClient();
 
   const firebaseAuth = useFirebaseAuth();
   const queryClient = useQueryClient();
 
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-  // Initialize auth state from localStorage and Firebase
+  // Initialize auth state from stored credentials and Firebase
   useEffect(() => {
     const initializeAuth = async () => {
+      if (firebaseAuth.loading) {
+        return;
+      }
+
       try {
-        // Wait for Firebase auth to initialize
-        if (!firebaseAuth.loading) {
-          const storedToken = localStorage.getItem('auth_token');
-          if (storedToken) {
-            // Check if token is valid before using it
-            if (isTokenValid(storedToken)) {
-              setToken(storedToken);
-              await getCurrentUser(storedToken);
-            } else {
-              // Token is expired, clear it
-              console.log('Stored token is expired, clearing...');
-              localStorage.removeItem('auth_token');
-              setToken(null);
-              setUser(null);
-            }
+        let activeToken = getStoredAccessToken();
+        const storedRefresh = getStoredRefreshToken();
+
+        if (activeToken && !isTokenValid(activeToken)) {
+          activeToken = null;
+        }
+
+        if (!activeToken && storedRefresh) {
+          try {
+            activeToken = await forceRefreshAccessToken();
+          } catch (error) {
+            console.warn('Failed to refresh stored token on init:', error);
+            clearStoredTokens();
+            clearTokenValidationCache();
+            activeToken = null;
           }
-          setIsLoading(false);
+        }
+
+        if (activeToken) {
+          setToken(activeToken);
+          await getCurrentUser(activeToken);
+        } else {
+          setToken(null);
+          setUser(null);
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
-        // Clear invalid token
-        localStorage.removeItem('auth_token');
+        clearStoredTokens();
+        clearTokenValidationCache();
+        setToken(null);
+        setUser(null);
+      } finally {
         setIsLoading(false);
       }
     };
@@ -98,13 +121,39 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       console.log('Token expired event received, logging out...');
       setToken(null);
       setUser(null);
+      setIsExchangingToken(false);
+      exchangePromiseRef.current = null;
+      clearStoredTokens();
       queryClient.clear();
-      // Note: localStorage is already cleared by apiRequest
+      clearTokenValidationCache();
     };
 
     window.addEventListener('auth-token-expired', handleTokenExpired);
     return () => window.removeEventListener('auth-token-expired', handleTokenExpired);
   }, [queryClient]);
+
+  useEffect(() => {
+    const handleTokenUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ token?: string | null }>).detail;
+      const latestToken = detail?.token ?? getStoredAccessToken();
+      setToken(latestToken ?? null);
+    };
+
+    const handleTokensCleared = () => {
+      setToken(null);
+      setUser(null);
+      setIsExchangingToken(false);
+      exchangePromiseRef.current = null;
+    };
+
+    window.addEventListener(ACCESS_TOKEN_UPDATED_EVENT, handleTokenUpdated as EventListener);
+    window.addEventListener(TOKENS_CLEARED_EVENT, handleTokensCleared);
+
+    return () => {
+      window.removeEventListener(ACCESS_TOKEN_UPDATED_EVENT, handleTokenUpdated as EventListener);
+      window.removeEventListener(TOKENS_CLEARED_EVENT, handleTokensCleared);
+    };
+  }, []);
 
   // Handle successful Firebase authentication
   const handleFirebaseAuthSuccess = async (firebaseUser: FirebaseUser): Promise<void> => {
@@ -126,15 +175,31 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       const data = await response.json();
-      const authToken = data.access_token;
+      const authToken: string | undefined = data?.access_token;
+      const refreshToken: string | undefined = data?.refresh_token;
 
-      // Store token
-      localStorage.setItem('auth_token', authToken);
+      if (!authToken || !refreshToken) {
+        throw new Error('Backend did not return token pair');
+      }
+
+      persistAccessToken(authToken);
+      persistRefreshToken(refreshToken);
       setToken(authToken);
       setExchangeError(null);
+      clearTokenValidationCache();
 
       // Get user info
       await getCurrentUser(authToken);
+
+      // Refresh chat-related cached data now that we have a fresh session
+      queryClient.setQueryDefaults(['/api/chats'], { staleTime: 0 });
+      queryClient.invalidateQueries({ queryKey: ['/api/chats'] });
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === 'string' && key.startsWith('/api/chats/') && key.endsWith('/messages');
+        }
+      });
     } catch (error) {
       console.error('Error handling Firebase auth success:', error);
       throw error;
@@ -167,26 +232,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Get current user from API
   const getCurrentUser = async (authToken: string): Promise<void> => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-        headers: {
-          'Authorization': `Bearer ${authToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        const detail = await response.text();
-        throw new Error(detail || 'Failed to get user info');
-      }
-
+      const response = await apiRequest('GET', `/api/auth/me`);
       const userData = await response.json();
       setUser(userData);
     } catch (error) {
       console.error('Error getting current user:', error);
       // Only clear auth state if this token is still the active one
-      const currentStoredToken = localStorage.getItem('auth_token');
+      const currentStoredToken = getStoredAccessToken();
       if (currentStoredToken === authToken) {
-        localStorage.removeItem('auth_token');
+        clearStoredTokens();
+        clearTokenValidationCache();
         setToken(null);
         setUser(null);
       } else {
@@ -254,11 +309,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
 
       const data = await response.json();
-      const authToken = data.access_token;
+      const authToken: string | undefined = data?.access_token;
+      const refreshToken: string | undefined = data?.refresh_token;
 
-      // Store token
-      localStorage.setItem('auth_token', authToken);
+      if (!authToken || !refreshToken) {
+        throw new Error('Login response missing tokens');
+      }
+
+      persistAccessToken(authToken);
+      persistRefreshToken(refreshToken);
       setToken(authToken);
+      clearTokenValidationCache();
 
       // Get user info
       await getCurrentUser(authToken);
@@ -270,20 +331,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Logout function
   const logout = (): void => {
-    localStorage.removeItem('auth_token');
+    const refreshToken = getStoredRefreshToken();
+    clearStoredTokens();
     setToken(null);
     setUser(null);
+    setIsExchangingToken(false);
+    exchangePromiseRef.current = null;
     // Clear all cached queries
     queryClient.clear();
+    clearTokenValidationCache();
+    if (refreshToken) {
+      fetch(`${API_BASE_URL}/api/auth/logout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+        credentials: 'include',
+      }).catch((error) => {
+        console.warn('Failed to notify backend of logout', error);
+      });
+    }
     // Also sign out from Firebase
     firebaseAuth.logout().catch(console.error);
   };
 
   // Refresh user data
   const refreshUser = async (): Promise<void> => {
-    if (token) {
+    const latestToken = getStoredAccessToken();
+    if (latestToken) {
       try {
-        await getCurrentUser(token);
+        await getCurrentUser(latestToken);
       } catch (error) {
         console.error('Error refreshing user:', error);
         logout();

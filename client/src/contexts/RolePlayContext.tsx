@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Character, Chat, ChatMessage } from '../types';
 import { apiRequest, queryClient } from '../lib/queryClient';
 
@@ -74,6 +74,17 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
     setSelectedCharacter(character);
     // Don't create actual chat yet - will be created when user sends first message
   };
+
+  useEffect(() => {
+    const handleAuthReset = () => {
+      setIsTyping(false);
+      setCurrentChat(null);
+      setSelectedCharacter(null);
+    };
+
+    window.addEventListener('auth-token-expired', handleAuthReset);
+    return () => window.removeEventListener('auth-token-expired', handleAuthReset);
+  }, []);
 
   // Request authentication for sending message
   const requestAuthForMessage = (message: string, chatId?: string) => {

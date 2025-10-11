@@ -14,6 +14,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { invalidateTokenBalance } from "@/services/tokenService";
 import { queryClient } from "@/lib/queryClient";
+import { useChatQueryLifecycle } from "@/hooks/useChatQueryLifecycle";
 import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft, Sparkles, Filter, Pin, Trash2, Info } from "lucide-react";
 import {
   Sheet,
@@ -50,7 +51,10 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   const slowTypingNotifiedRef = useRef(false);
   const typingTimedOutRef = useRef(false);
   const lastAssistantMessageIdRef = useRef<number | null>(null);
-  
+
+  // Wake-up lifecycle hook
+  useChatQueryLifecycle(chatId);
+
   // If no chatId is provided, show chat list
   const showChatListOnly = !chatId;
   
@@ -238,8 +242,12 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
         { content, role: "user" }
       );
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: [`/api/chats/${chatId}/messages`],
+        type: "active",
+        exact: true,
+      });
       setIsTyping(true);
 
       // Kick off AI response immediately
@@ -276,8 +284,12 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
         {}
       );
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
+    onSuccess: async () => {
+      await queryClient.refetchQueries({
+        queryKey: [`/api/chats/${chatId}/messages`],
+        type: "active",
+        exact: true,
+      });
       setIsTyping(false);
 
       // Invalidate token balance after AI response generation
