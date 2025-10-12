@@ -78,4 +78,4 @@ Users appear to be logged in with valid tokens but "Start Premium Chat" fails wi
 - `client/src/contexts/AuthContext.tsx` - Fix isAuthenticated logic (HIGH PRIORITY)
 - `client/src/lib/queryClient.ts` - Improve 401 error handling
 - `client/src/components/characters/CharacterGrid.tsx` - Better error UX
-- `backend/auth/auth_service.py` - Consider longer token expiration
+- `backend/auth/supabase_auth.py` - Supabase JWT verification helpers

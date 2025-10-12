@@ -30,32 +30,6 @@ class User(UserBase):
     id: int
     created_at: datetime
 
-# Authentication schemas
-class UserLogin(BaseSchema):
-    email: str
-    password: str
-
-class UserLoginLegacy(BaseSchema):
-    username: str
-    password: str
-
-class UserRegister(BaseSchema):
-    email: str
-    password: str
-    username: Optional[str] = None
-
-class FirebaseAuthRequest(BaseSchema):
-    firebase_token: str
-
-class Token(BaseSchema):
-    access_token: str
-    token_type: str
-
-class TokenData(BaseSchema):
-    username: Optional[str] = None
-    email: Optional[str] = None
-
-
 # Character schemas  
 class CharacterBase(BaseSchema):
     name: str

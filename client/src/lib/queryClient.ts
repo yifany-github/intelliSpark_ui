@@ -1,5 +1,6 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
-import { isTokenValid } from "../utils/auth";
+
+import { getSupabaseAccessToken, supabase } from "@/lib/supabaseClient";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -10,65 +11,49 @@ async function throwIfResNotOk(res: Response) {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-// Helper function to clear expired token and redirect
-function handleExpiredToken() {
-  console.log('Token expired, clearing and redirecting to login...');
-  localStorage.removeItem('auth_token');
-  
-  // Dispatch custom event to notify auth context
-  window.dispatchEvent(new CustomEvent('auth-token-expired'));
-  
-  // Don't redirect here - let the auth context handle it
-}
-
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
+  initOverrides: RequestInit = {},
 ): Promise<Response> {
   const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
-  
-  // Get auth token from localStorage
-  const token = localStorage.getItem('auth_token');
-  
-  // Check if token is expired before making the request
-  if (token && !isTokenValid(token)) {
-    handleExpiredToken();
-    throw new Error('401: {"detail":"Token expired"}');
-  }
-  
-  const headers: Record<string, string> = {};
-  
-  // Handle FormData vs JSON
-  let body: BodyInit | undefined;
-  if (data) {
+  const accessToken = await getSupabaseAccessToken();
+  const hasToken = Boolean(accessToken);
+
+  const headers = new Headers(initOverrides.headers as HeadersInit | undefined);
+
+  let body: BodyInit | null | undefined = initOverrides.body;
+
+  if (data !== undefined) {
     if (data instanceof FormData) {
-      // Let browser set Content-Type for FormData (includes boundary)
       body = data;
     } else {
-      headers["Content-Type"] = "application/json";
+      if (!headers.has('Content-Type')) {
+        headers.set('Content-Type', 'application/json');
+      }
       body = JSON.stringify(data);
     }
   }
-  
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
+
+  if (hasToken && accessToken) {
+    headers.set('Authorization', `Bearer ${accessToken}`);
   }
-  
-  const res = await fetch(fullUrl, {
+
+  const response = await fetch(fullUrl, {
+    ...initOverrides,
     method,
     headers,
     body,
-    credentials: "include",
+    credentials: initOverrides.credentials ?? 'include',
   });
 
-  // Handle 401 responses by clearing expired token
-  if (res.status === 401) {
-    handleExpiredToken();
+  if (response.status === 401 && hasToken) {
+    await supabase.auth.signOut();
   }
 
-  await throwIfResNotOk(res);
-  return res;
+  await throwIfResNotOk(response);
+  return response;
 }
 
 type UnauthorizedBehavior = "returnNull" | "throw";
@@ -80,39 +65,28 @@ export const getQueryFn: <T>(options: {
     const url = queryKey[0] as string;
     const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
     
-    // Get auth token from localStorage
-    const token = localStorage.getItem('auth_token');
-    
-    // Check if token is expired before making request
-    if (token && !isTokenValid(token)) {
-      handleExpiredToken();
-      if (unauthorizedBehavior === "throw") {
-        throw new Error('401: {"detail":"Token expired"}');
-      }
-      return null;
+    const accessToken = await getSupabaseAccessToken();
+    const hasToken = Boolean(accessToken);
+
+    const headers = new Headers();
+    if (hasToken && accessToken) {
+      headers.set('Authorization', `Bearer ${accessToken}`);
     }
-    
-    const headers: Record<string, string> = {};
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
-    
-    const res = await fetch(fullUrl, {
+
+    const response = await fetch(fullUrl, {
       headers,
-      credentials: "include",
+      credentials: 'include',
     });
 
-    // Handle 401 responses by clearing expired token
-    if (res.status === 401) {
-      handleExpiredToken();
+    if (response.status === 401 && hasToken) {
+      await supabase.auth.signOut();
+      if (unauthorizedBehavior === 'returnNull') {
+        return null;
+      }
     }
 
-    if (unauthorizedBehavior === "returnNull" && res.status === 401) {
-      return null;
-    }
-
-    await throwIfResNotOk(res);
-    return await res.json();
+    await throwIfResNotOk(response);
+    return await response.json();
   };
 
 export const queryClient = new QueryClient({

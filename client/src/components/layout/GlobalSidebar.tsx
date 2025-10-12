@@ -37,14 +37,14 @@ export default function GlobalSidebar() {
     queryKey: ['tokenBalance'],
     queryFn: fetchTokenBalance,
     refetchInterval: isAuthenticated ? 30000 : false,
-    enabled: isAuthenticated && !!localStorage.getItem('auth_token'),
+    enabled: isAuthenticated,
     staleTime: 0,
     retry: 1,
   });
 
   // Refetch when authentication status changes
   React.useEffect(() => {
-    if (isAuthenticated && localStorage.getItem('auth_token')) {
+    if (isAuthenticated) {
       refetch();
     }
   }, [isAuthenticated, refetch]);

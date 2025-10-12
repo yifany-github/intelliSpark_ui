@@ -43,17 +43,17 @@ python -m uvicorn main:app --reload  # Alternative backend start (with auto-relo
 ### Backend (backend/)
 - **Runtime**: Python with FastAPI
 - **API**: RESTful endpoints in `backend/routes.py`
-- **Authentication**: Email-based auth with Firebase OAuth integration
+- **Authentication**: Supabase Auth verification for email/password and OAuth providers
 - **AI Services**: Gemini AI integration in `backend/gemini_service.py`
 - **Database**: SQLAlchemy with SQLite (development) / PostgreSQL (production)
-- **Auth System**: JWT tokens with Firebase social login support
+- **Auth System**: Supabase-issued JWT access tokens validated server-side
 
 ### Key Architecture Patterns
 - **Context Providers**: Global state management for roleplay settings, language, and authentication
 - **Schema Validation**: Pydantic schemas in `backend/schemas.py` for type-safe API communication
-- **Service Layer**: AI providers and auth services in `backend/` directory
+- **Service Layer**: AI providers and Supabase auth helpers in `backend/` directory
 - **Asset Management**: Static assets served from `attached_assets/` directory
-- **Authentication Flow**: Firebase frontend auth → JWT backend tokens → SQLAlchemy user management
+- **Authentication Flow**: Supabase client auth → Supabase JWT verification → SQLAlchemy user management
 
 ### Character Enhancement System
 - **Hardcoded Characters**: Pre-built prompts from `backend/prompts/characters/艾莉丝.py` (260+ examples, uses Gemini cache)
@@ -66,12 +66,11 @@ python -m uvicorn main:app --reload  # Alternative backend start (with auto-relo
 ## API Endpoints
 
 ### Authentication
-- `POST /api/auth/register` - Register with email/password
-- `POST /api/auth/login` - Login with email/password  
-- `POST /api/auth/login/firebase` - Login with Firebase OAuth token
-- `POST /api/auth/login/legacy` - Legacy username-based login (backward compatibility)
-- `GET /api/auth/me` - Get current authenticated user
-- `POST /api/auth/logout` - Logout (client-side token removal)
+- `GET /api/auth/me` - Return the authenticated user's profile (Supabase JWT required)
+- `GET /api/auth/me/stats` - Usage statistics for the signed-in user
+- `GET /api/auth/check-username` - Validate username availability
+- `PUT /api/auth/profile` - Update profile details and avatar
+- `POST /api/auth/logout` - Placeholder endpoint (Supabase manages session logout client-side)
 
 
 ### Characters  
@@ -103,13 +102,11 @@ python -m uvicorn main:app --reload  # Alternative backend start (with auto-relo
 
 ### Frontend Environment (/.env)
 ```bash
-# Firebase Configuration (required for authentication)
-VITE_FIREBASE_API_KEY=your-firebase-api-key
-VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your-project-id
-VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
-VITE_FIREBASE_APP_ID=your-app-id
+# Supabase configuration (required for authentication)
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-public-anon-key
+# Optional OAuth redirect override (defaults to current origin)
+# VITE_SUPABASE_REDIRECT_URL=http://localhost:5173/auth/callback
 
 # Stripe Configuration (required for payment processing)
 VITE_STRIPE_PUBLISHABLE_KEY=pk_test_your_stripe_publishable_key_here
@@ -123,7 +120,14 @@ DATABASE_URL=sqlite:///./roleplay_chat.db  # SQLite for development
 
 # Authentication
 SECRET_KEY=your-jwt-secret-key
-FIREBASE_API_KEY=your-firebase-api-key  # For token verification
+ADMIN_JWT_SECRET=your-admin-jwt-secret
+
+# Supabase server credentials
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_ANON_KEY=your-public-anon-key
+SUPABASE_JWT_SECRET=your-supabase-jwt-secret
+SUPABASE_STORAGE_BUCKET=attachments
 
 # AI Services
 GEMINI_API_KEY=your-gemini-api-key
@@ -143,7 +147,7 @@ The app uses SQLAlchemy ORM with SQLite (development) or PostgreSQL (production)
 - `email` - Email address (primary identifier for new auth)
 - `password` - Hashed password (empty for OAuth users)
 - `provider` - Authentication provider ('email', 'google', 'apple')
-- `firebase_uid` - Firebase user ID for OAuth users
+- `auth_user_id` - External auth provider user ID (Supabase UID)
 - `nsfw_level`, `temperature`, etc. - User preferences
 
 ### Other Tables
@@ -158,15 +162,15 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 ## Key Components
 
 ### Context Management
-- `AuthContext` - Manages user authentication state, login/logout, Firebase integration
+- `AuthContext` - Manages user authentication state, login/logout, Supabase integration
 - `RolePlayContext` - Manages active character selection, user preferences (NSFW level, temperature, etc.)
 - `LanguageContext` - Handles internationalization
 
 ### Authentication System
-- **Frontend**: Firebase Auth for Google OAuth, custom email/password forms
-- **Backend**: FastAPI with JWT tokens, Firebase token verification
-- **Database**: SQLAlchemy user management with email-based identification
-- **Legacy Support**: Backward compatible username-based login endpoint
+- **Frontend**: Supabase Auth handles email/password, Google OAuth, session refresh, and multi-tab sync
+- **Backend**: FastAPI verifies Supabase JWT access tokens and syncs user records on demand
+- **Database**: SQLAlchemy user management linked to Supabase user IDs and enriched profile data
+- **Legacy Support**: Username/password endpoints have been deprecated in favour of Supabase-managed flows
 
 ### Page Structure
 - App uses tab-based navigation with routes for characters, chats, profile, and payment
@@ -196,7 +200,7 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 - **HTTP Status Codes**: Proper REST API error responses (400, 401, 403, 404, 500)
 - **Pydantic Validation**: Request/response validation with detailed error messages
 - **Database Errors**: SQLAlchemy error handling with user-friendly messages
-- **Authentication Errors**: JWT and Firebase token validation error handling
+- **Authentication Errors**: Supabase JWT validation and session expiry error handling
 - **AI Service Errors**: Gemini API error handling with fallback responses
 
 ### Error Handling Components
@@ -212,7 +216,7 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 - **Backend**: FastAPI with auto-reload, SQLAlchemy ORM
 - **Static Assets**: Served from `/assets` endpoint  
 - **Database**: SQLite for development (auto-created), PostgreSQL for production
-- **Authentication**: Email-based with Firebase OAuth integration
+- **Authentication**: Supabase-managed email/password and OAuth integration
 - **Environment**: Separate .env files for frontend (Vite) and backend (FastAPI)
 - **Schema Changes**: Delete `backend/roleplay_chat.db` to reset database schema
 - **Character Development**: User-created characters automatically get enhanced prompts via `CharacterPromptEnhancer`

@@ -24,12 +24,9 @@ This guide implements the production-ready MVP deployment architecture as specif
 
 ### Frontend (.env.production)
 ```env
-VITE_FIREBASE_API_KEY=your-firebase-api-key
-VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your-project-id
-VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
-VITE_FIREBASE_APP_ID=your-app-id
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-public-anon-key
+VITE_SUPABASE_REDIRECT_URL=https://your-frontend-domain.com/auth/callback
 VITE_API_BASE_URL=https://your-api-domain.fly.dev
 VITE_STRIPE_PUBLISHABLE_KEY=pk_live_your_live_stripe_key
 VITE_SENTRY_DSN=your_frontend_sentry_dsn
@@ -46,7 +43,11 @@ flyctl secrets set REDIS_URL=your-redis-url
 flyctl secrets set STRIPE_SECRET_KEY=sk_live_your_stripe_secret
 flyctl secrets set STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
 flyctl secrets set ALLOWED_ORIGINS=https://your-domain.com,https://www.your-domain.com
-flyctl secrets set FIREBASE_API_KEY=your-firebase-api-key
+flyctl secrets set SUPABASE_URL=https://your-project-ref.supabase.co
+flyctl secrets set SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+flyctl secrets set SUPABASE_ANON_KEY=your-public-anon-key
+flyctl secrets set SUPABASE_JWT_SECRET=your-supabase-jwt-secret
+flyctl secrets set SUPABASE_STORAGE_BUCKET=attachments
 ```
 
 ## GitHub Secrets Configuration
@@ -57,12 +58,9 @@ Configure these secrets in your GitHub repository:
 - `CLOUDFLARE_API_TOKEN`: Your Cloudflare API token
 - `CLOUDFLARE_ACCOUNT_ID`: Your Cloudflare account ID
 - `CLOUDFLARE_PROJECT_NAME`: Your Pages project name
-- `VITE_FIREBASE_API_KEY`: Firebase configuration
-- `VITE_FIREBASE_AUTH_DOMAIN`: Firebase configuration
-- `VITE_FIREBASE_PROJECT_ID`: Firebase configuration
-- `VITE_FIREBASE_STORAGE_BUCKET`: Firebase configuration
-- `VITE_FIREBASE_MESSAGING_SENDER_ID`: Firebase configuration
-- `VITE_FIREBASE_APP_ID`: Firebase configuration
+- `VITE_SUPABASE_URL`: Supabase project URL
+- `VITE_SUPABASE_ANON_KEY`: Supabase public anon key
+- `VITE_SUPABASE_REDIRECT_URL`: Optional OAuth callback URL (match deployed domain)
 - `VITE_API_BASE_URL`: Production backend URL
 - `VITE_STRIPE_PUBLISHABLE_KEY`: Stripe publishable key
 - `VITE_SENTRY_DSN`: Frontend Sentry DSN

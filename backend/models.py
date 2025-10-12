@@ -44,7 +44,7 @@ class User(Base):
     password = Column(String(255), nullable=False)
     email = Column(String(255), unique=True, nullable=True, index=True)  # nullable for existing users
     provider = Column(String(50), default='email')  # 'email', 'google', 'apple'
-    firebase_uid = Column(String(255), unique=True, nullable=True)  # Firebase user ID
+    auth_user_id = Column("firebase_uid", String(255), unique=True, nullable=True, comment="External auth provider user ID")
     email_verified = Column(Boolean, default=False)
     avatar_url = Column(String(500), nullable=True)  # User avatar URL
     age = Column(Integer, nullable=True)  # User age

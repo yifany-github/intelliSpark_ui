@@ -34,32 +34,12 @@ interface PricingTier {
 }
 
 const fetchPricingTiers = async (): Promise<PricingTier[]> => {
-  const token = localStorage.getItem('auth_token');
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
-
   const response = await apiRequest('GET', '/api/payment/pricing-tiers');
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch pricing tiers');
-  }
-
   return response.json();
 };
 
 const createPaymentIntent = async (tierId: string) => {
-  const token = localStorage.getItem('auth_token');
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
-
   const response = await apiRequest('POST', '/api/payment/create-payment-intent', { tier_id: tierId });
-
-  if (!response.ok) {
-    throw new Error('Failed to create payment intent');
-  }
-
   return response.json();
 };
 

@@ -49,7 +49,7 @@ const ProfilePage = () => {
   const { data: userStats, isLoading: statsLoading, error: statsError } = useQuery({
     queryKey: ['userStats'],
     queryFn: fetchUserStats,
-    enabled: isAuthenticated && !!localStorage.getItem('auth_token'),
+    enabled: isAuthenticated,
     staleTime: 60000, // Cache for 1 minute
     retry: 1,
   });

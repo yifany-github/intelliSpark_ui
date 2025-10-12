@@ -18,6 +18,7 @@ import { useNavigation } from '@/contexts/NavigationContext';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { fetchTokenBalance, type TokenBalance } from '@/services/tokenService';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface ImprovedTokenBalanceProps {
   showTitle?: boolean;
@@ -40,6 +41,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
 }) => {
   const { navigateToPath } = useNavigation();
   const { t } = useLanguage();
+  const { isAuthenticated } = useAuth();
   
   const { 
     data: tokenBalance, 
@@ -50,7 +52,7 @@ export const ImprovedTokenBalance: React.FC<ImprovedTokenBalanceProps> = ({
     queryKey: ['tokenBalance'],
     queryFn: fetchTokenBalance,
     refetchInterval: 30000, // Refetch every 30 seconds
-    enabled: !!localStorage.getItem('auth_token'), // Only fetch when authenticated
+    enabled: isAuthenticated, // Only fetch when authenticated
   });
 
   const handleBuyTokens = () => {

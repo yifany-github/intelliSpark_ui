@@ -2,15 +2,20 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status, UploadFi
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-import logging
 from typing import Optional
+import logging
 
 from database import get_db
 from models import User
-from schemas import UserLogin, UserLoginLegacy, UserRegister, FirebaseAuthRequest, Token, User as UserSchema
-from auth.auth_service import AuthService
+from schemas import User as UserSchema
 from services.upload_service import UploadService
 from utils.character_utils import resolve_asset_url
+from auth.supabase_auth import (
+    decode_supabase_token,
+    ensure_user_is_active,
+    record_successful_login,
+    sync_user_from_supabase_payload,
+)
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -22,156 +27,37 @@ router = APIRouter()
 security = HTTPBearer()
 
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security), db: Session = Depends(get_db)):
-    """Dependency to get current authenticated user"""
+def get_current_user(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db),
+) -> User:
+    """Dependency to retrieve the authenticated user via Supabase JWT."""
     token = credentials.credentials
-    return AuthService.get_current_user(db, token)
+    payload = decode_supabase_token(token)
+    user = sync_user_from_supabase_payload(db, payload)
+    ensure_user_is_active(user)
 
-@router.post("/register", response_model=UserSchema)
-async def register(user_data: UserRegister, db: Session = Depends(get_db)):
-    """Register a new user with email"""
+    client_ip = request.client.host if request.client else None
     try:
-        # Check if email already exists
-        existing_user = db.query(User).filter(User.email == user_data.email).first()
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Email already registered"
-            )
-        
-        # Create new user with email
-        user = AuthService.create_user_with_email(db, user_data.email, user_data.password, user_data.username)
-        logger.info(f"New user registered: {user.email}")
-        return user
-        
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered"
-        )
-    except Exception as e:
-        logger.error(f"Error registering user: {e}")
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to register user"
-        )
+        record_successful_login(db, user, client_ip)
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.warning("Failed to record login metadata for user %s: %s", getattr(user, "id", "unknown"), exc)
 
-@router.post("/login", response_model=Token)
-async def login(user_data: UserLogin, request: Request, db: Session = Depends(get_db)):
-    """Login user with email and return access token"""
-    try:
-        # Authenticate user by email
-        user = AuthService.authenticate_user_by_email(db, user_data.email, user_data.password)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        AuthService.ensure_user_is_active(user)
+    return user
 
-        # Create access token (using email as subject)
-        access_token = AuthService.create_access_token(data={"sub": user.email})
-        logger.info(f"User logged in: {user.email}")
-
-        client_ip = request.client.host if request.client else None
-        try:
-            AuthService.record_successful_login(db, user, client_ip)
-        except Exception as e:
-            logger.warning(f"Failed to record login metadata for user {user.email}: {e}")
-
-        return {"access_token": access_token, "token_type": "bearer"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error during login: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Login failed"
-        )
 
 @router.get("/me", response_model=UserSchema)
 async def get_current_user_info(current_user: User = Depends(get_current_user)):
-    """Get current user information"""
+    """Return the authenticated user's profile."""
     return current_user
 
-@router.post("/login/legacy", response_model=Token)
-async def login_legacy(user_data: UserLoginLegacy, request: Request, db: Session = Depends(get_db)):
-    """Login user with username (legacy support)"""
-    try:
-        # Authenticate user by username
-        user = AuthService.authenticate_user(db, user_data.username, user_data.password)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect username or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        AuthService.ensure_user_is_active(user)
-
-        # Create access token (using username as subject for legacy compatibility)
-        access_token = AuthService.create_access_token(data={"sub": user.username})
-        logger.info(f"User logged in (legacy): {user.username}")
-
-        client_ip = request.client.host if request.client else None
-        try:
-            AuthService.record_successful_login(db, user, client_ip)
-        except Exception as e:
-            logger.warning(f"Failed to record login metadata for user {user.username}: {e}")
-
-        return {"access_token": access_token, "token_type": "bearer"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error during legacy login: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Login failed"
-        )
-
-@router.post("/login/firebase", response_model=Token)
-async def login_firebase(auth_data: FirebaseAuthRequest, request: Request, db: Session = Depends(get_db)):
-    """Login user with Firebase token"""
-    try:
-        # Authenticate user by Firebase token
-        user = AuthService.authenticate_user_by_firebase_token(db, auth_data.firebase_token)
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid Firebase token",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-        AuthService.ensure_user_is_active(user)
-
-        # Create access token (using email as subject)
-        access_token = AuthService.create_access_token(data={"sub": user.email})
-        logger.info(f"User logged in via Firebase: {user.email}")
-
-        client_ip = request.client.host if request.client else None
-        try:
-            AuthService.record_successful_login(db, user, client_ip)
-        except Exception as e:
-            logger.warning(f"Failed to record login metadata for user {user.email}: {e}")
-
-        return {"access_token": access_token, "token_type": "bearer"}
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error during Firebase login: {e}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Firebase login failed"
-        )
 
 @router.post("/logout")
 async def logout():
-    """Logout endpoint (client-side token removal)"""
+    """Placeholder logout endpoint (Supabase manages sessions client-side)."""
     return {"message": "Successfully logged out"}
+
 
 @router.get("/me/stats")
 async def get_user_stats(
@@ -237,6 +123,7 @@ async def get_user_stats(
             detail="Failed to fetch user statistics"
         )
 
+
 @router.get("/check-username")
 async def check_username(username: str, db: Session = Depends(get_db)):
     """Check if username is available"""
@@ -250,6 +137,7 @@ async def check_username(username: str, db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to check username availability"
         )
+
 
 @router.put("/profile", response_model=UserSchema)
 async def update_profile(
@@ -274,8 +162,9 @@ async def update_profile(
                 )
 
         # Check if email is being changed and if it's taken
-        if email != current_user.email:
-            existing_email = db.query(User).filter(User.email == email).first()
+        normalized_email = email.strip().lower()
+        if normalized_email != (current_user.email or ""):
+            existing_email = db.query(User).filter(User.email == normalized_email).first()
             if existing_email:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -291,7 +180,7 @@ async def update_profile(
 
         # Update basic fields
         current_user.username = username
-        current_user.email = email
+        current_user.email = normalized_email
         current_user.age = age
 
         # Handle avatar update
@@ -325,6 +214,12 @@ async def update_profile(
 
     except HTTPException:
         raise
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username or email already taken"
+        )
     except Exception as e:
         logger.error(f"Error updating profile: {e}")
         db.rollback()

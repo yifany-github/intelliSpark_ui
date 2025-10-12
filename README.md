@@ -25,7 +25,7 @@
 - **FastAPI** - 现代 Python Web 框架
 - **SQLAlchemy** - Python ORM
 - **Gemini AI** - AI 对话能力
-- **Firebase Auth** - 身份验证服务
+- **Supabase Auth** - 身份验证服务
 - **JWT** - JSON Web Token 认证
 
 ### 数据库
@@ -40,7 +40,7 @@
 - **Python** >= 3.8 (后端)
 - **npm** 或 **yarn**
 - **Gemini API Key**（必需）
-- **Firebase 项目**（用于身份验证）
+- **Supabase 项目**（用于身份验证）
 
 ## 🚀 快速开始
 
@@ -62,13 +62,11 @@ npm install
 #### 前端环境变量 (根目录 `.env`)：
 
 ```bash
-# Firebase 配置（必需，用于身份验证）
-VITE_FIREBASE_API_KEY=your-firebase-api-key
-VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your-project-id
-VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
-VITE_FIREBASE_APP_ID=your-app-id
+# Supabase 配置（必需，用于身份验证）
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-public-anon-key
+# 可选：自定义 OAuth 回调地址（默认使用当前站点）
+# VITE_SUPABASE_REDIRECT_URL=http://localhost:5173/auth/callback
 ```
 
 #### 后端环境变量 (`backend/.env`)：
@@ -79,7 +77,14 @@ DATABASE_URL=sqlite:///./roleplay_chat.db
 
 # 身份验证配置
 SECRET_KEY=your-jwt-secret-key
-FIREBASE_API_KEY=your-firebase-api-key
+ADMIN_JWT_SECRET=your-admin-jwt-secret
+
+# Supabase 服务配置
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_ANON_KEY=your-public-anon-key
+SUPABASE_JWT_SECRET=your-supabase-jwt-secret
+SUPABASE_STORAGE_BUCKET=attachments
 
 # AI 服务配置
 GEMINI_API_KEY=your-gemini-api-key
@@ -92,13 +97,12 @@ GEMINI_API_KEY=your-gemini-api-key
 2. 创建新的 API Key
 3. 将 API Key 添加到 `backend/.env` 文件中
 
-**2. Firebase 配置：**
-1. 访问 [Firebase Console](https://console.firebase.google.com/)
-2. 创建新项目或选择现有项目
-3. 启用 Authentication 服务
-4. 在 Sign-in method 中启用 Email/Password 和 Google
-5. 在项目设置中获取配置信息
-6. 将配置添加到根目录 `.env` 文件中
+**2. Supabase 配置：**
+1. 访问 [Supabase Dashboard](https://supabase.com/dashboard) 并创建项目
+2. 在 **Settings → API** 中获取 `Project URL`、`anon` 公钥、`service_role` 密钥 和 `JWT secret`
+3. 在 **Authentication → Providers** 中启用 Email 登录与 Google OAuth
+4. 创建用于存储头像/角色资源的 Storage Bucket（例如 `attachments`）
+5. 将上述信息填入根目录 `.env` 与 `backend/.env`
 
 ### 4. 启动开发服务器
 
@@ -203,13 +207,9 @@ npm install
 
 **根目录 `.env` 文件**：
 ```bash
-# Firebase 配置（必需）
-VITE_FIREBASE_API_KEY=your-firebase-api-key
-VITE_FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=your-project-id
-VITE_FIREBASE_STORAGE_BUCKET=your-project.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=123456789
-VITE_FIREBASE_APP_ID=your-app-id
+# Supabase 配置（必需）
+VITE_SUPABASE_URL=https://your-project-ref.supabase.co
+VITE_SUPABASE_ANON_KEY=your-public-anon-key
 ```
 
 **backend/.env 文件**：
@@ -219,7 +219,12 @@ DATABASE_URL=sqlite:///./roleplay_chat.db
 
 # 身份验证配置
 SECRET_KEY=your-jwt-secret-key-here
-FIREBASE_API_KEY=your-firebase-api-key
+ADMIN_JWT_SECRET=your-admin-jwt-secret
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+SUPABASE_ANON_KEY=your-public-anon-key
+SUPABASE_JWT_SECRET=your-supabase-jwt-secret
+SUPABASE_STORAGE_BUCKET=attachments
 
 # AI 服务配置
 GEMINI_API_KEY=your-gemini-api-key
@@ -272,12 +277,11 @@ npm run db:push
 ### API 端点
 
 #### 身份验证 API
-- `POST /api/auth/register` - 邮箱注册
-- `POST /api/auth/login` - 邮箱登录
-- `POST /api/auth/login/firebase` - Firebase OAuth 登录
-- `POST /api/auth/login/legacy` - 传统用户名登录（向后兼容）
-- `GET /api/auth/me` - 获取当前用户信息
-- `POST /api/auth/logout` - 登出
+- `GET /api/auth/me` - 获取当前登录用户信息（需要 Supabase JWT）
+- `GET /api/auth/me/stats` - 获取当前用户统计数据
+- `GET /api/auth/check-username` - 检查用户名是否可用
+- `PUT /api/auth/profile` - 更新用户资料与头像
+- `POST /api/auth/logout` - 登出（由 Supabase 管理会话）
 
 #### 场景 API
 - `GET /api/scenes` - 获取所有场景
@@ -299,15 +303,15 @@ npm run db:push
 
 ### 常见问题
 
-#### 1. Firebase 身份验证失败
+#### 1. Supabase 身份验证失败
 
-**症状**：看到 "Firebase not configured" 或 "Invalid API key" 错误
+**症状**：出现 "Supabase credentials missing" 或频繁 `401 Unauthorized`
 
 **解决方案**：
-1. 检查根目录 `.env` 文件是否包含有效的 Firebase 配置
-2. 确认 Firebase Console 中已启用 Authentication 服务
-3. 验证 Email/Password 和 Google 登录方式已启用
-4. 重启前端开发服务器以加载新的环境变量
+1. 检查根目录 `.env` 是否包含 `VITE_SUPABASE_URL` 与 `VITE_SUPABASE_ANON_KEY`
+2. 确认 `backend/.env` 配置了 `SUPABASE_URL`、`SUPABASE_SERVICE_ROLE_KEY` 和 `SUPABASE_JWT_SECRET`
+3. 在 Supabase Dashboard → Authentication 中启用 Email 登录与 Google OAuth
+4. 重启前后端服务器以加载最新环境变量
 
 #### 2. Gemini AI 连接失败
 

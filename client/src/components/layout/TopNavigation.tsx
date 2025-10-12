@@ -108,13 +108,13 @@ export default function TopNavigation({
     queryKey: ['tokenBalance'],
     queryFn: fetchTokenBalance,
     refetchInterval: isAuthenticated ? 30000 : false,
-    enabled: isAuthenticated && !!localStorage.getItem('auth_token'),
+    enabled: isAuthenticated,
     staleTime: 0,
     retry: 1,
   });
 
   useEffect(() => {
-    if (isAuthenticated && localStorage.getItem('auth_token')) {
+    if (isAuthenticated) {
       refetch();
     }
   }, [isAuthenticated, refetch]);
