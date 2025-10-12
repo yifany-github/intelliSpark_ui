@@ -31,6 +31,8 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
+const createTempMessageId = () => -Math.floor(Date.now() + Math.random() * 1000);
+
 interface ChatPageProps {
   chatId?: string;
 }
@@ -357,7 +359,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
         if (!old) return old;
         
         const errorMsg: ChatMessage = {
-          id: Date.now(), // temporary ID
+          id: createTempMessageId(),
           content: `Error: ${errorMessage}`,
           role: "system",
           chatId: matchingChat?.id ?? numericChatId ?? 0,
@@ -413,7 +415,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
         if (!old) return old;
         
         const errorMsg: ChatMessage = {
-          id: Date.now(), // temporary ID
+          id: createTempMessageId(),
           content: `Error: ${errorMessage}`,
           role: "system",
           chatId: matchingChat?.id ?? numericChatId ?? 0,
