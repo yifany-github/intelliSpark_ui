@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useRoute, Link } from "wouter";
+import { Link } from "wouter";
 import { Chat, ChatMessage, Character, EnrichedChat } from "../types";
 import ChatBubble from "@/components/chats/ChatBubble";
 import ChatInput from "@/components/chats/ChatInput";
@@ -10,11 +10,11 @@ import QuickReplies from "@/components/chats/QuickReplies";
 import TypingIndicator from "@/components/ui/TypingIndicator";
 import { apiRequest } from "@/lib/queryClient";
 import { useRolePlay } from "@/contexts/RolePlayContext";
-import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { invalidateTokenBalance } from "@/services/tokenService";
 import { queryClient } from "@/lib/queryClient";
+import { useChatQueryLifecycle } from "@/hooks/useChatQueryLifecycle";
 import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft, Sparkles, Filter, Pin, Trash2, Info } from "lucide-react";
 import {
   Sheet,
@@ -38,7 +38,6 @@ interface ChatPageProps {
 const ChatPage = ({ chatId }: ChatPageProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { isTyping, setIsTyping, selectedCharacter, setCurrentChat } = useRolePlay();
-  const { isAuthenticated } = useAuth();
   const { t } = useLanguage();
   const { navigateBack, navigateToPath } = useNavigation();
   const { toast } = useToast();
@@ -48,24 +47,49 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   const [pinnedChatIds, setPinnedChatIds] = useState<number[]>([]);
   const [isBrowserMounted, setIsBrowserMounted] = useState(false);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
-  
-  // Handle "creating" state when user is redirected immediately after clicking start chat
-  const isCreatingChat = chatId === 'creating';
-  const creatingCharacterId = isCreatingChat ? new URLSearchParams(window.location.search).get('characterId') : null;
-  
+  const typingStartedAtRef = useRef<number | null>(null);
+  const slowTypingNotifiedRef = useRef(false);
+  const typingTimedOutRef = useRef(false);
+  const lastAssistantMessageIdRef = useRef<number | null>(null);
+
+  const isPendingChat = Boolean(chatId && chatId.startsWith("pending-"));
+  const activeChatId = isPendingChat ? undefined : chatId;
+  const pendingCharacterId = useMemo(() => {
+    if (!isPendingChat || !chatId) {
+      return null;
+    }
+    const match = chatId.match(/^pending-(\d+)/);
+    if (!match) {
+      return null;
+    }
+    const parsed = Number(match[1]);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [isPendingChat, chatId]);
+
+  // Refresh chat data whenever the tab regains focus or visibility
+  useChatQueryLifecycle(activeChatId);
+
+  useEffect(() => {
+    if (isPendingChat) {
+      setIsTyping(true);
+    }
+  }, [isPendingChat, setIsTyping]);
+
   // If no chatId is provided, show chat list
   const showChatListOnly = !chatId;
-  
-  // Fetch chat details if chatId is provided (but not for creating state)
+  const numericChatId =
+    activeChatId && /^\d+$/.test(activeChatId) ? parseInt(activeChatId, 10) : null;
+
+  // Fetch chat details if chatId is provided
   const {
     data: chat,
     isLoading: isLoadingChat,
     error: chatError
   } = useQuery<Chat>({
-    queryKey: [`/api/chats/${chatId}`],
-    enabled: !!chatId && !isCreatingChat,
+    queryKey: [`/api/chats/${activeChatId}`],
+    enabled: !!activeChatId,
   });
-  
+
   // Fetch all chats for the chat list
   const {
     data: chats = [],
@@ -73,74 +97,155 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   } = useQuery<EnrichedChat[]>({
     queryKey: ["/api/chats"],
   });
-  
-  // Fetch chat messages if chatId is provided (but not for creating state)
+
+  const matchingChat = useMemo(() => {
+    if (!activeChatId) {
+      return undefined;
+    }
+
+    return chats.find((item) => {
+      if (item.uuid && !/^\d+$/.test(activeChatId)) {
+        return item.uuid === activeChatId;
+      }
+      return numericChatId !== null && item.id === numericChatId;
+    });
+  }, [chats, activeChatId, numericChatId]);
+
+  const isCurrentChat = (item: EnrichedChat) => {
+    if (!matchingChat) {
+      return false;
+    }
+    return item.id === matchingChat.id;
+  };
+
+  // Fetch chat messages if chatId is provided
   const {
     data: messages = [],
     isLoading: isLoadingMessages,
     error: messagesError
   } = useQuery<ChatMessage[]>({
-    queryKey: [`/api/chats/${chatId}/messages`],
-    enabled: !!chatId && !isCreatingChat,
+    queryKey: [`/api/chats/${activeChatId}/messages`],
+    enabled: !!activeChatId,
     refetchInterval: (query) => {
       const data = query.state.data as ChatMessage[] | undefined;
-      const waitingForFirstMessage = (!data || data.length === 0) && !!chat;
-      return isTyping || waitingForFirstMessage ? 500 : false;
-    }
-  });
-  
-  // Fetch character data for creating state
-  const {
-    data: creatingCharacter,
-    isLoading: isLoadingCreatingCharacter
-  } = useQuery<Character>({
-    queryKey: [`/api/characters/${creatingCharacterId}`],
-    enabled: isCreatingChat && !!creatingCharacterId,
-  });
+      const waitingForFirstMessage = !!chat && (!data || data.length === 0);
+      const shouldPoll = waitingForFirstMessage || isTyping;
 
-  const { mutate: ensureChatCreated } = useMutation({
-    mutationFn: async (characterId: number) => {
-      const response = await apiRequest('POST', '/api/chats', {
-        characterId,
-        title: t('chatWithCharacter'),
-      });
-      return response.json();
-    },
-    onSuccess: (chat) => {
-      if (!chat?.uuid) {
-        toast({
-          title: 'Unable to start chat',
-          description: 'Please try again.',
-          variant: 'destructive',
-        });
-        navigateToPath('/chat');
-        return;
+      if (!shouldPoll) {
+        typingStartedAtRef.current = null;
+        return false;
       }
-      navigateToPath(`/chat/${chat.uuid}`);
-    },
-    onError: (error) => {
-      console.error('Fallback chat creation failed:', error);
-      toast({
-        title: 'Unable to start chat',
-        description: 'Please try again.',
-        variant: 'destructive',
-      });
-      navigateToPath('/chat');
-    },
+
+      if (typingStartedAtRef.current === null) {
+        typingStartedAtRef.current = Date.now();
+      }
+
+      const now = Date.now();
+      const baseline = typingStartedAtRef.current ?? query.state.dataUpdatedAt ?? now;
+      const elapsed = Math.max(0, now - baseline);
+
+      if (elapsed >= 60000) {
+        return false;
+      }
+
+      if (elapsed >= 30000) {
+        return waitingForFirstMessage ? 4000 : 5000;
+      }
+
+      if (elapsed >= 15000) {
+        return waitingForFirstMessage ? 2000 : 2500;
+      }
+
+      return waitingForFirstMessage ? 1000 : 750;
+    }
   });
 
   useEffect(() => {
-    if (!isCreatingChat || !creatingCharacterId || !isAuthenticated) {
+    const waitingForFirstMessage = !!chat && messages.length === 0;
+
+    if (isTyping || waitingForFirstMessage) {
+      if (typingStartedAtRef.current === null) {
+        typingStartedAtRef.current = Date.now();
+      }
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      ensureChatCreated(Number(creatingCharacterId));
-    }, 1200);
+    typingStartedAtRef.current = null;
+    slowTypingNotifiedRef.current = false;
+    typingTimedOutRef.current = false;
+  }, [isTyping, messages, chat]);
 
-    return () => window.clearTimeout(timer);
-  }, [isCreatingChat, creatingCharacterId, isAuthenticated, ensureChatCreated]);
-  
+  useEffect(() => {
+    if (!isTyping) {
+      return;
+    }
+
+    const warningTimer = window.setTimeout(() => {
+      if (slowTypingNotifiedRef.current) {
+        return;
+      }
+      slowTypingNotifiedRef.current = true;
+      toast({
+        title: "Still working…",
+        description: "The assistant response is taking longer than usual. We'll keep checking for updates.",
+      });
+    }, 20000);
+
+    return () => window.clearTimeout(warningTimer);
+  }, [isTyping, toast, t]);
+
+  useEffect(() => {
+    if (!isTyping) {
+      return;
+    }
+
+    const timeoutTimer = window.setTimeout(() => {
+      if (typingTimedOutRef.current) {
+        return;
+      }
+      typingTimedOutRef.current = true;
+      setIsTyping(false);
+      toast({
+        title: "Response timed out",
+        description: "We didn't receive a reply from the assistant. Try regenerating the response or sending a new message.",
+        variant: "destructive",
+      });
+    }, 60000);
+
+    return () => window.clearTimeout(timeoutTimer);
+  }, [isTyping, setIsTyping, toast, t]);
+
+  useEffect(() => {
+    if (messages.length === 0) {
+      lastAssistantMessageIdRef.current = null;
+      return;
+    }
+
+    const lastAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant");
+
+    if (!lastAssistantMessage) {
+      return;
+    }
+
+    if (lastAssistantMessageIdRef.current === lastAssistantMessage.id) {
+      return;
+    }
+
+    lastAssistantMessageIdRef.current = lastAssistantMessage.id;
+
+    if (isTyping) {
+      setIsTyping(false);
+    }
+  }, [messages, isTyping, setIsTyping]);
+
+  const {
+    data: pendingCharacter,
+    isLoading: isLoadingPendingCharacter
+  } = useQuery<Character>({
+    queryKey: [`/api/characters/${pendingCharacterId}`],
+    enabled: isPendingChat && !!pendingCharacterId,
+  });
+
   // Fallback character fetch if not found in enriched chats
   const fallbackCharacterId = chat?.characterId ?? (chat as { character_id?: number } | undefined)?.character_id;
 
@@ -149,50 +254,91 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     isLoading: isLoadingFallbackCharacter
   } = useQuery<Character>({
     queryKey: [`/api/characters/${fallbackCharacterId}`],
-    enabled: !!fallbackCharacterId && !chats.find(c => c.id === parseInt(chatId || '0'))?.character,
+    enabled: !!fallbackCharacterId && !matchingChat?.character,
   });
 
-  // Get character data from the enriched chats list with fallback, or from creating state
+  // Get character data from the enriched chats list with fallback
   type ChatCharacter = Character | NonNullable<EnrichedChat["character"]>;
 
   const character = useMemo<ChatCharacter | null>(() => {
-    // ✅ PRIORITY 1: If in creating state, use selectedCharacter from RolePlayContext (immediately available)
-    if (isCreatingChat && selectedCharacter) {
-      return selectedCharacter;
-    }
-    
-    // ✅ PRIORITY 2: If in creating state but no selectedCharacter, use API-fetched character
-    if (isCreatingChat && creatingCharacter) {
-      return creatingCharacter;
-    }
-    
-    // Regular chat - use existing logic
-    const foundCharacter = chats.find(c => c.id === parseInt(chatId || '0'))?.character;
-    
+    const foundCharacter = matchingChat?.character;
+
     if (foundCharacter) {
       return foundCharacter;
     }
-    
+
     if (fallbackCharacter) {
       return fallbackCharacter;
     }
 
+    if (pendingCharacter) {
+      return pendingCharacter;
+    }
+
+    if (selectedCharacter) {
+      return selectedCharacter;
+    }
+
     return null;
-  }, [chats, chatId, fallbackCharacter, isCreatingChat, creatingCharacter, selectedCharacter]);
+  }, [matchingChat, fallbackCharacter, pendingCharacter, selectedCharacter]);
   
-  const isLoadingCharacter = isLoadingChats || isLoadingFallbackCharacter || (isCreatingChat && !selectedCharacter && isLoadingCreatingCharacter);
-  
+  const isLoadingCharacter =
+    isLoadingChats ||
+    isLoadingFallbackCharacter ||
+    (isPendingChat && isLoadingPendingCharacter);
+  const waitingForFirstMessage = !!chat && messages.length === 0;
+  const showTypingPlaceholder =
+    isPendingChat || waitingForFirstMessage || isLoadingMessages || isLoadingCharacter;
+  const showEmptyState = !messagesError && !showTypingPlaceholder && messages.length === 0 && !!chat;
+
+  const renderTypingBubble = ({
+    message,
+    showIndicator = true,
+  }: {
+    message?: string;
+    showIndicator?: boolean;
+  } = {}) => (
+    <div className="flex items-end mb-4">
+      <ImageWithFallback
+        src={character?.avatarUrl}
+        alt={character?.name || "Character"}
+        fallbackText={character?.name || "AI"}
+        size="sm"
+        showSpinner={true}
+        className="mr-2"
+      />
+      <div className="max-w-[80%]">
+        <div className="chat-bubble-ai">
+          {showIndicator && <TypingIndicator />}
+          {message && (
+            <p className="mt-2 text-xs text-white/75">
+              {message}
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
   // Mutation for sending messages
   const { mutate: sendMessage, isPending: isSending } = useMutation({
     mutationFn: async (content: string) => {
+      if (!activeChatId) {
+        throw new Error("Chat not ready");
+      }
       return apiRequest(
         "POST",
-        `/api/chats/${chatId}/messages`,
+        `/api/chats/${activeChatId}/messages`,
         { content, role: "user" }
       );
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
+    onSuccess: async () => {
+      if (!activeChatId) return;
+      await queryClient.refetchQueries({
+        queryKey: [`/api/chats/${activeChatId}/messages`],
+        type: "active",
+        exact: true,
+      });
       setIsTyping(true);
 
       // Kick off AI response immediately
@@ -202,15 +348,19 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       console.error("Message sending failed:", error);
       const errorMessage = error?.response?.data?.detail || "Failed to send message";
       
+      if (!activeChatId) {
+        return;
+      }
+      
       // Add error message to chat
-      queryClient.setQueryData([`/api/chats/${chatId}/messages`], (old: ChatMessage[] | undefined) => {
+      queryClient.setQueryData([`/api/chats/${activeChatId}/messages`], (old: ChatMessage[] | undefined) => {
         if (!old) return old;
         
         const errorMsg: ChatMessage = {
           id: Date.now(), // temporary ID
           content: `Error: ${errorMessage}`,
           role: "system",
-          chatId: parseInt(chatId || "0"),
+          chatId: matchingChat?.id ?? numericChatId ?? 0,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
@@ -223,14 +373,22 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   // Mutation for AI responses
   const { mutate: aiResponse } = useMutation({
     mutationFn: async () => {
+      if (!activeChatId) {
+        throw new Error("Chat not ready");
+      }
       return apiRequest(
         "POST",
-        `/api/chats/${chatId}/generate`,
+        `/api/chats/${activeChatId}/generate`,
         {}
       );
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
+    onSuccess: async () => {
+      if (!activeChatId) return;
+      await queryClient.refetchQueries({
+        queryKey: [`/api/chats/${activeChatId}/messages`],
+        type: "active",
+        exact: true,
+      });
       setIsTyping(false);
 
       // Invalidate token balance after AI response generation
@@ -243,18 +401,22 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       console.error("AI response generation failed:", error);
       setIsTyping(false);
       
+      if (!activeChatId) {
+        return;
+      }
+      
       // Show error message to user
       const errorMessage = error?.response?.data?.detail || "Failed to generate AI response";
       
       // Add error message to chat
-      queryClient.setQueryData([`/api/chats/${chatId}/messages`], (old: ChatMessage[] | undefined) => {
+      queryClient.setQueryData([`/api/chats/${activeChatId}/messages`], (old: ChatMessage[] | undefined) => {
         if (!old) return old;
         
         const errorMsg: ChatMessage = {
           id: Date.now(), // temporary ID
           content: `Error: ${errorMessage}`,
           role: "system",
-          chatId: parseInt(chatId || "0"),
+          chatId: matchingChat?.id ?? numericChatId ?? 0,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
@@ -282,7 +444,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       });
 
       // Only navigate away if we deleted the current chat
-      if (chatId && parseInt(chatId) === deletedChatId) {
+      if ((numericChatId !== null && numericChatId === deletedChatId) || matchingChat?.id === deletedChatId) {
         navigateToPath('/chats');
       }
     },
@@ -462,8 +624,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
           <div className="space-y-3">
             {chats.map((chat: EnrichedChat) => (
               <Link 
-                key={chat.id} 
-                href={`/chat/${chat.id}`}
+                key={chat.uuid ?? chat.id} 
+                href={`/chat/${chat.uuid ?? chat.id}`}
                 className="block bg-secondary hover:bg-secondary/80 rounded-2xl p-4 transition-colors"
               >
                 <div className="flex items-center justify-between">
@@ -622,8 +784,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 <div className="space-y-2">
                   {pinnedChats.map((chat) => (
                     <Link
-                      key={`pinned-${chat.id}`}
-                      href={`/chat/${chat.id}`}
+                      key={`pinned-${chat.uuid ?? chat.id}`}
+                      href={`/chat/${chat.uuid ?? chat.id}`}
                       className="group flex items-center gap-3 rounded-2xl border border-gray-700/70 bg-gray-800/60 p-3 transition-all hover:border-brand-accent/50 hover:bg-gray-800"
                     >
                       <ImageWithFallback
@@ -682,11 +844,11 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
               ) : (
                 <div className="space-y-2">
                   {filteredChats
-                    .filter((chat) => chat.id !== parseInt(chatId || "0"))
+                    .filter((chat) => !isCurrentChat(chat))
                     .map((chat) => (
                       <Link
-                        key={chat.id}
-                        href={`/chat/${chat.id}`}
+                        key={chat.uuid ?? chat.id}
+                        href={`/chat/${chat.uuid ?? chat.id}`}
                         className="group flex items-center gap-3 rounded-2xl border border-transparent bg-gray-900/40 p-3 transition-all hover:border-brand-accent/40 hover:bg-gray-900/70"
                       >
                         <ImageWithFallback
@@ -773,11 +935,11 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                     <h1 className="truncate text-base font-semibold sm:text-lg">
                       {isLoadingCharacter ? t('loading') : character?.name}
                     </h1>
-                    {chat && (
-                      <p className="text-xs text-gray-400 sm:text-sm">
-                        {chat.title || t('untitledChat')}
-                      </p>
-                    )}
+                    <p className="text-xs text-gray-400 sm:text-sm">
+                      {chat
+                        ? (chat.title || t('untitledChat'))
+                        : t('creatingChat')}
+                    </p>
                   </div>
                 </div>
 
@@ -796,97 +958,56 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 scrollbar-thin relative z-10">
-            {/* Creating chat state - show immediate loading UI */}
-            {isCreatingChat ? (
-              <div className="flex items-start mb-4">
-                <ImageWithFallback
-                  src={character?.avatarUrl}
-                  alt={character?.name || "Character"}
-                  fallbackText={character?.name || "?"}
-                  size="sm"
-                  className="mr-3"
-                />
-                <div className="bg-gray-800 rounded-lg px-4 py-3 max-w-xs lg:max-w-sm">
-                  <TypingIndicator />
-                  <p className="text-xs text-gray-400 mt-1">
-                    {character?.name} {t('isPreparingMessage')}
-                  </p>
+              {messagesError ? (
+                <div className="text-center py-4">
+                  <p className="text-red-500">{t('errorLoading')}</p>
                 </div>
-              </div>
-            ) : isLoadingMessages || isLoadingCharacter ? (
-              <div className="text-center py-4">
-                <p className="text-gray-400">{t('loadingMessages')}</p>
-              </div>
-            ) : messagesError ? (
-              <div className="text-center py-4">
-                <p className="text-red-500">{t('errorLoading')}</p>
-              </div>
-            ) : messages.length === 0 && chat ? (
-              /* Show typing indicator when chat exists but no messages (opening line generating) */
-              <div className="flex items-start mb-4">
-                <ImageWithFallback
-                  src={character?.avatarUrl}
-                  alt={character?.name || "Character"}
-                  fallbackText={character?.name || "?"}
-                  size="sm"
-                  className="mr-3"
-                />
-                <div className="bg-gray-800 rounded-lg px-4 py-3 max-w-xs lg:max-w-sm">
-                  <TypingIndicator />
-                  <p className="text-xs text-gray-400 mt-1">
-                    {character?.name} {t('isPreparingMessage')}
-                  </p>
-                </div>
-              </div>
-            ) : messages.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-gray-400">{t('noMessagesYet')}</p>
-              </div>
-            ) : (
-              messages.map(message => (
-                <ChatBubble 
-                  key={message.id} 
-                  message={message} 
-                  avatarUrl={character?.avatarUrl}
-                  onRegenerate={message.role === 'assistant' ? regenerateLastMessage : undefined}
-                />
-              ))
-            )}
-            
-            {isTyping && (
-              <div className="flex items-end mb-4">
-                <ImageWithFallback
-                  src={character?.avatarUrl}
-                  alt={character?.name || "Character"}
-                  fallbackText={character?.name || "AI"}
-                  size="sm"
-                  showSpinner={true}
-                  className="mr-2"
-                />
-                <div className="max-w-[80%]">
-                  <div className="chat-bubble-ai">
-                    <TypingIndicator />
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            <div ref={messagesEndRef} />
+              ) : (
+                <>
+                  {showTypingPlaceholder &&
+                    renderTypingBubble({
+                      message: character?.name
+                        ? `${character.name} ${t('isPreparingMessage')}`
+                        : t('loadingMessages'),
+                    })}
+
+                  {!showTypingPlaceholder && showEmptyState &&
+                    renderTypingBubble({
+                      message: t('noMessagesYet'),
+                      showIndicator: false,
+                    })}
+
+                  {!showTypingPlaceholder &&
+                    messages.length > 0 &&
+                    messages.map((message) => (
+                      <ChatBubble
+                        key={message.id}
+                        message={message}
+                        avatarUrl={character?.avatarUrl}
+                        onRegenerate={message.role === 'assistant' ? regenerateLastMessage : undefined}
+                      />
+                    ))}
+                </>
+              )}
+
+              {isTyping && !showTypingPlaceholder && renderTypingBubble()}
+
+              <div ref={messagesEndRef} />
             </div>
 
             {/* Quick Replies */}
             <QuickReplies
               suggestions={quickReplies}
               onSelect={handleQuickReply}
-              isLoading={isSending || isTyping || isCreatingChat}
+              isLoading={isSending || isTyping}
             />
 
-            {/* Chat Input - disabled during creating state */}
+            {/* Chat Input */}
             <ChatInput
               onSendMessage={sendMessage}
-              isLoading={isSending || isTyping || isCreatingChat}
-              disabled={isCreatingChat}
-              placeholder={isCreatingChat ? t('creatingChat') : undefined}
+              isLoading={isSending || isTyping}
+              disabled={!chat}
+              placeholder={!chat ? t('creatingChat') : undefined}
               className="border-t border-pink-500/10 bg-slate-900/80 backdrop-blur-xl relative z-10"
             />
           </div>

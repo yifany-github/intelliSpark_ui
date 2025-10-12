@@ -8,7 +8,8 @@
     "build": "NODE_OPTIONS='--max-old-space-size=4096' vite build",
     "build:ci": "NODE_OPTIONS='--max-old-space-size=4096' VITE_SKIP_TS_CHECK=true vite build --mode production",
     "preview": "vite preview",
-    "check": "tsc"
+    "check": "tsc",
+     "c": "tsc --noEmit"
   },
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",

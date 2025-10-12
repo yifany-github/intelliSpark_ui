@@ -89,16 +89,36 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
       return response.json();
     },
     onSuccess: (chat) => {
-      navigateToPath(`/chat/${chat.id}`);
+      const chatIdentifier = chat?.uuid || chat?.id;
+
+      if (!chatIdentifier) {
+        console.error('Chat creation response missing identifier:', chat);
+        toast({
+          title: t('error') || 'Error',
+          description: t('failedToStartChat') || 'Unable to start chat. Please try again.',
+          variant: 'destructive',
+        });
+        navigateToPath('/discover');
+        return;
+      }
+
+      navigateToPath(`/chat/${chatIdentifier}`);
       handlePreviewClose();
     },
     onError: (error) => {
       console.error('Failed to create chat:', error);
+      toast({
+        title: t('error') || 'Error',
+        description: t('failedToStartChat') || 'Unable to start chat. Please try again.',
+        variant: 'destructive',
+      });
+      navigateToPath('/discover');
     }
   });
 
   const handleCharacterClick = (character: Character) => {
     setSelectedCharacter(character);
+    navigateToPath(`/chat/pending-${character.id}`);
     createChat({ characterId: character.id });
   };
 
@@ -123,6 +143,8 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
 
   const handleStartChat = (character: Character) => {
     setSelectedCharacter(character);
+    handlePreviewClose();
+    navigateToPath(`/chat/pending-${character.id}`);
     createChat({ characterId: character.id });
   };
 

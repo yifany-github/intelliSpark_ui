@@ -374,18 +374,25 @@ const FavoritesPage = () => {
         title: `Chat with ${characters.find((item) => item.id === characterId)?.name || 'Character'}`,
       });
 
-      if (!response.ok) {
-        throw new Error('Failed to create chat');
-      }
-
       return response.json();
     },
     onSuccess: (chat) => {
-      navigateToPath(`/chat/${chat.id}`);
+      const chatIdentifier = chat?.uuid || chat?.id;
+
+      if (!chatIdentifier) {
+        console.error('Chat creation response missing identifier:', chat);
+        toast({ title: t('error') || 'Error', description: t('failedToStartChat') || 'Unable to start chat. Please try again.', variant: 'destructive' });
+        navigateToPath('/favorites');
+        return;
+      }
+
+      navigateToPath(`/chat/${chatIdentifier}`);
       handlePreviewClose();
     },
-    onError: () => {
-      toast({ title: t('errorLoading') || '操作失败', description: '无法创建新聊天，请稍后重试。' });
+    onError: (error) => {
+      console.error('Failed to create chat:', error);
+      toast({ title: t('error') || 'Error', description: t('failedToStartChat') || 'Unable to start chat. Please try again.', variant: 'destructive' });
+      navigateToPath('/favorites');
     },
   });
 
@@ -460,6 +467,8 @@ const FavoritesPage = () => {
 
   const handleCharacterSelect = (character: Character) => {
     setSelectedCharacter(character);
+    handlePreviewClose();
+    navigateToPath(`/chat/pending-${character.id}`);
     createChat({ characterId: character.id });
   };
 
