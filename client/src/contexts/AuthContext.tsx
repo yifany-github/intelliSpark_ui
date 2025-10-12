@@ -42,7 +42,35 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const clearAuthState = useCallback(() => {
     setUser(null);
     setToken(null);
-    queryClient.clear();
+
+    const privatePrefixes = [
+      '/api/auth',
+      '/api/payment',
+      '/api/chats',
+      '/api/notifications',
+      '/api/preferences',
+      '/api/admin',
+    ];
+    const privateExactKeys = new Set([
+      'tokenBalance',
+      'tokenUsageStats',
+      'tokenTransactions',
+      'pricingTiers',
+      'savedPaymentMethods',
+    ]);
+
+    queryClient.removeQueries({
+      predicate: (query) => {
+        const key = query.queryKey?.[0];
+        if (typeof key !== 'string') {
+          return false;
+        }
+        if (privateExactKeys.has(key)) {
+          return true;
+        }
+        return privatePrefixes.some((prefix) => key.startsWith(prefix));
+      },
+    });
   }, [queryClient]);
 
   const fetchBackendUser = useCallback(async (accessToken: string) => {

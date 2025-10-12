@@ -10,6 +10,7 @@ import QuickReplies from "@/components/chats/QuickReplies";
 import TypingIndicator from "@/components/ui/TypingIndicator";
 import { apiRequest } from "@/lib/queryClient";
 import { useRolePlay } from "@/contexts/RolePlayContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { invalidateTokenBalance } from "@/services/tokenService";
@@ -37,6 +38,7 @@ interface ChatPageProps {
 const ChatPage = ({ chatId }: ChatPageProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { isTyping, setIsTyping, selectedCharacter, setCurrentChat } = useRolePlay();
+  const { isAuthenticated } = useAuth();
   const { t } = useLanguage();
   const { navigateBack, navigateToPath } = useNavigation();
   const { toast } = useToast();
@@ -95,6 +97,49 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     queryKey: [`/api/characters/${creatingCharacterId}`],
     enabled: isCreatingChat && !!creatingCharacterId,
   });
+
+  const { mutate: ensureChatCreated } = useMutation({
+    mutationFn: async (characterId: number) => {
+      const response = await apiRequest('POST', '/api/chats', {
+        characterId,
+        title: t('chatWithCharacter'),
+      });
+      return response.json();
+    },
+    onSuccess: (chat) => {
+      if (!chat?.uuid) {
+        toast({
+          title: 'Unable to start chat',
+          description: 'Please try again.',
+          variant: 'destructive',
+        });
+        navigateToPath('/chat');
+        return;
+      }
+      navigateToPath(`/chat/${chat.uuid}`);
+    },
+    onError: (error) => {
+      console.error('Fallback chat creation failed:', error);
+      toast({
+        title: 'Unable to start chat',
+        description: 'Please try again.',
+        variant: 'destructive',
+      });
+      navigateToPath('/chat');
+    },
+  });
+
+  useEffect(() => {
+    if (!isCreatingChat || !creatingCharacterId || !isAuthenticated) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      ensureChatCreated(Number(creatingCharacterId));
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [isCreatingChat, creatingCharacterId, isAuthenticated, ensureChatCreated]);
   
   // Fallback character fetch if not found in enriched chats
   const fallbackCharacterId = chat?.characterId ?? (chat as { character_id?: number } | undefined)?.character_id;
