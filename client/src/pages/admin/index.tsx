@@ -1755,7 +1755,7 @@ const AdminPage = () => {
                     <SelectItem value="email">Email</SelectItem>
                     <SelectItem value="google">Google</SelectItem>
                     <SelectItem value="apple">Apple</SelectItem>
-                    <SelectItem value="firebase">Firebase</SelectItem>
+                    <SelectItem value="supabase">Supabase</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

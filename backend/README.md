@@ -43,12 +43,11 @@ FastAPI automatically generates interactive API documentation:
 ## 🔧 API Endpoints
 
 ### Authentication
-- `POST /api/auth/register` - Register with email/password
-- `POST /api/auth/login` - Login with email/password  
-- `POST /api/auth/login/firebase` - Login with Firebase OAuth token
-- `POST /api/auth/login/legacy` - Legacy username-based login
-- `GET /api/auth/me` - Get current authenticated user
-- `POST /api/auth/logout` - Logout
+- `GET /api/auth/me` - Get current authenticated user (Supabase JWT required)
+- `GET /api/auth/me/stats` - Retrieve usage statistics for the authenticated user
+- `GET /api/auth/check-username` - Check username availability
+- `PUT /api/auth/profile` - Update profile details and avatar
+- `POST /api/auth/logout` - Logout (Supabase manages session state)
 
 ### Characters  
 - `GET /api/characters` - List all characters
@@ -92,7 +91,7 @@ backend/
 ├── admin/               # Admin panel routes and logic
 │   └── routes.py        # Admin API endpoints
 ├── auth/                # Authentication system
-│   ├── auth_service.py  # Authentication business logic
+│   ├── supabase_auth.py  # Supabase token verification helpers
 │   └── routes.py        # Auth API endpoints
 ├── payment/             # Payment and token system
 │   ├── stripe_service.py # Stripe payment integration
@@ -143,7 +142,11 @@ My Character: *bows respectfully* Greetings, good traveler!"""
 
 ### Optional
 - `DATABASE_URL` - Database connection string (defaults to SQLite)
-- `FIREBASE_API_KEY` - Firebase API key for OAuth integration
+- `SUPABASE_URL` - Supabase project URL for storage/auth
+- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (required for JWT verification)
+- `SUPABASE_ANON_KEY` - Supabase public anon key (optional helper)
+- `SUPABASE_JWT_SECRET` - Supabase JWT secret used for access token verification
+- `SUPABASE_STORAGE_BUCKET` - Supabase storage bucket name for uploads
 - `ADMIN_PASSWORD` - Admin panel password (defaults to "admin123")
 - `DEBUG` - Enable debug mode (default: true)
 

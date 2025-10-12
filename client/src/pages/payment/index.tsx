@@ -23,8 +23,6 @@ import { apiRequest } from '@/lib/queryClient';
 import PaymentMethodSelector from '@/components/payment/PaymentMethodSelector';
 import { QRCodePayment } from '@/components/payment/QRCodePayment';
 import { PaymentMethod, SavedPaymentMethodSummary } from '@/types/payments';
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-
 // Initialize Stripe (you'll need to set your publishable key in environment variables)
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_your_key_here');
 
@@ -41,9 +39,7 @@ interface PricingTiers {
 }
 
 const fetchPricingTiers = async (): Promise<PricingTiers> => {
-  // Use env-configured base URL
-  const res = await fetch(`${API_BASE_URL}/api/payment/pricing-tiers`);
-  if (!res.ok) throw new Error('Failed to fetch pricing tiers');
+  const res = await apiRequest('GET', '/api/payment/pricing-tiers');
   return res.json();
 };
 
@@ -58,15 +54,7 @@ interface PaymentIntentResponse {
 }
 
 const fetchSavedPaymentMethods = async (): Promise<SavedPaymentMethodSummary[]> => {
-  const token = localStorage.getItem('auth_token');
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
-
   const res = await apiRequest('GET', '/api/payment/saved-payment-methods');
-  if (!res.ok) {
-    throw new Error('Failed to fetch saved payment methods');
-  }
   return res.json();
 };
 
@@ -76,11 +64,6 @@ const createPaymentIntent = async (
   returnUrl?: string,
   savePaymentMethod?: boolean
 ) => {
-  const token = localStorage.getItem('auth_token');
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
-
   const payload: Record<string, unknown> = {
     tier,
     amount: 0,
@@ -93,7 +76,6 @@ const createPaymentIntent = async (
   }
 
   const res = await apiRequest('POST', '/api/payment/create-payment-intent', payload);
-  if (!res.ok) throw new Error('Failed to create payment intent');
   return res.json() as Promise<PaymentIntentResponse>;
 };
 

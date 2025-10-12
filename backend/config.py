@@ -14,7 +14,7 @@ class Settings(BaseSettings):
     gemini_api_key: Optional[str] = None
     grok_api_key: Optional[str] = None  # xAI Grok API key
     
-    # Firebase settings
+    # Legacy Firebase settings (deprecated)
     firebase_api_key: Optional[str] = None
     
     # Stripe settings
@@ -47,12 +47,14 @@ class Settings(BaseSettings):
     enable_character_file_sync: bool = False          # Default disabled
     enable_startup_character_sync: bool = False       # Default disabled
 
-    # Supabase storage configuration
+    # Supabase settings
     supabase_url: Optional[str] = None
     supabase_service_role_key: Optional[str] = None
     supabase_anon_key: Optional[str] = None
     supabase_storage_bucket: Optional[str] = None
     supabase_public_bucket_base_url: Optional[str] = None  # Optional override for public URL base
+    supabase_jwt_secret: Optional[str] = None
+    supabase_jwt_audience: Optional[str] = "authenticated"
 
     @property
     def supabase_storage_enabled(self) -> bool:
@@ -80,9 +82,6 @@ def validate_settings():
     if not settings.grok_api_key:
         print("WARNING: GROK_API_KEY not found. Grok AI responses will be simulated.")
     
-    if not settings.firebase_api_key:
-        print("WARNING: FIREBASE_API_KEY not found. Google OAuth will not work.")
-
     if not settings.stripe_secret_key:
         print("WARNING: STRIPE_SECRET_KEY not found. Payment processing will not work.")
 
@@ -91,6 +90,9 @@ def validate_settings():
 
     if not settings.admin_jwt_secret:
         raise ValueError("ADMIN_JWT_SECRET is required for admin JWT authentication")
+
+    if not settings.supabase_jwt_secret:
+        print("WARNING: SUPABASE_JWT_SECRET not found. Supabase authentication will not work.")
     
     # Database configuration logging (mask sensitive parts)
     db_type = "PostgreSQL (Supabase)" if settings.database_url.startswith("postgresql") else "SQLite (Development)"
@@ -117,7 +119,7 @@ def validate_settings():
     print(f"Debug mode: {settings.debug}")
     print(f"Gemini API Key present: {'Yes' if settings.gemini_api_key else 'No'}")
     print(f"Grok API Key present: {'Yes' if settings.grok_api_key else 'No'}")
-    print(f"Firebase API Key present: {'Yes' if settings.firebase_api_key else 'No'}")
+    print(f"Supabase JWT Secret present: {'Yes' if settings.supabase_jwt_secret else 'No'}")
     print(f"Secret Key present: {'Yes' if settings.secret_key else 'No'}")
     print(f"Stripe Secret Key present: {'Yes' if settings.stripe_secret_key else 'No'}")
     if settings.redis_url:

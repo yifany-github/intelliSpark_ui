@@ -53,11 +53,6 @@ const fetchTokenTransactions = async (
   limit: number = 20, 
   type?: string
 ): Promise<{ transactions: TokenTransaction[]; total: number; pages: number }> => {
-  const token = localStorage.getItem('auth_token');
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
-
   const params = new URLSearchParams({
     page: page.toString(),
     limit: limit.toString(),
@@ -65,11 +60,6 @@ const fetchTokenTransactions = async (
   });
 
   const response = await apiRequest('GET', `/api/payment/user/transactions?${params}`);
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch transaction history');
-  }
-
   return response.json();
 };
 

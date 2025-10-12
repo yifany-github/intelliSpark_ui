@@ -40,17 +40,7 @@ interface TokenUsageStats {
 }
 
 const fetchTokenUsageStats = async (): Promise<TokenUsageStats> => {
-  const token = localStorage.getItem('auth_token');
-  if (!token) {
-    throw new Error('No authentication token found');
-  }
-
   const response = await apiRequest('GET', '/api/payment/user/stats');
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch usage statistics');
-  }
-
   return response.json();
 };
 
