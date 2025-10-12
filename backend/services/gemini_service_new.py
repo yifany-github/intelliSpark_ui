@@ -21,7 +21,6 @@ from typing import List, Optional, Dict, Tuple, Any
 from models import Character, ChatMessage
 from .ai_service_base import AIServiceBase, AIServiceError
 from prompts.system import SYSTEM_PROMPT
-from prompts.character_templates import OPENING_LINE_TEMPLATE
 from cache_components import SystemInstructionBuilder, ContentFormatConverter, CacheManager
 from utils.prompt_selector import select_system_prompt
 import logging
@@ -181,8 +180,23 @@ class GeminiService(AIServiceBase):
             else:
                 self.logger.info("🚀 Generating opening line without character context")
             
-            # Create opening line prompt using template
-            opening_prompt = OPENING_LINE_TEMPLATE.format(character_name=character.name)
+            # Create lightweight opening prompt that only depends on user-facing info
+            description = character.description or character.backstory or ""
+            description = description.strip()
+            # Keep prompt short to shave latency – no full persona / few-shot payloads
+            if description:
+                description = description[:220]
+                opening_prompt = (
+                    f"You are {character.name}. {description}\n"
+                    "Introduce yourself with one concise, warm opening line that feels natural in conversation. "
+                    "Avoid meta explanations."
+                )
+            else:
+                opening_prompt = (
+                    f"You are {character.name}. "
+                    "Introduce yourself with one concise, warm opening line that feels natural in conversation. "
+                    "Avoid meta explanations."
+                )
             
             # Create or get cache with selected SAFE/NSFW system prompt
             cache = await self._create_or_get_cache(character_prompt, character)

@@ -84,6 +84,9 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
     }
 
     // Check if message was already typed (exists in localStorage)
+    const createdAtMs = message.createdAt ? new Date(message.createdAt).getTime() : null;
+    const isStaleMessage = createdAtMs ? Date.now() - createdAtMs > 15000 : false;
+
     const typedMessagesKey = 'typed_messages';
     const getTypedMessages = () => {
       try {
@@ -97,8 +100,8 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
     const typedMessages: number[] = getTypedMessages();
     const wasAlreadyTyped = typedMessages.includes(message.id);
 
-    if (wasAlreadyTyped || hasInitialized.current) {
-      // Already typed before, show immediately
+    if (wasAlreadyTyped || hasInitialized.current || isStaleMessage) {
+      // Already typed before or historic message, show immediately
       setDisplayedContent(message.content);
       return;
     }

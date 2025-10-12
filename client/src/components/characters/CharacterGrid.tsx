@@ -107,7 +107,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const { navigateToPath, navigateToLogin } = useNavigation();
+  const { navigateToLogin } = useNavigation();
 
   // Helper function to detect NSFW content in character (primary: explicit flag; secondary: keyword heuristic)
   const isCharacterNSFW = (character: Character): boolean => {
@@ -242,29 +242,30 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       return response.json();
     },
     onSuccess: (chat) => {
-      // ✅ REDIRECT: Replace temporary creating state with real chat (no history entry)
-      // SECURITY: Always use UUID for privacy - no fallback to integer ID
-      if (!chat.uuid) {
-        console.error('Security error: Chat UUID missing from API response');
+      const chatIdentifier = chat?.uuid || chat?.id;
+
+      if (!chatIdentifier) {
+        console.error('Chat creation response missing identifier:', chat);
         toast({
-          title: 'Unable to start chat',
-          description: 'There was a technical issue creating your chat. Please try again.',
+          title: t('error') || 'Error',
+          description: t('failedToStartChat') || 'Unable to start chat. Please try again.',
           variant: 'destructive',
         });
-        navigateToPath('/chat'); // Fallback to generic chat page
+        setLocation('/', { replace: true });
         return;
       }
-      setLocation(`/chat/${chat.uuid}`, { replace: true });
+
+      // Replace the temporary state with the real chat route to avoid history flicker
+      setLocation(`/chat/${chatIdentifier}`, { replace: true });
     },
     onError: (error) => {
       console.error('Failed to create chat:', error);
       toast({
-        title: 'Chat creation failed',
-        description: 'Unable to start your conversation. Please check your connection and try again.',
+        title: t('error') || 'Error',
+        description: t('failedToStartChat') || 'Unable to start chat. Please try again.',
         variant: 'destructive',
       });
-      // Fallback to generic chat page if creation fails
-      navigateToPath('/chat');
+      setLocation('/', { replace: true });
     }
   });
   
@@ -495,15 +496,14 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       return;
     }
     
-    // ✅ STORE CHARACTER: Set character data immediately for instant avatar loading
+    // ✅ STORE CHARACTER: Set character data immediately so chat page can render instantly
     setSelectedCharacter(character);
-    
-    // ✅ IMMEDIATE: Navigate to chat with character data pre-loaded
-    // This gives instant feedback while chat is being created
-    navigateToPath(`/chat/creating?characterId=${character.id}&name=${encodeURIComponent(character.name)}`);
     handlePreviewClose();
-    
-    // 🚀 BACKGROUND: Create chat asynchronously 
+
+    // 🚀 Navigate right away to render chat shell while creation happens
+    setLocation(`/chat/pending-${character.id}`);
+
+    // 🚀 Create chat and navigate once the real identifier is available
     createChat({
       characterId: character.id
     });
@@ -992,11 +992,12 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                             console.error('Failed to start chat:', error);
                           }
                         }}
-                        className="w-full py-3 bg-brand-secondary text-zinc-900 rounded-lg font-bold text-sm hover:bg-brand-secondary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-black"
+                        disabled={isCreatingChat}
+                        className="w-full py-3 bg-brand-secondary text-zinc-900 rounded-lg font-bold text-sm hover:bg-brand-secondary/90 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-secondary focus:ring-offset-2 focus:ring-offset-black disabled:opacity-60 disabled:cursor-not-allowed"
                       >
                         <div className="flex items-center justify-center space-x-2">
                           <MessageCircle className="w-4 h-4" />
-                          <span>开始聊天</span>
+                          <span>{isCreatingChat ? '创建中...' : '开始聊天'}</span>
                         </div>
                       </button>
 

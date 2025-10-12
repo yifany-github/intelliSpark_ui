@@ -45,6 +45,7 @@ export interface Character {
 
 export interface Chat {
   id: number;
+  uuid?: string;
   userId: number;
   characterId: number;
   title: string;
@@ -64,6 +65,7 @@ export interface ChatMessage {
 
 // Enriched chat type with character data
 export interface EnrichedChat extends Chat {
+  uuid?: string;
   latestMessagePreview?: string | null;
   character: {
     id: number;
