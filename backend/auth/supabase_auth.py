@@ -112,9 +112,24 @@ def sync_user_from_supabase_payload(db: Session, payload: Dict[str, Any]) -> Use
     if needs_commit:
         try:
             db.commit()
-        except Exception:
+        except Exception as exc:
             db.rollback()
-            raise
+
+            # Handle unique constraint races gracefully by refetching the persisted row
+            from sqlalchemy.exc import IntegrityError
+
+            if isinstance(exc, IntegrityError):
+                lookup = None
+                if supabase_user_id:
+                    lookup = db.query(User).filter(User.auth_user_id == supabase_user_id).first()
+                if not lookup and email:
+                    lookup = db.query(User).filter(User.email == email).first()
+                if lookup:
+                    user = lookup
+                else:
+                    raise
+            else:
+                raise
         db.refresh(user)
 
     if created:
