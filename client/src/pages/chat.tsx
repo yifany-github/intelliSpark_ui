@@ -15,6 +15,7 @@ import { useNavigation } from "@/contexts/NavigationContext";
 import { invalidateTokenBalance } from "@/services/tokenService";
 import { queryClient } from "@/lib/queryClient";
 import { useChatQueryLifecycle } from "@/hooks/useChatQueryLifecycle";
+import { useChatRealtime } from "@/hooks/useChatRealtime";
 import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft, Sparkles, Filter, Pin, Trash2, Info } from "lucide-react";
 import {
   Sheet,
@@ -30,8 +31,11 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { loadPendingChatRequest, clearPendingChatRequest, savePendingChatRequest, PendingChatRequest } from "@/utils/pendingChat";
+import { supabase } from "@/lib/supabaseClient";
 
 const createTempMessageId = () => -Math.floor(Date.now() + Math.random() * 1000);
+const MAX_PENDING_CHAT_AGE_MS = 2 * 60 * 1000;
 
 interface ChatPageProps {
   chatId?: string;
@@ -68,6 +72,74 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     return Number.isFinite(parsed) ? parsed : null;
   }, [isPendingChat, chatId]);
 
+  const pendingRetryAttemptedRef = useRef(false);
+  const pendingPollStopRef = useRef<() => void>(() => undefined);
+
+  const pendingChatMutation = useMutation({
+    mutationFn: async ({ characterId, idempotencyKey }: { characterId: number; idempotencyKey: string }) => {
+      savePendingChatRequest({ characterId, idempotencyKey, startedAt: Date.now() });
+      const response = await apiRequest(
+        "POST",
+        "/api/chats",
+        {
+          characterId,
+          title: t("chatWithCharacter"),
+          idempotencyKey,
+        }
+      );
+      return response.json();
+    },
+    onSuccess: (createdChat) => {
+      clearPendingChatRequest();
+      pendingRetryAttemptedRef.current = false;
+      pendingPollStopRef.current();
+      pendingPollStopRef.current = () => undefined;
+      const chatIdentifier = createdChat?.uuid || createdChat?.id;
+      if (!chatIdentifier) {
+        toast({
+          title: t("error") || "Error",
+          description: t("failedToStartChat") || "Unable to start chat. Please try again.",
+          variant: "destructive",
+        });
+        navigateToPath("/chat");
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
+      const createdIdempotencyKey = createdChat?.idempotencyKey ?? (createdChat as { idempotency_key?: string })?.idempotency_key;
+      if (createdIdempotencyKey) {
+        queryClient.removeQueries({ queryKey: ["/api/chats", { idempotencyKey: createdIdempotencyKey }] });
+      }
+      setIsTyping(false);
+      navigateToPath(`/chat/${chatIdentifier}`);
+    },
+    onError: (error) => {
+      clearPendingChatRequest();
+      pendingRetryAttemptedRef.current = false;
+      pendingPollStopRef.current();
+      pendingPollStopRef.current = () => undefined;
+      setIsTyping(false);
+
+      const message = error instanceof Error ? error.message : "";
+      if (message.includes("401")) {
+        toast({
+          title: "Session expired",
+          description: "Please sign in again to continue.",
+          variant: "destructive",
+        });
+        navigateToPath("/login");
+        return;
+      }
+
+      toast({
+        title: t("error") || "Error",
+        description: t("failedToStartChat") || "Unable to start chat. Please try again.",
+        variant: "destructive",
+      });
+      navigateToPath("/chat");
+    },
+  });
+
   // Refresh chat data whenever the tab regains focus or visibility
   useChatQueryLifecycle(activeChatId);
 
@@ -76,6 +148,167 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       setIsTyping(true);
     }
   }, [isPendingChat, setIsTyping]);
+
+  useEffect(() => {
+    if (!isPendingChat) {
+      pendingRetryAttemptedRef.current = false;
+      pendingPollStopRef.current();
+      pendingPollStopRef.current = () => undefined;
+      return;
+    }
+
+    let cancelled = false;
+    pendingPollStopRef.current();
+    pendingPollStopRef.current = () => {
+      cancelled = true;
+    };
+
+    const maybeRedirectToExistingChat = (
+      pending: PendingChatRequest,
+      chatsData: EnrichedChat[],
+    ) => {
+      const pendingCharacterIdNumber = Number(pending.characterId);
+      const matching = chatsData.find((item) => {
+        const camelId = item.characterId;
+        const legacyCharacterId = (item as { character_id?: number | string }).character_id;
+        const characterFromRelation = item.character?.id;
+
+        const resolvedCharacterIdRaw = camelId ?? legacyCharacterId ?? characterFromRelation;
+        const resolvedCharacterId =
+          resolvedCharacterIdRaw === undefined || resolvedCharacterIdRaw === null
+            ? undefined
+            : Number(resolvedCharacterIdRaw);
+
+        if (
+          resolvedCharacterId === undefined ||
+          Number.isNaN(resolvedCharacterId) ||
+          resolvedCharacterId !== pendingCharacterIdNumber
+        ) {
+          return false;
+        }
+        const itemKey = item.idempotencyKey ?? (item as { idempotency_key?: string }).idempotency_key;
+        return itemKey === pending.idempotencyKey;
+      });
+      if (matching) {
+        const identifier = matching.uuid || matching.id;
+        if (identifier) {
+          clearPendingChatRequest();
+          setIsTyping(false);
+          navigateToPath(`/chat/${identifier}`);
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const attemptRecovery = async () => {
+      const pending = loadPendingChatRequest();
+
+      if (!pendingCharacterId || !pending || pending.characterId !== pendingCharacterId) {
+        clearPendingChatRequest();
+        setIsTyping(false);
+        toast({
+          title: t("error") || "Error",
+          description: t("failedToStartChat") || "Unable to start chat. Please try again.",
+          variant: "destructive",
+        });
+        navigateToPath("/chat");
+        return;
+      }
+
+      const sessionResult = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (!sessionResult.data.session) {
+        clearPendingChatRequest();
+        setIsTyping(false);
+        toast({
+          title: "Session expired",
+          description: "Please sign in again to continue.",
+          variant: "destructive",
+        });
+        navigateToPath("/login");
+        return;
+      }
+
+      const pollIntervalMs = 1500;
+      const startedAt = pending.startedAt;
+
+      const pollOnce = async () => {
+        let chatsByKey: EnrichedChat[] = [];
+        try {
+          const response = await apiRequest(
+            "GET",
+            `/api/chats?idempotency_key=${encodeURIComponent(pending.idempotencyKey)}`
+          );
+          const data = await response.json();
+          chatsByKey = Array.isArray(data) ? data : [];
+        } catch (error) {
+          console.warn("Pending chat poll failed", error);
+        }
+
+        if (maybeRedirectToExistingChat(pending, chatsByKey)) {
+          return true;
+        }
+
+        const age = Date.now() - startedAt;
+        if (age > MAX_PENDING_CHAT_AGE_MS) {
+          clearPendingChatRequest();
+          setIsTyping(false);
+          toast({
+            title: t("error") || "Error",
+            description: t("failedToStartChat") || "Unable to start chat. Please try again.",
+            variant: "destructive",
+          });
+          navigateToPath("/chat");
+          return true;
+        }
+
+        if (!pendingChatMutation.isPending && !pendingRetryAttemptedRef.current) {
+          pendingRetryAttemptedRef.current = true;
+          pendingChatMutation.mutate({
+            characterId: pending.characterId,
+            idempotencyKey: pending.idempotencyKey,
+          });
+        }
+
+        return false;
+      };
+
+      const pollLoop = async () => {
+        const initialDelayMs = 500;
+        await new Promise((resolve) => setTimeout(resolve, initialDelayMs));
+        if (cancelled) {
+          return;
+        }
+
+        while (!cancelled) {
+          const done = await pollOnce();
+          if (done) {
+            return;
+          }
+          await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+        }
+      };
+
+      await pollLoop();
+    };
+
+    void attemptRecovery();
+
+    return () => {
+      cancelled = true;
+      pendingPollStopRef.current();
+      pendingPollStopRef.current = () => undefined;
+    };
+  }, [
+    isPendingChat,
+    pendingCharacterId,
+    pendingChatMutation.isPending,
+    navigateToPath,
+    toast,
+    t,
+    setIsTyping,
+  ]);
 
   // If no chatId is provided, show chat list
   const showChatListOnly = !chatId;
@@ -100,6 +333,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     queryKey: ["/api/chats"],
   });
 
+  const emptyMessagesRecoveryRef = useRef(false);
+
   const matchingChat = useMemo(() => {
     if (!activeChatId) {
       return undefined;
@@ -119,6 +354,11 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     }
     return item.id === matchingChat.id;
   };
+
+  // Subscribe to real-time message updates via Supabase Realtime
+  // MUST be called AFTER matchingChat is declared to avoid temporal dead zone
+  // Pass both UUID (for query key) and numeric ID (for database filter)
+  useChatRealtime(activeChatId, matchingChat?.id);
 
   // Fetch chat messages if chatId is provided
   const {
@@ -220,7 +460,23 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   useEffect(() => {
     if (messages.length === 0) {
       lastAssistantMessageIdRef.current = null;
+      if (
+        !isLoadingMessages &&
+        matchingChat &&
+        typeof matchingChat.messageCount === "number" &&
+        matchingChat.messageCount > 0 &&
+        !emptyMessagesRecoveryRef.current
+      ) {
+        emptyMessagesRecoveryRef.current = true;
+        void queryClient.invalidateQueries({ queryKey: [`/api/chats/${activeChatId}/messages`] });
+      }
       return;
+    }
+
+    // Reset recovery ref when messages successfully load
+    // This allows future recovery attempts if needed
+    if (emptyMessagesRecoveryRef.current) {
+      emptyMessagesRecoveryRef.current = false;
     }
 
     const lastAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant");
@@ -239,6 +495,11 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       setIsTyping(false);
     }
   }, [messages, isTyping, setIsTyping]);
+
+  // Reset recovery ref when chat changes
+  useEffect(() => {
+    emptyMessagesRecoveryRef.current = false;
+  }, [activeChatId]);
 
   const {
     data: pendingCharacter,

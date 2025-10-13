@@ -15,10 +15,17 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   },
 });
 
+/**
+ * Get Supabase access token for API requests.
+ * This reads from Supabase's in-memory session cache (fast, synchronous-like).
+ * Token is automatically refreshed by Supabase client when expired.
+ *
+ * @returns Access token or null if not authenticated
+ */
 export async function getSupabaseAccessToken(): Promise<string | null> {
   const { data, error } = await supabase.auth.getSession();
   if (error) {
-    console.error('Failed to fetch Supabase session:', error.message);
+    console.error('[Auth] Failed to fetch Supabase session:', error.message);
     return null;
   }
   return data.session?.access_token ?? null;

@@ -101,7 +101,7 @@ export const queryClient = new QueryClient({
         return queryKey === '/api/characters' || /^\/api\/characters\/\d+$/.test(queryKey);
       },
       staleTime: (query) => {
-        // Character-related queries should refresh more frequently to pick up 
+        // Character-related queries should refresh more frequently to pick up
         // real-time description/trait updates from persona prompts (Issue #119)
         const queryKey = query.queryKey[0] as string;
         // More targeted caching: only character endpoints, not all chats
@@ -111,6 +111,11 @@ export const queryClient = new QueryClient({
         // Chat list can be cached longer since character data in chats is updated via real-time sync
         if (queryKey === '/api/chats') {
           return 2 * 60 * 1000; // 2 minutes for chat list
+        }
+        // Chat messages should have no stale time to catch async-generated opening lines
+        // and post-idle-refresh scenarios. Polling/realtime will handle updates.
+        if (typeof queryKey === 'string' && queryKey.includes('/messages')) {
+          return 0; // Always considered stale, refetch when needed
         }
         return Infinity; // Other data cached forever
       },

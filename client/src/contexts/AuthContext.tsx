@@ -152,7 +152,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     initialise();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      // Invalidate React Query caches on token refresh or sign in to prevent stale data
+      // This fixes the bug where users get stuck in pending state after idle timeout
+      if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+        console.log(`[Auth] ${event} - Invalidating React Query caches`);
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const key = query.queryKey?.[0];
+            return typeof key === 'string' && key.startsWith('/api/');
+          }
+        });
+      }
+
       syncUserFromSession(session);
     });
 
