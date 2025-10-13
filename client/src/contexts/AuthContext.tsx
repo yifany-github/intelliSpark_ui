@@ -10,7 +10,7 @@ import React, {
 import { Session } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { User } from '../types';
+import { User, ChatMessage } from '../types';
 import { supabase } from '@/lib/supabaseClient';
 
 // Authentication context type
@@ -173,6 +173,79 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       listener.subscription.unsubscribe();
     };
   }, [clearAuthState, syncUserFromSession]);
+
+  // Per-user realtime subscription for all chat messages
+  // This eliminates subscription gaps caused by per-chat subscriptions
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log(`[Realtime] Setting up per-user subscription for user ${user.id}`);
+
+    const channel = supabase
+      .channel('user-messages')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'chat_messages',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('[Realtime] New message received:', payload.new);
+
+          const newMessage = payload.new as ChatMessage;
+
+          // Update cache for the specific chat this message belongs to
+          const chatUuid = newMessage.chat_uuid;
+          if (chatUuid) {
+            queryClient.setQueryData<ChatMessage[]>(
+              [`/api/chats/${chatUuid}/messages`],
+              (oldMessages = []) => {
+                // Avoid duplicates
+                const messageExists = oldMessages.some(msg => msg.id === newMessage.id);
+                if (messageExists) {
+                  console.log('[Realtime] Message already in cache, skipping');
+                  return oldMessages;
+                }
+
+                console.log('[Realtime] Adding message to cache');
+                return [...oldMessages, newMessage];
+              }
+            );
+          }
+
+          // Invalidate chat list to update message counts
+          queryClient.invalidateQueries({ queryKey: ['/api/chats'] });
+        }
+      )
+      .subscribe((status) => {
+        console.log(`[Realtime] Per-user subscription status:`, status);
+      });
+
+    // Handle visibility change: refetch when tab regains focus
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        console.log('[Realtime] Tab became visible, invalidating message queries');
+        // Invalidate all message queries to catch any missed during tab sleep
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const key = query.queryKey?.[0];
+            return typeof key === 'string' && key.includes('/messages');
+          }
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Cleanup on unmount or user change
+    return () => {
+      console.log(`[Realtime] Cleaning up per-user subscription for user ${user.id}`);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, queryClient]);
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);

@@ -35,13 +35,17 @@ class ChatService:
         self.logger = logging.getLogger(__name__)
         self.ai_service = AIService()
 
-    async def get_user_chats(self, user_id: int) -> List[Dict[str, Any]]:
+    async def get_user_chats(self, user_id: int, character_id: Optional[int] = None, idempotency_key: Optional[str] = None) -> List[Dict[str, Any]]:
         try:
             stmt = (
                 select(Chat)
                 .where(Chat.user_id == user_id)
                 .order_by(Chat.updated_at.desc())
             )
+            if character_id is not None:
+                stmt = stmt.where(Chat.character_id == character_id)
+            if idempotency_key is not None:
+                stmt = stmt.where(Chat.idempotency_key == idempotency_key)
             chats = (await self.db.execute(stmt)).scalars().all()
 
             enriched: List[Dict[str, Any]] = []
@@ -78,6 +82,8 @@ class ChatService:
                         "id": chat.id,
                         "user_id": chat.user_id,
                         "character_id": chat.character_id,
+                        "idempotency_key": chat.idempotency_key,
+                        "idempotencyKey": chat.idempotency_key,
                         "title": chat.title,
                         "created_at": chat.created_at.isoformat() + "Z" if chat.created_at else None,
                         "updated_at": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
@@ -131,6 +137,8 @@ class ChatService:
                 "uuid": chat.uuid,
                 "user_id": chat.user_id,
                 "character_id": chat.character_id,
+                "idempotency_key": chat.idempotency_key,
+                "idempotencyKey": chat.idempotency_key,
                 "title": chat.title,
                 "created_at": chat.created_at.isoformat() + "Z" if chat.created_at else None,
                 "updated_at": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
@@ -152,6 +160,8 @@ class ChatService:
                 "uuid": str(chat.uuid) if chat.uuid else None,
                 "user_id": chat.user_id,
                 "character_id": chat.character_id,
+                "idempotency_key": chat.idempotency_key,
+                "idempotencyKey": chat.idempotency_key,
                 "title": chat.title,
                 "created_at": chat.created_at.isoformat() + "Z" if chat.created_at else None,
                 "updated_at": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
@@ -165,13 +175,32 @@ class ChatService:
         self,
         chat_data: ChatCreate,
         user_id: int,
-    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+    ) -> Tuple[bool, Optional[Chat], Optional[str], bool]:
         try:
+            if chat_data.idempotencyKey:
+                stmt = select(Chat).where(
+                    Chat.user_id == user_id,
+                    Chat.idempotency_key == chat_data.idempotencyKey,
+                )
+                existing_chat = (await self.db.execute(stmt)).scalars().first()
+                if existing_chat:
+                    self.logger.info(
+                        "Returning existing chat %s for idempotency key %s",
+                        existing_chat.id,
+                        chat_data.idempotencyKey,
+                    )
+                    return True, existing_chat, None, False
+
             character = await self.db.get(Character, chat_data.characterId)
             if not character:
-                return False, {}, "Character not found"
+                return False, None, "Character not found", False
 
-            chat = Chat(user_id=user_id, character_id=chat_data.characterId, title=chat_data.title)
+            chat = Chat(
+                user_id=user_id,
+                character_id=chat_data.characterId,
+                title=chat_data.title,
+                idempotency_key=chat_data.idempotencyKey,
+            )
             self.db.add(chat)
             await self.db.commit()
             await self.db.refresh(chat)
@@ -182,12 +211,12 @@ class ChatService:
                 await self.db.refresh(chat)
 
             self.logger.info("Chat created immediately: %s (UUID: %s)", chat.id, chat.uuid)
-            return True, chat, None
+            return True, chat, None, True
 
         except SQLAlchemyError as exc:
             await self.db.rollback()
             self.logger.error("Error creating chat: %s", exc)
-            return False, {}, f"Chat creation failed: {exc}"
+            return False, None, f"Chat creation failed: {exc}", False
 
     async def generate_opening_line_async(self, chat_id: int, character_id: int) -> None:
         try:
@@ -211,6 +240,7 @@ class ChatService:
                     ChatMessage(
                         chat_id=chat_id,
                         chat_uuid=chat.uuid,
+                        user_id=chat.user_id,
                         role="assistant",
                         content=opening_line,
                     )
@@ -279,6 +309,7 @@ class ChatService:
             ai_message = ChatMessage(
                 chat_id=chat_id,
                 chat_uuid=chat.uuid,
+                user_id=user_id,
                 role="assistant",
                 content=response_content,
             )
@@ -391,6 +422,7 @@ class ChatService:
             opening_message = ChatMessage(
                 chat_id=chat_id,
                 chat_uuid=chat.uuid,
+                user_id=user_id,
                 role="assistant",
                 content=opening_line,
             )

@@ -15,7 +15,6 @@ import { useNavigation } from "@/contexts/NavigationContext";
 import { invalidateTokenBalance } from "@/services/tokenService";
 import { queryClient } from "@/lib/queryClient";
 import { useChatQueryLifecycle } from "@/hooks/useChatQueryLifecycle";
-import { useChatRealtime } from "@/hooks/useChatRealtime";
 import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft, Sparkles, Filter, Pin, Trash2, Info } from "lucide-react";
 import {
   Sheet,
@@ -354,11 +353,6 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     }
     return item.id === matchingChat.id;
   };
-
-  // Subscribe to real-time message updates via Supabase Realtime
-  // MUST be called AFTER matchingChat is declared to avoid temporal dead zone
-  // Pass both UUID (for query key) and numeric ID (for database filter)
-  useChatRealtime(activeChatId, matchingChat?.id);
 
   // Fetch chat messages if chatId is provided
   const {
