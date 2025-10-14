@@ -1,6 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-import { getSupabaseAccessToken, supabase } from "@/lib/supabaseClient";
+import { getAccessTokenCached, refreshAccessToken, invalidateCachedAccessToken } from "@/utils/auth";
+import { supabase } from "@/lib/supabaseClient";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -10,30 +11,6 @@ async function throwIfResNotOk(res: Response) {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
-
-let inFlightSessionRefresh: Promise<string | null> | null = null;
-
-async function requestFreshAccessToken(): Promise<string | null> {
-  if (!inFlightSessionRefresh) {
-    inFlightSessionRefresh = supabase.auth
-      .getSession()
-      .then(({ data, error }) => {
-        if (error) {
-          console.error("[Auth] Failed to get Supabase session:", error.message);
-          return null;
-        }
-        if (!data.session) {
-          console.warn("[Auth] No active Supabase session");
-          return null;
-        }
-        return data.session.access_token ?? null;
-      })
-      .finally(() => {
-        inFlightSessionRefresh = null;
-      });
-  }
-  return inFlightSessionRefresh;
-}
 
 async function buildHeaders(
   initHeaders: HeadersInit | undefined,
@@ -77,11 +54,14 @@ export async function apiRequest(
     });
   };
 
-  let accessToken = await getSupabaseAccessToken();
+  let accessToken = await getAccessTokenCached();
   let response = await attempt(accessToken);
+  let refreshedToken: string | null = null;
 
   if (response.status === 401 && accessToken) {
-    const refreshedToken = await requestFreshAccessToken();
+    invalidateCachedAccessToken();
+    invalidateCachedAccessToken();
+    refreshedToken = await refreshAccessToken();
     if (refreshedToken) {
       accessToken = refreshedToken;
       response = await attempt(accessToken);
@@ -90,11 +70,17 @@ export async function apiRequest(
 
   if (response.status === 401) {
     console.warn("[Auth] Request still unauthorized after refresh, verifying session");
-    const freshToken = await requestFreshAccessToken();
-    if (!freshToken) {
-      console.warn("[Auth] No active session; signing out");
-      await supabase.auth.signOut();
+    invalidateCachedAccessToken();
+    const freshToken = await refreshAccessToken();
+    if (freshToken) {
+      accessToken = freshToken;
+      response = await attempt(accessToken);
+      await throwIfResNotOk(response);
+      return response;
     }
+
+    console.warn("[Auth] Unable to refresh session; signing out");
+    await supabase.auth.signOut();
   }
 
   await throwIfResNotOk(response);
@@ -118,11 +104,12 @@ export const getQueryFn: <T>(options: {
       });
     };
 
-    let accessToken = await getSupabaseAccessToken();
+    let accessToken = await getAccessTokenCached();
     let response = await attempt(accessToken);
+    let refreshedToken: string | null = null;
 
     if (response.status === 401 && accessToken) {
-      const refreshedToken = await requestFreshAccessToken();
+      refreshedToken = await refreshAccessToken();
       if (refreshedToken) {
         accessToken = refreshedToken;
         response = await attempt(accessToken);
@@ -131,9 +118,13 @@ export const getQueryFn: <T>(options: {
 
     if (response.status === 401) {
       console.warn("[Auth] Query still unauthorized after refresh, verifying session");
-      const freshToken = await requestFreshAccessToken();
-      if (!freshToken) {
-        console.warn("[Auth] No active session; signing out");
+      invalidateCachedAccessToken();
+      const freshToken = await refreshAccessToken();
+      if (freshToken) {
+        accessToken = freshToken;
+        response = await attempt(accessToken);
+      } else {
+        console.warn("[Auth] Unable to refresh session; signing out");
         await supabase.auth.signOut();
         if (unauthorizedBehavior === 'returnNull') {
           return null;
@@ -167,6 +158,9 @@ export const queryClient = new QueryClient({
         // Chat list can be cached longer since character data in chats is updated via real-time sync
         if (queryKey === '/api/chats') {
           return 2 * 60 * 1000; // 2 minutes for chat list
+        }
+        if (queryKey === '/api/auth/me') {
+          return 0;
         }
         // Chat messages should have no stale time to catch async-generated opening lines
         // and post-idle-refresh scenarios. Polling/realtime will handle updates.

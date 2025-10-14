@@ -13,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { User, ChatMessage } from '../types';
 import { supabase } from '@/lib/supabaseClient';
 import { clearPendingChatRequest } from '@/utils/pendingChat';
+import { invalidateCachedAccessToken, refreshAccessToken } from '@/utils/auth';
 
 // Authentication context type
 interface AuthContextType {
@@ -44,6 +45,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const clearAuthState = useCallback(() => {
     setUser(null);
     setToken(null);
+    invalidateCachedAccessToken();
 
     const privatePrefixes = [
       '/api/auth',
@@ -179,29 +181,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     initialise();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      // Invalidate React Query caches on token refresh or sign in to prevent stale data
-      // Throttle to prevent rate limit loops (max once per 10 seconds)
-      if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
-        const now = Date.now();
-        const timeSinceLastInvalidation = now - lastCacheInvalidation.current;
-
-        if (timeSinceLastInvalidation > 10000) {
-          console.log(`[Auth] ${event} - Invalidating React Query caches`);
-          lastCacheInvalidation.current = now;
-
-          queryClient.invalidateQueries({
-            predicate: (query) => {
-              const key = query.queryKey?.[0];
-              return typeof key === 'string' && key.startsWith('/api/');
-            }
-          });
-        } else {
-          console.log(`[Auth] ${event} - Skipping cache invalidation (throttled, ${Math.round(timeSinceLastInvalidation / 1000)}s ago)`);
-        }
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        invalidateCachedAccessToken();
+        await refreshAccessToken();
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const key = query.queryKey?.[0];
+            return typeof key === 'string' && key.startsWith('/api/');
+          }
+        });
       }
 
-      syncUserFromSession(session);
+      await syncUserFromSession(session);
     });
 
     return () => {
@@ -217,54 +209,117 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     console.log(`[Realtime] Setting up per-user subscription for user ${user.id}`);
 
-    const channel = supabase
-      .channel('user-messages')
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'chat_messages',
-          filter: `user_id=eq.${user.id}`,
+    let cancelled = false;
+    let currentChannel: ReturnType<typeof supabase.channel> | null = null;
+    let retryDelay = 1000;
+    let retryTimeout: number | null = null;
+
+    const invalidateChatQueries = () => {
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey?.[0];
+          return (
+            typeof key === 'string' &&
+            (key.startsWith('/api/chats') || key.includes('/messages'))
+          );
         },
-        (payload) => {
-          console.log('[Realtime] New message received:', payload.new);
-
-          const newMessage = payload.new as ChatMessage;
-
-          // Update cache for the specific chat this message belongs to
-          const chatUuid = newMessage.chat_uuid;
-          const chatId = newMessage.chat_id;
-
-          const mergeMessage = (oldMessages: ChatMessage[] = []) => {
-            const exists = oldMessages.some((msg) => msg.id === newMessage.id);
-            if (exists) {
-              console.log('[Realtime] Message already in cache, skipping');
-              return oldMessages;
-            }
-            console.log('[Realtime] Adding message to cache');
-            return [...oldMessages, newMessage];
-          };
-
-          if (chatUuid) {
-            queryClient.setQueryData<ChatMessage[]>([`/api/chats/${chatUuid}/messages`], mergeMessage);
-          }
-
-          if (typeof chatId === 'number') {
-            queryClient.setQueryData<ChatMessage[]>([`/api/chats/${chatId}/messages`], mergeMessage);
-            queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}`] });
-          }
-
-          // Invalidate chat list to update message counts
-          queryClient.invalidateQueries({ queryKey: ['/api/chats'] });
-          if (newMessage.role === 'assistant') {
-            setIsTyping(false);
-          }
-        }
-      )
-      .subscribe((status) => {
-        console.log(`[Realtime] Per-user subscription status:`, status);
       });
+    };
+
+    const scheduleRetry = () => {
+      if (retryTimeout) {
+        window.clearTimeout(retryTimeout);
+      }
+      retryTimeout = window.setTimeout(() => {
+        retryTimeout = null;
+        subscribe();
+      }, retryDelay);
+      retryDelay = Math.min(Math.floor(retryDelay * 1.5), 5000);
+    };
+
+    const subscribe = () => {
+      if (cancelled) {
+        return;
+      }
+
+      if (currentChannel) {
+        supabase.removeChannel(currentChannel);
+        currentChannel = null;
+      }
+
+      currentChannel = supabase
+        .channel('user-messages')
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'chat_messages',
+            filter: `user_id=eq.${user.id}`,
+          },
+          (payload) => {
+            console.log('[Realtime] New message received:', payload.new);
+
+            const newMessage = payload.new as ChatMessage;
+            const chatUuid = newMessage.chat_uuid;
+            const chatId = newMessage.chat_id;
+
+            const mergeMessage = (oldMessages: ChatMessage[] = []) => {
+              const exists = oldMessages.some((msg) => msg.id === newMessage.id);
+              if (exists) {
+                console.log('[Realtime] Message already in cache, skipping');
+                return oldMessages;
+              }
+              console.log('[Realtime] Adding message to cache');
+              return [...oldMessages, newMessage];
+            };
+
+            if (chatUuid) {
+              queryClient.setQueryData<ChatMessage[]>([`/api/chats/${chatUuid}/messages`], mergeMessage);
+            }
+            if (typeof chatId === 'number') {
+              queryClient.setQueryData<ChatMessage[]>([`/api/chats/${chatId}/messages`], mergeMessage);
+              queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}`] });
+            }
+
+            queryClient.invalidateQueries({ queryKey: ['/api/chats'] });
+            if (newMessage.role === 'assistant') {
+              setIsTyping(false);
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log(`[Realtime] Per-user subscription status:`, status);
+          if (status === 'SUBSCRIBED') {
+            retryDelay = 1000;
+            if (retryTimeout) {
+              window.clearTimeout(retryTimeout);
+              retryTimeout = null;
+            }
+            queryClient.refetchQueries({
+              predicate: (query) => {
+                const key = query.queryKey?.[0];
+                return typeof key === 'string' && (key.startsWith('/api/chats') || key.includes('/messages'));
+              },
+            });
+          }
+
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.warn(`[Realtime] Subscription issue (${status}), scheduling retry in ${retryDelay}ms`);
+            invalidateChatQueries();
+            setIsTyping(false);
+            scheduleRetry();
+          }
+
+          if (status === 'CLOSED' && !cancelled) {
+            console.warn('[Realtime] Subscription closed unexpectedly, resubscribing');
+            setIsTyping(false);
+            scheduleRetry();
+          }
+        });
+    };
+
+    subscribe();
 
     // Handle visibility change: refetch when tab regains focus
     const handleVisibilityChange = () => {
@@ -285,8 +340,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // Cleanup on unmount or user change
     return () => {
       console.log(`[Realtime] Cleaning up per-user subscription for user ${user.id}`);
+      cancelled = true;
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      supabase.removeChannel(channel);
+      if (retryTimeout) {
+        window.clearTimeout(retryTimeout);
+        retryTimeout = null;
+      }
+      if (currentChannel) {
+        supabase.removeChannel(currentChannel);
+        currentChannel = null;
+      }
     };
   }, [user?.id, queryClient]);
 
