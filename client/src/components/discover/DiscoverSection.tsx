@@ -32,6 +32,7 @@ import { apiRequest } from '@/lib/queryClient';
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 import { createRecommendationEngine } from '@/lib/recommendationEngine';
 import { useToast } from '@/hooks/use-toast';
+import { createAndStorePendingChatRequest, clearPendingChatRequest } from '@/utils/pendingChat';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
@@ -77,18 +78,20 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
 
   // Mutation for creating a new chat
   const { mutate: createChat, isPending: isCreatingChat } = useMutation({
-    mutationFn: async ({ characterId }: { characterId: number }) => {
+    mutationFn: async ({ characterId, idempotencyKey }: { characterId: number; idempotencyKey: string }) => {
       const response = await apiRequest(
         "POST",
         "/api/chats",
         {
           characterId,
-          title: `Chat with ${characters.find(c => c.id === characterId)?.name || 'Character'}`
+          title: `Chat with ${characters.find(c => c.id === characterId)?.name || 'Character'}`,
+          idempotencyKey,
         }
       );
       return response.json();
     },
     onSuccess: (chat) => {
+      clearPendingChatRequest();
       const chatIdentifier = chat?.uuid || chat?.id;
 
       if (!chatIdentifier) {
@@ -112,14 +115,17 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
         description: t('failedToStartChat') || 'Unable to start chat. Please try again.',
         variant: 'destructive',
       });
+      clearPendingChatRequest();
       navigateToPath('/discover');
     }
   });
 
   const handleCharacterClick = (character: Character) => {
     setSelectedCharacter(character);
+    handlePreviewClose();
+    const pendingRequest = createAndStorePendingChatRequest(character.id);
     navigateToPath(`/chat/pending-${character.id}`);
-    createChat({ characterId: character.id });
+    createChat({ characterId: character.id, idempotencyKey: pendingRequest.idempotencyKey });
   };
 
   const handleFavoriteToggle = (characterId: number) => {
@@ -144,8 +150,9 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
   const handleStartChat = (character: Character) => {
     setSelectedCharacter(character);
     handlePreviewClose();
+    const pendingRequest = createAndStorePendingChatRequest(character.id);
     navigateToPath(`/chat/pending-${character.id}`);
-    createChat({ characterId: character.id });
+    createChat({ characterId: character.id, idempotencyKey: pendingRequest.idempotencyKey });
   };
 
   // Create recommendation engine and generate different sections

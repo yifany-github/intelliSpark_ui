@@ -12,6 +12,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { User, ChatMessage } from '../types';
 import { supabase } from '@/lib/supabaseClient';
+import { clearPendingChatRequest } from '@/utils/pendingChat';
 
 // Authentication context type
 interface AuthContextType {
@@ -38,6 +39,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const queryClient = useQueryClient();
   const pendingProfileRequest = useRef<Promise<void> | null>(null);
+  const lastCacheInvalidation = useRef<number>(0);
 
   const clearAuthState = useCallback(() => {
     setUser(null);
@@ -71,20 +73,45 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return privatePrefixes.some((prefix) => key.startsWith(prefix));
       },
     });
+
+    try {
+      clearPendingChatRequest();
+    } catch (error) {
+      console.warn('[Auth] Failed to clear pending chat request during logout', error);
+    }
   }, [queryClient]);
 
   const fetchBackendUser = useCallback(async (accessToken: string) => {
-    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    const fetchWithToken = async (token: string) =>
+      fetch(`${API_BASE_URL}/api/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+    let response = await fetchWithToken(accessToken);
 
     if (response.status === 401) {
-      await supabase.auth.signOut();
-      clearAuthState();
-      throw new Error('Session expired');
+      console.warn('[Auth] /api/auth/me returned 401, attempting to fetch fresh session');
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session?.access_token) {
+        console.warn('[Auth] Unable to obtain fresh session, signing out');
+        await supabase.auth.signOut();
+        clearAuthState();
+        throw new Error('Session expired');
+      }
+
+      const newToken = data.session.access_token;
+      setToken(newToken);
+      response = await fetchWithToken(newToken);
+
+      if (response.status === 401) {
+        console.warn('[Auth] /api/auth/me still 401 after session check, signing out');
+        await supabase.auth.signOut();
+        clearAuthState();
+        throw new Error('Session expired');
+      }
     }
 
     if (!response.ok) {
@@ -154,15 +181,24 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       // Invalidate React Query caches on token refresh or sign in to prevent stale data
-      // This fixes the bug where users get stuck in pending state after idle timeout
+      // Throttle to prevent rate limit loops (max once per 10 seconds)
       if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
-        console.log(`[Auth] ${event} - Invalidating React Query caches`);
-        queryClient.invalidateQueries({
-          predicate: (query) => {
-            const key = query.queryKey?.[0];
-            return typeof key === 'string' && key.startsWith('/api/');
-          }
-        });
+        const now = Date.now();
+        const timeSinceLastInvalidation = now - lastCacheInvalidation.current;
+
+        if (timeSinceLastInvalidation > 10000) {
+          console.log(`[Auth] ${event} - Invalidating React Query caches`);
+          lastCacheInvalidation.current = now;
+
+          queryClient.invalidateQueries({
+            predicate: (query) => {
+              const key = query.queryKey?.[0];
+              return typeof key === 'string' && key.startsWith('/api/');
+            }
+          });
+        } else {
+          console.log(`[Auth] ${event} - Skipping cache invalidation (throttled, ${Math.round(timeSinceLastInvalidation / 1000)}s ago)`);
+        }
       }
 
       syncUserFromSession(session);
@@ -198,25 +234,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
           // Update cache for the specific chat this message belongs to
           const chatUuid = newMessage.chat_uuid;
-          if (chatUuid) {
-            queryClient.setQueryData<ChatMessage[]>(
-              [`/api/chats/${chatUuid}/messages`],
-              (oldMessages = []) => {
-                // Avoid duplicates
-                const messageExists = oldMessages.some(msg => msg.id === newMessage.id);
-                if (messageExists) {
-                  console.log('[Realtime] Message already in cache, skipping');
-                  return oldMessages;
-                }
+          const chatId = newMessage.chat_id;
 
-                console.log('[Realtime] Adding message to cache');
-                return [...oldMessages, newMessage];
-              }
-            );
+          const mergeMessage = (oldMessages: ChatMessage[] = []) => {
+            const exists = oldMessages.some((msg) => msg.id === newMessage.id);
+            if (exists) {
+              console.log('[Realtime] Message already in cache, skipping');
+              return oldMessages;
+            }
+            console.log('[Realtime] Adding message to cache');
+            return [...oldMessages, newMessage];
+          };
+
+          if (chatUuid) {
+            queryClient.setQueryData<ChatMessage[]>([`/api/chats/${chatUuid}/messages`], mergeMessage);
+          }
+
+          if (typeof chatId === 'number') {
+            queryClient.setQueryData<ChatMessage[]>([`/api/chats/${chatId}/messages`], mergeMessage);
+            queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}`] });
           }
 
           // Invalidate chat list to update message counts
           queryClient.invalidateQueries({ queryKey: ['/api/chats'] });
+          if (newMessage.role === 'assistant') {
+            setIsTyping(false);
+          }
         }
       )
       .subscribe((status) => {

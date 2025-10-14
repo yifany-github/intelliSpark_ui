@@ -13,6 +13,7 @@ import { apiRequest } from '@/lib/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
+import { createAndStorePendingChatRequest, clearPendingChatRequest } from '@/utils/pendingChat';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
@@ -230,18 +231,20 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   
   // Mutation for creating a new chat (runs in background after immediate navigation)
   const { mutate: createChat, isPending: isCreatingChat } = useMutation({
-    mutationFn: async ({ characterId }: { characterId: number }) => {
+    mutationFn: async ({ characterId, idempotencyKey }: { characterId: number; idempotencyKey: string }) => {
       const response = await apiRequest(
         "POST",
         "/api/chats",
         {
           characterId,
-          title: t('chatWithCharacter')
+          title: t('chatWithCharacter'),
+          idempotencyKey,
         }
       );
       return response.json();
     },
     onSuccess: (chat) => {
+      clearPendingChatRequest();
       const chatIdentifier = chat?.uuid || chat?.id;
 
       if (!chatIdentifier) {
@@ -265,6 +268,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
         description: t('failedToStartChat') || 'Unable to start chat. Please try again.',
         variant: 'destructive',
       });
+      clearPendingChatRequest();
       setLocation('/', { replace: true });
     }
   });
@@ -500,12 +504,15 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     setSelectedCharacter(character);
     handlePreviewClose();
 
+    const pendingRequest = createAndStorePendingChatRequest(character.id);
+
     // 🚀 Navigate right away to render chat shell while creation happens
     setLocation(`/chat/pending-${character.id}`);
 
     // 🚀 Create chat and navigate once the real identifier is available
     createChat({
-      characterId: character.id
+      characterId: character.id,
+      idempotencyKey: pendingRequest.idempotencyKey,
     });
   };
 

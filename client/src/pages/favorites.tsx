@@ -10,6 +10,7 @@ import GlobalLayout from '@/components/layout/GlobalLayout';
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
+import { createAndStorePendingChatRequest, clearPendingChatRequest } from '@/utils/pendingChat';
 import { useFavoriteCharacters } from '@/hooks/useFavoriteCharacters';
 import { Skeleton } from '@/components/ui/skeleton';
 import { cn } from '@/lib/utils';
@@ -368,15 +369,17 @@ const FavoritesPage = () => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   const { mutate: createChat, isPending: isCreatingChat } = useMutation({
-    mutationFn: async ({ characterId }: { characterId: number }) => {
+    mutationFn: async ({ characterId, idempotencyKey }: { characterId: number; idempotencyKey: string }) => {
       const response = await apiRequest('POST', '/api/chats', {
         characterId,
         title: `Chat with ${characters.find((item) => item.id === characterId)?.name || 'Character'}`,
+        idempotencyKey,
       });
 
       return response.json();
     },
     onSuccess: (chat) => {
+      clearPendingChatRequest();
       const chatIdentifier = chat?.uuid || chat?.id;
 
       if (!chatIdentifier) {
@@ -392,6 +395,7 @@ const FavoritesPage = () => {
     onError: (error) => {
       console.error('Failed to create chat:', error);
       toast({ title: t('error') || 'Error', description: t('failedToStartChat') || 'Unable to start chat. Please try again.', variant: 'destructive' });
+      clearPendingChatRequest();
       navigateToPath('/favorites');
     },
   });
@@ -468,8 +472,9 @@ const FavoritesPage = () => {
   const handleCharacterSelect = (character: Character) => {
     setSelectedCharacter(character);
     handlePreviewClose();
+    const pendingRequest = createAndStorePendingChatRequest(character.id);
     navigateToPath(`/chat/pending-${character.id}`);
-    createChat({ characterId: character.id });
+    createChat({ characterId: character.id, idempotencyKey: pendingRequest.idempotencyKey });
   };
 
   const handleFavoriteToggle = (characterId: number) => {

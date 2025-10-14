@@ -11,6 +11,41 @@ async function throwIfResNotOk(res: Response) {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
+let inFlightSessionRefresh: Promise<string | null> | null = null;
+
+async function requestFreshAccessToken(): Promise<string | null> {
+  if (!inFlightSessionRefresh) {
+    inFlightSessionRefresh = supabase.auth
+      .getSession()
+      .then(({ data, error }) => {
+        if (error) {
+          console.error("[Auth] Failed to get Supabase session:", error.message);
+          return null;
+        }
+        if (!data.session) {
+          console.warn("[Auth] No active Supabase session");
+          return null;
+        }
+        return data.session.access_token ?? null;
+      })
+      .finally(() => {
+        inFlightSessionRefresh = null;
+      });
+  }
+  return inFlightSessionRefresh;
+}
+
+async function buildHeaders(
+  initHeaders: HeadersInit | undefined,
+  accessToken: string | null,
+): Promise<Headers> {
+  const headers = new Headers(initHeaders);
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
+  return headers;
+}
+
 export async function apiRequest(
   method: string,
   url: string,
@@ -18,38 +53,48 @@ export async function apiRequest(
   initOverrides: RequestInit = {},
 ): Promise<Response> {
   const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
-  const accessToken = await getSupabaseAccessToken();
-  const hasToken = Boolean(accessToken);
+  const attempt = async (accessToken: string | null): Promise<Response> => {
+    const headers = await buildHeaders(initOverrides.headers, accessToken);
 
-  const headers = new Headers(initOverrides.headers as HeadersInit | undefined);
-
-  let body: BodyInit | null | undefined = initOverrides.body;
-
-  if (data !== undefined) {
-    if (data instanceof FormData) {
-      body = data;
-    } else {
-      if (!headers.has('Content-Type')) {
-        headers.set('Content-Type', 'application/json');
+    let body: BodyInit | null | undefined = initOverrides.body;
+    if (data !== undefined) {
+      if (data instanceof FormData) {
+        body = data;
+      } else {
+        if (!headers.has('Content-Type')) {
+          headers.set('Content-Type', 'application/json');
+        }
+        body = JSON.stringify(data);
       }
-      body = JSON.stringify(data);
+    }
+
+    return fetch(fullUrl, {
+      ...initOverrides,
+      method,
+      headers,
+      body,
+      credentials: initOverrides.credentials ?? 'include',
+    });
+  };
+
+  let accessToken = await getSupabaseAccessToken();
+  let response = await attempt(accessToken);
+
+  if (response.status === 401 && accessToken) {
+    const refreshedToken = await requestFreshAccessToken();
+    if (refreshedToken) {
+      accessToken = refreshedToken;
+      response = await attempt(accessToken);
     }
   }
 
-  if (hasToken && accessToken) {
-    headers.set('Authorization', `Bearer ${accessToken}`);
-  }
-
-  const response = await fetch(fullUrl, {
-    ...initOverrides,
-    method,
-    headers,
-    body,
-    credentials: initOverrides.credentials ?? 'include',
-  });
-
-  if (response.status === 401 && hasToken) {
-    await supabase.auth.signOut();
+  if (response.status === 401) {
+    console.warn("[Auth] Request still unauthorized after refresh, verifying session");
+    const freshToken = await requestFreshAccessToken();
+    if (!freshToken) {
+      console.warn("[Auth] No active session; signing out");
+      await supabase.auth.signOut();
+    }
   }
 
   await throwIfResNotOk(response);
@@ -64,24 +109,35 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     const url = queryKey[0] as string;
     const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
-    
-    const accessToken = await getSupabaseAccessToken();
-    const hasToken = Boolean(accessToken);
 
-    const headers = new Headers();
-    if (hasToken && accessToken) {
-      headers.set('Authorization', `Bearer ${accessToken}`);
+    const attempt = async (accessToken: string | null) => {
+      const headers = await buildHeaders(undefined, accessToken);
+      return fetch(fullUrl, {
+        headers,
+        credentials: 'include',
+      });
+    };
+
+    let accessToken = await getSupabaseAccessToken();
+    let response = await attempt(accessToken);
+
+    if (response.status === 401 && accessToken) {
+      const refreshedToken = await requestFreshAccessToken();
+      if (refreshedToken) {
+        accessToken = refreshedToken;
+        response = await attempt(accessToken);
+      }
     }
 
-    const response = await fetch(fullUrl, {
-      headers,
-      credentials: 'include',
-    });
-
-    if (response.status === 401 && hasToken) {
-      await supabase.auth.signOut();
-      if (unauthorizedBehavior === 'returnNull') {
-        return null;
+    if (response.status === 401) {
+      console.warn("[Auth] Query still unauthorized after refresh, verifying session");
+      const freshToken = await requestFreshAccessToken();
+      if (!freshToken) {
+        console.warn("[Auth] No active session; signing out");
+        await supabase.auth.signOut();
+        if (unauthorizedBehavior === 'returnNull') {
+          return null;
+        }
       }
     }
 
