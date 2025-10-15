@@ -12,6 +12,7 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { queryClient } from "@/lib/queryClient";
 import { invalidateTokenBalance } from "@/services/tokenService";
+import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { ChevronLeft, MoreVertical, Trash2, Filter, Pin, Sparkles, Clock, Star } from "lucide-react";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import { ImprovedTokenBalance } from "@/components/payment/ImprovedTokenBalance";
@@ -60,7 +61,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
 
   const chatEnabled = authReady && !!chatId;
 
-  // Fetch chat details if chatId is provided
+  // Fetch chat details if chatId is provided - backend accepts both numeric and UUID
   const {
     data: chat,
     isLoading: isLoadingChat,
@@ -70,16 +71,25 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     enabled: chatEnabled,
     staleTime: 30 * 1000,
   });
-  
-  // Fetch chat messages if chatId is provided
+
+  // Extract canonical UUID from chat response
+  const canonicalUuid = chat?.uuid ?? null;
+
+  // Fetch chat messages using canonical UUID for cache consistency
+  const messagesEnabled = authReady && !!canonicalUuid;
+
   const {
     data: messages = [],
     isLoading: isLoadingMessages,
     error: messagesError
   } = useQuery<ChatMessage[]>({
-    queryKey: [`/api/chats/${chatId}/messages`],
-    enabled: chatEnabled,
+    queryKey: [`/api/chats/${canonicalUuid}/messages`],
+    enabled: messagesEnabled,
   });
+
+  // Subscribe to realtime messages using canonical UUID
+  // This was missing - causing stale messages on chats.tsx
+  useRealtimeMessages(canonicalUuid ?? undefined);
   
   // Fetch character details for the chat
   const {
