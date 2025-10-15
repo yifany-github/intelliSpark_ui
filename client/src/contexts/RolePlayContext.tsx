@@ -9,13 +9,9 @@ interface RolePlayContextType {
   nsfwEnabled: boolean;
   setNsfwEnabled: (enabled: boolean) => void;
 
-  // Active Selections
+  // Active Selections (for pre-auth character browsing)
   selectedCharacter: Character | null;
   setSelectedCharacter: (character: Character | null) => void;
-  // Active Chat State
-  isTyping: boolean;
-  setIsTyping: (isTyping: boolean) => void;
-
 
   // Auth Modal State
   isAuthModalOpen: boolean;
@@ -54,11 +50,8 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
     }
   };
 
-  // Active Selections
+  // Active Selections (for pre-auth character browsing)
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
-
-  // Active Chat State
-  const [isTyping, setIsTyping] = useState(false);
 
   // Auth Modal State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -129,9 +122,6 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
 
         selectedCharacter,
         setSelectedCharacter,
-
-        isTyping,
-        setIsTyping,
 
         isAuthModalOpen,
         setIsAuthModalOpen,
