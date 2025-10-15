@@ -24,6 +24,7 @@ import AboutPage from "@/pages/about";
 import MyCharactersPage from "@/pages/my-characters";
 import EditCharacterPage from "@/pages/edit-character";
 import AuthModal from "@/components/auth/AuthModal";
+import { AuthReadinessGate } from "@/components/auth/AuthReadinessGate";
 import TabNavigation from "@/components/layout/TabNavigation";
 import { RolePlayProvider, useRolePlay } from "@/contexts/RolePlayContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -183,18 +184,10 @@ function MainApp() {
 
 // Protected wrapper for auth-required features
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
-  
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  const { isAuthenticated } = useAuth();
+
+  // AuthReadinessGate ensures isReady === true before rendering anything
+  // So we can safely assume auth is initialized at this point
 
   if (!isAuthenticated) {
     return <Redirect to="/login" />;
@@ -212,12 +205,15 @@ function App() {
             <NavigationProvider>
               <FavoritesProvider>
                 <Switch>
-                <Route path="/login" component={LoginPage} />
-                <Route path="/register" component={RegisterPage} />
-                <Route>
-                  <MainApp />
-                </Route>
-              </Switch>
+                  <Route path="/login" component={LoginPage} />
+                  <Route path="/register" component={RegisterPage} />
+                  <Route>
+                    {/* AuthReadinessGate ensures auth is initialized before any routes render */}
+                    <AuthReadinessGate>
+                      <MainApp />
+                    </AuthReadinessGate>
+                  </Route>
+                </Switch>
               </FavoritesProvider>
             </NavigationProvider>
           </AuthProvider>
