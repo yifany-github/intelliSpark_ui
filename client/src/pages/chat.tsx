@@ -172,17 +172,18 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   // Mutation for sending messages
   const { mutate: sendMessage, isPending: isSending } = useMutation({
     mutationFn: async (content: string) => {
-      if (!activeChatId || !chat) {
+      if (!chatId || !chat) {
         throw new Error("Chat not ready");
       }
+      // Use chatId from route - backend accepts both numeric and UUID
       return apiRequest(
         "POST",
-        `/api/chats/${activeChatId}/messages`,
+        `/api/chats/${chatId}/messages`,
         { content, role: "user" }
       );
     },
     onSuccess: async () => {
-      if (!activeChatId) return;
+      if (!canonicalUuid) return;
 
       // Realtime will add user message to cache
       // Kick off AI response immediately
@@ -191,24 +192,24 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     onError: (error: any) => {
       console.error("Message sending failed:", error);
       const errorMessage = error?.response?.data?.detail || "Failed to send message";
-      
-      if (!activeChatId) {
+
+      if (!canonicalUuid) {
         return;
       }
-      
-      // Add error message to chat
-      queryClient.setQueryData([`/api/chats/${activeChatId}/messages`], (old: ChatMessage[] | undefined) => {
+
+      // Add error message to chat using canonical UUID for cache key
+      queryClient.setQueryData([`/api/chats/${canonicalUuid}/messages`], (old: ChatMessage[] | undefined) => {
         if (!old) return old;
-        
+
         const errorMsg: ChatMessage = {
           id: createTempMessageId(),
           content: `Error: ${errorMessage}`,
           role: "system",
-          chatId: matchingChat?.id ?? numericChatId ?? 0,
+          chatId: chat?.id ?? 0,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        
+
         return [...old, errorMsg];
       });
     },
@@ -217,17 +218,18 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   // Mutation for AI responses
   const { mutate: aiResponse, isPending: isGeneratingResponse } = useMutation({
     mutationFn: async () => {
-      if (!activeChatId || !chat) {
+      if (!chatId || !chat) {
         throw new Error("Chat not ready");
       }
+      // Use chatId from route - backend accepts both numeric and UUID
       return apiRequest(
         "POST",
-        `/api/chats/${activeChatId}/generate`,
+        `/api/chats/${chatId}/generate`,
         {}
       );
     },
     onSuccess: async () => {
-      if (!activeChatId) return;
+      if (!canonicalUuid) return;
 
       // Realtime will add the message to cache automatically
       // Just update token balance and generate quick replies
@@ -236,27 +238,27 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     },
     onError: (error: any) => {
       console.error("AI response generation failed:", error);
-      
-      if (!activeChatId) {
+
+      if (!canonicalUuid) {
         return;
       }
-      
+
       // Show error message to user
       const errorMessage = error?.response?.data?.detail || "Failed to generate AI response";
-      
-      // Add error message to chat
-      queryClient.setQueryData([`/api/chats/${activeChatId}/messages`], (old: ChatMessage[] | undefined) => {
+
+      // Add error message to chat using canonical UUID for cache key
+      queryClient.setQueryData([`/api/chats/${canonicalUuid}/messages`], (old: ChatMessage[] | undefined) => {
         if (!old) return old;
-        
+
         const errorMsg: ChatMessage = {
           id: createTempMessageId(),
           content: `Error: ${errorMessage}`,
           role: "system",
-          chatId: matchingChat?.id ?? numericChatId ?? 0,
+          chatId: chat?.id ?? 0,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
         };
-        
+
         return [...old, errorMsg];
       });
     },
@@ -503,7 +505,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     );
   }
  
-  if (isLoadingChat || (!chat && activeChatId)) {
+  if (isLoadingChat || (!chat && chatId)) {
     return (
       <GlobalLayout>
         <div className="flex h-full flex-col items-center justify-center gap-3 text-white">
@@ -715,7 +717,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
               ) : (
                 <div className="space-y-2">
                   {filteredChats
-                    .filter((chat) => !isCurrentChat(chat))
+                    .filter((chat) => chat.uuid !== canonicalUuid)
                     .map((chat) => (
                       <Link
                         key={chat.uuid ?? chat.id}
@@ -809,7 +811,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                     <p className="text-xs text-gray-400 sm:text-sm">
                       {chat
                         ? (chat.title || t('untitledChat'))
-                        : matchingChat?.title || (isLoadingChat ? t('loading') : t('creatingChat'))}
+                        : (isLoadingChat ? t('loading') : t('creatingChat'))}
                     </p>
                   </div>
                 </div>
