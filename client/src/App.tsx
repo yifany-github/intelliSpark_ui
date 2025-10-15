@@ -170,7 +170,6 @@ function MainApp() {
                   <NotificationsPage />
                 </ProtectedRoute>
               </Route>
-              <Route path="/admin" component={AdminPage} />
               <Route component={NotFound} />
             </Switch>
           </div>
@@ -211,6 +210,7 @@ function App() {
                 <Switch>
                   <Route path="/login" component={LoginPage} />
                   <Route path="/register" component={RegisterPage} />
+                  <Route path="/admin" component={AdminPage} />
                   <Route>
                     {/* AuthReadinessGate ensures auth is initialized before any routes render */}
                     <AuthReadinessGate>
