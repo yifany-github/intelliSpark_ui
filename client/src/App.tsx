@@ -92,10 +92,10 @@ function MainApp() {
   const { isAuthenticated, isLoading } = useAuth();
   const [location] = useLocation();
 
-  // Handle session recovery when tab wakes from sleep
+  // Session recovery: refresh token and queries when tab wakes from sleep
   useAuthRecovery();
 
-  // Subscribe to realtime chat list updates (for all chats)
+  // Global realtime subscription: invalidates chat list when any message arrives
   useRealtimeChatList();
 
   return (
