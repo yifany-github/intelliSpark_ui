@@ -452,7 +452,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
       >
         <div className="flex items-center gap-6">
           <Link
-            href={`/chat/${chat.uuid}`}
+            href={`/chat/${chat.uuid ?? chat.id}`}
             className="flex min-w-0 flex-1 items-center gap-5"
           >
             <div className="relative h-[108px] w-[108px] flex-shrink-0 overflow-hidden rounded-[28px] border border-gray-800/70 bg-gray-950/60">
