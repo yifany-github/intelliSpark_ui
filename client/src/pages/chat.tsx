@@ -72,6 +72,27 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   // This is our single source of truth for realtime, cache keys, navigation
   const canonicalUuid = chat?.uuid ?? null;
 
+  // Critical check: If chat exists but has no UUID, this is a backend data integrity issue
+  if (chat && !canonicalUuid) {
+    console.error('[Chat] Chat loaded but UUID is missing:', chat);
+    return (
+      <GlobalLayout>
+        <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-white">
+          <p className="text-lg font-semibold">Data Error</p>
+          <p className="text-sm text-gray-400">
+            This chat is missing required UUID. Please contact support or try creating a new chat.
+          </p>
+          <button
+            onClick={() => navigateToPath("/chats")}
+            className="rounded-full bg-brand-secondary px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-secondary/80"
+          >
+            Back to chats
+          </button>
+        </div>
+      </GlobalLayout>
+    );
+  }
+
   // Subscribe to realtime using canonical UUID (not the route parameter)
   // This ensures realtime works for both /chat/123 and /chat/uuid routes
   useRealtimeMessages(canonicalUuid ?? undefined);
@@ -105,40 +126,30 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: authReady,
   });
 
-  // Find current chat in enriched list using canonical UUID
-  const currentChatInList = useMemo(() => {
-    if (!canonicalUuid) {
-      return undefined;
-    }
-    return chats.find((item) => item.uuid === canonicalUuid);
-  }, [chats, canonicalUuid]);
-
-  // Fetch chat messages - use canonical UUID for consistency
-  // This ensures cache keys match across numeric and UUID routes
-  const messagesEnabled = authReady && !!canonicalUuid;
+  // Fetch chat messages - use canonical UUID for cache key
+  // Fallback to chatId for backward compat with old chats missing UUID
+  const messagesCacheKey = canonicalUuid ?? chatId;
+  const messagesEnabled = authReady && !!messagesCacheKey;
 
   const {
     data: messages = [],
     isLoading: isLoadingMessages,
     error: messagesError
   } = useQuery<ChatMessage[]>({
-    queryKey: [`/api/chats/${canonicalUuid}/messages`],
+    queryKey: [`/api/chats/${messagesCacheKey}/messages`],
     enabled: messagesEnabled,
   });
 
-  // Character data: prefer from enriched chat list, fallback to direct query
-  const characterId = chat?.characterId ?? currentChatInList?.character?.id;
+  // Extract character_id from chat (backend uses snake_case, frontend expects camelCase)
+  const characterId = chat?.characterId ?? (chat as any)?.character_id;
 
   const {
-    data: characterFromQuery,
+    data: character,
     isLoading: isLoadingCharacter
   } = useQuery<Character>({
     queryKey: [`/api/characters/${characterId}`],
-    enabled: authReady && !!characterId && !currentChatInList?.character,
+    enabled: authReady && !!characterId,
   });
-
-  // Single source of truth for character
-  const character = currentChatInList?.character ?? characterFromQuery ?? null;
 
   const renderTypingBubble = ({
     message,
@@ -185,8 +196,12 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     onSuccess: async () => {
       if (!canonicalUuid) return;
 
-      // Realtime will add user message to cache
-      // Kick off AI response immediately
+      // Invalidate to show user's message immediately
+      queryClient.invalidateQueries({
+        queryKey: [`/api/chats/${messagesCacheKey}/messages`],
+      });
+
+      // Kick off AI response
       aiResponse();
     },
     onError: (error: any) => {
@@ -231,8 +246,13 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     onSuccess: async () => {
       if (!canonicalUuid) return;
 
-      // Realtime will add the message to cache automatically
-      // Just update token balance and generate quick replies
+      // Invalidate messages to show AI response
+      // Even though realtime should handle this, we invalidate to ensure UI updates
+      queryClient.invalidateQueries({
+        queryKey: [`/api/chats/${messagesCacheKey}/messages`],
+      });
+
+      // Update token balance and generate quick replies
       invalidateTokenBalance();
       generateQuickReplies();
     },
@@ -295,7 +315,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     },
   });
 
-  // Derive typing state from mutation (must be after mutation is defined)
+  // Derive typing indicator from AI mutation state
   const isTyping = isGeneratingResponse;
 
   // Derive loading states
@@ -467,10 +487,13 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
           </div>
         ) : (
           <div className="space-y-3">
-            {chats.map((chat: EnrichedChat) => (
-              <Link 
-                key={chat.uuid ?? chat.id} 
-                href={`/chat/${chat.uuid ?? chat.id}`}
+            {chats.map((chat: EnrichedChat) => {
+              // Fallback to numeric ID for old chats without UUID (backward compatibility)
+              const chatLink = chat.uuid ?? chat.id;
+              return (
+              <Link
+                key={chat.uuid ?? `chat-${chat.id}`}
+                href={`/chat/${chatLink}`}
                 className="block bg-secondary hover:bg-secondary/80 rounded-2xl p-4 transition-colors"
               >
                 <div className="flex items-center justify-between">
@@ -497,7 +520,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                   </span>
                 </div>
               </Link>
-            ))}
+              );
+            })}
           </div>
         )}
         </div>
@@ -657,7 +681,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 <div className="space-y-2">
                   {pinnedChats.map((chat) => (
                     <Link
-                      key={`pinned-${chat.uuid ?? chat.id}`}
+                      key={chat.uuid ?? `pinned-${chat.id}`}
                       href={`/chat/${chat.uuid ?? chat.id}`}
                       className="group flex items-center gap-3 rounded-2xl border border-gray-700/70 bg-gray-800/60 p-3 transition-all hover:border-brand-accent/50 hover:bg-gray-800"
                     >
@@ -717,10 +741,10 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
               ) : (
                 <div className="space-y-2">
                   {filteredChats
-                    .filter((chat) => chat.uuid !== canonicalUuid)
+                    .filter((item) => item.uuid !== canonicalUuid)
                     .map((chat) => (
                       <Link
-                        key={chat.uuid ?? chat.id}
+                        key={chat.uuid ?? `recent-${chat.id}`}
                         href={`/chat/${chat.uuid ?? chat.id}`}
                         className="group flex items-center gap-3 rounded-2xl border border-transparent bg-gray-900/40 p-3 transition-all hover:border-brand-accent/40 hover:bg-gray-900/70"
                       >
@@ -882,6 +906,10 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
               disabled={!chatId || !chat}
               placeholder={!chat ? t('creatingChat') : undefined}
               className="border-t border-pink-500/10 bg-slate-900/80 backdrop-blur-xl relative z-10"
+              showAvatar={!!character}
+              avatarUrl={character?.avatarUrl ?? null}
+              avatarAlt={character?.name ?? 'Character'}
+              avatarFallbackText={character?.name ?? 'AI'}
             />
           </div>
 
@@ -924,7 +952,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
         {/* Right Sidebar - Character Info */}
           {character && (
-            <div className="w-full lg:w-80 bg-slate-900/70 backdrop-blur-2xl border border-pink-500/20 rounded-l-3xl xl:rounded-3xl flex-shrink-0 hidden xl:flex xl:flex-col scrollbar-thin relative shadow-[0_8px_32px_rgba(0,0,0,0.5),0_20px_60px_rgba(236,72,153,0.15)] xl:mr-4 xl:my-4 xl:h-[calc(100%-2rem)]">
+            <div className="w-full lg:w-80 bg-slate-900/70 backdrop-blur-2xl border border-pink-500/20 rounded-l-3xl xl:rounded-3xl flex-shrink-0 hidden lg:flex lg:flex-col scrollbar-thin relative shadow-[0_8px_32px_rgba(0,0,0,0.5),0_20px_60px_rgba(236,72,153,0.15)] lg:mr-4 lg:my-4 lg:h-[calc(100%-2rem)]">
             {/* Right sidebar header matching other headers */}
             <div className="px-4 py-3 sm:py-4 border-b border-pink-500/10 flex-shrink-0">
               <div className="flex items-center justify-between">

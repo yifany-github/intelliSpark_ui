@@ -75,29 +75,32 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
   // Extract canonical UUID from chat response
   const canonicalUuid = chat?.uuid ?? null;
 
-  // Fetch chat messages using canonical UUID for cache consistency
-  const messagesEnabled = authReady && !!canonicalUuid;
+  // Fetch chat messages - use canonical UUID if available, fallback to chatId
+  const messagesCacheKey = canonicalUuid ?? chatId;
+  const messagesEnabled = authReady && !!messagesCacheKey;
 
   const {
     data: messages = [],
     isLoading: isLoadingMessages,
     error: messagesError
   } = useQuery<ChatMessage[]>({
-    queryKey: [`/api/chats/${canonicalUuid}/messages`],
+    queryKey: [`/api/chats/${messagesCacheKey}/messages`],
     enabled: messagesEnabled,
   });
 
   // Subscribe to realtime messages using canonical UUID
-  // This was missing - causing stale messages on chats.tsx
+  // Note: If UUID is null, realtime won't work (backend data issue)
   useRealtimeMessages(canonicalUuid ?? undefined);
   
-  // Fetch character details for the chat
+  // Fetch character details for the chat (backend uses snake_case character_id)
+  const characterId = chat?.characterId ?? (chat as any)?.character_id;
+
   const {
     data: character,
     isLoading: isLoadingCharacter
   } = useQuery<Character>({
-    queryKey: [`/api/characters/${chat?.characterId}`],
-    enabled: authReady && !!chat?.characterId,
+    queryKey: [`/api/characters/${characterId}`],
+    enabled: authReady && !!characterId,
   });
   
   
@@ -120,8 +123,13 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
         { content, role: "user" }
       );
     },
-    onSuccess: () => {
-      // Kick off AI response immediately
+    onSuccess: async () => {
+      // Invalidate to show user's message
+      queryClient.invalidateQueries({
+        queryKey: [`/api/chats/${messagesCacheKey}/messages`],
+      });
+
+      // Kick off AI response
       aiResponse();
     },
   });
@@ -136,6 +144,11 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
       );
     },
     onSuccess: () => {
+      // Invalidate messages to show AI response
+      queryClient.invalidateQueries({
+        queryKey: [`/api/chats/${messagesCacheKey}/messages`],
+      });
+
       // Invalidate token balance after AI response generation
       invalidateTokenBalance();
     },
@@ -218,7 +231,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     aiResponse();
   };
 
-  // Derive typing state from mutation
+  // Derive typing indicator from AI mutation state
   const isTyping = isGeneratingResponse;
   
   useEffect(() => {
@@ -439,7 +452,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
       >
         <div className="flex items-center gap-6">
           <Link
-            href={`/chat/${chat.uuid ?? chat.id}`}
+            href={`/chat/${chat.uuid}`}
             className="flex min-w-0 flex-1 items-center gap-5"
           >
             <div className="relative h-[108px] w-[108px] flex-shrink-0 overflow-hidden rounded-[28px] border border-gray-800/70 bg-gray-950/60">
@@ -857,7 +870,14 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
       </div>
 
         {/* Chat Input */}
-        <ChatInput onSendMessage={sendMessage} isLoading={isSending || isTyping} />
+        <ChatInput
+          onSendMessage={sendMessage}
+          isLoading={isSending || isTyping}
+          showAvatar={!!character}
+          avatarUrl={character?.avatarUrl ?? null}
+          avatarAlt={character?.name ?? 'Character'}
+          avatarFallbackText={character?.name ?? 'AI'}
+        />
       </div>
     </GlobalLayout>
   );

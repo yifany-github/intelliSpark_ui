@@ -32,7 +32,6 @@ import { apiRequest } from '@/lib/queryClient';
 import CharacterPreviewModal from '@/components/characters/CharacterPreviewModal';
 import { createRecommendationEngine } from '@/lib/recommendationEngine';
 import { useToast } from '@/hooks/use-toast';
-import { createAndStorePendingChatRequest, clearPendingChatRequest } from '@/utils/pendingChat';
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
@@ -78,34 +77,32 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
 
   // Mutation for creating a new chat
   const { mutate: createChat, isPending: isCreatingChat } = useMutation({
-    mutationFn: async ({ characterId, idempotencyKey }: { characterId: number; idempotencyKey: string }) => {
+    mutationFn: async ({ characterId }: { characterId: number }) => {
       const response = await apiRequest(
         "POST",
         "/api/chats",
         {
           characterId,
           title: `Chat with ${characters.find(c => c.id === characterId)?.name || 'Character'}`,
-          idempotencyKey,
         }
       );
       return response.json();
     },
     onSuccess: (chat) => {
-      clearPendingChatRequest();
-      const chatIdentifier = chat?.uuid || chat?.id;
-
-      if (!chatIdentifier) {
-        console.error('Chat creation response missing identifier:', chat);
+      // Backend must return UUID - fail loudly if missing
+      if (!chat?.uuid) {
+        console.error('[DiscoverSection] Chat created without UUID:', chat);
         toast({
           title: t('error') || 'Error',
-          description: t('failedToStartChat') || 'Unable to start chat. Please try again.',
+          description: 'Backend error: Chat UUID missing. Please contact support.',
           variant: 'destructive',
         });
         navigateToPath('/discover');
         return;
       }
 
-      navigateToPath(`/chat/${chatIdentifier}`);
+      // Navigate using UUID only (no numeric fallback)
+      navigateToPath(`/chat/${chat.uuid}`);
       handlePreviewClose();
     },
     onError: (error) => {
@@ -115,7 +112,6 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
         description: t('failedToStartChat') || 'Unable to start chat. Please try again.',
         variant: 'destructive',
       });
-      clearPendingChatRequest();
       navigateToPath('/discover');
     }
   });
@@ -123,9 +119,7 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
   const handleCharacterClick = (character: Character) => {
     setSelectedCharacter(character);
     handlePreviewClose();
-    const pendingRequest = createAndStorePendingChatRequest(character.id);
-    navigateToPath(`/chat/pending-${character.id}`);
-    createChat({ characterId: character.id, idempotencyKey: pendingRequest.idempotencyKey });
+    createChat({ characterId: character.id });
   };
 
   const handleFavoriteToggle = (characterId: number) => {
@@ -150,9 +144,7 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
   const handleStartChat = (character: Character) => {
     setSelectedCharacter(character);
     handlePreviewClose();
-    const pendingRequest = createAndStorePendingChatRequest(character.id);
-    navigateToPath(`/chat/pending-${character.id}`);
-    createChat({ characterId: character.id, idempotencyKey: pendingRequest.idempotencyKey });
+    createChat({ characterId: character.id });
   };
 
   // Create recommendation engine and generate different sections

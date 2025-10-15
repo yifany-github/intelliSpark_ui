@@ -18,35 +18,35 @@ import { ChatMessage } from '@/types';
  *
  * Usage: Call in ChatPage component with current chatId
  */
-export function useRealtimeMessages(chatId: string | undefined) {
+export function useRealtimeMessages(canonicalUuid: string | undefined) {
   const { user, isReady } = useAuth();
   const queryClient = useQueryClient();
 
   useEffect(() => {
-    if (!isReady || !user?.id || !chatId) {
+    if (!isReady || !user?.id || !canonicalUuid) {
       return;
     }
 
-    console.log(`[Realtime] Subscribing to messages for chat ${chatId}`);
+    console.log(`[Realtime] Subscribing to messages for chat ${canonicalUuid}`);
 
     const channel = supabase
-      .channel(`chat:${chatId}`)
+      .channel(`chat:${canonicalUuid}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'chat_messages',
-          filter: `chat_uuid=eq.${chatId}`,
+          filter: `chat_uuid=eq.${canonicalUuid}`,
         },
         (payload) => {
           console.log('[Realtime] New message received in current chat');
 
           const newMessage = payload.new as ChatMessage;
 
-          // Directly mutate messages cache for instant update
+          // Directly mutate messages cache using canonical UUID
           queryClient.setQueryData<ChatMessage[]>(
-            [`/api/chats/${chatId}/messages`],
+            [`/api/chats/${canonicalUuid}/messages`],
             (oldMessages = []) => {
               // Prevent duplicates
               const exists = oldMessages.some((msg) => msg.id === newMessage.id);
@@ -60,18 +60,29 @@ export function useRealtimeMessages(chatId: string | undefined) {
             }
           );
 
-          // Also invalidate chat detail to update metadata (updated_at, message_count)
-          queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}`] });
+          // Invalidate ALL chat detail queries (not just UUID-keyed)
+          // This handles both /chat/123 (numeric) and /chat/uuid routes
+          // Slight over-invalidation, but architecturally clean (no dual-path logic)
+          queryClient.invalidateQueries({
+            predicate: (query) => {
+              const key = query.queryKey[0];
+              if (typeof key !== 'string') return false;
+
+              // Match any chat detail query: /api/chats/{id}
+              // But NOT message queries: /api/chats/{id}/messages
+              return key.startsWith('/api/chats/') && !key.includes('/messages');
+            }
+          });
         }
       )
       .subscribe((status) => {
-        console.log(`[Realtime] Chat ${chatId} subscription status: ${status}`);
+        console.log(`[Realtime] Chat ${canonicalUuid} subscription status: ${status}`);
       });
 
     // Cleanup when leaving chat or unmounting
     return () => {
-      console.log(`[Realtime] Unsubscribing from chat ${chatId}`);
+      console.log(`[Realtime] Unsubscribing from chat ${canonicalUuid}`);
       supabase.removeChannel(channel);
     };
-  }, [chatId, user?.id, isReady, queryClient]);
+  }, [canonicalUuid, user?.id, isReady, queryClient]);
 }

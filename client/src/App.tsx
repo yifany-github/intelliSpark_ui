@@ -54,9 +54,9 @@ function AuthModalHandler() {
         // Navigate to the actual chat with the pending message
         if (pendingMessage) {
           // The chat page will handle sending the pending message
-          navigate(`/chats/${chatId}?message=${encodeURIComponent(pendingMessage)}`);
+          navigate(`/chat/${chatId}?message=${encodeURIComponent(pendingMessage)}`);
         } else {
-          navigate(`/chats/${chatId}`);
+          navigate(`/chat/${chatId}`);
         }
       } catch (error) {
         console.error("Failed to execute pending chat action:", error);
@@ -131,11 +131,13 @@ function MainApp() {
               </Route>
               <Route path="/chat-preview" component={ChatPreviewPage} />
               <Route path="/chats">
+                {/* List view only - no chat ID */}
                 <ProtectedRoute>
                   <ChatsPage />
                 </ProtectedRoute>
               </Route>
-              <Route path="/chats/:id">
+              <Route path="/chat/:id">
+                {/* Detail view - single source of truth */}
                 {params => (
                   <ProtectedRoute>
                     <ChatPage chatId={params.id} />
@@ -143,16 +145,10 @@ function MainApp() {
                 )}
               </Route>
               <Route path="/chat">
+                {/* Redirect /chat (no ID) to /chats (list) */}
                 <ProtectedRoute>
                   <ChatPage />
                 </ProtectedRoute>
-              </Route>
-              <Route path="/chat/:id">
-                {params => (
-                  <ProtectedRoute>
-                    <ChatPage chatId={params.id} />
-                  </ProtectedRoute>
-                )}
               </Route>
               <Route path="/profile">
                 <ProtectedRoute>
