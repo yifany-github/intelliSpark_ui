@@ -12,15 +12,16 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { User, ChatMessage } from '../types';
 import { supabase } from '@/lib/supabaseClient';
-import { clearPendingChatRequest } from '@/utils/pendingChat';
 import { invalidateCachedAccessToken, refreshAccessToken } from '@/utils/auth';
 
 // Authentication context type
 interface AuthContextType {
   user: User | null;
   token: string | null;
+  session: Session | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isReady: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
@@ -36,7 +37,9 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isReady, setIsReady] = useState(false);
 
   const queryClient = useQueryClient();
   const pendingProfileRequest = useRef<Promise<void> | null>(null);
@@ -45,6 +48,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const clearAuthState = useCallback(() => {
     setUser(null);
     setToken(null);
+    setSession(null);
     invalidateCachedAccessToken();
 
     const privatePrefixes = [
@@ -76,12 +80,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       },
     });
 
-    try {
-      clearPendingChatRequest();
-    } catch (error) {
-      console.warn('[Auth] Failed to clear pending chat request during logout', error);
-    }
-  }, [queryClient]);
+  }, [queryClient, setSession]);
 
   const fetchBackendUser = useCallback(async (accessToken: string) => {
     const fetchWithToken = async (token: string) =>
@@ -132,6 +131,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     setToken(session.access_token);
+    setSession(session);
 
     if (pendingProfileRequest.current) {
       await pendingProfileRequest.current;
@@ -153,38 +153,37 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       pendingProfileRequest.current = null;
     }
-  }, [clearAuthState, fetchBackendUser]);
+  }, [clearAuthState, fetchBackendUser, setSession]);
 
   useEffect(() => {
     let isMounted = true;
 
-    const initialise = async () => {
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) {
-          throw error;
-        }
-        if (!isMounted) {
-          return;
-        }
-        await syncUserFromSession(data.session ?? null);
-      } catch (error) {
-        console.error('Supabase session initialisation failed:', error);
-        clearAuthState();
-      } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
-      }
-    };
-
-    initialise();
+    console.log('[Auth] Setting up auth state listener');
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+
+      console.log(`[Auth] Auth state change event: ${event}`);
+
+      if (event === 'INITIAL_SESSION') {
+        // This is the ONLY place where isReady should be set to true
+        // Wait for session sync before marking ready
+        await syncUserFromSession(session);
+
+        if (isMounted) {
+          console.log('[Auth] Initial session handled, marking ready');
+          setIsReady(true);
+          setIsLoading(false);
+        }
+        return;
+      }
+
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        console.log('[Auth] User signed in or token refreshed');
         invalidateCachedAccessToken();
-        await refreshAccessToken();
+        await syncUserFromSession(session);
+
+        // Invalidate all private queries to refetch with new token
         queryClient.invalidateQueries({
           predicate: (query) => {
             const key = query.queryKey?.[0];
@@ -193,14 +192,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
       }
 
+      if (event === 'SIGNED_OUT') {
+        console.log('[Auth] User signed out');
+        clearAuthState();
+
+        if (isMounted) {
+          setIsReady(true);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      // Handle other events (USER_UPDATED, PASSWORD_RECOVERY, etc.)
       await syncUserFromSession(session);
     });
 
     return () => {
+      console.log('[Auth] Cleaning up auth state listener');
       isMounted = false;
       listener.subscription.unsubscribe();
     };
-  }, [clearAuthState, syncUserFromSession]);
+  }, [clearAuthState, queryClient, syncUserFromSession]);
 
   // Per-user realtime subscription for all chat messages
   // This eliminates subscription gaps caused by per-chat subscriptions
@@ -297,9 +309,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
               retryTimeout = null;
             }
             queryClient.refetchQueries({
+              type: 'active',
               predicate: (query) => {
                 const key = query.queryKey?.[0];
-                return typeof key === 'string' && (key.startsWith('/api/chats') || key.includes('/messages'));
+                if (typeof key !== 'string') {
+                  return false;
+                }
+                if (key === '/api/chats') {
+                  return true;
+                }
+                return key.includes('/messages');
               },
             });
           }
@@ -414,8 +433,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const value: AuthContextType = {
     user,
     token,
+    session,
     isAuthenticated: Boolean(user && token),
     isLoading,
+    isReady,
     login,
     register,
     loginWithGoogle,
