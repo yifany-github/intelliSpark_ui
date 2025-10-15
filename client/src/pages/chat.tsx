@@ -15,7 +15,6 @@ import { useNavigation } from "@/contexts/NavigationContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { invalidateTokenBalance } from "@/services/tokenService";
 import { queryClient } from "@/lib/queryClient";
-import { useChatQueryLifecycle } from "@/hooks/useChatQueryLifecycle";
 import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft, Sparkles, Filter, Pin, Trash2, Info } from "lucide-react";
 import {
@@ -82,10 +81,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     lastAssistantMessageIdRef.current = null;
   }, [clearStatusPoll, stopTyping]);
 
-  // Refresh chat data whenever the tab regains focus or visibility
-  useChatQueryLifecycle(activeChatId);
-
   // Subscribe to realtime messages for this specific chat
+  // Note: React Query's refetchOnWindowFocus handles tab visibility automatically
   useRealtimeMessages(activeChatId);
 
   useEffect(() => {
