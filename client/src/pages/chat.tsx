@@ -134,9 +134,6 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: chatEnabled,
   });
 
-  // Derive typing state from mutation instead of manual state
-  const isTyping = isGeneratingResponse;
-
   // Character data: prefer from enriched chat, fallback to direct query
   const characterId = chat?.characterId ?? matchingChat?.character?.id;
 
@@ -150,10 +147,6 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
   // Single source of truth for character
   const character = matchingChat?.character ?? characterFromQuery ?? null;
-  const waitingForFirstMessage = !!chat && messages.length === 0;
-  const showTypingPlaceholder =
-    isLoadingChat || waitingForFirstMessage || isLoadingMessages || isLoadingCharacter;
-  const showEmptyState = !messagesError && !showTypingPlaceholder && messages.length === 0 && !!chat;
 
   const renderTypingBubble = ({
     message,
@@ -311,6 +304,15 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       console.error('Delete operation error:', error);
     },
   });
+
+  // Derive typing state from mutation (must be after mutation is defined)
+  const isTyping = isGeneratingResponse;
+
+  // Derive loading states
+  const waitingForFirstMessage = !!chat && messages.length === 0;
+  const showTypingPlaceholder =
+    isLoadingChat || waitingForFirstMessage || isLoadingMessages || isLoadingCharacter;
+  const showEmptyState = !messagesError && !showTypingPlaceholder && messages.length === 0 && !!chat;
 
   // Regenerate the last AI message
   const regenerateLastMessage = () => {
