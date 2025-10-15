@@ -7,6 +7,7 @@ import ChatInput from "@/components/chats/ChatInput";
 import TypingIndicator from "@/components/ui/TypingIndicator";
 import { apiRequest } from "@/lib/queryClient";
 import { useRolePlay } from "@/contexts/RolePlayContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { queryClient } from "@/lib/queryClient";
@@ -44,7 +45,6 @@ interface ChatsPageProps {
 
 const ChatsPage = ({ chatId }: ChatsPageProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { isTyping, setIsTyping } = useRolePlay();
   const { t } = useLanguage();
   const { location, navigateToPath } = useNavigation();
   const { toast } = useToast();
@@ -56,6 +56,10 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
   // If no chatId is provided, show chat list
   const showChatList = !chatId;
   
+  const { isReady: authReady } = useAuth();
+
+  const chatEnabled = authReady && !!chatId;
+
   // Fetch chat details if chatId is provided
   const {
     data: chat,
@@ -63,7 +67,8 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     error: chatError
   } = useQuery<Chat>({
     queryKey: [`/api/chats/${chatId}`],
-    enabled: !!chatId,
+    enabled: chatEnabled,
+    staleTime: 30 * 1000,
   });
   
   // Fetch chat messages if chatId is provided
@@ -73,7 +78,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     error: messagesError
   } = useQuery<ChatMessage[]>({
     queryKey: [`/api/chats/${chatId}/messages`],
-    enabled: !!chatId,
+    enabled: chatEnabled,
   });
   
   // Fetch character details for the chat
@@ -82,7 +87,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     isLoading: isLoadingCharacter
   } = useQuery<Character>({
     queryKey: [`/api/characters/${chat?.characterId}`],
-    enabled: !!chat?.characterId,
+    enabled: authReady && !!chat?.characterId,
   });
   
   
@@ -92,7 +97,8 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     isLoading: isLoadingChats
   } = useQuery<EnrichedChat[]>({
     queryKey: ["/api/chats"],
-    enabled: showChatList,
+    enabled: authReady && showChatList,
+    staleTime: 30 * 1000,
   });
   
   // Mutation for sending messages
@@ -105,15 +111,13 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
-      setIsTyping(true);
-      
+      // Kick off AI response immediately
       aiResponse();
     },
   });
   
   // Mutation for AI responses
-  const { mutate: aiResponse } = useMutation({
+  const { mutate: aiResponse, isPending: isGeneratingResponse } = useMutation({
     mutationFn: async () => {
       return apiRequest(
         "POST",
@@ -122,14 +126,8 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
-      setIsTyping(false);
-      
       // Invalidate token balance after AI response generation
       invalidateTokenBalance();
-    },
-    onError: () => {
-      setIsTyping(false);
     },
   });
   
@@ -207,9 +205,11 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
   
   // Regenerate the last AI message
   const regenerateLastMessage = () => {
-    setIsTyping(true);
     aiResponse();
   };
+
+  // Derive typing state from mutation
+  const isTyping = isGeneratingResponse;
   
   useEffect(() => {
     if (typeof window === "undefined") return;
