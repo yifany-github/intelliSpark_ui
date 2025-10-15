@@ -40,7 +40,6 @@ interface ChatPageProps {
 
 const ChatPage = ({ chatId }: ChatPageProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { isTyping, setIsTyping } = useRolePlay();
   const { isReady: authReady } = useAuth();
   const { t } = useLanguage();
   const { navigateBack, navigateToPath } = useNavigation();
@@ -135,15 +134,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: chatEnabled,
   });
 
-  // Auto-clear typing indicator when new assistant message arrives
-  // Realtime subscription will add the message to cache, triggering this effect
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage?.role === 'assistant' && isTyping) {
-      console.log('[Chat] Assistant message received, clearing typing indicator');
-      setIsTyping(false);
-    }
-  }, [messages, isTyping, setIsTyping]);
+  // Derive typing state from mutation instead of manual state
+  const isTyping = isGeneratingResponse;
 
   // Character data: prefer from enriched chat, fallback to direct query
   const characterId = chat?.characterId ?? matchingChat?.character?.id;
@@ -206,13 +198,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     },
     onSuccess: async () => {
       if (!activeChatId) return;
-      await queryClient.refetchQueries({
-        queryKey: [`/api/chats/${activeChatId}/messages`],
-        type: "active",
-        exact: true,
-      });
-      setIsTyping(true);
 
+      // Realtime will add user message to cache
       // Kick off AI response immediately
       aiResponse();
     },
@@ -243,7 +230,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   });
   
   // Mutation for AI responses
-  const { mutate: aiResponse } = useMutation({
+  const { mutate: aiResponse, isPending: isGeneratingResponse } = useMutation({
     mutationFn: async () => {
       if (!activeChatId || !chat) {
         throw new Error("Chat not ready");
@@ -258,16 +245,12 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       if (!activeChatId) return;
 
       // Realtime will add the message to cache automatically
-      // Just clear typing indicator and update token balance
-      setIsTyping(false);
+      // Just update token balance and generate quick replies
       invalidateTokenBalance();
-
-      // Generate quick replies after AI response
       generateQuickReplies();
     },
     onError: (error: any) => {
       console.error("AI response generation failed:", error);
-      setIsTyping(false);
       
       if (!activeChatId) {
         return;
@@ -304,7 +287,6 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       return response.json();
     },
     onSuccess: (data, deletedChatId) => {
-      setIsTyping(false);
       queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
       toast({
         title: t('success'),
@@ -332,7 +314,6 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
   // Regenerate the last AI message
   const regenerateLastMessage = () => {
-    setIsTyping(true);
     aiResponse();
   };
 
