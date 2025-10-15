@@ -33,6 +33,7 @@ import { NavigationProvider } from "@/contexts/NavigationContext";
 import { FavoritesProvider } from "@/contexts/FavoritesContext";
 import ErrorBoundary from "@/components/error/ErrorBoundary";
 import { useAuthRecovery } from "@/hooks/useAuthRecovery";
+import { useRealtimeChatList } from "@/hooks/useRealtimeChatList";
 
 // Auth Modal Handler - handles post-login actions
 function AuthModalHandler() {
@@ -93,6 +94,9 @@ function MainApp() {
 
   // Handle session recovery when tab wakes from sleep
   useAuthRecovery();
+
+  // Subscribe to realtime chat list updates (for all chats)
+  useRealtimeChatList();
 
   return (
     <ErrorBoundary>

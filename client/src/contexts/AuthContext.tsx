@@ -10,7 +10,7 @@ import React, {
 import { Session } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { User, ChatMessage } from '../types';
+import { User } from '../types';
 import { supabase } from '@/lib/supabaseClient';
 import { invalidateCachedAccessToken, refreshAccessToken } from '@/utils/auth';
 import { updateAuthStore, clearAuthStore as clearAuthStoreModule } from '@/lib/authStore';
@@ -217,163 +217,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, [clearAuthState, queryClient, syncUserFromSession]);
 
-  // Per-user realtime subscription for all chat messages
-  // This eliminates subscription gaps caused by per-chat subscriptions
-  useEffect(() => {
-    if (!user?.id) return;
-
-    console.log(`[Realtime] Setting up per-user subscription for user ${user.id}`);
-
-    let cancelled = false;
-    let currentChannel: ReturnType<typeof supabase.channel> | null = null;
-    let retryDelay = 1000;
-    let retryTimeout: number | null = null;
-
-    const invalidateChatQueries = () => {
-      queryClient.invalidateQueries({
-        predicate: (query) => {
-          const key = query.queryKey?.[0];
-          return (
-            typeof key === 'string' &&
-            (key.startsWith('/api/chats') || key.includes('/messages'))
-          );
-        },
-      });
-    };
-
-    const scheduleRetry = () => {
-      if (retryTimeout) {
-        window.clearTimeout(retryTimeout);
-      }
-      retryTimeout = window.setTimeout(() => {
-        retryTimeout = null;
-        subscribe();
-      }, retryDelay);
-      retryDelay = Math.min(Math.floor(retryDelay * 1.5), 5000);
-    };
-
-    const subscribe = () => {
-      if (cancelled) {
-        return;
-      }
-
-      if (currentChannel) {
-        supabase.removeChannel(currentChannel);
-        currentChannel = null;
-      }
-
-      currentChannel = supabase
-        .channel('user-messages')
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'chat_messages',
-            filter: `user_id=eq.${user.id}`,
-          },
-          (payload) => {
-            console.log('[Realtime] New message received:', payload.new);
-
-            const newMessage = payload.new as ChatMessage;
-            const chatUuid = newMessage.chat_uuid;
-            const chatId = newMessage.chat_id;
-
-            const mergeMessage = (oldMessages: ChatMessage[] = []) => {
-              const exists = oldMessages.some((msg) => msg.id === newMessage.id);
-              if (exists) {
-                console.log('[Realtime] Message already in cache, skipping');
-                return oldMessages;
-              }
-              console.log('[Realtime] Adding message to cache');
-              return [...oldMessages, newMessage];
-            };
-
-            if (chatUuid) {
-              queryClient.setQueryData<ChatMessage[]>([`/api/chats/${chatUuid}/messages`], mergeMessage);
-            }
-            if (typeof chatId === 'number') {
-              queryClient.setQueryData<ChatMessage[]>([`/api/chats/${chatId}/messages`], mergeMessage);
-              queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}`] });
-            }
-
-            queryClient.invalidateQueries({ queryKey: ['/api/chats'] });
-            if (newMessage.role === 'assistant') {
-              setIsTyping(false);
-            }
-          }
-        )
-        .subscribe((status) => {
-          console.log(`[Realtime] Per-user subscription status:`, status);
-          if (status === 'SUBSCRIBED') {
-            retryDelay = 1000;
-            if (retryTimeout) {
-              window.clearTimeout(retryTimeout);
-              retryTimeout = null;
-            }
-            queryClient.refetchQueries({
-              type: 'active',
-              predicate: (query) => {
-                const key = query.queryKey?.[0];
-                if (typeof key !== 'string') {
-                  return false;
-                }
-                if (key === '/api/chats') {
-                  return true;
-                }
-                return key.includes('/messages');
-              },
-            });
-          }
-
-          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-            console.warn(`[Realtime] Subscription issue (${status}), scheduling retry in ${retryDelay}ms`);
-            invalidateChatQueries();
-            setIsTyping(false);
-            scheduleRetry();
-          }
-
-          if (status === 'CLOSED' && !cancelled) {
-            console.warn('[Realtime] Subscription closed unexpectedly, resubscribing');
-            setIsTyping(false);
-            scheduleRetry();
-          }
-        });
-    };
-
-    subscribe();
-
-    // Handle visibility change: refetch when tab regains focus
-    const handleVisibilityChange = () => {
-      if (!document.hidden) {
-        console.log('[Realtime] Tab became visible, invalidating message queries');
-        // Invalidate all message queries to catch any missed during tab sleep
-        queryClient.invalidateQueries({
-          predicate: (query) => {
-            const key = query.queryKey?.[0];
-            return typeof key === 'string' && key.includes('/messages');
-          }
-        });
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // Cleanup on unmount or user change
-    return () => {
-      console.log(`[Realtime] Cleaning up per-user subscription for user ${user.id}`);
-      cancelled = true;
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      if (retryTimeout) {
-        window.clearTimeout(retryTimeout);
-        retryTimeout = null;
-      }
-      if (currentChannel) {
-        supabase.removeChannel(currentChannel);
-        currentChannel = null;
-      }
-    };
-  }, [user?.id, queryClient]);
+  // Realtime subscriptions moved to dedicated hooks:
+  // - useRealtimeChatList (for global chat list updates)
+  // - useRealtimeMessages (for per-chat message updates)
+  // This separation of concerns makes AuthContext cleaner and scopes
+  // subscriptions to where they're actually needed.
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
