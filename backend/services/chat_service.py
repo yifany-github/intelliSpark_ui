@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from uuid import UUID
 
 import anyio
@@ -170,6 +170,50 @@ class ChatService:
         except Exception as exc:
             self.logger.error("Error fetching chat by UUID %s: %s", chat_uuid, exc)
             raise ChatServiceError(f"Failed to fetch chat by UUID {chat_uuid}: {exc}") from exc
+
+    async def get_chat_status(
+        self,
+        identifier: Union[int, UUID],
+        user_id: int,
+        *,
+        by_uuid: bool,
+    ) -> Optional[Dict[str, Any]]:
+        try:
+            if by_uuid:
+                stmt = select(Chat).where(Chat.uuid == identifier, Chat.user_id == user_id)
+            else:
+                stmt = select(Chat).where(Chat.id == identifier, Chat.user_id == user_id)
+
+            chat = (await self.db.execute(stmt)).scalars().first()
+            if not chat:
+                return None
+
+            count_stmt = select(func.count(ChatMessage.id)).where(ChatMessage.chat_id == chat.id)
+            message_count = (await self.db.execute(count_stmt)).scalar() or 0
+
+            latest_message = (
+                await self.db.execute(
+                    select(ChatMessage)
+                    .where(ChatMessage.chat_id == chat.id)
+                    .order_by(ChatMessage.id.desc())
+                    .limit(1)
+                )
+            ).scalars().first()
+
+            return {
+                "id": chat.id,
+                "uuid": str(chat.uuid) if chat.uuid else None,
+                "messageCount": message_count,
+                "lastMessageId": latest_message.id if latest_message else None,
+                "lastMessageRole": latest_message.role if latest_message else None,
+                "lastMessageTimestamp": latest_message.timestamp.isoformat() + "Z"
+                if latest_message and latest_message.timestamp
+                else None,
+                "updatedAt": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
+            }
+        except Exception as exc:
+            self.logger.error("Error fetching chat status %s: %s", identifier, exc)
+            raise ChatServiceError(f"Failed to fetch chat status: {exc}") from exc
 
     async def create_chat_immediate(
         self,

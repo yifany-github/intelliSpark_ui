@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
+import ImageWithFallback from '@/components/ui/ImageWithFallback';
 
 // Constants
 const MAX_MESSAGE_LENGTH = 10000; // 10KB limit to match backend
@@ -18,9 +19,23 @@ interface ChatInputProps {
   disabled?: boolean;
   placeholder?: string;
   className?: string;
+  avatarUrl?: string | null;
+  avatarAlt?: string;
+  avatarFallbackText?: string;
+  showAvatar?: boolean;
 }
 
-const ChatInput = ({ onSendMessage, isLoading, disabled = false, placeholder, className }: ChatInputProps) => {
+const ChatInput = ({
+  onSendMessage,
+  isLoading,
+  disabled = false,
+  placeholder,
+  className,
+  avatarUrl,
+  avatarAlt,
+  avatarFallbackText,
+  showAvatar = false,
+}: ChatInputProps) => {
   const [message, setMessage] = useState('');
   const { toast } = useToast();
   const { t } = useLanguage();
@@ -90,6 +105,17 @@ const ChatInput = ({ onSendMessage, isLoading, disabled = false, placeholder, cl
   return (
     <div className={cn("px-3 pt-3 pb-0 sm:p-3 border-t border-secondary bg-background", className)}>
       <div className="flex items-end bg-secondary rounded-2xl px-3 py-2 transition-all duration-300 focus-within:ring-2 focus-within:ring-pink-500/30 focus-within:shadow-[0_0_20px_rgba(236,72,153,0.2)] gap-2">
+        {showAvatar && (
+          <div className="flex items-center justify-center pb-1 mr-1">
+            <ImageWithFallback
+              src={avatarUrl ?? undefined}
+              alt={avatarAlt ?? 'Character avatar'}
+              fallbackText={avatarFallbackText ?? 'AI'}
+              size="sm"
+              className="shadow-lg border border-white/10"
+            />
+          </div>
+        )}
         <Popover>
           <PopoverTrigger asChild>
             <button className="text-gray-400 shrink-0 mb-1 hidden sm:block" disabled={isSubmitDisabled}>

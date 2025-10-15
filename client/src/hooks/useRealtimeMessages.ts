@@ -60,9 +60,9 @@ export function useRealtimeMessages(canonicalUuid: string | undefined) {
             }
           );
 
-          // Invalidate ALL chat detail queries (not just UUID-keyed)
-          // This handles both /chat/123 (numeric) and /chat/uuid routes
-          // Slight over-invalidation, but architecturally clean (no dual-path logic)
+          // Invalidate chat detail queries to refresh metadata (message count, timestamps)
+          // The UUID-first cache keys + backend normalization already ensure both /chat/123
+          // and /chat/uuid routes work correctly; this just keeps metadata fresh when messages arrive
           queryClient.invalidateQueries({
             predicate: (query) => {
               const key = query.queryKey[0];

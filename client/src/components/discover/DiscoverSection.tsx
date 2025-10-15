@@ -89,7 +89,7 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
       return response.json();
     },
     onSuccess: (chat) => {
-      // Backend must return UUID - fail loudly if missing
+      // Backend should return UUID - log error and redirect if missing
       if (!chat?.uuid) {
         console.error('[DiscoverSection] Chat created without UUID:', chat);
         toast({

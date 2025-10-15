@@ -242,7 +242,6 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
       return response.json();
     },
     onSuccess: (chat) => {
-      // Backend must return UUID - fail loudly if missing
       if (!chat?.uuid) {
         console.error('[CharacterGrid] Chat created without UUID:', chat);
         toast({
@@ -254,7 +253,6 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
         return;
       }
 
-      // Navigate using UUID only (no numeric fallback)
       setLocation(`/chat/${chat.uuid}`, { replace: true });
     },
     onError: (error) => {

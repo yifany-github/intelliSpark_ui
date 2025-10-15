@@ -110,6 +110,22 @@ async def get_chat(
     except ChatServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/{chat_id}/status")
+async def get_chat_status(
+    chat_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Return lightweight status metadata for a chat."""
+    try:
+        is_uuid, parsed_id = parse_chat_identifier(chat_id)
+        service = ChatService(db)
+        status = await service.get_chat_status(parsed_id, current_user.id, by_uuid=is_uuid)
+        if status is None:
+            raise HTTPException(status_code=404, detail="Chat not found")
+        return status
+    except ChatServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("", response_model=ChatSchema)
 async def create_chat(
