@@ -40,7 +40,7 @@ interface ChatPageProps {
 
 const ChatPage = ({ chatId }: ChatPageProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { isTyping, setIsTyping, selectedCharacter } = useRolePlay();
+  const { isTyping, setIsTyping } = useRolePlay();
   const { isReady: authReady } = useAuth();
   const { t } = useLanguage();
   const { navigateBack, navigateToPath } = useNavigation();
@@ -145,41 +145,19 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     }
   }, [messages, isTyping, setIsTyping]);
 
-  // Fallback character fetch if not found in enriched chats
-  const fallbackCharacterId = chat?.characterId ?? (chat as { character_id?: number } | undefined)?.character_id;
+  // Character data: prefer from enriched chat, fallback to direct query
+  const characterId = chat?.characterId ?? matchingChat?.character?.id;
 
   const {
-    data: fallbackCharacter,
-    isLoading: isLoadingFallbackCharacter
+    data: characterFromQuery,
+    isLoading: isLoadingCharacter
   } = useQuery<Character>({
-    queryKey: [`/api/characters/${fallbackCharacterId}`],
-    enabled: !!fallbackCharacterId && !matchingChat?.character,
+    queryKey: [`/api/characters/${characterId}`],
+    enabled: authReady && !!characterId && !matchingChat?.character,
   });
 
-  // Get character data from the enriched chats list with fallback
-  type ChatCharacter = Character | NonNullable<EnrichedChat["character"]>;
-
-  const character = useMemo<ChatCharacter | null>(() => {
-    const foundCharacter = matchingChat?.character;
-
-    if (foundCharacter) {
-      return foundCharacter;
-    }
-
-    if (fallbackCharacter) {
-      return fallbackCharacter;
-    }
-
-    if (selectedCharacter) {
-      return selectedCharacter;
-    }
-
-    return null;
-  }, [matchingChat, fallbackCharacter, selectedCharacter]);
-  
-  const isLoadingCharacter =
-    isLoadingChats ||
-    isLoadingFallbackCharacter;
+  // Single source of truth for character
+  const character = matchingChat?.character ?? characterFromQuery ?? null;
   const waitingForFirstMessage = !!chat && messages.length === 0;
   const showTypingPlaceholder =
     isLoadingChat || waitingForFirstMessage || isLoadingMessages || isLoadingCharacter;
