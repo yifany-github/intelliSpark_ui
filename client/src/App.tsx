@@ -32,6 +32,7 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { NavigationProvider } from "@/contexts/NavigationContext";
 import { FavoritesProvider } from "@/contexts/FavoritesContext";
 import ErrorBoundary from "@/components/error/ErrorBoundary";
+import { useAuthRecovery } from "@/hooks/useAuthRecovery";
 
 // Auth Modal Handler - handles post-login actions
 function AuthModalHandler() {
@@ -89,6 +90,9 @@ function AuthModalHandler() {
 function MainApp() {
   const { isAuthenticated, isLoading } = useAuth();
   const [location] = useLocation();
+
+  // Handle session recovery when tab wakes from sleep
+  useAuthRecovery();
 
   return (
     <ErrorBoundary>
