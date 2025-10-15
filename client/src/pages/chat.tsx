@@ -51,29 +51,30 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   const [isBrowserMounted, setIsBrowserMounted] = useState(false);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
 
-  const activeChatId = chatId;
-
-  // Subscribe to realtime messages for this specific chat
-  // Realtime handles instant message updates; no manual polling needed
-  useRealtimeMessages(activeChatId);
-
   // If no chatId is provided, show chat list
   const showChatListOnly = !chatId;
-  const numericChatId =
-    activeChatId && /^\d+$/.test(activeChatId) ? parseInt(activeChatId, 10) : null;
 
-  // Fetch chat details if chatId is provided
-  const chatEnabled = authReady && !!activeChatId;
+  // Fetch chat details - backend accepts both numeric and UUID
+  // Backend resolves to canonical chat and returns chat.uuid in response
+  const chatEnabled = authReady && !!chatId;
 
   const {
     data: chat,
     isLoading: isLoadingChat,
     error: chatError
   } = useQuery<Chat>({
-    queryKey: [`/api/chats/${activeChatId}`],
+    queryKey: [`/api/chats/${chatId}`],
     enabled: chatEnabled,
     staleTime: 30 * 1000,
   });
+
+  // Extract canonical UUID from chat response
+  // This is our single source of truth for realtime, cache keys, navigation
+  const canonicalUuid = chat?.uuid ?? null;
+
+  // Subscribe to realtime using canonical UUID (not the route parameter)
+  // This ensures realtime works for both /chat/123 and /chat/uuid routes
+  useRealtimeMessages(canonicalUuid ?? undefined);
 
   if (chatError) {
     console.error("[Chat] Failed to load chat:", chatError);
@@ -104,49 +105,40 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: authReady,
   });
 
-  const matchingChat = useMemo(() => {
-    if (!activeChatId) {
+  // Find current chat in enriched list using canonical UUID
+  const currentChatInList = useMemo(() => {
+    if (!canonicalUuid) {
       return undefined;
     }
+    return chats.find((item) => item.uuid === canonicalUuid);
+  }, [chats, canonicalUuid]);
 
-    return chats.find((item) => {
-      if (item.uuid && !/^\d+$/.test(activeChatId)) {
-        return item.uuid === activeChatId;
-      }
-      return numericChatId !== null && item.id === numericChatId;
-    });
-  }, [chats, activeChatId, numericChatId]);
+  // Fetch chat messages - use canonical UUID for consistency
+  // This ensures cache keys match across numeric and UUID routes
+  const messagesEnabled = authReady && !!canonicalUuid;
 
-  const isCurrentChat = (item: EnrichedChat) => {
-    if (!matchingChat) {
-      return false;
-    }
-    return item.id === matchingChat.id;
-  };
-
-  // Fetch chat messages if chatId is provided
   const {
     data: messages = [],
     isLoading: isLoadingMessages,
     error: messagesError
   } = useQuery<ChatMessage[]>({
-    queryKey: [`/api/chats/${activeChatId}/messages`],
-    enabled: chatEnabled,
+    queryKey: [`/api/chats/${canonicalUuid}/messages`],
+    enabled: messagesEnabled,
   });
 
-  // Character data: prefer from enriched chat, fallback to direct query
-  const characterId = chat?.characterId ?? matchingChat?.character?.id;
+  // Character data: prefer from enriched chat list, fallback to direct query
+  const characterId = chat?.characterId ?? currentChatInList?.character?.id;
 
   const {
     data: characterFromQuery,
     isLoading: isLoadingCharacter
   } = useQuery<Character>({
     queryKey: [`/api/characters/${characterId}`],
-    enabled: authReady && !!characterId && !matchingChat?.character,
+    enabled: authReady && !!characterId && !currentChatInList?.character,
   });
 
   // Single source of truth for character
-  const character = matchingChat?.character ?? characterFromQuery ?? null;
+  const character = currentChatInList?.character ?? characterFromQuery ?? null;
 
   const renderTypingBubble = ({
     message,
@@ -287,11 +279,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       });
 
       // Only navigate away if we deleted the current chat
-      if (
-        (numericChatId !== null && numericChatId === deletedChatId) ||
-        matchingChat?.id === deletedChatId ||
-        chat?.id === deletedChatId
-      ) {
+      if (chat?.id === deletedChatId) {
         navigateToPath('/chats');
       }
     },
