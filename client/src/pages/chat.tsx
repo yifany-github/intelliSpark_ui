@@ -33,8 +33,6 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 
 const createTempMessageId = () => -Math.floor(Date.now() + Math.random() * 1000);
-const CHAT_STATUS_POLL_DELAY_MS = 4000;
-const TYPING_FALLBACK_TIMEOUT_MS = 45000;
 
 interface ChatPageProps {
   chatId?: string;
@@ -53,43 +51,12 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   const [pinnedChatIds, setPinnedChatIds] = useState<number[]>([]);
   const [isBrowserMounted, setIsBrowserMounted] = useState(false);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
-  const statusPollTimeoutRef = useRef<number | null>(null);
-  const typingFallbackTimeoutRef = useRef<number | null>(null);
-  const lastAssistantMessageIdRef = useRef<number | null>(null);
 
   const activeChatId = chatId;
 
-  const clearStatusPoll = useCallback(() => {
-    if (statusPollTimeoutRef.current !== null) {
-      window.clearTimeout(statusPollTimeoutRef.current);
-      statusPollTimeoutRef.current = null;
-    }
-  }, []);
-
-  const stopTyping = useCallback(() => {
-    clearStatusPoll();
-    if (typingFallbackTimeoutRef.current !== null) {
-      window.clearTimeout(typingFallbackTimeoutRef.current);
-      typingFallbackTimeoutRef.current = null;
-    }
-    setIsTyping(false);
-  }, [clearStatusPoll, setIsTyping]);
-
-  const resetRealtimeGuards = useCallback(() => {
-    clearStatusPoll();
-    stopTyping();
-    lastAssistantMessageIdRef.current = null;
-  }, [clearStatusPoll, stopTyping]);
-
   // Subscribe to realtime messages for this specific chat
-  // Note: React Query's refetchOnWindowFocus handles tab visibility automatically
+  // Realtime handles instant message updates; no manual polling needed
   useRealtimeMessages(activeChatId);
-
-  useEffect(() => {
-    return () => {
-      resetRealtimeGuards();
-    };
-  }, [resetRealtimeGuards]);
 
   // If no chatId is provided, show chat list
   const showChatListOnly = !chatId;
@@ -138,8 +105,6 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: authReady,
   });
 
-  const emptyMessagesRecoveryRef = useRef(false);
-
   const matchingChat = useMemo(() => {
     if (!activeChatId) {
       return undefined;
@@ -170,140 +135,15 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: chatEnabled,
   });
 
+  // Auto-clear typing indicator when new assistant message arrives
+  // Realtime subscription will add the message to cache, triggering this effect
   useEffect(() => {
-    if (!isTyping) {
-      if (typingFallbackTimeoutRef.current !== null) {
-        window.clearTimeout(typingFallbackTimeoutRef.current);
-        typingFallbackTimeoutRef.current = null;
-      }
-      return;
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.role === 'assistant' && isTyping) {
+      console.log('[Chat] Assistant message received, clearing typing indicator');
+      setIsTyping(false);
     }
-
-    if (typingFallbackTimeoutRef.current !== null) {
-      window.clearTimeout(typingFallbackTimeoutRef.current);
-    }
-
-    typingFallbackTimeoutRef.current = window.setTimeout(() => {
-      console.warn("[Chat] Typing fallback timeout reached, clearing typing state");
-      stopTyping();
-      toast({
-        title: t("responseDelayed") || "Response delayed",
-        description: t("responseDelayedDescription") || "The assistant is taking longer than expected. Try again in a moment.",
-      });
-    }, TYPING_FALLBACK_TIMEOUT_MS);
-
-    return () => {
-      if (typingFallbackTimeoutRef.current !== null) {
-        window.clearTimeout(typingFallbackTimeoutRef.current);
-        typingFallbackTimeoutRef.current = null;
-      }
-    };
-  }, [isTyping, stopTyping, toast, t]);
-
-  useEffect(() => {
-    if (!activeChatId) {
-      clearStatusPoll();
-      return;
-    }
-
-    const waitingForAssistant = isTyping || (!!chat && messages.length === 0);
-
-    if (!waitingForAssistant) {
-      clearStatusPoll();
-      return;
-    }
-
-    let cancelled = false;
-
-    const pollStatus = async () => {
-      try {
-        const response = await apiRequest(
-          "GET",
-          `/api/chats/${activeChatId}/status`
-        );
-
-        if (!response.ok) {
-          throw new Error(await response.text());
-        }
-
-        const payload = (await response.json()) as { messageCount?: number } | null;
-        const messageCount = typeof payload?.messageCount === "number" ? payload.messageCount : 0;
-
-        if (cancelled) {
-          return;
-        }
-
-        if (messageCount > messages.length) {
-          stopTyping();
-          await queryClient.refetchQueries({
-            queryKey: [`/api/chats/${activeChatId}/messages`],
-            type: "active",
-            exact: true,
-          });
-          return;
-        }
-      } catch (error) {
-        console.warn("[Chat] Failed to poll chat status", error);
-      }
-
-      if (!cancelled) {
-        clearStatusPoll();
-        statusPollTimeoutRef.current = window.setTimeout(pollStatus, CHAT_STATUS_POLL_DELAY_MS);
-      }
-    };
-
-    void pollStatus();
-
-    return () => {
-      cancelled = true;
-      clearStatusPoll();
-    };
-  }, [activeChatId, isTyping, chat, messages.length, clearStatusPoll, stopTyping]);
-
-  useEffect(() => {
-    if (messages.length === 0) {
-      lastAssistantMessageIdRef.current = null;
-      if (
-        !isLoadingMessages &&
-        matchingChat &&
-        typeof matchingChat.messageCount === "number" &&
-        matchingChat.messageCount > 0 &&
-        !emptyMessagesRecoveryRef.current
-      ) {
-        emptyMessagesRecoveryRef.current = true;
-        void queryClient.invalidateQueries({ queryKey: [`/api/chats/${activeChatId}/messages`] });
-      }
-    } else if (emptyMessagesRecoveryRef.current) {
-      emptyMessagesRecoveryRef.current = false;
-    }
-
-    const lastAssistantMessage = [...messages].reverse().find((message) => message.role === "assistant");
-
-    if (!lastAssistantMessage) {
-      return;
-    }
-
-    if (lastAssistantMessageIdRef.current === lastAssistantMessage.id) {
-      return;
-    }
-
-    lastAssistantMessageIdRef.current = lastAssistantMessage.id;
-
-    if (isTyping) {
-      stopTyping();
-    }
-  }, [messages, isTyping, stopTyping, isLoadingMessages, matchingChat, activeChatId]);
-
-  useEffect(() => {
-    if (chat && messages.length > 0 && isTyping) {
-      stopTyping();
-    }
-  }, [chat, messages, isTyping, stopTyping]);
-
-  // Reset recovery ref when chat changes
-  useEffect(() => {
-    emptyMessagesRecoveryRef.current = false;
-  }, [activeChatId]);
+  }, [messages, isTyping, setIsTyping]);
 
   // Fallback character fetch if not found in enriched chats
   const fallbackCharacterId = chat?.characterId ?? (chat as { character_id?: number } | undefined)?.character_id;
@@ -438,14 +278,10 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     },
     onSuccess: async () => {
       if (!activeChatId) return;
-      await queryClient.refetchQueries({
-        queryKey: [`/api/chats/${activeChatId}/messages`],
-        type: "active",
-        exact: true,
-      });
-      stopTyping();
 
-      // Invalidate token balance after AI response generation
+      // Realtime will add the message to cache automatically
+      // Just clear typing indicator and update token balance
+      setIsTyping(false);
       invalidateTokenBalance();
 
       // Generate quick replies after AI response
@@ -453,7 +289,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     },
     onError: (error: any) => {
       console.error("AI response generation failed:", error);
-      stopTyping();
+      setIsTyping(false);
       
       if (!activeChatId) {
         return;
@@ -490,7 +326,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       return response.json();
     },
     onSuccess: (data, deletedChatId) => {
-      resetRealtimeGuards();
+      setIsTyping(false);
       queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
       toast({
         title: t('success'),
