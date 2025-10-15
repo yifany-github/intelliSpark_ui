@@ -16,6 +16,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { invalidateTokenBalance } from "@/services/tokenService";
 import { queryClient } from "@/lib/queryClient";
 import { useChatQueryLifecycle } from "@/hooks/useChatQueryLifecycle";
+import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft, Sparkles, Filter, Pin, Trash2, Info } from "lucide-react";
 import {
   Sheet,
@@ -43,7 +44,7 @@ interface ChatPageProps {
 const ChatPage = ({ chatId }: ChatPageProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { isTyping, setIsTyping, selectedCharacter } = useRolePlay();
-  const { isLoading: authLoading } = useAuth();
+  const { isReady: authReady } = useAuth();
   const { t } = useLanguage();
   const { navigateBack, navigateToPath } = useNavigation();
   const { toast } = useToast();
@@ -84,6 +85,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   // Refresh chat data whenever the tab regains focus or visibility
   useChatQueryLifecycle(activeChatId);
 
+  // Subscribe to realtime messages for this specific chat
+  useRealtimeMessages(activeChatId);
+
   useEffect(() => {
     return () => {
       resetRealtimeGuards();
@@ -96,7 +100,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     activeChatId && /^\d+$/.test(activeChatId) ? parseInt(activeChatId, 10) : null;
 
   // Fetch chat details if chatId is provided
-  const chatEnabled = !authLoading && !!activeChatId;
+  const chatEnabled = authReady && !!activeChatId;
 
   const {
     data: chat,
@@ -134,7 +138,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     isLoading: isLoadingChats
   } = useQuery<EnrichedChat[]>({
     queryKey: ["/api/chats"],
-    enabled: !authLoading,
+    enabled: authReady,
   });
 
   const emptyMessagesRecoveryRef = useRef(false);
