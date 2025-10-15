@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Chat, ChatMessage, Character, EnrichedChat } from "../types";
@@ -12,6 +12,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useRolePlay } from "@/contexts/RolePlayContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigation } from "@/contexts/NavigationContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { invalidateTokenBalance } from "@/services/tokenService";
 import { queryClient } from "@/lib/queryClient";
 import { useChatQueryLifecycle } from "@/hooks/useChatQueryLifecycle";
@@ -30,12 +31,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
-import { loadPendingChatRequest, clearPendingChatRequest, savePendingChatRequest, PendingChatRequest } from "@/utils/pendingChat";
-import { supabase } from "@/lib/supabaseClient";
-import { refreshAccessToken } from "@/utils/auth";
 
 const createTempMessageId = () => -Math.floor(Date.now() + Math.random() * 1000);
-const MAX_PENDING_CHAT_AGE_MS = 2 * 60 * 1000;
+const CHAT_STATUS_POLL_DELAY_MS = 4000;
+const TYPING_FALLBACK_TIMEOUT_MS = 45000;
 
 interface ChatPageProps {
   chatId?: string;
@@ -43,7 +42,8 @@ interface ChatPageProps {
 
 const ChatPage = ({ chatId }: ChatPageProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { isTyping, setIsTyping, selectedCharacter, setCurrentChat, currentChat } = useRolePlay();
+  const { isTyping, setIsTyping, selectedCharacter } = useRolePlay();
+  const { isLoading: authLoading } = useAuth();
   const { t } = useLanguage();
   const { navigateBack, navigateToPath } = useNavigation();
   const { toast } = useToast();
@@ -53,324 +53,42 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   const [pinnedChatIds, setPinnedChatIds] = useState<number[]>([]);
   const [isBrowserMounted, setIsBrowserMounted] = useState(false);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
-  const [showPendingPrompt, setShowPendingPrompt] = useState(false);
-  const typingStartedAtRef = useRef<number | null>(null);
-  const slowTypingNotifiedRef = useRef(false);
-  const typingTimedOutRef = useRef(false);
+  const statusPollTimeoutRef = useRef<number | null>(null);
+  const typingFallbackTimeoutRef = useRef<number | null>(null);
   const lastAssistantMessageIdRef = useRef<number | null>(null);
 
-  const isPendingChat = Boolean(chatId && chatId.startsWith("pending-"));
-  const activeChatId = isPendingChat ? undefined : chatId;
-  const pendingCharacterId = useMemo(() => {
-    if (!isPendingChat || !chatId) {
-      return null;
+  const activeChatId = chatId;
+
+  const clearStatusPoll = useCallback(() => {
+    if (statusPollTimeoutRef.current !== null) {
+      window.clearTimeout(statusPollTimeoutRef.current);
+      statusPollTimeoutRef.current = null;
     }
-    const match = chatId.match(/^pending-(\d+)/);
-    if (!match) {
-      return null;
+  }, []);
+
+  const stopTyping = useCallback(() => {
+    clearStatusPoll();
+    if (typingFallbackTimeoutRef.current !== null) {
+      window.clearTimeout(typingFallbackTimeoutRef.current);
+      typingFallbackTimeoutRef.current = null;
     }
-    const parsed = Number(match[1]);
-    return Number.isFinite(parsed) ? parsed : null;
-  }, [isPendingChat, chatId]);
+    setIsTyping(false);
+  }, [clearStatusPoll, setIsTyping]);
 
-  const pendingRetryAttemptedRef = useRef(false);
-  const pendingPollStopRef = useRef<() => void>(() => undefined);
-
-  const pendingChatMutation = useMutation({
-    mutationFn: async ({ characterId, idempotencyKey }: { characterId: number; idempotencyKey: string }) => {
-      const token = await refreshAccessToken();
-      if (!token) {
-        throw new Error("Unable to refresh session");
-      }
-      savePendingChatRequest({ characterId, idempotencyKey, startedAt: Date.now() });
-      const response = await apiRequest(
-        "POST",
-        "/api/chats",
-        {
-          characterId,
-          title: t("chatWithCharacter"),
-          idempotencyKey,
-        }
-      );
-      return response.json();
-    },
-    onSuccess: (createdChat) => {
-      clearPendingChatRequest();
-      setCurrentChat(createdChat);
-      setShowPendingPrompt(false);
-      pendingRetryAttemptedRef.current = false;
-      pendingPollStopRef.current();
-      pendingPollStopRef.current = () => undefined;
-      const chatIdentifier = createdChat?.uuid || createdChat?.id;
-      if (!chatIdentifier) {
-        toast({
-          title: t("error") || "Error",
-          description: t("failedToStartChat") || "Unable to start chat. Please try again.",
-          variant: "destructive",
-        });
-        navigateToPath("/chat");
-        return;
-      }
-
-      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
-      const createdIdempotencyKey = createdChat?.idempotencyKey ?? (createdChat as { idempotency_key?: string })?.idempotency_key;
-      if (createdIdempotencyKey) {
-        queryClient.removeQueries({ queryKey: ["/api/chats", { idempotencyKey: createdIdempotencyKey }] });
-      }
-      setIsTyping(false);
-      navigateToPath(`/chat/${chatIdentifier}`);
-    },
-    onError: (error) => {
-      clearPendingChatRequest();
-      pendingRetryAttemptedRef.current = false;
-      pendingPollStopRef.current();
-      pendingPollStopRef.current = () => undefined;
-      setIsTyping(false);
-
-      const message = error instanceof Error ? error.message : "";
-      if (message.includes("401") || message.includes("Unable to refresh session")) {
-        toast({
-          title: "Session expired",
-          description: "Please sign in again to continue.",
-          variant: "destructive",
-        });
-        navigateToPath("/login");
-        return;
-      }
-
-      toast({
-        title: t("error") || "Error",
-        description: t("failedToStartChat") || "Unable to start chat. Please try again.",
-        variant: "destructive",
-      });
-      navigateToPath("/chat");
-    },
-  });
+  const resetRealtimeGuards = useCallback(() => {
+    clearStatusPoll();
+    stopTyping();
+    lastAssistantMessageIdRef.current = null;
+  }, [clearStatusPoll, stopTyping]);
 
   // Refresh chat data whenever the tab regains focus or visibility
   useChatQueryLifecycle(activeChatId);
 
   useEffect(() => {
-    if (isPendingChat) {
-      setIsTyping(true);
-    }
     return () => {
-      if (isPendingChat) {
-        clearPendingChatRequest();
-        setIsTyping(false);
-        setShowPendingPrompt(false);
-      }
+      resetRealtimeGuards();
     };
-  }, [isPendingChat, setIsTyping]);
-
-  useEffect(() => {
-    if (!isPendingChat) {
-      setShowPendingPrompt(false);
-      return;
-    }
-
-    const pending = loadPendingChatRequest();
-    if (!pending) {
-      setShowPendingPrompt(false);
-      return;
-    }
-
-    const timeout = window.setTimeout(() => {
-      setShowPendingPrompt(true);
-    }, 30000);
-
-    return () => window.clearTimeout(timeout);
-  }, [isPendingChat, pendingChatMutation.isPending]);
-
-  const handlePendingCancel = () => {
-    clearPendingChatRequest();
-    setIsTyping(false);
-    setShowPendingPrompt(false);
-    navigateToPath('/chat');
-  };
-
-  const handlePendingRetry = () => {
-    const pending = loadPendingChatRequest();
-    if (pending) {
-      setShowPendingPrompt(false);
-      pendingChatMutation.mutate({
-        characterId: pending.characterId,
-        idempotencyKey: pending.idempotencyKey,
-      });
-    }
-  };
-
-  useEffect(() => {
-    if (!isTyping) {
-      typingTimedOutRef.current = false;
-      slowTypingNotifiedRef.current = false;
-    }
-  }, [isTyping]);
-
-  useEffect(() => {
-    if (!isPendingChat) {
-      pendingRetryAttemptedRef.current = false;
-      pendingPollStopRef.current();
-      pendingPollStopRef.current = () => undefined;
-      return;
-    }
-
-    let cancelled = false;
-    pendingPollStopRef.current();
-    pendingPollStopRef.current = () => {
-      cancelled = true;
-    };
-
-    const maybeRedirectToExistingChat = (
-      pending: PendingChatRequest,
-      chatsData: EnrichedChat[],
-    ) => {
-      const pendingCharacterIdNumber = Number(pending.characterId);
-      const matching = chatsData.find((item) => {
-        const camelId = item.characterId;
-        const legacyCharacterId = (item as { character_id?: number | string }).character_id;
-        const characterFromRelation = item.character?.id;
-
-        const resolvedCharacterIdRaw = camelId ?? legacyCharacterId ?? characterFromRelation;
-        const resolvedCharacterId =
-          resolvedCharacterIdRaw === undefined || resolvedCharacterIdRaw === null
-            ? undefined
-            : Number(resolvedCharacterIdRaw);
-
-        if (
-          resolvedCharacterId === undefined ||
-          Number.isNaN(resolvedCharacterId) ||
-          resolvedCharacterId !== pendingCharacterIdNumber
-        ) {
-          return false;
-        }
-        const itemKey = item.idempotencyKey ?? (item as { idempotency_key?: string }).idempotency_key;
-        return itemKey === pending.idempotencyKey;
-      });
-      if (matching) {
-        const identifier = matching.uuid || matching.id;
-        if (identifier) {
-          clearPendingChatRequest();
-          setIsTyping(false);
-          navigateToPath(`/chat/${identifier}`);
-          return true;
-        }
-      }
-      return false;
-    };
-
-    const attemptRecovery = async () => {
-      const pending = loadPendingChatRequest();
-
-      if (!pendingCharacterId || !pending || pending.characterId !== pendingCharacterId) {
-        clearPendingChatRequest();
-        setIsTyping(false);
-        toast({
-          title: t("error") || "Error",
-          description: t("failedToStartChat") || "Unable to start chat. Please try again.",
-          variant: "destructive",
-        });
-        navigateToPath("/chat");
-        return;
-      }
-
-      let session = (await supabase.auth.getSession()).data.session;
-      if (!session) {
-        const refreshed = await refreshAccessToken();
-        if (cancelled) return;
-        if (!refreshed) {
-          clearPendingChatRequest();
-          setIsTyping(false);
-          toast({
-            title: "Session expired",
-            description: "Please sign in again to continue.",
-            variant: "destructive",
-          });
-          navigateToPath("/login");
-          return;
-        }
-        session = (await supabase.auth.getSession()).data.session;
-      }
-
-      const pollIntervalMs = 1500;
-      const startedAt = pending.startedAt;
-
-      const pollOnce = async () => {
-        let chatsByKey: EnrichedChat[] = [];
-        try {
-          const response = await apiRequest(
-            "GET",
-            `/api/chats?idempotency_key=${encodeURIComponent(pending.idempotencyKey)}`
-          );
-          const data = await response.json();
-          chatsByKey = Array.isArray(data) ? data : [];
-        } catch (error) {
-          console.warn("Pending chat poll failed", error);
-        }
-
-        if (maybeRedirectToExistingChat(pending, chatsByKey)) {
-          return true;
-        }
-
-        const age = Date.now() - startedAt;
-        if (age > MAX_PENDING_CHAT_AGE_MS) {
-          clearPendingChatRequest();
-          setIsTyping(false);
-          toast({
-            title: t("error") || "Error",
-            description: t("failedToStartChat") || "Unable to start chat. Please try again.",
-            variant: "destructive",
-          });
-          navigateToPath("/chat");
-          return true;
-        }
-
-        if (!pendingChatMutation.isPending && !pendingRetryAttemptedRef.current) {
-          pendingRetryAttemptedRef.current = true;
-          pendingChatMutation.mutate({
-            characterId: pending.characterId,
-            idempotencyKey: pending.idempotencyKey,
-          });
-        }
-
-        return false;
-      };
-
-      const pollLoop = async () => {
-        const initialDelayMs = 500;
-        await new Promise((resolve) => setTimeout(resolve, initialDelayMs));
-        if (cancelled) {
-          return;
-        }
-
-        while (!cancelled) {
-          const done = await pollOnce();
-          if (done) {
-            return;
-          }
-          await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
-        }
-      };
-
-      await pollLoop();
-    };
-
-    void attemptRecovery();
-
-    return () => {
-      cancelled = true;
-      pendingPollStopRef.current();
-      pendingPollStopRef.current = () => undefined;
-    };
-  }, [
-    isPendingChat,
-    pendingCharacterId,
-    pendingChatMutation.isPending,
-    navigateToPath,
-    toast,
-    t,
-    setIsTyping,
-  ]);
+  }, [resetRealtimeGuards]);
 
   // If no chatId is provided, show chat list
   const showChatListOnly = !chatId;
@@ -378,20 +96,37 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     activeChatId && /^\d+$/.test(activeChatId) ? parseInt(activeChatId, 10) : null;
 
   // Fetch chat details if chatId is provided
+  const chatEnabled = !authLoading && !!activeChatId;
+
   const {
     data: chat,
     isLoading: isLoadingChat,
     error: chatError
   } = useQuery<Chat>({
     queryKey: [`/api/chats/${activeChatId}`],
-    enabled: !!activeChatId,
+    enabled: chatEnabled,
+    staleTime: 30 * 1000,
   });
 
-  useEffect(() => {
-    if (chat) {
-      setCurrentChat(chat);
-    }
-  }, [chat, setCurrentChat]);
+  if (chatError) {
+    console.error("[Chat] Failed to load chat:", chatError);
+    return (
+      <GlobalLayout>
+        <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-white">
+          <p className="text-lg font-semibold">{t("chatNotFound") || "Chat not found"}</p>
+          <p className="text-sm text-gray-400">
+            {t("chatUnavailable") || "This chat may have been removed or is no longer accessible."}
+          </p>
+          <button
+            onClick={() => navigateToPath("/chat")}
+            className="rounded-full bg-brand-secondary px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-secondary/80"
+          >
+            {t("backToChats") || "Back to chats"}
+          </button>
+        </div>
+      </GlobalLayout>
+    );
+  }
 
   // Fetch all chats for the chat list
   const {
@@ -399,26 +134,10 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     isLoading: isLoadingChats
   } = useQuery<EnrichedChat[]>({
     queryKey: ["/api/chats"],
+    enabled: !authLoading,
   });
 
   const emptyMessagesRecoveryRef = useRef(false);
-
-  const resolvedChat = useMemo(() => {
-    if (chat) {
-      return chat;
-    }
-    if (!currentChat) {
-      return null;
-    }
-    if (!activeChatId) {
-      return currentChat;
-    }
-    const activeNumeric = /^\d+$/.test(activeChatId) ? Number(activeChatId) : null;
-    if (activeNumeric !== null) {
-      return Number(currentChat.id) === activeNumeric ? currentChat : null;
-    }
-    return String(currentChat.uuid) === activeChatId ? currentChat : null;
-  }, [chat, currentChat, activeChatId]);
 
   const matchingChat = useMemo(() => {
     if (!activeChatId) {
@@ -447,99 +166,98 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     error: messagesError
   } = useQuery<ChatMessage[]>({
     queryKey: [`/api/chats/${activeChatId}/messages`],
-    enabled: !!activeChatId,
-    refetchInterval: (query) => {
-      const data = query.state.data as ChatMessage[] | undefined;
-      const waitingForFirstMessage = !!resolvedChat && (!data || data.length === 0);
-      const shouldPoll = waitingForFirstMessage || isTyping;
-
-    if (!shouldPoll) {
-      typingStartedAtRef.current = null;
-      return false;
-    }
-
-      if (typingStartedAtRef.current === null) {
-        typingStartedAtRef.current = Date.now();
-      }
-
-      const now = Date.now();
-      const baseline = typingStartedAtRef.current ?? query.state.dataUpdatedAt ?? now;
-      const elapsed = Math.max(0, now - baseline);
-
-    if (elapsed >= 60000) {
-      if (isTyping) {
-        console.warn('[Chat] Polling timeout reached, clearing typing state');
-        setIsTyping(false);
-      }
-      return false;
-    }
-
-      if (elapsed >= 30000) {
-        return waitingForFirstMessage ? 4000 : 5000;
-      }
-
-      if (elapsed >= 15000) {
-        return waitingForFirstMessage ? 2000 : 2500;
-      }
-
-      return waitingForFirstMessage ? 1000 : 750;
-    }
+    enabled: chatEnabled,
   });
 
   useEffect(() => {
-    const waitingForFirstMessage = !!resolvedChat && messages.length === 0;
-
-    if (isTyping || waitingForFirstMessage) {
-      if (typingStartedAtRef.current === null) {
-        typingStartedAtRef.current = Date.now();
+    if (!isTyping) {
+      if (typingFallbackTimeoutRef.current !== null) {
+        window.clearTimeout(typingFallbackTimeoutRef.current);
+        typingFallbackTimeoutRef.current = null;
       }
       return;
     }
 
-    typingStartedAtRef.current = null;
-    slowTypingNotifiedRef.current = false;
-    typingTimedOutRef.current = false;
-  }, [isTyping, messages, resolvedChat]);
+    if (typingFallbackTimeoutRef.current !== null) {
+      window.clearTimeout(typingFallbackTimeoutRef.current);
+    }
+
+    typingFallbackTimeoutRef.current = window.setTimeout(() => {
+      console.warn("[Chat] Typing fallback timeout reached, clearing typing state");
+      stopTyping();
+      toast({
+        title: t("responseDelayed") || "Response delayed",
+        description: t("responseDelayedDescription") || "The assistant is taking longer than expected. Try again in a moment.",
+      });
+    }, TYPING_FALLBACK_TIMEOUT_MS);
+
+    return () => {
+      if (typingFallbackTimeoutRef.current !== null) {
+        window.clearTimeout(typingFallbackTimeoutRef.current);
+        typingFallbackTimeoutRef.current = null;
+      }
+    };
+  }, [isTyping, stopTyping, toast, t]);
 
   useEffect(() => {
-    if (!isTyping) {
+    if (!activeChatId) {
+      clearStatusPoll();
       return;
     }
 
-    const warningTimer = window.setTimeout(() => {
-      if (slowTypingNotifiedRef.current) {
-        return;
-      }
-      slowTypingNotifiedRef.current = true;
-      toast({
-        title: "Still working…",
-        description: "The assistant response is taking longer than usual. We'll keep checking for updates.",
-      });
-    }, 10000);
+    const waitingForAssistant = isTyping || (!!chat && messages.length === 0);
 
-    return () => window.clearTimeout(warningTimer);
-  }, [isTyping, toast, t]);
-
-  useEffect(() => {
-    if (!isTyping) {
+    if (!waitingForAssistant) {
+      clearStatusPoll();
       return;
     }
 
-    const timeoutTimer = window.setTimeout(() => {
-      if (typingTimedOutRef.current) {
-        return;
-      }
-      typingTimedOutRef.current = true;
-      setIsTyping(false);
-      toast({
-        title: "Response timed out",
-        description: "We didn't receive a reply from the assistant. Try regenerating the response or sending a new message.",
-        variant: "destructive",
-      });
-    }, 25000);
+    let cancelled = false;
 
-    return () => window.clearTimeout(timeoutTimer);
-  }, [isTyping, setIsTyping, toast, t]);
+    const pollStatus = async () => {
+      try {
+        const response = await apiRequest(
+          "GET",
+          `/api/chats/${activeChatId}/status`
+        );
+
+        if (!response.ok) {
+          throw new Error(await response.text());
+        }
+
+        const payload = (await response.json()) as { messageCount?: number } | null;
+        const messageCount = typeof payload?.messageCount === "number" ? payload.messageCount : 0;
+
+        if (cancelled) {
+          return;
+        }
+
+        if (messageCount > messages.length) {
+          stopTyping();
+          await queryClient.refetchQueries({
+            queryKey: [`/api/chats/${activeChatId}/messages`],
+            type: "active",
+            exact: true,
+          });
+          return;
+        }
+      } catch (error) {
+        console.warn("[Chat] Failed to poll chat status", error);
+      }
+
+      if (!cancelled) {
+        clearStatusPoll();
+        statusPollTimeoutRef.current = window.setTimeout(pollStatus, CHAT_STATUS_POLL_DELAY_MS);
+      }
+    };
+
+    void pollStatus();
+
+    return () => {
+      cancelled = true;
+      clearStatusPoll();
+    };
+  }, [activeChatId, isTyping, chat, messages.length, clearStatusPoll, stopTyping]);
 
   useEffect(() => {
     if (messages.length === 0) {
@@ -571,31 +289,23 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     lastAssistantMessageIdRef.current = lastAssistantMessage.id;
 
     if (isTyping) {
-      setIsTyping(false);
+      stopTyping();
     }
-  }, [messages, isTyping, setIsTyping, isLoadingMessages, matchingChat, activeChatId]);
+  }, [messages, isTyping, stopTyping, isLoadingMessages, matchingChat, activeChatId]);
 
   useEffect(() => {
-    if (resolvedChat && messages.length > 0 && isTyping) {
-      setIsTyping(false);
+    if (chat && messages.length > 0 && isTyping) {
+      stopTyping();
     }
-  }, [resolvedChat, messages, isTyping, setIsTyping]);
+  }, [chat, messages, isTyping, stopTyping]);
 
   // Reset recovery ref when chat changes
   useEffect(() => {
     emptyMessagesRecoveryRef.current = false;
   }, [activeChatId]);
 
-  const {
-    data: pendingCharacter,
-    isLoading: isLoadingPendingCharacter
-  } = useQuery<Character>({
-    queryKey: [`/api/characters/${pendingCharacterId}`],
-    enabled: isPendingChat && !!pendingCharacterId,
-  });
-
   // Fallback character fetch if not found in enriched chats
-  const fallbackCharacterId = resolvedChat?.characterId ?? (resolvedChat as { character_id?: number } | undefined)?.character_id;
+  const fallbackCharacterId = chat?.characterId ?? (chat as { character_id?: number } | undefined)?.character_id;
 
   const {
     data: fallbackCharacter,
@@ -619,25 +329,20 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       return fallbackCharacter;
     }
 
-    if (pendingCharacter) {
-      return pendingCharacter;
-    }
-
     if (selectedCharacter) {
       return selectedCharacter;
     }
 
     return null;
-  }, [matchingChat, fallbackCharacter, pendingCharacter, selectedCharacter]);
+  }, [matchingChat, fallbackCharacter, selectedCharacter]);
   
   const isLoadingCharacter =
     isLoadingChats ||
-    isLoadingFallbackCharacter ||
-    (isPendingChat && isLoadingPendingCharacter);
-  const waitingForFirstMessage = !!resolvedChat && messages.length === 0;
+    isLoadingFallbackCharacter;
+  const waitingForFirstMessage = !!chat && messages.length === 0;
   const showTypingPlaceholder =
-    isPendingChat || waitingForFirstMessage || isLoadingMessages || isLoadingCharacter;
-  const showEmptyState = !messagesError && !showTypingPlaceholder && messages.length === 0 && !!resolvedChat;
+    isLoadingChat || waitingForFirstMessage || isLoadingMessages || isLoadingCharacter;
+  const showEmptyState = !messagesError && !showTypingPlaceholder && messages.length === 0 && !!chat;
 
   const renderTypingBubble = ({
     message,
@@ -671,7 +376,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   // Mutation for sending messages
   const { mutate: sendMessage, isPending: isSending } = useMutation({
     mutationFn: async (content: string) => {
-      if (!activeChatId) {
+      if (!activeChatId || !chat) {
         throw new Error("Chat not ready");
       }
       return apiRequest(
@@ -721,7 +426,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   // Mutation for AI responses
   const { mutate: aiResponse } = useMutation({
     mutationFn: async () => {
-      if (!activeChatId) {
+      if (!activeChatId || !chat) {
         throw new Error("Chat not ready");
       }
       return apiRequest(
@@ -737,7 +442,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
         type: "active",
         exact: true,
       });
-      setIsTyping(false);
+      stopTyping();
 
       // Invalidate token balance after AI response generation
       invalidateTokenBalance();
@@ -747,7 +452,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     },
     onError: (error: any) => {
       console.error("AI response generation failed:", error);
-      setIsTyping(false);
+      stopTyping();
       
       if (!activeChatId) {
         return;
@@ -784,7 +489,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       return response.json();
     },
     onSuccess: (data, deletedChatId) => {
-      setCurrentChat(null);
+      resetRealtimeGuards();
       queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
       toast({
         title: t('success'),
@@ -792,7 +497,11 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       });
 
       // Only navigate away if we deleted the current chat
-      if ((numericChatId !== null && numericChatId === deletedChatId) || matchingChat?.id === deletedChatId) {
+      if (
+        (numericChatId !== null && numericChatId === deletedChatId) ||
+        matchingChat?.id === deletedChatId ||
+        chat?.id === deletedChatId
+      ) {
         navigateToPath('/chats');
       }
     },
@@ -1007,29 +716,37 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       </GlobalLayout>
     );
   }
-  
+ 
+  if (isLoadingChat || (!chat && activeChatId)) {
+    return (
+      <GlobalLayout>
+        <div className="flex h-full flex-col items-center justify-center gap-3 text-white">
+          <span className="inline-flex h-8 w-8 animate-spin rounded-full border-2 border-brand-secondary/40 border-t-brand-secondary" />
+          <p className="text-sm text-gray-300">{t("loadingChat") || "Loading chat…"}</p>
+        </div>
+      </GlobalLayout>
+    );
+  }
+
+  if (!chat) {
+    return (
+      <GlobalLayout>
+        <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center text-white">
+          <p className="text-lg font-semibold">{t("chatUnavailable") || "This chat is no longer available."}</p>
+          <button
+            onClick={() => navigateToPath("/chat")}
+            className="rounded-full bg-brand-secondary px-4 py-2 text-sm font-medium text-white transition hover:bg-brand-secondary/80"
+          >
+            {t("backToChats") || "Back to chats"}
+          </button>
+        </div>
+      </GlobalLayout>
+    );
+  }
+
   // If we're showing a specific chat
   return (
     <>
-      {showPendingPrompt && (
-        <div className="fixed bottom-24 left-1/2 z-50 -translate-x-1/2 transform rounded-xl bg-red-500/90 px-4 py-3 text-white shadow-xl">
-          <p className="text-sm font-semibold mb-2">{t('chatTakingLonger') || 'Chat creation is taking longer than usual…'}</p>
-          <div className="flex gap-2 text-xs">
-            <button
-              onClick={handlePendingCancel}
-              className="rounded bg-white/20 px-3 py-1 transition hover:bg-white/30"
-            >
-              {t('cancel') || 'Give Up'}
-            </button>
-            <button
-              onClick={handlePendingRetry}
-              className="rounded bg-white px-3 py-1 font-semibold text-red-500 transition hover:bg-gray-100"
-            >
-              {t('retry') || 'Retry'}
-            </button>
-          </div>
-        </div>
-      )}
     <GlobalLayout
       showSidebar={false}
       showTopNavOnMobile={false}
@@ -1304,9 +1021,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                       {isLoadingCharacter ? t('loading') : character?.name}
                     </h1>
                     <p className="text-xs text-gray-400 sm:text-sm">
-                      {resolvedChat
-                        ? (resolvedChat.title || t('untitledChat'))
-                        : t('creatingChat')}
+                      {chat
+                        ? (chat.title || t('untitledChat'))
+                        : matchingChat?.title || (isLoadingChat ? t('loading') : t('creatingChat'))}
                     </p>
                   </div>
                 </div>
@@ -1374,8 +1091,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             <ChatInput
               onSendMessage={sendMessage}
               isLoading={isSending || isTyping}
-              disabled={!resolvedChat}
-              placeholder={!resolvedChat ? t('creatingChat') : undefined}
+              disabled={!chatId || !chat}
+              placeholder={!chat ? t('creatingChat') : undefined}
               className="border-t border-pink-500/10 bg-slate-900/80 backdrop-blur-xl relative z-10"
             />
           </div>

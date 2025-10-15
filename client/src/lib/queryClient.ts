@@ -56,12 +56,10 @@ export async function apiRequest(
 
   let accessToken = await getAccessTokenCached();
   let response = await attempt(accessToken);
-  let refreshedToken: string | null = null;
 
-  if (response.status === 401 && accessToken) {
+  if (response.status === 401) {
     invalidateCachedAccessToken();
-    invalidateCachedAccessToken();
-    refreshedToken = await refreshAccessToken();
+    const refreshedToken = await refreshAccessToken();
     if (refreshedToken) {
       accessToken = refreshedToken;
       response = await attempt(accessToken);
@@ -69,17 +67,7 @@ export async function apiRequest(
   }
 
   if (response.status === 401) {
-    console.warn("[Auth] Request still unauthorized after refresh, verifying session");
-    invalidateCachedAccessToken();
-    const freshToken = await refreshAccessToken();
-    if (freshToken) {
-      accessToken = freshToken;
-      response = await attempt(accessToken);
-      await throwIfResNotOk(response);
-      return response;
-    }
-
-    console.warn("[Auth] Unable to refresh session; signing out");
+    console.warn("[Auth] Request still unauthorized after refresh; signing out");
     await supabase.auth.signOut();
   }
 
@@ -106,10 +94,10 @@ export const getQueryFn: <T>(options: {
 
     let accessToken = await getAccessTokenCached();
     let response = await attempt(accessToken);
-    let refreshedToken: string | null = null;
 
-    if (response.status === 401 && accessToken) {
-      refreshedToken = await refreshAccessToken();
+    if (response.status === 401) {
+      invalidateCachedAccessToken();
+      const refreshedToken = await refreshAccessToken();
       if (refreshedToken) {
         accessToken = refreshedToken;
         response = await attempt(accessToken);
@@ -117,18 +105,10 @@ export const getQueryFn: <T>(options: {
     }
 
     if (response.status === 401) {
-      console.warn("[Auth] Query still unauthorized after refresh, verifying session");
-      invalidateCachedAccessToken();
-      const freshToken = await refreshAccessToken();
-      if (freshToken) {
-        accessToken = freshToken;
-        response = await attempt(accessToken);
-      } else {
-        console.warn("[Auth] Unable to refresh session; signing out");
-        await supabase.auth.signOut();
-        if (unauthorizedBehavior === 'returnNull') {
-          return null;
-        }
+      console.warn("[Auth] Query still unauthorized after refresh; signing out");
+      await supabase.auth.signOut();
+      if (unauthorizedBehavior === 'returnNull') {
+        return null;
       }
     }
 
@@ -142,32 +122,52 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: (query) => {
-        // Refetch character data when window gains focus to ensure latest descriptions
-        const queryKey = query.queryKey[0] as string;
-        // More targeted: only character list and individual character queries
-        return queryKey === '/api/characters' || /^\/api\/characters\/\d+$/.test(queryKey);
+        const queryKey = query.queryKey[0];
+        if (typeof queryKey !== 'string') {
+          return false;
+        }
+
+        if (queryKey === '/api/characters' || /^\/api\/characters\/\d+$/.test(queryKey)) {
+          return true;
+        }
+
+        if (queryKey === '/api/chats' || /^\/api\/chats\/[^/]+$/.test(queryKey)) {
+          return true;
+        }
+
+        if (queryKey.includes('/messages')) {
+          return true;
+        }
+
+        return false;
       },
       staleTime: (query) => {
-        // Character-related queries should refresh more frequently to pick up
-        // real-time description/trait updates from persona prompts (Issue #119)
-        const queryKey = query.queryKey[0] as string;
-        // More targeted caching: only character endpoints, not all chats
-        if (queryKey === '/api/characters' || queryKey.match(/^\/api\/characters\/\d+$/)) {
-          return 5 * 60 * 1000; // 5 minutes for character data (more reasonable)
+        const queryKey = query.queryKey[0];
+        if (typeof queryKey !== 'string') {
+          return 60 * 1000;
         }
-        // Chat list can be cached longer since character data in chats is updated via real-time sync
-        if (queryKey === '/api/chats') {
-          return 2 * 60 * 1000; // 2 minutes for chat list
-        }
+
         if (queryKey === '/api/auth/me') {
           return 0;
         }
-        // Chat messages should have no stale time to catch async-generated opening lines
-        // and post-idle-refresh scenarios. Polling/realtime will handle updates.
-        if (typeof queryKey === 'string' && queryKey.includes('/messages')) {
-          return 0; // Always considered stale, refetch when needed
+
+        if (queryKey === '/api/chats') {
+          return 30 * 1000;
         }
-        return Infinity; // Other data cached forever
+
+        if (queryKey.match(/^\/api\/chats\/[^/]+$/) && !queryKey.includes('/messages')) {
+          return 30 * 1000;
+        }
+
+        if (queryKey.includes('/messages')) {
+          return 0;
+        }
+
+        if (queryKey === '/api/characters' || /^\/api\/characters\/\d+$/.test(queryKey)) {
+          return 5 * 60 * 1000;
+        }
+
+        return 60 * 1000;
       },
       retry: false,
     },

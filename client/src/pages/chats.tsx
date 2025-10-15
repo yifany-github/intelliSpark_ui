@@ -44,7 +44,7 @@ interface ChatsPageProps {
 
 const ChatsPage = ({ chatId }: ChatsPageProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { isTyping, setIsTyping, setCurrentChat } = useRolePlay();
+  const { isTyping, setIsTyping } = useRolePlay();
   const { t } = useLanguage();
   const { location, navigateToPath } = useNavigation();
   const { toast } = useToast();
@@ -168,7 +168,6 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     '/api/chats',
     t('chatHistoryCleared'),
     t('failedToClearAllChats'),
-    () => setCurrentChat(null) // Extra action for clear all
   );
 
   // Delete single chat mutation
@@ -188,8 +187,9 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
       });
 
       // Only navigate away if we deleted the current chat
-      if (chatId && parseInt(chatId) === deletedChatId) {
-        setCurrentChat(null);
+      const isNumericMatch = chatId ? Number.isFinite(Number(chatId)) && Number(chatId) === deletedChatId : false;
+      const isChatMatch = chat?.id === deletedChatId || (chat?.uuid && chatId === String(chat.uuid));
+      if (isNumericMatch || isChatMatch) {
         navigateToPath('/chats');
       }
     },

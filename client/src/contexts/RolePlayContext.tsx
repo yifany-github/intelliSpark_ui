@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
-import { Character, Chat, ChatMessage } from '../types';
+import { Character } from '../types';
 import { apiRequest, queryClient } from '../lib/queryClient';
 
 interface RolePlayContextType {
@@ -12,9 +12,6 @@ interface RolePlayContextType {
   // Active Selections
   selectedCharacter: Character | null;
   setSelectedCharacter: (character: Character | null) => void;
-  currentChat: Chat | null;
-  setCurrentChat: (chat: Chat | null) => void;
-
   // Active Chat State
   isTyping: boolean;
   setIsTyping: (isTyping: boolean) => void;
@@ -59,7 +56,6 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
 
   // Active Selections
   const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
-  const [currentChat, setCurrentChat] = useState<Chat | null>(null);
 
   // Active Chat State
   const [isTyping, setIsTyping] = useState(false);
@@ -108,7 +104,6 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
       });
       
       const chat = await response.json();
-      setCurrentChat(chat);
       
       // Invalidate chats query to refresh enriched chats list
       queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
@@ -134,8 +129,6 @@ export const RolePlayProvider = ({ children }: { children: ReactNode }) => {
 
         selectedCharacter,
         setSelectedCharacter,
-        currentChat,
-        setCurrentChat,
 
         isTyping,
         setIsTyping,
