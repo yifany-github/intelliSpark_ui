@@ -13,6 +13,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { User, ChatMessage } from '../types';
 import { supabase } from '@/lib/supabaseClient';
 import { invalidateCachedAccessToken, refreshAccessToken } from '@/utils/auth';
+import { updateAuthStore, clearAuthStore as clearAuthStoreModule } from '@/lib/authStore';
 
 // Authentication context type
 interface AuthContextType {
@@ -50,6 +51,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setToken(null);
     setSession(null);
     invalidateCachedAccessToken();
+    clearAuthStoreModule(); // ← Keep authStore in sync
 
     const privatePrefixes = [
       '/api/auth',
@@ -132,6 +134,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     setToken(session.access_token);
     setSession(session);
+    updateAuthStore(session.access_token, session); // ← Keep authStore in sync
 
     if (pendingProfileRequest.current) {
       await pendingProfileRequest.current;
