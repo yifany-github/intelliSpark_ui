@@ -181,7 +181,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   );
 
   // Mutation for sending messages
-  const { mutate: sendMessage, isPending: isSending } = useMutation({
+  const { mutate: sendMessage, isPending: isSending, error: sendMessageError, reset: resetSendError } = useMutation({
     mutationFn: async (content: string) => {
       if (!chatId || !chat) {
         throw new Error("Chat not ready");
@@ -206,32 +206,13 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     },
     onError: (error: any) => {
       console.error("Message sending failed:", error);
-      const errorMessage = error?.response?.data?.detail || "Failed to send message";
-
-      if (!canonicalUuid) {
-        return;
-      }
-
-      // Add error message to chat using canonical UUID for cache key
-      queryClient.setQueryData([`/api/chats/${canonicalUuid}/messages`], (old: ChatMessage[] | undefined) => {
-        if (!old) return old;
-
-        const errorMsg: ChatMessage = {
-          id: createTempMessageId(),
-          content: `Error: ${errorMessage}`,
-          role: "system",
-          chatId: chat?.id ?? 0,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-
-        return [...old, errorMsg];
-      });
+      // Error state is now handled by mutation state, not cache mutation
+      // This prevents React Query state conflicts that cause crashes
     },
   });
   
   // Mutation for AI responses
-  const { mutate: aiResponse, isPending: isGeneratingResponse } = useMutation({
+  const { mutate: aiResponse, isPending: isGeneratingResponse, error: aiResponseError, reset: resetAiError } = useMutation({
     mutationFn: async () => {
       if (!chatId || !chat) {
         throw new Error("Chat not ready");
@@ -258,29 +239,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     },
     onError: (error: any) => {
       console.error("AI response generation failed:", error);
-
-      if (!canonicalUuid) {
-        return;
-      }
-
-      // Show error message to user
-      const errorMessage = error?.response?.data?.detail || "Failed to generate AI response";
-
-      // Add error message to chat using canonical UUID for cache key
-      queryClient.setQueryData([`/api/chats/${canonicalUuid}/messages`], (old: ChatMessage[] | undefined) => {
-        if (!old) return old;
-
-        const errorMsg: ChatMessage = {
-          id: createTempMessageId(),
-          content: `Error: ${errorMessage}`,
-          role: "system",
-          chatId: chat?.id ?? 0,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        };
-
-        return [...old, errorMsg];
-      });
+      // Error state is now handled by mutation state, not cache mutation
+      // This prevents React Query state conflicts that cause crashes
     },
   });
 
@@ -852,6 +812,51 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 </div>
               </div>
             </div>
+
+            {/* Error Banner for Mutation Failures */}
+            {(sendMessageError || aiResponseError) && (
+              <div className="mx-6 mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 backdrop-blur-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-red-400">
+                      {sendMessageError ? "Failed to send message" : "Failed to generate AI response"}
+                    </p>
+                    <p className="mt-1 text-xs text-red-300/80">
+                      {(sendMessageError as any)?.message || (aiResponseError as any)?.message || "Please try again"}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    {sendMessageError && (
+                      <button
+                        onClick={() => resetSendError()}
+                        className="rounded-md bg-red-500/20 px-3 py-1 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/30"
+                      >
+                        Dismiss
+                      </button>
+                    )}
+                    {aiResponseError && (
+                      <>
+                        <button
+                          onClick={() => {
+                            resetAiError();
+                            aiResponse();
+                          }}
+                          className="rounded-md bg-red-500/20 px-3 py-1 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/30"
+                        >
+                          Retry
+                        </button>
+                        <button
+                          onClick={() => resetAiError()}
+                          className="rounded-md bg-red-500/20 px-3 py-1 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/30"
+                        >
+                          Dismiss
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Messages Area */}
             <div className="flex-1 overflow-y-auto px-6 py-6 space-y-4 scrollbar-thin relative z-10">
