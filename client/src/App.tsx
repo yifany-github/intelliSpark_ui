@@ -24,6 +24,7 @@ import AboutPage from "@/pages/about";
 import MyCharactersPage from "@/pages/my-characters";
 import EditCharacterPage from "@/pages/edit-character";
 import AuthModal from "@/components/auth/AuthModal";
+import { AuthReadinessGate } from "@/components/auth/AuthReadinessGate";
 import TabNavigation from "@/components/layout/TabNavigation";
 import { RolePlayProvider, useRolePlay } from "@/contexts/RolePlayContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
@@ -31,6 +32,8 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { NavigationProvider } from "@/contexts/NavigationContext";
 import { FavoritesProvider } from "@/contexts/FavoritesContext";
 import ErrorBoundary from "@/components/error/ErrorBoundary";
+import { useAuthRecovery } from "@/hooks/useAuthRecovery";
+import { useRealtimeChatList } from "@/hooks/useRealtimeChatList";
 
 // Auth Modal Handler - handles post-login actions
 function AuthModalHandler() {
@@ -51,9 +54,9 @@ function AuthModalHandler() {
         // Navigate to the actual chat with the pending message
         if (pendingMessage) {
           // The chat page will handle sending the pending message
-          navigate(`/chats/${chatId}?message=${encodeURIComponent(pendingMessage)}`);
+          navigate(`/chat/${chatId}?message=${encodeURIComponent(pendingMessage)}`);
         } else {
-          navigate(`/chats/${chatId}`);
+          navigate(`/chat/${chatId}`);
         }
       } catch (error) {
         console.error("Failed to execute pending chat action:", error);
@@ -89,6 +92,12 @@ function MainApp() {
   const { isAuthenticated, isLoading } = useAuth();
   const [location] = useLocation();
 
+  // Session recovery: refresh token and queries when tab wakes from sleep
+  useAuthRecovery();
+
+  // Global realtime subscription: invalidates chat list when any message arrives
+  useRealtimeChatList();
+
   return (
     <ErrorBoundary>
       <RolePlayProvider>
@@ -122,11 +131,13 @@ function MainApp() {
               </Route>
               <Route path="/chat-preview" component={ChatPreviewPage} />
               <Route path="/chats">
+                {/* List view only - no chat ID */}
                 <ProtectedRoute>
                   <ChatsPage />
                 </ProtectedRoute>
               </Route>
-              <Route path="/chats/:id">
+              <Route path="/chat/:id">
+                {/* Detail view - single source of truth */}
                 {params => (
                   <ProtectedRoute>
                     <ChatPage chatId={params.id} />
@@ -134,16 +145,10 @@ function MainApp() {
                 )}
               </Route>
               <Route path="/chat">
+                {/* Redirect /chat (no ID) to /chats (list) */}
                 <ProtectedRoute>
                   <ChatPage />
                 </ProtectedRoute>
-              </Route>
-              <Route path="/chat/:id">
-                {params => (
-                  <ProtectedRoute>
-                    <ChatPage chatId={params.id} />
-                  </ProtectedRoute>
-                )}
               </Route>
               <Route path="/profile">
                 <ProtectedRoute>
@@ -165,7 +170,6 @@ function MainApp() {
                   <NotificationsPage />
                 </ProtectedRoute>
               </Route>
-              <Route path="/admin" component={AdminPage} />
               <Route component={NotFound} />
             </Switch>
           </div>
@@ -183,18 +187,10 @@ function MainApp() {
 
 // Protected wrapper for auth-required features
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
-  
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-2 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
-  }
+  const { isAuthenticated } = useAuth();
+
+  // AuthReadinessGate ensures isReady === true before rendering anything
+  // So we can safely assume auth is initialized at this point
 
   if (!isAuthenticated) {
     return <Redirect to="/login" />;
@@ -212,12 +208,16 @@ function App() {
             <NavigationProvider>
               <FavoritesProvider>
                 <Switch>
-                <Route path="/login" component={LoginPage} />
-                <Route path="/register" component={RegisterPage} />
-                <Route>
-                  <MainApp />
-                </Route>
-              </Switch>
+                  <Route path="/login" component={LoginPage} />
+                  <Route path="/register" component={RegisterPage} />
+                  <Route path="/admin" component={AdminPage} />
+                  <Route>
+                    {/* AuthReadinessGate ensures auth is initialized before any routes render */}
+                    <AuthReadinessGate>
+                      <MainApp />
+                    </AuthReadinessGate>
+                  </Route>
+                </Switch>
               </FavoritesProvider>
             </NavigationProvider>
           </AuthProvider>

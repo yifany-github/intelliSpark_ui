@@ -18,7 +18,7 @@ Routes:
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import List, Union
+from typing import List, Union, Optional
 import logging
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -72,13 +72,15 @@ router = APIRouter(prefix="/chats", tags=["chats"])
 
 @router.get("", response_model=List[EnrichedChat])
 async def get_chats(
+    character_id: Optional[int] = None,
+    idempotency_key: Optional[str] = None,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """Get user's chats with character data"""
     try:
         service = ChatService(db)
-        return await service.get_user_chats(current_user.id)
+        return await service.get_user_chats(current_user.id, character_id=character_id, idempotency_key=idempotency_key)
     except ChatServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -108,6 +110,22 @@ async def get_chat(
     except ChatServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/{chat_id}/status")
+async def get_chat_status(
+    chat_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Return lightweight status metadata for a chat."""
+    try:
+        is_uuid, parsed_id = parse_chat_identifier(chat_id)
+        service = ChatService(db)
+        status = await service.get_chat_status(parsed_id, current_user.id, by_uuid=is_uuid)
+        if status is None:
+            raise HTTPException(status_code=404, detail="Chat not found")
+        return status
+    except ChatServiceError as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("", response_model=ChatSchema)
 async def create_chat(
@@ -120,18 +138,22 @@ async def create_chat(
         service = ChatService(db)
         
         # ✅ FAST: Create chat immediately without waiting for AI generation
-        success, chat, error = await service.create_chat_immediate(chat_data, current_user.id)
-        
+        success, chat, error, created = await service.create_chat_immediate(chat_data, current_user.id)
+
         if not success:
             raise HTTPException(status_code=400, detail=error)
-        
+
+        if chat is None:
+            raise HTTPException(status_code=500, detail="Failed to create chat")
+
         # 🚀 BACKGROUND: Trigger async opening line generation
-        import asyncio
-        asyncio.create_task(service.generate_opening_line_async(
-            chat_id=chat.id,
-            character_id=chat_data.characterId
-        ))
-        
+        if created:
+            import asyncio
+            asyncio.create_task(service.generate_opening_line_async(
+                chat_id=chat.id,
+                character_id=chat_data.characterId
+            ))
+
         # ✅ IMMEDIATE: Return chat for instant navigation
         return chat
         

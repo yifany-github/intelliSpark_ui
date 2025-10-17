@@ -18,7 +18,7 @@ const CharacterDetails = ({ character }: CharacterDetailsProps) => {
       // If already authenticated, create chat immediately
       try {
         const chatId = await startChat(character);
-        navigateToPath(`/chats/${chatId}`);
+        navigateToPath(`/chat/${chatId}`);
       } catch (error) {
         console.error("Failed to start chat:", error);
       }

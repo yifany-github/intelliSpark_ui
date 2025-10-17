@@ -47,6 +47,7 @@ export type TranslationKey =
   | 'memoryEnabled'
   | 'save'
   | 'cancel'
+  | 'confirm'
   | 'searchCharacters'
   | 'search'
   | 'searchHistory'
@@ -862,7 +863,63 @@ export type TranslationKey =
   | 'uploadYourOwnImage'
   | 'generatedAvatar'
   | 'generatedAvatars'
-  | 'useThisAvatar';
+  | 'useThisAvatar'
+  | 'sortBy'
+  | 'nsfwEnabled'
+  | 'favoritesOnly'
+  | 'activeFilters'
+  | 'showFilters'
+  | 'filters'
+  | 'showAllCharacters'
+  | 'showFavoritesOnly'
+  | 'quickSelect'
+  | 'filterHint'
+  | 'views'
+  | 'failedToLoadAvatars'
+  | 'uploadCustom'
+  | 'noAvatarsAvailable'
+  | 'latest'
+  | 'recommended'
+  | 'startFavoritingCharacters'
+  | 'appNameChinese'
+  | 'appNameEnglish'
+  | 'confirmEnableNSFW'
+  | 'nsfwDisclaimer'
+  | 'nsfwLegalNotice'
+  | 'selectSavedCard'
+  | 'prefilledFromProfile'
+  | 'nameOnCardPlaceholder'
+  | 'nameOnCardHint'
+  | 'billingAddressOptional'
+  | 'hideAddress'
+  | 'addAddress'
+  | 'loadingSavedCards'
+  | 'savedCards'
+  | 'useSavedCard'
+  | 'expires'
+  | 'useDifferentCard'
+  | 'cardInformation'
+  | 'cardDetailsSecure'
+  | 'saveCardForNextTime'
+  | 'totalChats'
+  | 'uniqueCharacters'
+  | 'totalMessages'
+  | 'noRecentActivity'
+  | 'chattedWith'
+  | 'nsfwEnabledLabel'
+  | 'nsfwDisabledLabel'
+  | 'clickToBuyTokens'
+  | 'chatNotFound'
+  | 'chatUnavailable'
+  | 'backToChats'
+  | 'responseDelayed'
+  | 'responseDelayedDescription'
+  | 'tellMeMore'
+  | 'howAreYou'
+  | 'thatsInteresting'
+  | 'whatHappensNext'
+  | 'loadingChat'
+  | 'deleteThisChat';
 
 // Define translations for each language
 const translations: Record<Language, Record<TranslationKey, string>> = {
@@ -1645,6 +1702,55 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     generatedAvatar: 'Generated Avatar',
     generatedAvatars: 'Generated Avatars',
     useThisAvatar: 'Use This Avatar',
+    sortBy: 'Sort By',
+    nsfwEnabled: 'NSFW Enabled',
+    favoritesOnly: 'Favorites Only',
+    activeFilters: 'Active Filters',
+    showFilters: 'Show Filters',
+    filters: 'Filters',
+    showAllCharacters: 'Show All Characters',
+    showFavoritesOnly: 'Show Favorites Only',
+    quickSelect: 'Quick Select',
+    filterHint: 'Use filters to narrow down your search',
+    views: 'Views',
+    failedToLoadAvatars: 'Failed to load avatars',
+    uploadCustom: 'Upload Custom',
+    noAvatarsAvailable: 'No avatars available',
+    latest: 'Latest',
+    recommended: 'Recommended',
+    startFavoritingCharacters: 'Start favoriting characters to see them here',
+    selectSavedCard: 'Select a saved card',
+    prefilledFromProfile: 'Pre-filled from your profile',
+    nameOnCardPlaceholder: 'Name on card',
+    nameOnCardHint: 'Enter the name as it appears on your card',
+    billingAddressOptional: 'Billing Address (Optional)',
+    hideAddress: 'Hide Address',
+    addAddress: 'Add Address',
+    loadingSavedCards: 'Loading saved cards...',
+    savedCards: 'Saved Cards',
+    useSavedCard: 'Use Saved Card',
+    expires: 'Expires',
+    useDifferentCard: 'Use a Different Card',
+    cardInformation: 'Card Information',
+    cardDetailsSecure: 'Your card details are secure and encrypted',
+    saveCardForNextTime: 'Save this card for next time',
+    totalChats: 'Total Chats',
+    uniqueCharacters: 'Unique Characters',
+    totalMessages: 'Total Messages',
+    noRecentActivity: 'No recent activity',
+    chattedWith: 'Chatted with',
+    clickToBuyTokens: 'Click to buy tokens',
+    chatNotFound: 'Chat not found',
+    chatUnavailable: 'This chat is unavailable',
+    backToChats: 'Back to Chats',
+    responseDelayed: 'Response Delayed',
+    responseDelayedDescription: 'The AI is taking longer than usual to respond. Please wait...',
+    tellMeMore: 'Tell me more',
+    howAreYou: 'How are you?',
+    thatsInteresting: "That's interesting",
+    whatHappensNext: 'What happens next?',
+    loadingChat: 'Loading chat...',
+    deleteThisChat: 'Delete this chat',
   },
   zh: {
     characters: '角色',
@@ -2425,6 +2531,55 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     generatedAvatar: '已生成的头像',
     generatedAvatars: '已生成的头像',
     useThisAvatar: '使用此头像',
+    sortBy: '排序方式',
+    nsfwEnabled: '已启用NSFW',
+    favoritesOnly: '仅收藏',
+    activeFilters: '激活的过滤器',
+    showFilters: '显示过滤器',
+    filters: '过滤器',
+    showAllCharacters: '显示所有角色',
+    showFavoritesOnly: '仅显示收藏',
+    quickSelect: '快速选择',
+    filterHint: '使用过滤器缩小搜索范围',
+    views: '浏览次数',
+    failedToLoadAvatars: '加载头像失败',
+    uploadCustom: '上传自定义',
+    noAvatarsAvailable: '没有可用的头像',
+    latest: '最新',
+    recommended: '推荐',
+    startFavoritingCharacters: '开始收藏角色以在此处查看',
+    selectSavedCard: '选择已保存的卡',
+    prefilledFromProfile: '从您的个人资料预填',
+    nameOnCardPlaceholder: '卡上的姓名',
+    nameOnCardHint: '输入卡上显示的姓名',
+    billingAddressOptional: '账单地址（可选）',
+    hideAddress: '隐藏地址',
+    addAddress: '添加地址',
+    loadingSavedCards: '加载已保存的卡...',
+    savedCards: '已保存的卡',
+    useSavedCard: '使用已保存的卡',
+    expires: '到期',
+    useDifferentCard: '使用其他卡',
+    cardInformation: '卡信息',
+    cardDetailsSecure: '您的卡详细信息是安全和加密的',
+    saveCardForNextTime: '保存此卡以供下次使用',
+    totalChats: '总聊天数',
+    uniqueCharacters: '独特角色',
+    totalMessages: '总消息数',
+    noRecentActivity: '没有最近的活动',
+    chattedWith: '聊天对象',
+    clickToBuyTokens: '点击购买代币',
+    chatNotFound: '未找到聊天',
+    chatUnavailable: '此聊天不可用',
+    backToChats: '返回聊天',
+    responseDelayed: '响应延迟',
+    responseDelayedDescription: 'AI响应时间比平常长。请稍候...',
+    tellMeMore: '告诉我更多',
+    howAreYou: '你好吗？',
+    thatsInteresting: '很有趣',
+    whatHappensNext: '接下来会发生什么？',
+    loadingChat: '加载聊天中...',
+    deleteThisChat: '删除此聊天',
   },
 };
 

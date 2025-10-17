@@ -236,27 +236,24 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
         "/api/chats",
         {
           characterId,
-          title: t('chatWithCharacter')
+          title: t('chatWithCharacter'),
         }
       );
       return response.json();
     },
     onSuccess: (chat) => {
-      const chatIdentifier = chat?.uuid || chat?.id;
-
-      if (!chatIdentifier) {
-        console.error('Chat creation response missing identifier:', chat);
+      if (!chat?.uuid) {
+        console.error('[CharacterGrid] Chat created without UUID:', chat);
         toast({
           title: t('error') || 'Error',
-          description: t('failedToStartChat') || 'Unable to start chat. Please try again.',
+          description: 'Backend error: Chat UUID missing. Please contact support.',
           variant: 'destructive',
         });
         setLocation('/', { replace: true });
         return;
       }
 
-      // Replace the temporary state with the real chat route to avoid history flicker
-      setLocation(`/chat/${chatIdentifier}`, { replace: true });
+      setLocation(`/chat/${chat.uuid}`, { replace: true });
     },
     onError: (error) => {
       console.error('Failed to create chat:', error);
@@ -499,13 +496,8 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     // ✅ STORE CHARACTER: Set character data immediately so chat page can render instantly
     setSelectedCharacter(character);
     handlePreviewClose();
-
-    // 🚀 Navigate right away to render chat shell while creation happens
-    setLocation(`/chat/pending-${character.id}`);
-
-    // 🚀 Create chat and navigate once the real identifier is available
     createChat({
-      characterId: character.id
+      characterId: character.id,
     });
   };
 

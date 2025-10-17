@@ -12,13 +12,17 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { User } from '../types';
 import { supabase } from '@/lib/supabaseClient';
+import { invalidateCachedAccessToken, refreshAccessToken } from '@/utils/auth';
+import { updateAuthStore, clearAuthStore as clearAuthStoreModule } from '@/lib/authStore';
 
 // Authentication context type
 interface AuthContextType {
   user: User | null;
   token: string | null;
+  session: Session | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isReady: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string) => Promise<void>;
   loginWithGoogle: () => Promise<void>;
@@ -34,14 +38,20 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isReady, setIsReady] = useState(false);
 
   const queryClient = useQueryClient();
   const pendingProfileRequest = useRef<Promise<void> | null>(null);
+  const lastCacheInvalidation = useRef<number>(0);
 
   const clearAuthState = useCallback(() => {
     setUser(null);
     setToken(null);
+    setSession(null);
+    invalidateCachedAccessToken();
+    clearAuthStoreModule(); // ← Keep authStore in sync
 
     const privatePrefixes = [
       '/api/auth',
@@ -71,20 +81,40 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return privatePrefixes.some((prefix) => key.startsWith(prefix));
       },
     });
-  }, [queryClient]);
+
+  }, [queryClient, setSession]);
 
   const fetchBackendUser = useCallback(async (accessToken: string) => {
-    const response = await fetch(`${API_BASE_URL}/api/auth/me`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-    });
+    const fetchWithToken = async (token: string) =>
+      fetch(`${API_BASE_URL}/api/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+    let response = await fetchWithToken(accessToken);
 
     if (response.status === 401) {
-      await supabase.auth.signOut();
-      clearAuthState();
-      throw new Error('Session expired');
+      console.warn('[Auth] /api/auth/me returned 401, attempting to fetch fresh session');
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session?.access_token) {
+        console.warn('[Auth] Unable to obtain fresh session, signing out');
+        await supabase.auth.signOut();
+        clearAuthState();
+        throw new Error('Session expired');
+      }
+
+      const newToken = data.session.access_token;
+      setToken(newToken);
+      response = await fetchWithToken(newToken);
+
+      if (response.status === 401) {
+        console.warn('[Auth] /api/auth/me still 401 after session check, signing out');
+        await supabase.auth.signOut();
+        clearAuthState();
+        throw new Error('Session expired');
+      }
     }
 
     if (!response.ok) {
@@ -103,6 +133,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
 
     setToken(session.access_token);
+    setSession(session);
+    updateAuthStore(session.access_token, session); // ← Keep authStore in sync
 
     if (pendingProfileRequest.current) {
       await pendingProfileRequest.current;
@@ -124,43 +156,72 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     } finally {
       pendingProfileRequest.current = null;
     }
-  }, [clearAuthState, fetchBackendUser]);
+  }, [clearAuthState, fetchBackendUser, setSession]);
 
   useEffect(() => {
     let isMounted = true;
 
-    const initialise = async () => {
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) {
-          throw error;
-        }
-        if (!isMounted) {
-          return;
-        }
-        await syncUserFromSession(data.session ?? null);
-      } catch (error) {
-        console.error('Supabase session initialisation failed:', error);
-        clearAuthState();
-      } finally {
+    console.log('[Auth] Setting up auth state listener');
+
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+
+      console.log(`[Auth] Auth state change event: ${event}`);
+
+      if (event === 'INITIAL_SESSION') {
+        // This is the ONLY place where isReady should be set to true
+        // Wait for session sync before marking ready
+        await syncUserFromSession(session);
+
         if (isMounted) {
+          console.log('[Auth] Initial session handled, marking ready');
+          setIsReady(true);
           setIsLoading(false);
         }
+        return;
       }
-    };
 
-    initialise();
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        console.log('[Auth] User signed in or token refreshed');
+        invalidateCachedAccessToken();
+        await syncUserFromSession(session);
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-      syncUserFromSession(session);
+        // Invalidate all private queries to refetch with new token
+        queryClient.invalidateQueries({
+          predicate: (query) => {
+            const key = query.queryKey?.[0];
+            return typeof key === 'string' && key.startsWith('/api/');
+          }
+        });
+      }
+
+      if (event === 'SIGNED_OUT') {
+        console.log('[Auth] User signed out');
+        clearAuthState();
+
+        if (isMounted) {
+          setIsReady(true);
+          setIsLoading(false);
+        }
+        return;
+      }
+
+      // Handle other events (USER_UPDATED, PASSWORD_RECOVERY, etc.)
+      await syncUserFromSession(session);
     });
 
     return () => {
+      console.log('[Auth] Cleaning up auth state listener');
       isMounted = false;
       listener.subscription.unsubscribe();
     };
-  }, [clearAuthState, syncUserFromSession]);
+  }, [clearAuthState, queryClient, syncUserFromSession]);
+
+  // Realtime subscriptions moved to dedicated hooks:
+  // - useRealtimeChatList (for global chat list updates)
+  // - useRealtimeMessages (for per-chat message updates)
+  // This separation of concerns makes AuthContext cleaner and scopes
+  // subscriptions to where they're actually needed.
 
   const login = useCallback(async (email: string, password: string) => {
     setIsLoading(true);
@@ -223,8 +284,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const value: AuthContextType = {
     user,
     token,
+    session,
     isAuthenticated: Boolean(user && token),
     isLoading,
+    isReady,
     login,
     register,
     loginWithGoogle,

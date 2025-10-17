@@ -468,7 +468,6 @@ const FavoritesPage = () => {
   const handleCharacterSelect = (character: Character) => {
     setSelectedCharacter(character);
     handlePreviewClose();
-    navigateToPath(`/chat/pending-${character.id}`);
     createChat({ characterId: character.id });
   };
 

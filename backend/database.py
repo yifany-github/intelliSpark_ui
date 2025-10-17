@@ -30,15 +30,21 @@ def _build_async_database_url(url: str) -> str:
 ASYNC_DATABASE_URL = _build_async_database_url(settings.database_url)
 async_connect_args: dict[str, object] = {}
 if ASYNC_DATABASE_URL.startswith("postgresql+asyncpg://"):
-    # Prevent asyncpg from reusing prepared statement names across pooled connections.
+    # CRITICAL: Disable prepared statements for PgBouncer/Supavisor transaction mode
     async_connect_args["statement_cache_size"] = 0
+    async_connect_args["prepared_statement_cache_size"] = 0
     # Require TLS when connecting to Supabase/PostgreSQL
     async_connect_args["ssl"] = ssl.create_default_context()
 
 async_engine = create_async_engine(
     ASYNC_DATABASE_URL,
     connect_args=async_connect_args,
-    pool_pre_ping=True,
+    pool_size=10,              # 10 connections per Fly.io machine
+    max_overflow=10,           # Extra 10 under peak load
+    pool_recycle=300,          # Recycle connections after 5 minutes (not 1 hour)
+    pool_timeout=10,           # Wait max 10s for connection (fail fast)
+    pool_pre_ping=True,        # Verify connection before using
+    pool_reset_on_return="rollback",  # Reset connection state on return to pool
     echo=settings.debug,
 )
 AsyncSessionLocal = async_sessionmaker(async_engine, expire_on_commit=False)
@@ -49,15 +55,18 @@ sync_connect_args: dict[str, object] = {}
 if settings.database_url.startswith("sqlite"):
     sync_connect_args["check_same_thread"] = False
 elif settings.database_url.startswith("postgresql"):
-    # Disable prepared statements for sync engine with pgbouncer
-    sync_connect_args["prepare_threshold"] = None
     # Ensure TLS is required for PostgreSQL connections
     sync_connect_args["sslmode"] = "require"
 
 sync_engine = create_engine(
     settings.database_url,
     connect_args=sync_connect_args,
-    pool_pre_ping=True,
+    pool_size=5,               # Smaller pool for background tasks
+    max_overflow=5,            # Extra 5 under load
+    pool_recycle=300,          # Recycle connections after 5 minutes (not 1 hour)
+    pool_timeout=10,           # Wait max 10s for connection
+    pool_pre_ping=True,        # Verify connection before using
+    pool_reset_on_return="rollback",  # Reset connection state on return to pool
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
 
@@ -202,3 +211,4 @@ async def create_initial_data(session: AsyncSession) -> None:
 
     session.add_all(characters)
     await session.commit()
+# Force rebuild Thu 16 Oct 2025 16:05:04 ADT

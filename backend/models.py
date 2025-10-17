@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, Numeric, CheckConstraint
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey, JSON, Numeric, CheckConstraint, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
@@ -122,7 +122,10 @@ class Character(Base):
 
 class Chat(Base):
     __tablename__ = "chats"
-    
+    __table_args__ = (
+        UniqueConstraint("user_id", "idempotency_key", name="uq_chat_user_idempotency"),
+    )
+
     id = Column(Integer, primary_key=True, index=True)
     uuid = Column(UniversalUUID(), default=uuid.uuid4, unique=True, index=True, nullable=True)  # New UUID field - nullable during migration
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
@@ -130,6 +133,7 @@ class Chat(Base):
     title = Column(String(500), nullable=False)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    idempotency_key = Column(String(64), nullable=True, index=True)
     
     # Relationships
     user = relationship("User", back_populates="chats")
@@ -138,17 +142,19 @@ class Chat(Base):
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
-    
+
     id = Column(Integer, primary_key=True, index=True)
     uuid = Column(UniversalUUID(), default=uuid.uuid4, unique=True, index=True, nullable=True)  # New UUID field - nullable during migration
     chat_id = Column(Integer, ForeignKey("chats.id"), nullable=False)
     chat_uuid = Column(UniversalUUID(), ForeignKey("chats.uuid"), nullable=True, index=True)  # New UUID foreign key - nullable during migration
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)  # For per-user realtime subscriptions
     role = Column(String(50), nullable=False)  # 'user' or 'assistant'
     content = Column(String(10000), nullable=False)  # 10KB limit to prevent DoS attacks
     timestamp = Column(DateTime, default=func.now())
-    
+
     # Relationships
     chat = relationship("Chat", back_populates="messages", foreign_keys=[chat_id])
+    user = relationship("User")
 
 class UserToken(Base):
     __tablename__ = "user_tokens"

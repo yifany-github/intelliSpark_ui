@@ -7,10 +7,12 @@ import ChatInput from "@/components/chats/ChatInput";
 import TypingIndicator from "@/components/ui/TypingIndicator";
 import { apiRequest } from "@/lib/queryClient";
 import { useRolePlay } from "@/contexts/RolePlayContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { useNavigation } from "@/contexts/NavigationContext";
 import { queryClient } from "@/lib/queryClient";
 import { invalidateTokenBalance } from "@/services/tokenService";
+import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { ChevronLeft, MoreVertical, Trash2, Filter, Pin, Sparkles, Clock, Star } from "lucide-react";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import { ImprovedTokenBalance } from "@/components/payment/ImprovedTokenBalance";
@@ -44,7 +46,6 @@ interface ChatsPageProps {
 
 const ChatsPage = ({ chatId }: ChatsPageProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const { isTyping, setIsTyping, setCurrentChat } = useRolePlay();
   const { t } = useLanguage();
   const { location, navigateToPath } = useNavigation();
   const { toast } = useToast();
@@ -56,33 +57,50 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
   // If no chatId is provided, show chat list
   const showChatList = !chatId;
   
-  // Fetch chat details if chatId is provided
+  const { isReady: authReady } = useAuth();
+
+  const chatEnabled = authReady && !!chatId;
+
+  // Fetch chat details if chatId is provided - backend accepts both numeric and UUID
   const {
     data: chat,
     isLoading: isLoadingChat,
     error: chatError
   } = useQuery<Chat>({
     queryKey: [`/api/chats/${chatId}`],
-    enabled: !!chatId,
+    enabled: chatEnabled,
+    staleTime: 30 * 1000,
   });
-  
-  // Fetch chat messages if chatId is provided
+
+  // Extract canonical UUID from chat response
+  const canonicalUuid = chat?.uuid ?? null;
+
+  // Fetch chat messages - use canonical UUID if available, fallback to chatId
+  const messagesCacheKey = canonicalUuid ?? chatId;
+  const messagesEnabled = authReady && !!messagesCacheKey;
+
   const {
     data: messages = [],
     isLoading: isLoadingMessages,
     error: messagesError
   } = useQuery<ChatMessage[]>({
-    queryKey: [`/api/chats/${chatId}/messages`],
-    enabled: !!chatId,
+    queryKey: [`/api/chats/${messagesCacheKey}/messages`],
+    enabled: messagesEnabled,
   });
+
+  // Subscribe to realtime messages using canonical UUID
+  // Note: If UUID is null, realtime won't work (backend data issue)
+  useRealtimeMessages(canonicalUuid ?? undefined);
   
-  // Fetch character details for the chat
+  // Fetch character details for the chat (backend uses snake_case character_id)
+  const characterId = chat?.characterId ?? (chat as any)?.character_id;
+
   const {
     data: character,
     isLoading: isLoadingCharacter
   } = useQuery<Character>({
-    queryKey: [`/api/characters/${chat?.characterId}`],
-    enabled: !!chat?.characterId,
+    queryKey: [`/api/characters/${characterId}`],
+    enabled: authReady && !!characterId,
   });
   
   
@@ -92,7 +110,8 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     isLoading: isLoadingChats
   } = useQuery<EnrichedChat[]>({
     queryKey: ["/api/chats"],
-    enabled: showChatList,
+    enabled: authReady && showChatList,
+    staleTime: 30 * 1000,
   });
   
   // Mutation for sending messages
@@ -104,16 +123,19 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
         { content, role: "user" }
       );
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
-      setIsTyping(true);
-      
+    onSuccess: async () => {
+      // Invalidate to show user's message
+      queryClient.invalidateQueries({
+        queryKey: [`/api/chats/${messagesCacheKey}/messages`],
+      });
+
+      // Kick off AI response
       aiResponse();
     },
   });
   
   // Mutation for AI responses
-  const { mutate: aiResponse } = useMutation({
+  const { mutate: aiResponse, isPending: isGeneratingResponse } = useMutation({
     mutationFn: async () => {
       return apiRequest(
         "POST",
@@ -122,14 +144,13 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
       );
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}/messages`] });
-      setIsTyping(false);
-      
+      // Invalidate messages to show AI response
+      queryClient.invalidateQueries({
+        queryKey: [`/api/chats/${messagesCacheKey}/messages`],
+      });
+
       // Invalidate token balance after AI response generation
       invalidateTokenBalance();
-    },
-    onError: () => {
-      setIsTyping(false);
     },
   });
   
@@ -168,7 +189,6 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     '/api/chats',
     t('chatHistoryCleared'),
     t('failedToClearAllChats'),
-    () => setCurrentChat(null) // Extra action for clear all
   );
 
   // Delete single chat mutation
@@ -188,8 +208,9 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
       });
 
       // Only navigate away if we deleted the current chat
-      if (chatId && parseInt(chatId) === deletedChatId) {
-        setCurrentChat(null);
+      const isNumericMatch = chatId ? Number.isFinite(Number(chatId)) && Number(chatId) === deletedChatId : false;
+      const isChatMatch = chat?.id === deletedChatId || (chat?.uuid && chatId === String(chat.uuid));
+      if (isNumericMatch || isChatMatch) {
         navigateToPath('/chats');
       }
     },
@@ -207,9 +228,11 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
   
   // Regenerate the last AI message
   const regenerateLastMessage = () => {
-    setIsTyping(true);
     aiResponse();
   };
+
+  // Derive typing indicator from AI mutation state
+  const isTyping = isGeneratingResponse;
   
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -847,7 +870,14 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
       </div>
 
         {/* Chat Input */}
-        <ChatInput onSendMessage={sendMessage} isLoading={isSending || isTyping} />
+        <ChatInput
+          onSendMessage={sendMessage}
+          isLoading={isSending || isTyping}
+          showAvatar={!!character}
+          avatarUrl={character?.avatarUrl ?? null}
+          avatarAlt={character?.name ?? 'Character'}
+          avatarFallbackText={character?.name ?? 'AI'}
+        />
       </div>
     </GlobalLayout>
   );

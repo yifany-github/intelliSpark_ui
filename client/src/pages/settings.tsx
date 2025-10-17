@@ -40,7 +40,6 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 const SettingsPage = () => {
   const { 
     memoryEnabled, setMemoryEnabled,
-    setCurrentChat
   } = useRolePlay();
   
   const { t } = useLanguage();
@@ -53,7 +52,6 @@ const SettingsPage = () => {
   const handleClearChatHistory = async () => {
     try {
       await apiRequest('DELETE', '/api/chats');
-      setCurrentChat(null);
       queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
       toast({
         title: "Success",

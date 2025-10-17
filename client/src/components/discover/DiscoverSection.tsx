@@ -83,26 +83,26 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
         "/api/chats",
         {
           characterId,
-          title: `Chat with ${characters.find(c => c.id === characterId)?.name || 'Character'}`
+          title: `Chat with ${characters.find(c => c.id === characterId)?.name || 'Character'}`,
         }
       );
       return response.json();
     },
     onSuccess: (chat) => {
-      const chatIdentifier = chat?.uuid || chat?.id;
-
-      if (!chatIdentifier) {
-        console.error('Chat creation response missing identifier:', chat);
+      // Backend should return UUID - log error and redirect if missing
+      if (!chat?.uuid) {
+        console.error('[DiscoverSection] Chat created without UUID:', chat);
         toast({
           title: t('error') || 'Error',
-          description: t('failedToStartChat') || 'Unable to start chat. Please try again.',
+          description: 'Backend error: Chat UUID missing. Please contact support.',
           variant: 'destructive',
         });
         navigateToPath('/discover');
         return;
       }
 
-      navigateToPath(`/chat/${chatIdentifier}`);
+      // Navigate using UUID only (no numeric fallback)
+      navigateToPath(`/chat/${chat.uuid}`);
       handlePreviewClose();
     },
     onError: (error) => {
@@ -118,7 +118,7 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
 
   const handleCharacterClick = (character: Character) => {
     setSelectedCharacter(character);
-    navigateToPath(`/chat/pending-${character.id}`);
+    handlePreviewClose();
     createChat({ characterId: character.id });
   };
 
@@ -144,7 +144,6 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
   const handleStartChat = (character: Character) => {
     setSelectedCharacter(character);
     handlePreviewClose();
-    navigateToPath(`/chat/pending-${character.id}`);
     createChat({ characterId: character.id });
   };
 

@@ -87,6 +87,7 @@ class MessageService:
             message = ChatMessage(
                 chat_id=chat_id,
                 chat_uuid=chat.uuid,
+                user_id=user_id,
                 role=message_data.role,
                 content=message_data.content,
             )

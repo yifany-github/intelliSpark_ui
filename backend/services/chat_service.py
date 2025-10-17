@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from uuid import UUID
 
 import anyio
@@ -35,13 +35,17 @@ class ChatService:
         self.logger = logging.getLogger(__name__)
         self.ai_service = AIService()
 
-    async def get_user_chats(self, user_id: int) -> List[Dict[str, Any]]:
+    async def get_user_chats(self, user_id: int, character_id: Optional[int] = None, idempotency_key: Optional[str] = None) -> List[Dict[str, Any]]:
         try:
             stmt = (
                 select(Chat)
                 .where(Chat.user_id == user_id)
                 .order_by(Chat.updated_at.desc())
             )
+            if character_id is not None:
+                stmt = stmt.where(Chat.character_id == character_id)
+            if idempotency_key is not None:
+                stmt = stmt.where(Chat.idempotency_key == idempotency_key)
             chats = (await self.db.execute(stmt)).scalars().all()
 
             enriched: List[Dict[str, Any]] = []
@@ -78,6 +82,8 @@ class ChatService:
                         "id": chat.id,
                         "user_id": chat.user_id,
                         "character_id": chat.character_id,
+                        "idempotency_key": chat.idempotency_key,
+                        "idempotencyKey": chat.idempotency_key,
                         "title": chat.title,
                         "created_at": chat.created_at.isoformat() + "Z" if chat.created_at else None,
                         "updated_at": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
@@ -131,6 +137,8 @@ class ChatService:
                 "uuid": chat.uuid,
                 "user_id": chat.user_id,
                 "character_id": chat.character_id,
+                "idempotency_key": chat.idempotency_key,
+                "idempotencyKey": chat.idempotency_key,
                 "title": chat.title,
                 "created_at": chat.created_at.isoformat() + "Z" if chat.created_at else None,
                 "updated_at": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
@@ -152,6 +160,8 @@ class ChatService:
                 "uuid": str(chat.uuid) if chat.uuid else None,
                 "user_id": chat.user_id,
                 "character_id": chat.character_id,
+                "idempotency_key": chat.idempotency_key,
+                "idempotencyKey": chat.idempotency_key,
                 "title": chat.title,
                 "created_at": chat.created_at.isoformat() + "Z" if chat.created_at else None,
                 "updated_at": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
@@ -161,17 +171,80 @@ class ChatService:
             self.logger.error("Error fetching chat by UUID %s: %s", chat_uuid, exc)
             raise ChatServiceError(f"Failed to fetch chat by UUID {chat_uuid}: {exc}") from exc
 
+    async def get_chat_status(
+        self,
+        identifier: Union[int, UUID],
+        user_id: int,
+        *,
+        by_uuid: bool,
+    ) -> Optional[Dict[str, Any]]:
+        try:
+            if by_uuid:
+                stmt = select(Chat).where(Chat.uuid == identifier, Chat.user_id == user_id)
+            else:
+                stmt = select(Chat).where(Chat.id == identifier, Chat.user_id == user_id)
+
+            chat = (await self.db.execute(stmt)).scalars().first()
+            if not chat:
+                return None
+
+            count_stmt = select(func.count(ChatMessage.id)).where(ChatMessage.chat_id == chat.id)
+            message_count = (await self.db.execute(count_stmt)).scalar() or 0
+
+            latest_message = (
+                await self.db.execute(
+                    select(ChatMessage)
+                    .where(ChatMessage.chat_id == chat.id)
+                    .order_by(ChatMessage.id.desc())
+                    .limit(1)
+                )
+            ).scalars().first()
+
+            return {
+                "id": chat.id,
+                "uuid": str(chat.uuid) if chat.uuid else None,
+                "messageCount": message_count,
+                "lastMessageId": latest_message.id if latest_message else None,
+                "lastMessageRole": latest_message.role if latest_message else None,
+                "lastMessageTimestamp": latest_message.timestamp.isoformat() + "Z"
+                if latest_message and latest_message.timestamp
+                else None,
+                "updatedAt": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
+            }
+        except Exception as exc:
+            self.logger.error("Error fetching chat status %s: %s", identifier, exc)
+            raise ChatServiceError(f"Failed to fetch chat status: {exc}") from exc
+
     async def create_chat_immediate(
         self,
         chat_data: ChatCreate,
         user_id: int,
-    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+    ) -> Tuple[bool, Optional[Chat], Optional[str], bool]:
         try:
+            if chat_data.idempotencyKey:
+                stmt = select(Chat).where(
+                    Chat.user_id == user_id,
+                    Chat.idempotency_key == chat_data.idempotencyKey,
+                )
+                existing_chat = (await self.db.execute(stmt)).scalars().first()
+                if existing_chat:
+                    self.logger.info(
+                        "Returning existing chat %s for idempotency key %s",
+                        existing_chat.id,
+                        chat_data.idempotencyKey,
+                    )
+                    return True, existing_chat, None, False
+
             character = await self.db.get(Character, chat_data.characterId)
             if not character:
-                return False, {}, "Character not found"
+                return False, None, "Character not found", False
 
-            chat = Chat(user_id=user_id, character_id=chat_data.characterId, title=chat_data.title)
+            chat = Chat(
+                user_id=user_id,
+                character_id=chat_data.characterId,
+                title=chat_data.title,
+                idempotency_key=chat_data.idempotencyKey,
+            )
             self.db.add(chat)
             await self.db.commit()
             await self.db.refresh(chat)
@@ -182,12 +255,12 @@ class ChatService:
                 await self.db.refresh(chat)
 
             self.logger.info("Chat created immediately: %s (UUID: %s)", chat.id, chat.uuid)
-            return True, chat, None
+            return True, chat, None, True
 
         except SQLAlchemyError as exc:
             await self.db.rollback()
             self.logger.error("Error creating chat: %s", exc)
-            return False, {}, f"Chat creation failed: {exc}"
+            return False, None, f"Chat creation failed: {exc}", False
 
     async def generate_opening_line_async(self, chat_id: int, character_id: int) -> None:
         try:
@@ -211,6 +284,7 @@ class ChatService:
                     ChatMessage(
                         chat_id=chat_id,
                         chat_uuid=chat.uuid,
+                        user_id=chat.user_id,
                         role="assistant",
                         content=opening_line,
                     )
@@ -279,6 +353,7 @@ class ChatService:
             ai_message = ChatMessage(
                 chat_id=chat_id,
                 chat_uuid=chat.uuid,
+                user_id=user_id,
                 role="assistant",
                 content=response_content,
             )
@@ -391,6 +466,7 @@ class ChatService:
             opening_message = ChatMessage(
                 chat_id=chat_id,
                 chat_uuid=chat.uuid,
+                user_id=user_id,
                 role="assistant",
                 content=opening_line,
             )

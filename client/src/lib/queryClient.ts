@@ -1,6 +1,7 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-import { getSupabaseAccessToken, supabase } from "@/lib/supabaseClient";
+import { getAccessTokenCached, refreshAccessToken, invalidateCachedAccessToken } from "@/utils/auth";
+import { supabase } from "@/lib/supabaseClient";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -11,6 +12,17 @@ async function throwIfResNotOk(res: Response) {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
+async function buildHeaders(
+  initHeaders: HeadersInit | undefined,
+  accessToken: string | null,
+): Promise<Headers> {
+  const headers = new Headers(initHeaders);
+  if (accessToken) {
+    headers.set("Authorization", `Bearer ${accessToken}`);
+  }
+  return headers;
+}
+
 export async function apiRequest(
   method: string,
   url: string,
@@ -18,37 +30,44 @@ export async function apiRequest(
   initOverrides: RequestInit = {},
 ): Promise<Response> {
   const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
-  const accessToken = await getSupabaseAccessToken();
-  const hasToken = Boolean(accessToken);
+  const attempt = async (accessToken: string | null): Promise<Response> => {
+    const headers = await buildHeaders(initOverrides.headers, accessToken);
 
-  const headers = new Headers(initOverrides.headers as HeadersInit | undefined);
-
-  let body: BodyInit | null | undefined = initOverrides.body;
-
-  if (data !== undefined) {
-    if (data instanceof FormData) {
-      body = data;
-    } else {
-      if (!headers.has('Content-Type')) {
-        headers.set('Content-Type', 'application/json');
+    let body: BodyInit | null | undefined = initOverrides.body;
+    if (data !== undefined) {
+      if (data instanceof FormData) {
+        body = data;
+      } else {
+        if (!headers.has('Content-Type')) {
+          headers.set('Content-Type', 'application/json');
+        }
+        body = JSON.stringify(data);
       }
-      body = JSON.stringify(data);
+    }
+
+    return fetch(fullUrl, {
+      ...initOverrides,
+      method,
+      headers,
+      body,
+      credentials: initOverrides.credentials ?? 'include',
+    });
+  };
+
+  let accessToken = await getAccessTokenCached();
+  let response = await attempt(accessToken);
+
+  if (response.status === 401) {
+    invalidateCachedAccessToken();
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) {
+      accessToken = refreshedToken;
+      response = await attempt(accessToken);
     }
   }
 
-  if (hasToken && accessToken) {
-    headers.set('Authorization', `Bearer ${accessToken}`);
-  }
-
-  const response = await fetch(fullUrl, {
-    ...initOverrides,
-    method,
-    headers,
-    body,
-    credentials: initOverrides.credentials ?? 'include',
-  });
-
-  if (response.status === 401 && hasToken) {
+  if (response.status === 401) {
+    console.warn("[Auth] Request still unauthorized after refresh; signing out");
     await supabase.auth.signOut();
   }
 
@@ -64,21 +83,29 @@ export const getQueryFn: <T>(options: {
   async ({ queryKey }) => {
     const url = queryKey[0] as string;
     const fullUrl = url.startsWith('http') ? url : `${API_BASE_URL}${url}`;
-    
-    const accessToken = await getSupabaseAccessToken();
-    const hasToken = Boolean(accessToken);
 
-    const headers = new Headers();
-    if (hasToken && accessToken) {
-      headers.set('Authorization', `Bearer ${accessToken}`);
+    const attempt = async (accessToken: string | null) => {
+      const headers = await buildHeaders(undefined, accessToken);
+      return fetch(fullUrl, {
+        headers,
+        credentials: 'include',
+      });
+    };
+
+    let accessToken = await getAccessTokenCached();
+    let response = await attempt(accessToken);
+
+    if (response.status === 401) {
+      invalidateCachedAccessToken();
+      const refreshedToken = await refreshAccessToken();
+      if (refreshedToken) {
+        accessToken = refreshedToken;
+        response = await attempt(accessToken);
+      }
     }
 
-    const response = await fetch(fullUrl, {
-      headers,
-      credentials: 'include',
-    });
-
-    if (response.status === 401 && hasToken) {
+    if (response.status === 401) {
+      console.warn("[Auth] Query still unauthorized after refresh; signing out");
       await supabase.auth.signOut();
       if (unauthorizedBehavior === 'returnNull') {
         return null;
@@ -95,24 +122,52 @@ export const queryClient = new QueryClient({
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
       refetchOnWindowFocus: (query) => {
-        // Refetch character data when window gains focus to ensure latest descriptions
-        const queryKey = query.queryKey[0] as string;
-        // More targeted: only character list and individual character queries
-        return queryKey === '/api/characters' || /^\/api\/characters\/\d+$/.test(queryKey);
+        const queryKey = query.queryKey[0];
+        if (typeof queryKey !== 'string') {
+          return false;
+        }
+
+        if (queryKey === '/api/characters' || /^\/api\/characters\/\d+$/.test(queryKey)) {
+          return true;
+        }
+
+        if (queryKey === '/api/chats' || /^\/api\/chats\/[^/]+$/.test(queryKey)) {
+          return true;
+        }
+
+        if (queryKey.includes('/messages')) {
+          return true;
+        }
+
+        return false;
       },
       staleTime: (query) => {
-        // Character-related queries should refresh more frequently to pick up 
-        // real-time description/trait updates from persona prompts (Issue #119)
-        const queryKey = query.queryKey[0] as string;
-        // More targeted caching: only character endpoints, not all chats
-        if (queryKey === '/api/characters' || queryKey.match(/^\/api\/characters\/\d+$/)) {
-          return 5 * 60 * 1000; // 5 minutes for character data (more reasonable)
+        const queryKey = query.queryKey[0];
+        if (typeof queryKey !== 'string') {
+          return 60 * 1000;
         }
-        // Chat list can be cached longer since character data in chats is updated via real-time sync
+
+        if (queryKey === '/api/auth/me') {
+          return 0;
+        }
+
         if (queryKey === '/api/chats') {
-          return 2 * 60 * 1000; // 2 minutes for chat list
+          return 30 * 1000;
         }
-        return Infinity; // Other data cached forever
+
+        if (queryKey.match(/^\/api\/chats\/[^/]+$/) && !queryKey.includes('/messages')) {
+          return 30 * 1000;
+        }
+
+        if (queryKey.includes('/messages')) {
+          return 0;
+        }
+
+        if (queryKey === '/api/characters' || /^\/api\/characters\/\d+$/.test(queryKey)) {
+          return 5 * 60 * 1000;
+        }
+
+        return 60 * 1000;
       },
       retry: false,
     },

@@ -31,7 +31,7 @@ const ChatPreviewPage = () => {
       // If authenticated, create real chat and send message
       try {
         const chatId = await startChat(selectedCharacter);
-        navigateToPath(`/chats/${chatId}`);
+        navigateToPath(`/chat/${chatId}`);
         // The actual message sending will be handled by the chat page
       } catch (error) {
         console.error("Failed to start chat:", error);

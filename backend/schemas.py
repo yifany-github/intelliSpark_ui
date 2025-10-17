@@ -142,10 +142,12 @@ class ChatBase(BaseSchema):
 class ChatCreate(BaseSchema):
     characterId: int  # Frontend sends characterId, not character_id  
     title: str
+    idempotencyKey: Optional[str] = None
 
 class Chat(ChatBase):
     id: int
     uuid: Optional[UUID] = None  # UUID field for new security model
+    idempotency_key: Optional[str] = Field(default=None, alias="idempotency_key")
     created_at: datetime
     updated_at: datetime
 
@@ -158,6 +160,7 @@ class EnrichedChat(BaseSchema):
     title: str
     created_at: datetime
     updated_at: datetime
+    idempotency_key: Optional[str] = Field(default=None, alias="idempotency_key")
     character: Optional[Dict[str, Any]] = None
 
 # Chat message schemas
