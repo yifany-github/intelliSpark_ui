@@ -12,7 +12,7 @@ from typing import Optional, Tuple
 import aiohttp
 from PIL import Image
 
-from services.storage_manager import StorageManagerError, get_storage_manager
+from .storage_manager import StorageManagerError, get_storage_manager
 
 class AvatarGenerationError(Exception):
     """Avatar generation specific errors"""

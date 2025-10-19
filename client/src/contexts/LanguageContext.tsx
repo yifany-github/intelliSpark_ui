@@ -64,6 +64,21 @@ export type TranslationKey =
   | 'loadingMessages'
   | 'errorLoading'
   | 'refreshChats'
+  | 'chatErrorTitle'
+  | 'chatErrorRetryCountdown'
+  | 'reloadChat'
+  | 'reportIssue'
+  | 'retrying'
+  | 'chat.error.database'
+  | 'chat.error.timeout'
+  | 'chat.error.rateLimit'
+  | 'chat.error.breaker'
+  | 'chat.error.moderation'
+  | 'chat.error.tokens'
+  | 'chat.error.notFound'
+  | 'chat.error.userNotFound'
+  | 'chat.error.characterNotFound'
+  | 'chat.error.unknown'
   | 'searchChatsPlaceholder'
   | 'pinnedConversations'
   | 'activeNow'
@@ -946,6 +961,21 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     exportScripts: 'Export Scripts',
     subscribe: 'Subscribe / Buy Tokens',
     loadingMessages: 'Loading messages...',
+    chatErrorTitle: 'We hit a snag',
+    chatErrorRetryCountdown: 'Retry available in',
+    reloadChat: 'Reload chat',
+    reportIssue: 'Report issue',
+    retrying: 'Retrying...',
+    'chat.error.database': 'We hit a database hiccup. Please try again.',
+    'chat.error.timeout': 'The AI took too long to respond. Try again shortly.',
+    'chat.error.rateLimit': 'Too many requests. Give it a moment.',
+    'chat.error.breaker': 'We paused this chat to keep things stable. Try again soon.',
+    'chat.error.moderation': 'This message was blocked by our safety filters.',
+    'chat.error.tokens': 'You need more tokens to continue the conversation.',
+    'chat.error.notFound': 'This chat is no longer available.',
+    'chat.error.userNotFound': 'We could not verify your session. Please sign in again.',
+    'chat.error.characterNotFound': 'The character profile was not found.',
+    'chat.error.unknown': 'Something unexpected happened. Please try again.',
     noMessagesYet: 'No messages yet. Start the conversation!',
     startNewChat: 'Start a new chat',
     todaysChatTime: 'Today\'s Chat Time',
@@ -1774,6 +1804,21 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     exportScripts: '导出对话脚本',
     subscribe: '订阅/购买代币',
     loadingMessages: '加载消息中...',
+    chatErrorTitle: '出错了',
+    chatErrorRetryCountdown: '可重试时间',
+    reloadChat: '重新加载聊天',
+    reportIssue: '报告问题',
+    retrying: '重试中...',
+    'chat.error.database': '数据库连接出现问题，请稍后重试。',
+    'chat.error.timeout': 'AI 响应超时，请稍后再试。',
+    'chat.error.rateLimit': '请求过于频繁，请稍等片刻。',
+    'chat.error.breaker': '为保持系统稳定，聊天已暂时暂停，请稍后重试。',
+    'chat.error.moderation': '消息被安全策略拦截。',
+    'chat.error.tokens': '需要更多代币才能继续对话。',
+    'chat.error.notFound': '聊天会话不存在或已被删除。',
+    'chat.error.userNotFound': '无法验证用户会话，请重新登录。',
+    'chat.error.characterNotFound': '角色信息缺失。',
+    'chat.error.unknown': '发生未知错误，请稍后重试。',
     // Payment form localization - Chinese
     paymentDetails: '付款详情',
     billingInformation: '账单信息',

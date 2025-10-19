@@ -1,14 +1,27 @@
 from __future__ import annotations
 
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Callable, List, Tuple
+import inspect as pyinspect
+import os
 import ssl
-
-from sqlalchemy import create_engine, inspect, text
+import logging
+from urllib.parse import urlparse, parse_qs
+from sqlalchemy import create_engine, inspect as sa_inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import NullPool
 
 from config import settings
 from models import Base, Character
+
+logger = logging.getLogger(__name__)
+
+SUPABASE_HOST_SUFFIXES = (
+    "supabase.co",
+    "supabase.net",
+    "supabase.com",
+    "supabase.internal",
+)
 
 
 def _build_async_database_url(url: str) -> str:
@@ -26,26 +39,178 @@ def _build_async_database_url(url: str) -> str:
     return url
 
 
+def _detect_pool_reasons(url: str) -> Tuple[bool, str, List[str]]:
+    """Return pooling detection flag, host, and reasons for diagnostics."""
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+    host = (parsed.hostname or "").lower()
+    reasons = []
+
+    if params.get("pgbouncer", ["false"])[0].lower() == "true":
+        reasons.append("param:pgbouncer=true")
+
+    pool_mode = params.get("pool_mode", [""])[0].lower()
+    if pool_mode in {"transaction", "statement"}:
+        reasons.append(f"param:pool_mode={pool_mode}")
+
+    if host and _is_supabase_pool_host(host):
+        reasons.append("host:supabase_pool")
+
+    if parsed.port in {5433, 6543} and host and "supabase" in host:
+        reasons.append(f"port:{parsed.port}")
+
+    return bool(reasons), host, reasons
+
+
+def _is_supabase_pool_host(host: str) -> bool:
+    """Identify Supabase pooler/connect hosts."""
+    if not host:
+        return False
+    host = host.lower()
+    if "supabase" not in host:
+        return False
+    if not any(host.endswith(suffix) for suffix in SUPABASE_HOST_SUFFIXES):
+        return False
+    return "pool" in host or "connect" in host or host.endswith("supabase.internal")
+
+
+def _using_transaction_pool(url: str) -> bool:
+    """Expose pooling detection for tests."""
+    url_lower = url.lower()
+    if "supabase" in url_lower:
+        return True
+    if settings.pgbouncer_disable_cache:
+        return True
+    detected, _, _ = _detect_pool_reasons(url)
+    return detected
+
+
+SQLALCHEMY_DIALECT_ONLY_ARGS = {
+    "prepared_statement_cache_size",
+    "prepared_statement_name_func",
+}
+
+
+def _filter_async_connect_args(base_args: dict[str, object]) -> dict[str, object]:
+    """Drop connect args that the asyncpg driver does not support."""
+    try:
+        import asyncpg  # type: ignore
+    except ImportError:
+        unsupported = {"prepare_threshold"}
+        return {
+            k: v
+            for k, v in base_args.items()
+            if k not in unsupported or k in SQLALCHEMY_DIALECT_ONLY_ARGS
+        }
+
+    try:
+        supported_params = set(pyinspect.signature(asyncpg.connect).parameters)
+    except (TypeError, ValueError):
+        supported_params = set()
+
+    unsupported: set[str] = set()
+    filtered: dict[str, object] = {}
+
+    for key, value in base_args.items():
+        if key in SQLALCHEMY_DIALECT_ONLY_ARGS:
+            filtered[key] = value
+            continue
+        if supported_params and key not in supported_params:
+            unsupported.add(key)
+            continue
+        if not supported_params and key == "prepare_threshold":
+            unsupported.add(key)
+            continue
+        filtered[key] = value
+
+    if unsupported:
+        logger.info(
+            "db_connect_args_filtered | unsupported=%s",
+            ",".join(sorted(unsupported)),
+        )
+
+    return filtered
+
+
+def _anonymous_prepared_statement_name() -> str:
+    """Return empty string so asyncpg uses unnamed statements."""
+    return ""
+
+
 # Async engine/session used by the FastAPI request lifecycle
 ASYNC_DATABASE_URL = _build_async_database_url(settings.database_url)
-async_connect_args: dict[str, object] = {}
+async_connect_args: dict[str, object] = _filter_async_connect_args(
+    {
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+        "prepare_threshold": 0,
+    }
+)
+print("[database] async_connect_args initial (pgbouncer-safe)", async_connect_args)
+pool_detected = False
+pool_host = ""
+pool_reasons: List[str] = []
+
+async_detected, async_host, async_reasons = _detect_pool_reasons(ASYNC_DATABASE_URL)
+if async_detected:
+    pool_detected = True
+    pool_host = async_host
+    pool_reasons.extend(async_reasons)
+
+supabase_in_dsn = "supabase" in settings.database_url.lower() or "supabase" in ASYNC_DATABASE_URL.lower()
+
+if supabase_in_dsn and "supabase_env" not in pool_reasons:
+    pool_detected = True
+    parsed = urlparse(settings.database_url)
+    pool_host = (parsed.hostname or "").lower() or pool_host
+    pool_reasons.append("supabase_env")
+
+if settings.pgbouncer_disable_cache:
+    pool_detected = True
+    pool_reasons.append("env:override")
+
 if ASYNC_DATABASE_URL.startswith("postgresql+asyncpg://"):
-    # CRITICAL: Disable prepared statements for PgBouncer/Supavisor transaction mode
-    async_connect_args["statement_cache_size"] = 0
-    async_connect_args["prepared_statement_cache_size"] = 0
-    # Require TLS when connecting to Supabase/PostgreSQL
+    if "statement_cache_size" in async_connect_args:
+        async_connect_args["statement_cache_size"] = 0
+    if "prepared_statement_cache_size" in async_connect_args:
+        async_connect_args["prepared_statement_cache_size"] = 0
+    if pool_detected or supabase_in_dsn or settings.pgbouncer_disable_cache:
+        async_connect_args["prepared_statement_name_func"] = (
+            _anonymous_prepared_statement_name
+        )
     async_connect_args["ssl"] = ssl.create_default_context()
+    print("[database] async_connect_args after detection", async_connect_args)
+
+    if pool_detected or supabase_in_dsn or settings.pgbouncer_disable_cache:
+        logger.info(
+            "db_pool_detected | driver=asyncpg host=%s reasons=%s statement_cache_disabled=%s",
+            pool_host or "override",
+            ",".join(pool_reasons) if pool_reasons else "unknown",
+            True,
+        )
+
+async_engine_kwargs = {
+    "connect_args": dict(async_connect_args),
+    "pool_pre_ping": True,
+    "pool_reset_on_return": "rollback",
+    "echo": settings.debug,
+}
+
+if ASYNC_DATABASE_URL.startswith("sqlite+aiosqlite://"):
+    async_engine_kwargs["poolclass"] = NullPool
+else:
+    async_engine_kwargs.update(
+        {
+            "pool_size": 10,
+            "max_overflow": 10,
+            "pool_recycle": 300,
+            "pool_timeout": 10,
+        }
+    )
 
 async_engine = create_async_engine(
     ASYNC_DATABASE_URL,
-    connect_args=async_connect_args,
-    pool_size=10,              # 10 connections per Fly.io machine
-    max_overflow=10,           # Extra 10 under peak load
-    pool_recycle=300,          # Recycle connections after 5 minutes (not 1 hour)
-    pool_timeout=10,           # Wait max 10s for connection (fail fast)
-    pool_pre_ping=True,        # Verify connection before using
-    pool_reset_on_return="rollback",  # Reset connection state on return to pool
-    echo=settings.debug,
+    **async_engine_kwargs,
 )
 AsyncSessionLocal = async_sessionmaker(async_engine, expire_on_commit=False)
 
@@ -58,22 +223,36 @@ elif settings.database_url.startswith("postgresql"):
     # Ensure TLS is required for PostgreSQL connections
     sync_connect_args["sslmode"] = "require"
 
+sync_engine_kwargs = {
+    "connect_args": sync_connect_args,
+    "pool_pre_ping": True,
+    "pool_reset_on_return": "rollback",
+}
+
+if settings.database_url.startswith("sqlite"):
+    sync_engine_kwargs["poolclass"] = NullPool
+else:
+    sync_engine_kwargs.update(
+        {
+            "pool_size": 5,
+            "max_overflow": 5,
+            "pool_recycle": 300,
+            "pool_timeout": 10,
+        }
+    )
+
 sync_engine = create_engine(
     settings.database_url,
-    connect_args=sync_connect_args,
-    pool_size=5,               # Smaller pool for background tasks
-    max_overflow=5,            # Extra 5 under load
-    pool_recycle=300,          # Recycle connections after 5 minutes (not 1 hour)
-    pool_timeout=10,           # Wait max 10s for connection
-    pool_pre_ping=True,        # Verify connection before using
-    pool_reset_on_return="rollback",  # Reset connection state on return to pool
+    **sync_engine_kwargs,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=sync_engine)
+
+SKIP_DATABASE_BOOTSTRAP = os.getenv("SKIP_DATABASE_BOOTSTRAP", "false").lower() in {"1", "true", "yes"}
 
 
 def ensure_user_admin_columns_sync(connection) -> None:
     """Ensure admin-related user columns exist (runs synchronously)."""
-    inspector = inspect(connection)
+    inspector = sa_inspect(connection)
     try:
         existing_columns = {column["name"] for column in inspector.get_columns("users")}
     except Exception:
@@ -103,8 +282,9 @@ def ensure_user_admin_columns_sync(connection) -> None:
             connection.execute(text(ddl))
 
 
-with sync_engine.begin() as sync_conn:
-    ensure_user_admin_columns_sync(sync_conn)
+if not SKIP_DATABASE_BOOTSTRAP:
+    with sync_engine.begin() as sync_conn:
+        ensure_user_admin_columns_sync(sync_conn)
 
 
 def get_db():
@@ -124,6 +304,8 @@ async def get_async_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """Initialize database schema and seed baseline data."""
+    if SKIP_DATABASE_BOOTSTRAP:
+        return
     async with async_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(ensure_user_admin_columns_sync)

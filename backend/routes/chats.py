@@ -17,6 +17,7 @@ Routes:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Union, Optional
 import logging
@@ -52,22 +53,37 @@ def parse_chat_identifier(chat_id: str) -> tuple[bool, Union[int, UUID]]:
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid chat identifier format")
 
+from config import settings
 from database import get_async_db
 from auth.routes import get_current_user
-from services.chat_service import ChatService, ChatServiceError
-from services.message_service import MessageService, MessageServiceError
+from backend.services.chat_service import ChatService, ChatServiceError
+from backend.services.message_service import MessageService, MessageServiceError
 from schemas import (
     Chat as ChatSchema, 
     ChatCreate, 
     EnrichedChat,
     ChatMessage as ChatMessageSchema,
     ChatMessageCreate,
+    ChatGenerationSuccess,
     MessageResponse
 )
 from models import User
 
 # Create router with prefix and tags
 router = APIRouter(prefix="/chats", tags=["chats"])
+
+ERROR_STATUS_BY_CODE = {
+    "database_error": 500,
+    "timeout": 504,
+    "rate_limit": 429,
+    "breaker_open": 503,
+    "moderation_blocked": 400,
+    "insufficient_tokens": 402,
+    "chat_not_found": 404,
+    "user_not_found": 404,
+    "character_not_found": 404,
+    "unknown": 500,
+}
 
 
 @router.get("", response_model=List[EnrichedChat])
@@ -209,7 +225,7 @@ async def add_message_to_chat(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{chat_id}/generate", response_model=ChatMessageSchema)
+@router.post("/{chat_id}/generate", response_model=ChatGenerationSuccess)
 @limiter.limit("15/minute")  # 15 AI generations per minute per IP (more restrictive)
 async def generate_ai_response(
     request: Request,
@@ -221,24 +237,48 @@ async def generate_ai_response(
     try:
         # Parse the identifier
         is_uuid, parsed_id = parse_chat_identifier(chat_id)
-        
+
         logger.info(f"Generating AI response for chat_id={chat_id}, user_id={current_user.id}")
-        
+
         service = ChatService(db)
+        debug_force_error: Optional[str] = None
+        if settings.chat_debug_force_error_header:
+            debug_force_error = request.headers.get("X-Debug-Force-Error")
+
         if is_uuid:
-            success, response, error = await service.generate_ai_response_by_uuid(parsed_id, current_user.id)
+            success, response, error = await service.generate_ai_response_by_uuid(
+                parsed_id,
+                current_user.id,
+                debug_force_error=debug_force_error,
+            )
         else:
-            success, response, error = await service.generate_ai_response(parsed_id, current_user.id)
-        
+            success, response, error = await service.generate_ai_response(
+                parsed_id,
+                current_user.id,
+                debug_force_error=debug_force_error,
+            )
+
         if not success:
-            if "Insufficient tokens" in error:
-                raise HTTPException(status_code=402, detail=error)
-            else:
-                raise HTTPException(status_code=400, detail=error)
-        
+            error_code = response.get("code", "unknown")
+            status_code = ERROR_STATUS_BY_CODE.get(error_code, 500)
+            headers = None
+            retry_after = response.get("retryAfterSeconds")
+            if retry_after is not None:
+                headers = {"Retry-After": str(retry_after)}
+            return JSONResponse(status_code=status_code, content={"error": response}, headers=headers)
+
         return response
     except ChatServiceError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": {
+                    "code": "unknown",
+                    "messageKey": "chat.error.unknown",
+                    "detail": str(e),
+                }
+            },
+        )
 
 
 @router.post("/{chat_id}/opening-line")

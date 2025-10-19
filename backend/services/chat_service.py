@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import logging
+import time
 import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple, Union
 from uuid import UUID
 
@@ -12,12 +14,17 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from database import AsyncSessionLocal, SessionLocal
-from models import Chat, ChatMessage, Character, User
-from payment.token_service import TokenService
-from schemas import ChatCreate, EnrichedChat
-from services.ai_service import AIService
-from utils.character_utils import ensure_avatar_url
+from asyncpg import exceptions as asyncpg_exceptions
+
+from ..database import AsyncSessionLocal, SessionLocal
+from ..models import Chat, ChatMessage, Character, User
+from ..payment.token_service import TokenService
+from ..schemas import ChatCreate, EnrichedChat
+from .ai_service import AIService
+from .ai_model_manager import get_ai_model_manager
+from .circuit_breaker import BreakerState, CircuitBreaker
+from .telemetry import log_chat_generation_attempt
+from ..utils.character_utils import ensure_avatar_url
 
 
 class ChatServiceError(Exception):
@@ -28,6 +35,23 @@ class ChatService:
     """Async service for handling chat operations."""
 
     TOKENS_PER_MESSAGE = 1
+    MAX_GENERATION_ATTEMPTS = 3
+    RETRY_BACKOFF_SECONDS = (1, 2, 4)
+
+    BREAKER = CircuitBreaker(max_failures=5, reset_timeout=30.0)
+
+    ERROR_MESSAGES = {
+        "database_error": "chat.error.database",
+        "timeout": "chat.error.timeout",
+        "rate_limit": "chat.error.rateLimit",
+        "breaker_open": "chat.error.breaker",
+        "moderation_blocked": "chat.error.moderation",
+        "insufficient_tokens": "chat.error.tokens",
+        "chat_not_found": "chat.error.notFound",
+        "user_not_found": "chat.error.userNotFound",
+        "character_not_found": "chat.error.characterNotFound",
+        "unknown": "chat.error.unknown",
+    }
 
     def __init__(self, db: AsyncSession):
         """Initialize with a session managed by FastAPI's dependency system."""
@@ -275,8 +299,6 @@ class ChatService:
                     self.logger.error("Character %s not found for opening line generation", character_id)
                     return
 
-                from .ai_model_manager import get_ai_model_manager
-
                 ai_manager = await get_ai_model_manager()
                 opening_line = await ai_manager.generate_opening_line(character)
 
@@ -296,93 +318,209 @@ class ChatService:
         except Exception as exc:
             self.logger.error("Background opening line generation failed for chat %s: %s", chat_id, exc)
 
-    async def generate_ai_response(self, chat_id: int, user_id: int) -> Tuple[bool, Dict[str, Any], Optional[str]]:
-        try:
-            chat_stmt = select(Chat).where(Chat.id == chat_id, Chat.user_id == user_id)
-            chat = (await self.db.execute(chat_stmt)).scalars().first()
-            if not chat:
-                return False, {}, "Chat not found"
+    async def generate_ai_response(
+        self,
+        chat_id: int,
+        user_id: int,
+        *,
+        debug_force_error: Optional[str] = None,
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+        chat_stmt = select(Chat).where(Chat.id == chat_id, Chat.user_id == user_id)
+        chat = (await self.db.execute(chat_stmt)).scalars().first()
+        if not chat:
+            return False, self._error_payload("chat_not_found"), "Chat not found"
 
-            user_obj = await self.db.get(User, user_id)
-            if not user_obj:
-                return False, {}, "User not found"
+        chat_uuid_value = getattr(chat, "uuid", None)
+        chat_uuid_str = str(chat_uuid_value) if chat_uuid_value else None
+        chat_character_id = chat.character_id
 
-            if not await self._has_sufficient_tokens(user_id, self.TOKENS_PER_MESSAGE):
-                return False, {}, "Insufficient tokens. Please purchase more tokens to continue."
+        user_obj = await self.db.get(User, user_id)
+        if not user_obj:
+            return False, self._error_payload("user_not_found"), "User not found"
 
-            msg_stmt = (
-                select(ChatMessage)
-                .where(ChatMessage.chat_id == chat_id)
-                .order_by(ChatMessage.id)
+        if not await self._has_sufficient_tokens(user_id, self.TOKENS_PER_MESSAGE):
+            return False, self._error_payload("insufficient_tokens"), "Insufficient tokens"
+
+        character = await self.db.get(Character, chat.character_id)
+        if not character:
+            return False, self._error_payload("character_not_found"), "Character not found"
+
+        msg_stmt = (
+            select(ChatMessage)
+            .where(ChatMessage.chat_id == chat_id)
+            .order_by(ChatMessage.id)
+        )
+        messages = (await self.db.execute(msg_stmt)).scalars().all()
+
+        breaker_key = chat_uuid_str or str(chat_id)
+        breaker_status = await self.BREAKER.before_call(breaker_key)
+        if breaker_status.blocked:
+            payload = self._error_payload(
+                "breaker_open",
+                retry_after=breaker_status.retry_after,
+                breaker_state=breaker_status.state,
             )
-            messages = (await self.db.execute(msg_stmt)).scalars().all()
-
-            character = await self.db.get(Character, chat.character_id)
-            if not character:
-                return False, {}, "Character not found"
-
-            from .ai_model_manager import get_ai_model_manager
-
-            ai_manager = await get_ai_model_manager()
-            response_content, token_info = await ai_manager.generate_response(
-                character=character,
-                messages=messages,
-                user=user_obj,
+            log_chat_generation_attempt(
+                chat_id=chat_id,
+                chat_uuid=chat_uuid_str,
+                user_id=user_id,
+                character_id=chat_character_id,
+                breaker_state=breaker_status.state.value,
+                attempt=0,
+                max_attempts=self.MAX_GENERATION_ATTEMPTS,
+                latency_ms=0.0,
+                result="blocked",
+                error_code="breaker_open",
+                retry_after_seconds=breaker_status.retry_after,
             )
+            return False, payload, "Circuit breaker open"
 
-            if token_info:
-                self.logger.info(
-                    "Token usage for chat %s: Input=%s Output=%s Total=%s",
-                    chat_id,
-                    token_info.get("input_tokens", 0),
-                    token_info.get("output_tokens", 0),
-                    token_info.get("total_tokens", 0),
+        ai_manager = await get_ai_model_manager()
+
+        # Optional debug shortcut to open the breaker immediately.
+        if debug_force_error == "breaker":
+            forced_status = await self._force_open_breaker(breaker_key)
+            payload = self._error_payload(
+                "breaker_open",
+                retry_after=forced_status.retry_after,
+                breaker_state=forced_status.state,
+            )
+            return False, payload, "Breaker forced open for debug"
+
+        for attempt in range(1, self.MAX_GENERATION_ATTEMPTS + 1):
+            start = time.perf_counter()
+            try:
+                if debug_force_error and attempt == 1 and debug_force_error != "breaker":
+                    forced_code = (
+                        "database_error" if debug_force_error == "duplicate_statement" else debug_force_error
+                    )
+                    if forced_code not in self.ERROR_MESSAGES:
+                        forced_code = "unknown"
+                    raise DebugForcedError(forced_code)
+
+                response_content, token_info = await ai_manager.generate_response(
+                    character=character,
+                    messages=messages,
+                    user=user_obj,
                 )
 
-            deduction_description = (
-                f"AI response generation for chat {chat_id} (Input: {token_info.get('input_tokens', 0)}, "
-                f"Output: {token_info.get('output_tokens', 0)})"
-                if token_info
-                else f"AI response generation for chat {chat_id}"
-            )
+                message_model = ChatMessage(
+                    chat_id=chat_id,
+                    chat_uuid=chat_uuid_value,
+                    user_id=user_id,
+                    role="assistant",
+                    content=response_content,
+                )
+                self.db.add(message_model)
+                await self.db.commit()
+                await self.db.refresh(message_model)
 
-            success = await self._deduct_tokens(user_id, self.TOKENS_PER_MESSAGE, deduction_description)
-            if not success:
-                self.logger.error("Failed to deduct tokens for user %s after AI generation", user_id)
+                deduction_description = (
+                    f"AI response generation for chat {chat_id} (Input: {token_info.get('input_tokens', 0)}, "
+                    f"Output: {token_info.get('output_tokens', 0)})"
+                    if token_info
+                    else f"AI response generation for chat {chat_id}"
+                )
 
-            ai_message = ChatMessage(
-                chat_id=chat_id,
-                chat_uuid=chat.uuid,
-                user_id=user_id,
-                role="assistant",
-                content=response_content,
-            )
-            self.db.add(ai_message)
-            await self.db.commit()
-            await self.db.refresh(ai_message)
+                token_deducted = await self._deduct_tokens(
+                    user_id,
+                    self.TOKENS_PER_MESSAGE,
+                    deduction_description,
+                )
+                if not token_deducted:
+                    self.logger.error("Failed to deduct tokens for user %s after AI generation", user_id)
 
-            message_payload = {
-                "id": ai_message.id,
-                "chat_id": ai_message.chat_id,
-                "role": ai_message.role,
-                "content": ai_message.content,
-                "timestamp": ai_message.timestamp.isoformat() + "Z" if ai_message.timestamp else None,
-            }
+                await self.BREAKER.after_success(breaker_key)
 
-            self.logger.info("AI response generated successfully for chat %s", chat_id)
-            return True, message_payload, None
+                latency_ms = (time.perf_counter() - start) * 1000
+                log_chat_generation_attempt(
+                    chat_id=chat_id,
+                    chat_uuid=chat_uuid_str,
+                    user_id=user_id,
+                    character_id=chat_character_id,
+                    breaker_state=BreakerState.CLOSED.value,
+                    attempt=attempt,
+                    max_attempts=self.MAX_GENERATION_ATTEMPTS,
+                    latency_ms=latency_ms,
+                    result="success",
+                )
 
-        except Exception as exc:
-            await self.db.rollback()
-            self.logger.error("Error generating AI response for chat %s: %s", chat_id, exc)
-            return False, {}, f"AI response generation failed: {exc}"
+                message_payload = {
+                    "id": message_model.id,
+                    "chat_id": message_model.chat_id,
+                    "role": message_model.role,
+                    "content": message_model.content,
+                    "timestamp": message_model.timestamp.isoformat() + "Z" if message_model.timestamp else None,
+                }
 
-    async def generate_ai_response_by_uuid(self, chat_uuid: UUID, user_id: int) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+                retry_meta = self._retry_meta(
+                    attempts=attempt,
+                    breaker_state=BreakerState.CLOSED,
+                )
+
+                return True, {"message": message_payload, "retryMeta": retry_meta}, None
+
+            except Exception as exc:
+                await self.db.rollback()
+                latency_ms = (time.perf_counter() - start) * 1000
+
+                error_code = self._classify_exception(exc)
+                breaker_after_failure = await self.BREAKER.after_failure(breaker_key)
+
+                log_chat_generation_attempt(
+                    chat_id=chat_id,
+                    chat_uuid=chat_uuid_str,
+                    user_id=user_id,
+                    character_id=chat_character_id,
+                    breaker_state=breaker_after_failure.state.value,
+                    attempt=attempt,
+                    max_attempts=self.MAX_GENERATION_ATTEMPTS,
+                    latency_ms=latency_ms,
+                    result="failure",
+                    error_code=error_code,
+                    retry_after_seconds=breaker_after_failure.retry_after,
+                )
+
+                should_stop = (
+                    attempt == self.MAX_GENERATION_ATTEMPTS
+                    or breaker_after_failure.state == BreakerState.OPEN
+                )
+
+                if should_stop:
+                    payload = self._error_payload(
+                        error_code,
+                        retry_after=breaker_after_failure.retry_after,
+                        breaker_state=breaker_after_failure.state,
+                        request_id=f"{chat_uuid_str or chat_id}:attempt-{attempt}",
+                    )
+                    self.logger.error(
+                        "AI response generation failed for chat %s (%s) after %s attempts: %s",
+                        chat_id,
+                        chat_uuid_str or "unknown",
+                        attempt,
+                        exc,
+                    )
+                    return False, payload, str(exc)
+
+                # Backoff before retrying
+                backoff = self.RETRY_BACKOFF_SECONDS[min(attempt - 1, len(self.RETRY_BACKOFF_SECONDS) - 1)]
+                await anyio.sleep(backoff)
+
+        payload = self._error_payload("unknown")
+        return False, payload, "AI response generation failed"
+
+    async def generate_ai_response_by_uuid(
+        self,
+        chat_uuid: UUID,
+        user_id: int,
+        *,
+        debug_force_error: Optional[str] = None,
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
         stmt = select(Chat).where(Chat.uuid == chat_uuid, Chat.user_id == user_id)
         chat = (await self.db.execute(stmt)).scalars().first()
         if not chat:
             return False, {}, "Chat not found or access denied"
-        return await self.generate_ai_response(chat.id, user_id)
+        return await self.generate_ai_response(chat.id, user_id, debug_force_error=debug_force_error)
 
     async def generate_opening_line_by_uuid(self, chat_uuid: UUID, user_id: int) -> Tuple[bool, Dict[str, Any], Optional[str]]:
         stmt = select(Chat).where(Chat.uuid == chat_uuid, Chat.user_id == user_id)
@@ -454,18 +592,19 @@ class ChatService:
             if not chat:
                 return False, {}, "Chat not found"
 
-            character = await self.db.get(Character, chat.character_id)
+            chat_character_id = chat.character_id
+            chat_uuid_value = getattr(chat, "uuid", None)
+
+            character = await self.db.get(Character, chat_character_id)
             if not character:
                 return False, {}, "Character not found"
-
-            from .ai_model_manager import get_ai_model_manager
 
             ai_manager = await get_ai_model_manager()
             opening_line = await ai_manager.generate_opening_line(character)
 
             opening_message = ChatMessage(
                 chat_id=chat_id,
-                chat_uuid=chat.uuid,
+                chat_uuid=chat_uuid_value,
                 user_id=user_id,
                 role="assistant",
                 content=opening_line,
@@ -505,3 +644,67 @@ class ChatService:
                 return token_service.deduct_tokens(user_id, amount, description)
 
         return await anyio.to_thread.run_sync(_worker)
+
+    async def _force_open_breaker(self, breaker_key: str):
+        status = None
+        for _ in range(self.BREAKER.max_failures):
+            status = await self.BREAKER.after_failure(breaker_key)
+        return status
+
+    def _classify_exception(self, exc: Exception) -> str:
+        if isinstance(exc, DebugForcedError):
+            return exc.code
+        if isinstance(exc, asyncpg_exceptions.DuplicatePreparedStatementError):
+            return "database_error"
+        if isinstance(exc, TimeoutError):
+            return "timeout"
+        if isinstance(exc, SQLAlchemyError):
+            return "database_error"
+        return "unknown"
+
+    def _error_payload(
+        self,
+        code: str,
+        *,
+        retry_after: Optional[float] = None,
+        breaker_state: Optional[BreakerState] = None,
+        request_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        payload: Dict[str, Any] = {
+            "code": code,
+            "messageKey": self.ERROR_MESSAGES.get(code, self.ERROR_MESSAGES["unknown"]),
+        }
+        if retry_after is not None:
+            payload["retryAfterSeconds"] = max(0, int(retry_after))
+            next_allowed = datetime.now(timezone.utc) + timedelta(seconds=retry_after)
+            payload["nextAllowedAt"] = next_allowed.isoformat()
+        if breaker_state:
+            payload["breakerState"] = breaker_state.value
+        if request_id:
+            payload["requestId"] = request_id
+        return payload
+
+    def _retry_meta(
+        self,
+        *,
+        attempts: int,
+        breaker_state: BreakerState,
+        retry_after: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        meta: Dict[str, Any] = {
+            "attempts": attempts,
+            "maxAttempts": self.MAX_GENERATION_ATTEMPTS,
+            "breakerState": breaker_state.value,
+        }
+        if retry_after is not None:
+            next_allowed = datetime.now(timezone.utc) + timedelta(seconds=retry_after)
+            meta["nextAllowedAt"] = next_allowed.isoformat()
+        else:
+            meta["nextAllowedAt"] = None
+        return meta
+
+
+class DebugForcedError(Exception):
+    def __init__(self, code: str):
+        super().__init__(code)
+        self.code = code

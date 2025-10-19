@@ -48,7 +48,7 @@ class GeminiService:
         
         # NEW: Use PromptEngine if persona_prompt or backstory is available
         elif character and (character.persona_prompt or character.backstory):
-            from services.prompt_engine import PromptEngine
+            from backend.services.prompt_engine import PromptEngine
             # Use selected system prompt based on character's NSFW level
             selected_system_prompt, prompt_type = select_system_prompt(character)
             engine = PromptEngine(system_prompt=selected_system_prompt)
@@ -379,7 +379,7 @@ class GeminiService:
     def intent_service(self):
         """Lazy-loaded intent service instance (industry standard pattern)"""
         if self._intent_service is None:
-            from services.nsfw_intent_service import NSFWIntentService
+            from backend.services.nsfw_intent_service import NSFWIntentService
             # Share the Gemini client to avoid duplication
             self._intent_service = NSFWIntentService(gemini_client=self.client)
             logger.info("🎯 NSFWIntentService initialized for this conversation")
@@ -420,7 +420,7 @@ class GeminiService:
             return self._intent_service.build_intent_guidance(user_intent)
         else:
             # Fallback if intent service not available
-            from services.nsfw_intent_service import NSFWIntentService
+            from backend.services.nsfw_intent_service import NSFWIntentService
             temp_service = NSFWIntentService()
             return temp_service.build_intent_guidance(user_intent)
     

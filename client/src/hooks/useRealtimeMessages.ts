@@ -18,7 +18,14 @@ import { ChatMessage } from '@/types';
  *
  * Usage: Call in ChatPage component with current chatId
  */
-export function useRealtimeMessages(canonicalUuid: string | undefined) {
+interface UseRealtimeMessagesOptions {
+  onAssistantMessage?: (message: ChatMessage) => void;
+}
+
+export function useRealtimeMessages(
+  canonicalUuid: string | undefined,
+  options?: UseRealtimeMessagesOptions,
+) {
   const { user, isReady } = useAuth();
   const queryClient = useQueryClient();
 
@@ -60,6 +67,8 @@ export function useRealtimeMessages(canonicalUuid: string | undefined) {
             }
           );
 
+          options?.onAssistantMessage?.(newMessage);
+
           // Invalidate chat detail queries to refresh metadata (message count, timestamps)
           // The UUID-first cache keys + backend normalization already ensure both /chat/123
           // and /chat/uuid routes work correctly; this just keeps metadata fresh when messages arrive
@@ -77,6 +86,11 @@ export function useRealtimeMessages(canonicalUuid: string | undefined) {
       )
       .subscribe((status) => {
         console.log(`[Realtime] Chat ${canonicalUuid} subscription status: ${status}`);
+        if (status === 'SUBSCRIBED') {
+          queryClient.invalidateQueries({
+            queryKey: [`/api/chats/${canonicalUuid}/messages`],
+          });
+        }
       });
 
     // Cleanup when leaving chat or unmounting

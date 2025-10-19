@@ -137,7 +137,7 @@ class AIServiceBase(ABC):
             try:
                 # Select SAFE/NSFW system prompt via binary toggle (Issue #156)
                 from utils.prompt_selector import select_system_prompt
-                from services.prompt_engine import PromptEngine
+                from .prompt_engine import PromptEngine
                 selected_system_prompt, prompt_type = select_system_prompt(character)
                 engine = PromptEngine(system_prompt=selected_system_prompt)
                 compiled = engine.compile(character)

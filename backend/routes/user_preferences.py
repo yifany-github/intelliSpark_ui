@@ -17,7 +17,7 @@ import logging
 
 from database import get_db
 from auth.routes import get_current_user
-from services.ai_model_manager import get_ai_model_manager, ModelProvider
+from backend.services.ai_model_manager import get_ai_model_manager, ModelProvider
 from models import User
 from pydantic import BaseModel
 
