@@ -16,6 +16,8 @@ Routes:
 - DELETE /chats/{chat_id} - Delete specific chat
 """
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -84,6 +86,14 @@ ERROR_STATUS_BY_CODE = {
     "character_not_found": 404,
     "unknown": 500,
 }
+
+
+def _log_background_task_result(task: asyncio.Task) -> None:
+    """Ensure background tasks surface exceptions in logs."""
+    try:
+        task.result()
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.error("Background task %s failed: %s", task.get_name() or "chat-task", exc, exc_info=exc)
 
 
 @router.get("", response_model=List[EnrichedChat])
@@ -164,11 +174,14 @@ async def create_chat(
 
         # 🚀 BACKGROUND: Trigger async opening line generation
         if created:
-            import asyncio
-            asyncio.create_task(service.generate_opening_line_async(
-                chat_id=chat.id,
-                character_id=chat_data.characterId
-            ))
+            task = asyncio.create_task(
+                service.generate_opening_line_async(
+                    chat_id=chat.id,
+                    character_id=chat_data.characterId,
+                ),
+                name=f"generate-opening-line:{getattr(chat, 'uuid', chat.id)}",
+            )
+            task.add_done_callback(_log_background_task_result)
 
         # ✅ IMMEDIATE: Return chat for instant navigation
         return chat
@@ -242,8 +255,18 @@ async def generate_ai_response(
 
         service = ChatService(db)
         debug_force_error: Optional[str] = None
-        if settings.chat_debug_force_error_header:
-            debug_force_error = request.headers.get("X-Debug-Force-Error")
+        if settings.chat_debug_force_error_header and settings.debug:
+            header_value = request.headers.get("X-Debug-Force-Error")
+            client_host = request.client.host if request.client else None
+            if header_value:
+                if getattr(current_user, "is_admin", False) or client_host in {"127.0.0.1", "::1", "localhost"}:
+                    debug_force_error = header_value
+                else:
+                    logger.warning(
+                        "Ignoring X-Debug-Force-Error header from host %s (user %s)",
+                        client_host or "unknown",
+                        getattr(current_user, "id", "anonymous"),
+                    )
 
         if is_uuid:
             success, response, error = await service.generate_ai_response_by_uuid(
