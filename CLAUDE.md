@@ -187,6 +187,16 @@ Schema is defined in `backend/models.py`. For schema changes, delete `roleplay_c
 - Conversation history maintained for context continuity
 - Token-based usage: 1 token deducted per AI message generation
 
+### Direct Upload Flow (Avatar/Image Uploads)
+- **FileReader Preview**: `client/src/utils/uploadValidation.ts` - Instant preview using `readAsDataURL()` before upload
+- **Signed URL Generation**: `backend/routes/upload.py` - POST /api/upload/get-signed-url endpoint generates time-limited Supabase Storage URLs
+- **Progress Tracking**: `client/src/utils/directUpload.ts` - XMLHttpRequest with progress events for smooth 0-100% upload tracking
+- **Upload Session Management**: In-memory dict (MVP) or Redis (production) for tracking upload state
+- **Validation**: Client-side + server-side validation (5MB profile, 10MB character avatar, 15MB gallery)
+- **Fallback Path**: If direct upload fails, automatically falls back to existing `backend/services/upload_service.py`
+- **Rate Limiting**: 20 signed URLs per user per hour via SlowAPI
+- **Cleanup**: Scheduled job removes orphaned uploads after 24 hours
+
 ## Error Handling Patterns
 
 ### Frontend Error Handling

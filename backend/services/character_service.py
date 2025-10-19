@@ -19,7 +19,7 @@ import logging
 from models import Character
 from schemas import CharacterCreate
 from utils.character_utils import transform_character_to_response, transform_character_list_to_response
-from services.storage_manager import get_storage_manager, StorageManagerError
+from .storage_manager import get_storage_manager, StorageManagerError
 
 
 class CharacterServiceError(Exception):

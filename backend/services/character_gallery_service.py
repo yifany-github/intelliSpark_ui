@@ -26,7 +26,7 @@ import asyncio
 from datetime import datetime
 
 from models import Character, CharacterGalleryImage, User
-from services.upload_service import UploadService
+from .upload_service import UploadService
 from utils.file_validation import comprehensive_image_validation
 from utils.character_utils import resolve_asset_url
 

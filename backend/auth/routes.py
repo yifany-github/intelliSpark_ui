@@ -8,7 +8,7 @@ import logging
 from database import get_db
 from models import User
 from schemas import User as UserSchema
-from services.upload_service import UploadService
+from backend.services.upload_service import UploadService
 from utils.character_utils import resolve_asset_url
 from auth.supabase_auth import (
     decode_supabase_token,

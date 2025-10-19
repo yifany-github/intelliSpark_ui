@@ -1,0 +1,178 @@
+openapi: 3.1.0
+info:
+  title: Generate Chat Response
+  version: "1.0.0"
+  description: >
+    POST endpoint invoked by the ProductInsightAI chat UI to request an AI-generated
+    reply for a specific conversation. Updated to return structured retry metadata
+    and localized error envelopes.
+
+tags:
+  - name: Chats
+
+paths:
+  /api/chats/{chatId}/generate:
+    post:
+      summary: Generate AI response for a chat
+      tags:
+        - Chats
+      parameters:
+        - name: chatId
+          in: path
+          required: true
+          description: Numeric ID or UUID string identifying the chat
+          schema:
+            oneOf:
+              - type: integer
+              - type: string
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        description: Empty payload; chat context is derived server-side
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+      responses:
+        "200":
+          description: AI response generated successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateChatSuccess"
+        "400":
+          description: Client-side issue (validation, moderation, chat not found)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateChatError"
+        "402":
+          description: Insufficient tokens to generate response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateChatError"
+        "429":
+          description: Rate limit or breaker cooldown in effect
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+              description: Seconds before retry is allowed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateChatError"
+        "503":
+          description: AI pipeline unavailable or circuit breaker open
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateChatError"
+        "504":
+          description: Server timed out waiting for AI provider
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GenerateChatError"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ChatMessage:
+      type: object
+      required:
+        - id
+        - chatId
+        - role
+        - content
+        - timestamp
+      properties:
+        id:
+          type: integer
+        chatId:
+          type: integer
+        role:
+          type: string
+          enum: [assistant, user, system]
+        content:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    RetryMeta:
+      type: object
+      required:
+        - attempts
+        - maxAttempts
+      properties:
+        attempts:
+          type: integer
+          example: 2
+        maxAttempts:
+          type: integer
+          example: 3
+        nextAllowedAt:
+          type: string
+          format: date-time
+          nullable: true
+        breakerState:
+          type: string
+          enum: [closed, open, half_open]
+
+    GenerateChatSuccess:
+      type: object
+      required:
+        - message
+        - retryMeta
+      properties:
+        message:
+          $ref: "#/components/schemas/ChatMessage"
+        retryMeta:
+          $ref: "#/components/schemas/RetryMeta"
+
+    ErrorEnvelope:
+      type: object
+      required:
+        - code
+        - messageKey
+      properties:
+        code:
+          type: string
+          enum:
+            - database_error
+            - timeout
+            - rate_limit
+            - breaker_open
+            - moderation_blocked
+            - insufficient_tokens
+            - chat_not_found
+            - unknown
+        messageKey:
+          type: string
+          example: chat.error.database
+        retryAfterSeconds:
+          type: integer
+          nullable: true
+        requestId:
+          type: string
+          nullable: true
+        details:
+          type: object
+          additionalProperties: true
+
+    GenerateChatError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          $ref: "#/components/schemas/ErrorEnvelope"

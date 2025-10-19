@@ -1,31 +1,73 @@
+import os
+import sys
+from pathlib import Path
+import base64
+import re
+
 from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-import os
-from pathlib import Path
 from dotenv import load_dotenv
-import base64
-import re
+
+# Ensure imports work when running as `python main.py` from backend/
+# and when executing as a package (`python -m backend.main`)
+CURRENT_DIR = Path(__file__).resolve().parent
+PARENT_DIR = CURRENT_DIR.parent
+BACKEND_DIR = CURRENT_DIR / "backend"
+
+for candidate in (PARENT_DIR, CURRENT_DIR, BACKEND_DIR):
+    candidate_str = str(candidate)
+    if candidate_str not in sys.path and candidate.exists():
+        sys.path.insert(0, candidate_str)
 
 # Load environment variables from .env file
 load_dotenv()
 
-# Import our routes
-from routes.characters import router as characters_router
-from routes.chats import router as chats_router
-from routes.admin import router as new_admin_router  # New AI admin routes
-from routes.search import router as search_router  # Search routes
-from admin.routes import router as admin_router
-from auth.routes import router as auth_router
-from auth.admin_routes import router as admin_auth_router  # New JWT admin auth
-from payment.routes import router as payment_router
-from routes.user_preferences import router as preferences_router
-from notifications_routes import router as notifications_router
-from database import init_db
-from config import settings
+# Import our routes with fallback to package-qualified names
+try:
+    from routes.characters import router as characters_router
+    from routes.chats import router as chats_router
+    from routes.admin import router as new_admin_router  # New AI admin routes
+    from routes.search import router as search_router  # Search routes
+    from routes.user_preferences import router as preferences_router
+except ModuleNotFoundError:
+    from backend.routes.characters import router as characters_router
+    from backend.routes.chats import router as chats_router
+    from backend.routes.admin import router as new_admin_router  # New AI admin routes
+    from backend.routes.search import router as search_router  # Search routes
+    from backend.routes.user_preferences import router as preferences_router
+
+try:
+    from admin.routes import router as admin_router
+except ModuleNotFoundError:
+    from backend.admin.routes import router as admin_router
+
+try:
+    from auth.routes import router as auth_router
+    from auth.admin_routes import router as admin_auth_router  # New JWT admin auth
+except ModuleNotFoundError:
+    from backend.auth.routes import router as auth_router
+    from backend.auth.admin_routes import router as admin_auth_router  # New JWT admin auth
+
+try:
+    from payment.routes import router as payment_router
+except ModuleNotFoundError:
+    from backend.payment.routes import router as payment_router
+
+try:
+    from notifications_routes import router as notifications_router
+except ModuleNotFoundError:
+    from backend.notifications_routes import router as notifications_router
+
+try:
+    from database import init_db
+    from config import settings
+except ModuleNotFoundError:
+    from backend.database import init_db
+    from backend.config import settings
 
 # Create FastAPI app
 app = FastAPI(
@@ -214,7 +256,7 @@ async def startup_event():
         # Auto-sync discovered character files to database
         try:
             from database import get_db
-            from services.character_service import CharacterService
+            from backend.services.character_service import CharacterService
             
             logger = logging.getLogger("startup")
             logger.info("Starting character auto-discovery sync...")

@@ -7,6 +7,7 @@ import ChatInput from "@/components/chats/ChatInput";
 import ChatModelSelector from "@/components/chats/ChatModelSelector";
 import { CharacterGallery } from "@/components/chats/CharacterGallery";
 import QuickReplies from "@/components/chats/QuickReplies";
+import { ChatErrorBanner } from "@/components/chats/ChatErrorBanner";
 import TypingIndicator from "@/components/ui/TypingIndicator";
 import { apiRequest } from "@/lib/queryClient";
 import { useRolePlay } from "@/contexts/RolePlayContext";
@@ -16,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { invalidateTokenBalance } from "@/services/tokenService";
 import { queryClient } from "@/lib/queryClient";
 import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
+import { useChatGeneration } from "@/hooks/useChatGeneration";
 import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft, Sparkles, Filter, Pin, Trash2, Info } from "lucide-react";
 import {
   Sheet,
@@ -93,10 +95,6 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     );
   }
 
-  // Subscribe to realtime using canonical UUID (not the route parameter)
-  // This ensures realtime works for both /chat/123 and /chat/uuid routes
-  useRealtimeMessages(canonicalUuid ?? undefined);
-
   if (chatError) {
     console.error("[Chat] Failed to load chat:", chatError);
     return (
@@ -138,6 +136,17 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   } = useQuery<ChatMessage[]>({
     queryKey: [`/api/chats/${messagesCacheKey}/messages`],
     enabled: messagesEnabled,
+    refetchInterval: (query) => {
+      const data = query.state.data as ChatMessage[] | undefined;
+      if (!messagesEnabled) {
+        return false;
+      }
+      if (!data || data.length === 0) {
+        return 2000;
+      }
+      return false;
+    },
+    refetchIntervalInBackground: true,
   });
 
   // Extract character_id from chat (backend uses snake_case, frontend expects camelCase)
@@ -150,6 +159,53 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     queryKey: [`/api/characters/${characterId}`],
     enabled: authReady && !!characterId,
   });
+
+  const generateQuickReplies = useCallback(() => {
+    if (!character) return;
+
+    const baseSuggestions = [
+      t('tellMeMore') || "Tell me more",
+      t('howAreYou') || "How are you?",
+      t('thatsInteresting') || "That's interesting!",
+      t('whatHappensNext') || "What happens next?",
+    ];
+
+    const characterSuggestions: Record<string, string[]> = {
+      default: baseSuggestions,
+      艾莉丝: [
+        "告诉我更多",
+        "你今天怎么样？",
+        "我想知道...",
+        "有什么建议吗？"
+      ],
+    };
+
+    const suggestions = characterSuggestions[character.name] || characterSuggestions.default;
+    setQuickReplies(suggestions.slice(0, 4));
+  }, [character, t]);
+
+  const generationInvalidateKeys = ["/api/chats"];
+  if (chatId) {
+    generationInvalidateKeys.push(`/api/chats/${chatId}`);
+  }
+
+  const generation = useChatGeneration({
+    chatId,
+    messagesQueryKey: messagesCacheKey ? `/api/chats/${messagesCacheKey}/messages` : undefined,
+    invalidateKeys: generationInvalidateKeys,
+    onSuccess: () => {
+      invalidateTokenBalance();
+      generateQuickReplies();
+    },
+  });
+
+  useRealtimeMessages(canonicalUuid ?? undefined, {
+    onAssistantMessage: generation.handleAssistantMessage,
+  });
+
+  useEffect(() => {
+    generateQuickReplies();
+  }, [generateQuickReplies]);
 
   const renderTypingBubble = ({
     message,
@@ -193,6 +249,10 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
         { content, role: "user" }
       );
     },
+    onMutate: () => {
+      generation.clearError();
+      generation.cancelGeneration();
+    },
     onSuccess: async () => {
       if (!canonicalUuid) return;
 
@@ -202,7 +262,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       });
 
       // Kick off AI response
-      aiResponse();
+      generation.triggerGeneration();
     },
     onError: (error: any) => {
       console.error("Message sending failed:", error);
@@ -211,39 +271,6 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     },
   });
   
-  // Mutation for AI responses
-  const { mutate: aiResponse, isPending: isGeneratingResponse, error: aiResponseError, reset: resetAiError } = useMutation({
-    mutationFn: async () => {
-      if (!chatId || !chat) {
-        throw new Error("Chat not ready");
-      }
-      // Use chatId from route - backend accepts both numeric and UUID
-      return apiRequest(
-        "POST",
-        `/api/chats/${chatId}/generate`,
-        {}
-      );
-    },
-    onSuccess: async () => {
-      if (!canonicalUuid) return;
-
-      // Invalidate messages to show AI response
-      // Even though realtime should handle this, we invalidate to ensure UI updates
-      queryClient.invalidateQueries({
-        queryKey: [`/api/chats/${messagesCacheKey}/messages`],
-      });
-
-      // Update token balance and generate quick replies
-      invalidateTokenBalance();
-      generateQuickReplies();
-    },
-    onError: (error: any) => {
-      console.error("AI response generation failed:", error);
-      // Error state is now handled by mutation state, not cache mutation
-      // This prevents React Query state conflicts that cause crashes
-    },
-  });
-
   // Delete single chat mutation
   const { mutate: deleteSingleChat, isPending: isDeletingChat } = useMutation({
     mutationFn: async (id: number) => {
@@ -276,7 +303,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   });
 
   // Derive typing indicator from AI mutation state
-  const isTyping = isGeneratingResponse;
+  const isTyping = generation.typing;
 
   // Derive loading states
   const waitingForFirstMessage = !!chat && messages.length === 0;
@@ -286,34 +313,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
   // Regenerate the last AI message
   const regenerateLastMessage = () => {
-    aiResponse();
-  };
-
-  // Generate quick reply suggestions based on character and context
-  const generateQuickReplies = () => {
-    if (!character) return;
-
-    // Context-aware suggestions based on character traits
-    const baseSuggestions = [
-      t('tellMeMore') || "Tell me more",
-      t('howAreYou') || "How are you?",
-      t('thatsInteresting') || "That's interesting!",
-      t('whatHappensNext') || "What happens next?",
-    ];
-
-    // Character-specific suggestions
-    const characterSuggestions: Record<string, string[]> = {
-      default: baseSuggestions,
-      艾莉丝: [
-        "告诉我更多",
-        "你今天怎么样？",
-        "我想知道...",
-        "有什么建议吗？"
-      ],
-    };
-
-    const suggestions = characterSuggestions[character.name] || characterSuggestions.default;
-    setQuickReplies(suggestions.slice(0, 4));
+    generation.triggerGeneration();
   };
 
   const handleQuickReply = (reply: string) => {
@@ -813,49 +813,44 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
               </div>
             </div>
 
-            {/* Error Banner for Mutation Failures */}
-            {(sendMessageError || aiResponseError) && (
+            {/* Error Banners */}
+            {sendMessageError && (
               <div className="mx-6 mt-4 rounded-lg border border-red-500/30 bg-red-500/10 p-3 backdrop-blur-sm">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-red-400">
-                      {sendMessageError ? "Failed to send message" : "Failed to generate AI response"}
-                    </p>
+                    <p className="text-sm font-medium text-red-400">Failed to send message</p>
                     <p className="mt-1 text-xs text-red-300/80">
-                      {(sendMessageError as any)?.message || (aiResponseError as any)?.message || "Please try again"}
+                      {(sendMessageError as any)?.message || 'Please try again'}
                     </p>
                   </div>
-                  <div className="flex gap-2">
-                    {sendMessageError && (
-                      <button
-                        onClick={() => resetSendError()}
-                        className="rounded-md bg-red-500/20 px-3 py-1 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/30"
-                      >
-                        Dismiss
-                      </button>
-                    )}
-                    {aiResponseError && (
-                      <>
-                        <button
-                          onClick={() => {
-                            resetAiError();
-                            aiResponse();
-                          }}
-                          className="rounded-md bg-red-500/20 px-3 py-1 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/30"
-                        >
-                          Retry
-                        </button>
-                        <button
-                          onClick={() => resetAiError()}
-                          className="rounded-md bg-red-500/20 px-3 py-1 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/30"
-                        >
-                          Dismiss
-                        </button>
-                      </>
-                    )}
-                  </div>
+                  <button
+                    onClick={() => resetSendError()}
+                    className="rounded-md bg-red-500/20 px-3 py-1 text-xs font-medium text-red-300 transition-colors hover:bg-red-500/30"
+                  >
+                    Dismiss
+                  </button>
                 </div>
               </div>
+            )}
+
+            {generation.error && (
+              <ChatErrorBanner
+                error={generation.error}
+                retryCountdown={generation.retryCountdown}
+                onRetry={() => generation.retryGeneration()}
+                onReload={() => {
+                  if (messagesCacheKey) {
+                    queryClient.invalidateQueries({ queryKey: [`/api/chats/${messagesCacheKey}/messages`] });
+                  }
+                  if (chatId) {
+                    queryClient.invalidateQueries({ queryKey: [`/api/chats/${chatId}`] });
+                  }
+                }}
+                onDismiss={() => generation.clearError()}
+                onReport={() => window.open('mailto:support@productinsight.ai?subject=Chat%20issue', '_blank')}
+                retryDisabled={generation.isPending}
+                isRetrying={generation.isPending}
+              />
             )}
 
             {/* Messages Area */}

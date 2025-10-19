@@ -348,7 +348,7 @@ class GeminiService(AIServiceBase):
     def intent_service(self):
         """Lazy-loaded intent service instance (industry standard pattern)"""
         if self._intent_service is None:
-            from services.nsfw_intent_service import NSFWIntentService
+            from .nsfw_intent_service import NSFWIntentService
             # Share the Gemini client to avoid duplication
             self._intent_service = NSFWIntentService(gemini_client=self.client)
             self.logger.info("🎯 NSFWIntentService initialized for this conversation")
@@ -377,7 +377,7 @@ class GeminiService(AIServiceBase):
         else:
             # Fallback if intent service not available
             try:
-                from services.nsfw_intent_service import NSFWIntentService
+                from .nsfw_intent_service import NSFWIntentService
                 temp_service = NSFWIntentService()
                 return temp_service.build_intent_guidance(user_intent)
             except (ImportError, Exception) as e:

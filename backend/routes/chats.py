@@ -16,7 +16,10 @@ Routes:
 - DELETE /chats/{chat_id} - Delete specific chat
 """
 
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Union, Optional
 import logging
@@ -52,22 +55,45 @@ def parse_chat_identifier(chat_id: str) -> tuple[bool, Union[int, UUID]]:
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid chat identifier format")
 
+from config import settings
 from database import get_async_db
 from auth.routes import get_current_user
-from services.chat_service import ChatService, ChatServiceError
-from services.message_service import MessageService, MessageServiceError
+from backend.services.chat_service import ChatService, ChatServiceError
+from backend.services.message_service import MessageService, MessageServiceError
 from schemas import (
     Chat as ChatSchema, 
     ChatCreate, 
     EnrichedChat,
     ChatMessage as ChatMessageSchema,
     ChatMessageCreate,
+    ChatGenerationSuccess,
     MessageResponse
 )
 from models import User
 
 # Create router with prefix and tags
 router = APIRouter(prefix="/chats", tags=["chats"])
+
+ERROR_STATUS_BY_CODE = {
+    "database_error": 500,
+    "timeout": 504,
+    "rate_limit": 429,
+    "breaker_open": 503,
+    "moderation_blocked": 400,
+    "insufficient_tokens": 402,
+    "chat_not_found": 404,
+    "user_not_found": 404,
+    "character_not_found": 404,
+    "unknown": 500,
+}
+
+
+def _log_background_task_result(task: asyncio.Task) -> None:
+    """Ensure background tasks surface exceptions in logs."""
+    try:
+        task.result()
+    except Exception as exc:  # pragma: no cover - defensive logging
+        logger.error("Background task %s failed: %s", task.get_name() or "chat-task", exc, exc_info=exc)
 
 
 @router.get("", response_model=List[EnrichedChat])
@@ -148,11 +174,14 @@ async def create_chat(
 
         # 🚀 BACKGROUND: Trigger async opening line generation
         if created:
-            import asyncio
-            asyncio.create_task(service.generate_opening_line_async(
-                chat_id=chat.id,
-                character_id=chat_data.characterId
-            ))
+            task = asyncio.create_task(
+                service.generate_opening_line_async(
+                    chat_id=chat.id,
+                    character_id=chat_data.characterId,
+                ),
+                name=f"generate-opening-line:{getattr(chat, 'uuid', chat.id)}",
+            )
+            task.add_done_callback(_log_background_task_result)
 
         # ✅ IMMEDIATE: Return chat for instant navigation
         return chat
@@ -209,7 +238,7 @@ async def add_message_to_chat(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/{chat_id}/generate", response_model=ChatMessageSchema)
+@router.post("/{chat_id}/generate", response_model=ChatGenerationSuccess)
 @limiter.limit("15/minute")  # 15 AI generations per minute per IP (more restrictive)
 async def generate_ai_response(
     request: Request,
@@ -221,24 +250,58 @@ async def generate_ai_response(
     try:
         # Parse the identifier
         is_uuid, parsed_id = parse_chat_identifier(chat_id)
-        
+
         logger.info(f"Generating AI response for chat_id={chat_id}, user_id={current_user.id}")
-        
+
         service = ChatService(db)
+        debug_force_error: Optional[str] = None
+        if settings.chat_debug_force_error_header and settings.debug:
+            header_value = request.headers.get("X-Debug-Force-Error")
+            client_host = request.client.host if request.client else None
+            if header_value:
+                if getattr(current_user, "is_admin", False) or client_host in {"127.0.0.1", "::1", "localhost"}:
+                    debug_force_error = header_value
+                else:
+                    logger.warning(
+                        "Ignoring X-Debug-Force-Error header from host %s (user %s)",
+                        client_host or "unknown",
+                        getattr(current_user, "id", "anonymous"),
+                    )
+
         if is_uuid:
-            success, response, error = await service.generate_ai_response_by_uuid(parsed_id, current_user.id)
+            success, response, error = await service.generate_ai_response_by_uuid(
+                parsed_id,
+                current_user.id,
+                debug_force_error=debug_force_error,
+            )
         else:
-            success, response, error = await service.generate_ai_response(parsed_id, current_user.id)
-        
+            success, response, error = await service.generate_ai_response(
+                parsed_id,
+                current_user.id,
+                debug_force_error=debug_force_error,
+            )
+
         if not success:
-            if "Insufficient tokens" in error:
-                raise HTTPException(status_code=402, detail=error)
-            else:
-                raise HTTPException(status_code=400, detail=error)
-        
+            error_code = response.get("code", "unknown")
+            status_code = ERROR_STATUS_BY_CODE.get(error_code, 500)
+            headers = None
+            retry_after = response.get("retryAfterSeconds")
+            if retry_after is not None:
+                headers = {"Retry-After": str(retry_after)}
+            return JSONResponse(status_code=status_code, content={"error": response}, headers=headers)
+
         return response
     except ChatServiceError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": {
+                    "code": "unknown",
+                    "messageKey": "chat.error.unknown",
+                    "detail": str(e),
+                }
+            },
+        )
 
 
 @router.post("/{chat_id}/opening-line")

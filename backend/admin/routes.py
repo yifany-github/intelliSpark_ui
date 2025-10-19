@@ -16,14 +16,14 @@ from schemas import (
     Character as CharacterSchema, 
     MessageResponse, CharacterCreate, CharacterAdminUpdate
 )
-from services.character_service import CharacterService, CharacterServiceError
-from services.upload_service import UploadService
-from services.character_gallery_service import CharacterGalleryService
-from services.prompt_engine import create_prompt_preview
+from backend.services.character_service import CharacterService, CharacterServiceError
+from backend.services.upload_service import UploadService
+from backend.services.character_gallery_service import CharacterGalleryService
+from backend.services.prompt_engine import create_prompt_preview
 from auth.admin_routes import get_current_admin
 from auth.admin_jwt import TokenPayload, create_token_pair
 from payment.token_service import TokenService
-from services.storage_manager import get_storage_manager, StorageManagerError
+from backend.services.storage_manager import get_storage_manager, StorageManagerError
 
 # Login request schema
 class LoginRequest(BaseModel):
@@ -987,7 +987,7 @@ async def get_character_prompt_preview(
             sample_chat = list(reversed(chat_messages))  # Chronological order
         
         # Generate prompt preview using PromptEngine with selected system prompt
-        from services.prompt_engine import create_prompt_preview
+        from backend.services.prompt_engine import create_prompt_preview
         from utils.prompt_selector import select_system_prompt, get_prompt_type
         
         # Get appropriate system prompt based on character's NSFW level

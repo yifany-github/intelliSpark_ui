@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     supabase_jwt_secret: Optional[str] = None
     supabase_jwt_audience: Optional[str] = "authenticated"
 
+    # Database pool behaviour
+    pgbouncer_disable_cache: bool = False  # Force asyncpg statement cache off when True
+
+    # Debug tooling
+    chat_debug_force_error_header: bool = False  # Allow X-Debug-Force-Error header when True (dev only)
+
     @property
     def supabase_storage_enabled(self) -> bool:
         """Return True when Supabase Storage credentials are configured."""
@@ -124,6 +130,8 @@ def validate_settings():
     print(f"Stripe Secret Key present: {'Yes' if settings.stripe_secret_key else 'No'}")
     if settings.redis_url:
         print("Redis URL detected: using Redis-backed rate limiting if configured in app")
+    print(f"PgBouncer disable cache flag: {settings.pgbouncer_disable_cache}")
+    print(f"Debug force-error header enabled: {settings.chat_debug_force_error_header}")
 
 # Call validation on import
 validate_settings()

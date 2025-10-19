@@ -198,6 +198,31 @@ class ChatMessage(ChatMessageBase):
 class MessageResponse(BaseSchema):
     message: str
 
+
+class ChatGenerationRetryMeta(BaseSchema):
+    attempts: int
+    maxAttempts: int
+    breakerState: str
+    nextAllowedAt: Optional[str] = None
+
+
+class ChatGenerationSuccess(BaseSchema):
+    message: ChatMessage
+    retryMeta: ChatGenerationRetryMeta
+
+
+class ErrorEnvelope(BaseSchema):
+    code: str
+    messageKey: str
+    retryAfterSeconds: Optional[int] = None
+    nextAllowedAt: Optional[str] = None
+    breakerState: Optional[str] = None
+    requestId: Optional[str] = None
+
+
+class ChatGenerationError(BaseSchema):
+    error: ErrorEnvelope
+
 class HealthResponse(BaseSchema):
     status: str
 

@@ -4,7 +4,7 @@ Utility functions for character data handling and transformation
 from models import Character
 from typing import Dict, Any, Optional, List
 from config import settings
-from services.storage_manager import get_storage_manager, StorageManagerError
+from backend.services.storage_manager import get_storage_manager, StorageManagerError
 
 # Constants for persona parsing
 PERSONA_DESCRIPTION_PATTERN = r'你是([^#]+?)(?=\n\n|\n####|$)'

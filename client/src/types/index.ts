@@ -65,6 +65,28 @@ export interface ChatMessage {
   updatedAt: string;
 }
 
+export interface ChatGenerationRetryMeta {
+  attempts: number;
+  maxAttempts: number;
+  breakerState: string;
+  nextAllowedAt?: string | null;
+}
+
+export interface ChatGenerationSuccessResponse {
+  message: ChatMessage;
+  retryMeta: ChatGenerationRetryMeta;
+}
+
+export interface ChatErrorPayload {
+  code: string;
+  messageKey: string;
+  retryAfterSeconds?: number;
+  nextAllowedAt?: string | null;
+  breakerState?: string;
+  requestId?: string;
+  detail?: string;
+}
+
 // Enriched chat type with character data
 export interface EnrichedChat extends Chat {
   latestMessagePreview?: string | null;

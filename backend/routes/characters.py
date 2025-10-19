@@ -20,10 +20,10 @@ from slowapi.util import get_remote_address
 
 from database import get_db
 from auth.routes import get_current_user
-from services.character_service import CharacterService, CharacterServiceError
-from services.upload_service import UploadService
-from services.character_gallery_service import CharacterGalleryService
-from services.avatar_generation_service import AvatarGenerationService
+from backend.services.character_service import CharacterService, CharacterServiceError
+from backend.services.upload_service import UploadService
+from backend.services.character_gallery_service import CharacterGalleryService
+from backend.services.avatar_generation_service import AvatarGenerationService
 from schemas import Character as CharacterSchema, CharacterCreate, CharacterUpdate, DefaultAvatar
 from models import User
 from routes.admin import is_admin

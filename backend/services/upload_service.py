@@ -22,7 +22,7 @@ import os
 from slowapi.util import get_remote_address
 
 from utils.file_validation import comprehensive_image_validation, resize_image_if_needed
-from services.storage_manager import (
+from .storage_manager import (
     StorageManagerError,
     get_storage_manager,
 )
