@@ -405,7 +405,7 @@ const AdminPage = () => {
       setLoginPassword("");
       toast({ 
         title: "✅ Login successful", 
-        description: "Welcome to ProductInsightAI Admin Panel",
+        description: "Welcome to YY Chat Admin Panel",
         className: "bg-green-600 text-white border-green-500"
       });
     },
@@ -935,7 +935,7 @@ const AdminPage = () => {
               <Shield className="w-8 h-8 text-white" />
             </div>
             <CardTitle className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-              ProductInsightAI Admin
+              YY Chat Admin
             </CardTitle>
             <p className="text-muted-foreground mt-2">Secure Administrator Access</p>
           </CardHeader>
@@ -986,7 +986,7 @@ const AdminPage = () => {
                 <Settings className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold text-slate-900">ProductInsightAI Admin</h1>
+                <h1 className="text-2xl font-bold text-slate-900">YY Chat Admin</h1>
                 <p className="text-sm text-slate-600">Content Management System</p>
               </div>
             </div>
@@ -2154,7 +2154,7 @@ const AdminPage = () => {
                       className="w-full justify-start text-slate-700 border-slate-300 bg-white hover:bg-slate-50"
                       onClick={() => {
                         setNotificationForm({
-                          title: "Welcome to ProductInsightAI",
+                          title: "Welcome to YY Chat",
                           content: "Thank you for joining our AI role-playing community. Start exploring characters to begin your journey!",
                           type: "admin",
                           priority: "normal",

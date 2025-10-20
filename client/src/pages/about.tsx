@@ -25,16 +25,16 @@ const AboutPage = () => {
 
   // Set SEO meta tags
   useEffect(() => {
-    document.title = "About Us - ProductInsightAI | AI Roleplay Chat Platform";
+    document.title = "About Us - YY Chat | AI Roleplay Chat Platform";
     
     // Update meta description
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
-      metaDescription.setAttribute("content", "Learn about ProductInsightAI, the innovative AI roleplay chat platform powered by Google Gemini. Create custom characters and enjoy immersive conversations.");
+      metaDescription.setAttribute("content", "Learn about YY Chat, the innovative AI roleplay chat platform powered by Google Gemini. Create custom characters and enjoy immersive conversations.");
     } else {
       const newMetaDescription = document.createElement("meta");
       newMetaDescription.name = "description";
-      newMetaDescription.content = "Learn about ProductInsightAI, the innovative AI roleplay chat platform powered by Google Gemini. Create custom characters and enjoy immersive conversations.";
+      newMetaDescription.content = "Learn about YY Chat, the innovative AI roleplay chat platform powered by Google Gemini. Create custom characters and enjoy immersive conversations.";
       document.head.appendChild(newMetaDescription);
     }
 
@@ -51,13 +51,13 @@ const AboutPage = () => {
       }
     };
 
-    addMetaTag("og:title", "About ProductInsightAI - Revolutionary AI Chat Experience");
+    addMetaTag("og:title", "About YY Chat - Revolutionary AI Chat Experience");
     addMetaTag("og:description", "Discover our mission to revolutionize AI conversations through innovative roleplay experiences and custom character creation.");
     addMetaTag("og:type", "website");
     
     // Cleanup function to restore original title
     return () => {
-      document.title = "ProductInsightAI";
+      document.title = "YY Chat";
     };
   }, []);
 
@@ -119,7 +119,7 @@ const AboutPage = () => {
               <Sparkles className="w-8 h-8 text-primary" />
             </div>
             <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-              About ProductInsightAI
+              About YY Chat
             </h1>
           </div>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-8 leading-relaxed">
@@ -285,7 +285,7 @@ const AboutPage = () => {
             <CardContent className="pt-8">
               <div className="prose prose-lg max-w-none text-muted-foreground leading-relaxed">
                 <p className="mb-6">
-                  ProductInsightAI emerged from the vision of creating more engaging AI conversations. 
+                  YY Chat emerged from the vision of creating more engaging AI conversations. 
                   We noticed that most AI chat platforms offered bland, generic experiences that felt robotic 
                   and impersonal, lacking the depth and personality that makes conversations truly captivating.
                 </p>
@@ -296,12 +296,12 @@ const AboutPage = () => {
                   that feel authentic and engaging.
                 </p>
                 <p className="mb-6">
-                  Today, ProductInsightAI is home to thousands of unique characters and countless engaging conversations. 
+                  Today, YY Chat is home to thousands of unique characters and countless engaging conversations. 
                   Whether you're seeking companionship, creative inspiration, or simply want to explore different 
                   personalities and scenarios, our platform provides a safe, immersive space for unlimited AI interactions.
                 </p>
                 <p className="text-center font-medium text-foreground">
-                  Welcome to the future of AI conversation. Welcome to ProductInsightAI.
+                  Welcome to the future of AI conversation. Welcome to YY Chat.
                 </p>
               </div>
             </CardContent>
@@ -332,7 +332,7 @@ const AboutPage = () => {
                 Need help or have suggestions? Our support team is here to assist you.
               </p>
               <Button 
-                onClick={() => window.open('mailto:support@productinsightai.com', '_blank')}
+                onClick={() => window.open('mailto:support@YY Chat.com', '_blank')}
                 variant="outline"
                 className="border-primary/30 hover:bg-primary/10"
               >
