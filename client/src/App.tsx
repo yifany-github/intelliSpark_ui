@@ -21,6 +21,8 @@ import PaymentPage from "@/pages/payment";
 import NotificationsPage from "@/pages/notifications";
 import FAQPage from "@/pages/faq";
 import AboutPage from "@/pages/about";
+import PrivacyPolicyPage from "@/pages/privacy-policy";
+import TermsOfUsePage from "@/pages/terms-of-use";
 import MyCharactersPage from "@/pages/my-characters";
 import EditCharacterPage from "@/pages/edit-character";
 import AuthModal from "@/components/auth/AuthModal";
@@ -110,6 +112,8 @@ function MainApp() {
               <Route path="/characters" component={CharactersPage} />
               <Route path="/faq" component={FAQPage} />
               <Route path="/about" component={AboutPage} />
+              <Route path="/privacy-policy" component={PrivacyPolicyPage} />
+              <Route path="/terms-of-use" component={TermsOfUsePage} />
               <Route path="/favorites" component={FavoritesPage} />
               <Route path="/discover" component={DiscoverPage} />
               <Route path="/create-character">
