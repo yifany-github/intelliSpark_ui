@@ -56,8 +56,8 @@ const faqData: FAQCategory[] = [
     items: [
       {
         id: "what-is-app",
-        question: "What is ProductInsightAI?",
-        answer: "ProductInsightAI is an AI-powered roleplay chat application where you can engage in immersive conversations with various AI characters. Each character has unique personalities, backstories, and conversation styles to provide engaging and personalized chat experiences.",
+        question: "What is YY Chat?",
+        answer: "YY Chat is an AI-powered roleplay chat application where you can engage in immersive conversations with various AI characters. Each character has unique personalities, backstories, and conversation styles to provide engaging and personalized chat experiences.",
         category: "getting-started",
         tags: ["basics", "overview", "introduction"]
       },
@@ -245,7 +245,7 @@ const faqData: FAQCategory[] = [
       {
         id: "contact-support",
         question: "How do I contact technical support?",
-        answer: "For technical support: 1) Check this FAQ first, 2) Visit our GitHub issues page for known problems, 3) Email us at support@productinsightai.com with details about your issue, 4) Include your browser version, operating system, and steps to reproduce the problem.",
+        answer: "For technical support: 1) Check this FAQ first, 2) Visit our GitHub issues page for known problems, 3) Email us at support@YY Chat.com with details about your issue, 4) Include your browser version, operating system, and steps to reproduce the problem.",
         category: "technical-support",
         tags: ["support", "contact", "help"]
       }
@@ -455,7 +455,7 @@ const FAQPage = () => {
             Can't find the answer you're looking for? Our support team is here to help.
           </p>
           <Button 
-            onClick={() => window.open('mailto:support@productinsightai.com', '_blank')}
+            onClick={() => window.open('mailto:support@YY Chat.com', '_blank')}
             className="bg-primary hover:bg-primary/90 text-primary-foreground px-6 py-2 shadow-md hover:shadow-lg transition-all"
           >
             Contact Support

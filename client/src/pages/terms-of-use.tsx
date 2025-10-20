@@ -5,7 +5,7 @@ const TermsOfUsePage = () => {
   useEffect(() => {
     document.title = "使用条款 - yychat.ai";
     return () => {
-      document.title = "ProductInsightAI";
+      document.title = "YY Chat";
     };
   }, []);
 

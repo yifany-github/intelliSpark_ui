@@ -5,7 +5,7 @@ const PrivacyPolicyPage = () => {
   useEffect(() => {
     document.title = "隐私政策 - yychat.ai";
     return () => {
-      document.title = "ProductInsightAI";
+      document.title = "YY Chat";
     };
   }, []);
 
