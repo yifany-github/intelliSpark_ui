@@ -33,6 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import ChatList from "@/components/chats/ChatList";
 
 const createTempMessageId = () => -Math.floor(Date.now() + Math.random() * 1000);
 
@@ -446,43 +447,51 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             </Link>
           </div>
         ) : (
-          <div className="space-y-3">
-            {chats.map((chat: EnrichedChat) => {
-              // Fallback to numeric ID for old chats without UUID (backward compatibility)
+          <ChatList
+            items={chats}
+            initialBatchSize={12}
+            batchIncrement={6}
+            className="space-y-3"
+            renderItem={(chat: EnrichedChat) => {
               const chatLink = chat.uuid ?? chat.id;
               return (
-              <Link
-                key={chat.uuid ?? `chat-${chat.id}`}
-                href={`/chat/${chatLink}`}
-                className="block bg-secondary hover:bg-secondary/80 rounded-2xl p-4 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <ImageWithFallback
-                      src={chat.character?.avatarUrl}
-                      alt={chat.character?.name || "Character"}
-                      fallbackText={chat.character?.name || "?"}
-                      size="md"
-                      showSpinner={true}
-                    />
-                    <div className="ml-3">
-                      <h3 className="font-medium">{chat.character?.name}</h3>
-                      <p className="text-sm text-gray-400">
-                        {chat.title}
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        {chat.updatedAt ? new Date(chat.updatedAt).toLocaleDateString() : ''}
-                      </p>
+                <Link
+                  key={chat.uuid ?? `chat-${chat.id}`}
+                  href={`/chat/${chatLink}`}
+                  className="block rounded-2xl bg-secondary p-4 transition-colors hover:bg-secondary/80"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <ImageWithFallback
+                        src={chat.character?.avatarUrl}
+                        alt={chat.character?.name || "Character"}
+                        fallbackText={chat.character?.name || "?"}
+                        size="md"
+                        showSpinner={true}
+                      />
+                      <div className="ml-3">
+                        <h3 className="font-medium">{chat.character?.name}</h3>
+                        <p className="text-sm text-gray-400">{chat.title}</p>
+                        <p className="text-xs text-gray-500">
+                          {chat.updatedAt
+                            ? new Date(chat.updatedAt).toLocaleDateString()
+                            : ""}
+                        </p>
+                      </div>
                     </div>
+                    <span className="text-sm text-gray-400">
+                      {chat.updatedAt
+                        ? new Date(chat.updatedAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : ""}
+                    </span>
                   </div>
-                  <span className="text-sm text-gray-400">
-                    {chat.updatedAt ? new Date(chat.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
-                  </span>
-                </div>
-              </Link>
+                </Link>
               );
-            })}
-          </div>
+            }}
+          />
         )}
         </div>
       </GlobalLayout>

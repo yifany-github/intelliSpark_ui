@@ -18,6 +18,7 @@ import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import { ImprovedTokenBalance } from "@/components/payment/ImprovedTokenBalance";
 import GlobalLayout from "@/components/layout/GlobalLayout";
 import { useToast } from "@/hooks/use-toast";
+import ChatList from "@/components/chats/ChatList";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -739,9 +740,13 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
                       <span className="font-medium text-gray-300">{t(group)}</span>
                       <span>{items.length}</span>
                     </div>
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {items.map((chat) => renderChatCard(chat, { group }))}
-                    </div>
+                    <ChatList
+                      items={items}
+                      renderItem={(chat) => renderChatCard(chat, { group })}
+                      initialBatchSize={9}
+                      batchIncrement={6}
+                      className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+                    />
                   </div>
                 );
               })}

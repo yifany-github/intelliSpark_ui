@@ -139,37 +139,39 @@ def _anonymous_prepared_statement_name() -> str:
 
 # Async engine/session used by the FastAPI request lifecycle
 ASYNC_DATABASE_URL = _build_async_database_url(settings.database_url)
-async_connect_args: dict[str, object] = _filter_async_connect_args(
-    {
-        "statement_cache_size": 0,
-        "prepared_statement_cache_size": 0,
-        "prepare_threshold": 0,
-    }
-)
-print("[database] async_connect_args initial (pgbouncer-safe)", async_connect_args)
 pool_detected = False
 pool_host = ""
 pool_reasons: List[str] = []
-
-async_detected, async_host, async_reasons = _detect_pool_reasons(ASYNC_DATABASE_URL)
-if async_detected:
-    pool_detected = True
-    pool_host = async_host
-    pool_reasons.extend(async_reasons)
-
-supabase_in_dsn = "supabase" in settings.database_url.lower() or "supabase" in ASYNC_DATABASE_URL.lower()
-
-if supabase_in_dsn and "supabase_env" not in pool_reasons:
-    pool_detected = True
-    parsed = urlparse(settings.database_url)
-    pool_host = (parsed.hostname or "").lower() or pool_host
-    pool_reasons.append("supabase_env")
-
-if settings.pgbouncer_disable_cache:
-    pool_detected = True
-    pool_reasons.append("env:override")
+supabase_in_dsn = False
 
 if ASYNC_DATABASE_URL.startswith("postgresql+asyncpg://"):
+    async_connect_args: dict[str, object] = _filter_async_connect_args(
+        {
+            "statement_cache_size": 0,
+            "prepared_statement_cache_size": 0,
+            "prepare_threshold": 0,
+        }
+    )
+    print("[database] async_connect_args initial (pgbouncer-safe)", async_connect_args)
+
+    async_detected, async_host, async_reasons = _detect_pool_reasons(ASYNC_DATABASE_URL)
+    if async_detected:
+        pool_detected = True
+        pool_host = async_host
+        pool_reasons.extend(async_reasons)
+
+    supabase_in_dsn = "supabase" in settings.database_url.lower() or "supabase" in ASYNC_DATABASE_URL.lower()
+
+    if supabase_in_dsn and "supabase_env" not in pool_reasons:
+        pool_detected = True
+        parsed = urlparse(settings.database_url)
+        pool_host = (parsed.hostname or "").lower() or pool_host
+        pool_reasons.append("supabase_env")
+
+    if settings.pgbouncer_disable_cache:
+        pool_detected = True
+        pool_reasons.append("env:override")
+
     if "statement_cache_size" in async_connect_args:
         async_connect_args["statement_cache_size"] = 0
     if "prepared_statement_cache_size" in async_connect_args:
@@ -188,6 +190,8 @@ if ASYNC_DATABASE_URL.startswith("postgresql+asyncpg://"):
             ",".join(pool_reasons) if pool_reasons else "unknown",
             True,
         )
+else:
+    async_connect_args = {}
 
 async_engine_kwargs = {
     "connect_args": dict(async_connect_args),
