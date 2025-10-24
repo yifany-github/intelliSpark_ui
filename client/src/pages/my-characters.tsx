@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -86,7 +86,8 @@ export default function MyCharactersPage() {
     queryFn: async () => {
       const response = await apiRequest('GET', '/api/characters/users/me');
       return response.json();
-    }
+    },
+    placeholderData: keepPreviousData, // Show cached data instantly while loading fresh data
   });
 
   const togglePublishMutation = useMutation({
@@ -115,21 +116,55 @@ export default function MyCharactersPage() {
       const response = await apiRequest('DELETE', `/api/characters/${characterId}`);
       return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['myCharacters'] });
+    onMutate: async (deletedId) => {
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: ['myCharacters'] });
+      await queryClient.cancelQueries({ queryKey: ['/api/characters'] });
+
+      // Snapshot previous values for rollback
+      const previousMyChars = queryClient.getQueryData(['myCharacters']);
+      const previousAllChars = queryClient.getQueryData(['/api/characters']);
+
+      // Optimistically remove from ALL character caches
+      queryClient.setQueryData(['myCharacters'], (old: any) =>
+        old?.filter((char: any) => char.id !== deletedId)
+      );
+      queryClient.setQueryData(['/api/characters'], (old: any) =>
+        old?.filter((char: any) => char.id !== deletedId)
+      );
+
+      // Close delete dialog immediately
       setDeleteCharacterId(null);
-      toast({
-        title: "Success",
-        description: "Character deleted successfully",
-      });
+
+      // Return context for potential rollback
+      return { previousMyChars, previousAllChars };
     },
-    onError: (error: any) => {
-      setDeleteCharacterId(null);
+    onError: (error: any, deletedId, context) => {
+      // Rollback optimistic updates on error
+      if (context?.previousMyChars) {
+        queryClient.setQueryData(['myCharacters'], context.previousMyChars);
+      }
+      if (context?.previousAllChars) {
+        queryClient.setQueryData(['/api/characters'], context.previousAllChars);
+      }
+
       toast({
         title: "Error",
         description: error.message || "Failed to delete character",
         variant: "destructive",
       });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Success",
+        description: "Character deleted successfully",
+      });
+    },
+    onSettled: () => {
+      // Force immediate refetch to sync with server (whether success or error)
+      // Using refetchQueries instead of invalidateQueries to bypass staleTime
+      queryClient.refetchQueries({ queryKey: ['myCharacters'] });
+      queryClient.refetchQueries({ queryKey: ['/api/characters'] });
     }
   });
 
