@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, keepPreviousData } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
 import { Star, Eye, Crown, Flame, TrendingUp, Users, Shield, Heart, MessageCircle, ChevronDown, Filter, Sparkles } from 'lucide-react';
 import { Character } from '@/types';
@@ -276,6 +276,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
     gcTime: 10 * 60 * 1000, // 10 minutes
+    placeholderData: keepPreviousData, // Show cached data instantly while loading fresh data
   });
 
   const { favorites, toggleFavorite, isFavorite } = useFavorites();

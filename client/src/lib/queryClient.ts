@@ -1,4 +1,4 @@
-import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import { QueryClient, QueryFunction, keepPreviousData } from "@tanstack/react-query";
 
 import { getAccessTokenCached, refreshAccessToken, invalidateCachedAccessToken } from "@/utils/auth";
 import { supabase } from "@/lib/supabaseClient";
@@ -120,6 +120,8 @@ export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
+      // NOTE: placeholderData removed from global config for safety
+      // Add it selectively per-query for list views only (not detail views with IDs)
       refetchInterval: false,
       refetchOnWindowFocus: (query) => {
         const queryKey = query.queryKey[0];

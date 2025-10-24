@@ -296,10 +296,13 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading, ste
   const { t } = useLanguage();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadPromiseRef = useRef<Promise<void> | null>(null);
   const [formData, setFormData] = useState<CharacterFormData>(initialData);
   const [newTrait, setNewTrait] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
   const [descriptionTouched, setDescriptionTouched] = useState(false);
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState<string | null>(null);
+  const [isFinalizingSubmit, setIsFinalizingSubmit] = useState(false);
 
   const nameError = formData.name.trim().length === 0
     ? t('characterNameRequired')
@@ -344,23 +347,71 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading, ste
     }
   };
 
-  const handleNext = () => {
-    if (step === steps.length) {
-      onSubmit(formData);
-    } else if (validateStep(step)) {
-      nextStep();
-    } else {
-      let errorMessage = t('error');
-      if (step === 1) {
-        setNameTouched(true);
-        setDescriptionTouched(true);
-        errorMessage = nameError ?? descriptionError;
+  const handleNext = async () => {
+    // Allow free navigation between steps while upload is in background
+    if (step < steps.length) {
+      // Validate current step before allowing navigation
+      if (validateStep(step)) {
+        nextStep();
+      } else {
+        let errorMessage = t('error');
+        if (step === 1) {
+          setNameTouched(true);
+          setDescriptionTouched(true);
+          errorMessage = nameError ?? descriptionError;
+        }
+        toast({
+          title: t('error'),
+          description: errorMessage ?? t('characterNameRequired'),
+          variant: 'destructive'
+        });
       }
+      return;
+    }
+
+    // Final submission - wait for upload if needed
+    await handleFinalSubmit();
+  };
+
+  const handleFinalSubmit = async () => {
+    // If avatar is still uploading, wait for it to complete
+    if (uploadPromiseRef.current) {
+      setIsFinalizingSubmit(true);
+
       toast({
-        title: t('error'),
-        description: errorMessage ?? t('characterNameRequired'),
-        variant: 'destructive'
+        title: t('finalizingUpload') || 'Finalizing upload...',
+        description: t('pleaseWaitMoment') || 'Just a moment while we complete the upload',
       });
+
+      try {
+        // Wait for upload to complete with 10 second timeout using Promise.race
+        await Promise.race([
+          uploadPromiseRef.current,
+          new Promise<void>((_, reject) =>
+            setTimeout(() => reject(new Error('Upload timeout')), 10000)
+          )
+        ]);
+
+        setIsFinalizingSubmit(false);
+
+        // Upload completed, proceed with submission
+        onSubmit(formData);
+
+      } catch (error) {
+        setIsFinalizingSubmit(false);
+
+        // Clear the hung promise so we don't wait for it again
+        uploadPromiseRef.current = null;
+
+        toast({
+          title: t('uploadIncomplete') || 'Upload incomplete',
+          description: t('uploadTimeoutMessage') || 'The avatar upload is taking longer than expected. Please try a smaller image or try again.',
+          variant: 'destructive'
+        });
+      }
+    } else {
+      // No upload in progress, submit immediately
+      onSubmit(formData);
     }
   };
 
@@ -379,10 +430,10 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading, ste
     }
   };
 
-  // Handle image upload
+  // Handle image upload with optimistic preview
   const handleImageUpload = async (file: File) => {
     if (!file) return;
-    
+
     // Client-side validation
     const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
@@ -393,7 +444,7 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading, ste
       });
       return;
     }
-    
+
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
     if (!allowedTypes.includes(file.type)) {
       toast({
@@ -403,47 +454,74 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading, ste
       });
       return;
     }
-    
-    try {
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', file);
-      
-      const response = await apiRequest('POST', '/api/characters/upload-avatar', uploadFormData);
-      
-      if (!response.ok) {
-        throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
-      }
-      
-      const result = await response.json();
-      
-      if (!result.avatarUrl) {
-        throw new Error('No avatar URL returned from server');
-      }
-      
-      setFormData(prev => ({ ...prev, avatar: result.avatarUrl }));
-      
-      toast({
-        title: t('uploadedSuccessfully'),
-        description: t('characterImageSaved')
-      });
-    } catch (error) {
-      // Reset file input on error to prevent confusion
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-      
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      console.error('Avatar upload failed:', errorMessage);
-      
-      toast({
-        title: t('uploadFailed'),
-        description: t('tryDifferentImage'),
-        variant: 'destructive'
-      });
-      
-      // Don't update avatar URL on error - keep the previous value
-      // This ensures character creation will use the last successful upload or default
+
+    // STEP 1: Clean up previous blob URL if exists (prevent memory leak)
+    if (avatarPreviewUrl) {
+      URL.revokeObjectURL(avatarPreviewUrl);
     }
+
+    // STEP 2: Show instant local preview (optimistic UI)
+    const localPreviewUrl = URL.createObjectURL(file);
+    setAvatarPreviewUrl(localPreviewUrl);
+
+    // STEP 3: Create upload Promise (don't await - let it run in background)
+    const uploadPromise = (async () => {
+      try {
+        const uploadFormData = new FormData();
+        uploadFormData.append('file', file);
+
+        const response = await apiRequest('POST', '/api/characters/upload-avatar', uploadFormData);
+
+        if (!response.ok) {
+          throw new Error(`Upload failed: ${response.status} ${response.statusText}`);
+        }
+
+        const result = await response.json();
+
+        if (!result.avatarUrl) {
+          throw new Error('No avatar URL returned from server');
+        }
+
+        // Upload complete - replace preview with final URL
+        setFormData(prev => ({ ...prev, avatar: result.avatarUrl }));
+
+        // Clean up local preview URL to free memory
+        URL.revokeObjectURL(localPreviewUrl);
+        setAvatarPreviewUrl(null);
+
+        toast({
+          title: t('uploadedSuccessfully'),
+          description: t('characterImageSaved')
+        });
+
+      } catch (error) {
+        // Upload failed - clear preview and show error
+        URL.revokeObjectURL(localPreviewUrl);
+        setAvatarPreviewUrl(null);
+
+        // Reset file input on error
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+        console.error('Avatar upload failed:', errorMessage);
+
+        toast({
+          title: t('uploadFailed'),
+          description: t('tryDifferentImage'),
+          variant: 'destructive'
+        });
+      }
+    })();
+
+    // STEP 4: Store Promise reference for later awaiting
+    uploadPromiseRef.current = uploadPromise;
+
+    // STEP 5: Clear Promise reference when done (success or error)
+    uploadPromise.finally(() => {
+      uploadPromiseRef.current = null;
+    });
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -477,7 +555,7 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading, ste
         onPrevStep={handlePrev}
         onGoToStep={handleGoToStep}
         canProceed={validateStep(step)}
-        isSubmitting={isLoading}
+        isSubmitting={isLoading || isFinalizingSubmit}
         showNavigation={false}
       >
         <form onSubmit={handleSubmit} className="space-y-8">
@@ -564,18 +642,31 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading, ste
             <div className="space-y-6">
               {/* Avatar Preview */}
               <div className="flex items-center gap-4">
-                <ImageWithFallback
-                  src={formData.avatar || undefined}
-                  alt={t('characterAvatar')}
-                  fallbackText={formData.name || '?'}
-                  size="xl"
-                  className="bg-slate-100"
-                />
+                <div className="relative">
+                  {/* Use direct img tag for instant blob preview, fallback to ImageWithFallback */}
+                  {avatarPreviewUrl ? (
+                    <div className="relative w-32 h-32 rounded-lg overflow-hidden bg-slate-100">
+                      <img
+                        src={avatarPreviewUrl}
+                        alt={t('characterAvatar')}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                  ) : (
+                    <ImageWithFallback
+                      src={formData.avatar || undefined}
+                      alt={t('characterAvatar')}
+                      fallbackText={formData.name || '?'}
+                      size="xl"
+                      className="bg-slate-100"
+                    />
+                  )}
+                </div>
                 <div className="flex-1">
                   <h3 className="text-lg font-medium">{t('selectedAvatar') || 'Selected Avatar'}</h3>
                   <p className="text-sm text-muted-foreground">
-                    {formData.avatar
-                      ? (t('customAvatarSelected') || 'Custom avatar or default selected')
+                    {formData.avatar || avatarPreviewUrl
+                      ? (t('customAvatarSelected') || 'Custom avatar selected')
                       : (t('noAvatarSelected') || 'No avatar selected yet')}
                   </p>
                 </div>
@@ -733,12 +824,16 @@ const CharacterCreationForm = ({ initialData, onSubmit, onCancel, isLoading, ste
             )}
             <Button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || isFinalizingSubmit}
               size="lg"
               className="min-w-[200px] bg-brand-secondary text-zinc-900 hover:bg-brand-secondary/90"
             >
-              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {step === steps.length ? t('createCharacter') : t('stepNext')}
+              {(isLoading || isFinalizingSubmit) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isFinalizingSubmit
+                ? (t('finalizing') || 'Finalizing...')
+                : step === steps.length
+                ? t('createCharacter')
+                : t('stepNext')}
             </Button>
           </div>
         </form>

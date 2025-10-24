@@ -305,6 +305,8 @@ attached_assets/user_profiles/
 
 # Local AI/tooling artifacts
 .claude/
+.codex/
+.specify/
 
 # ===================================================
 # Development tools and caches

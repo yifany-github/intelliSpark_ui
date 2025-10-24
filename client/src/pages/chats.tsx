@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, keepPreviousData } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Chat, ChatMessage, Character, EnrichedChat } from "../types";
 import ChatBubble from "@/components/chats/ChatBubble";
@@ -13,11 +13,13 @@ import { useNavigation } from "@/contexts/NavigationContext";
 import { queryClient } from "@/lib/queryClient";
 import { invalidateTokenBalance } from "@/services/tokenService";
 import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
+import { useRealtimeChatList } from "@/hooks/useRealtimeChatList";
 import { ChevronLeft, MoreVertical, Trash2, Filter, Pin, Sparkles, Clock, Star } from "lucide-react";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import { ImprovedTokenBalance } from "@/components/payment/ImprovedTokenBalance";
 import GlobalLayout from "@/components/layout/GlobalLayout";
 import { useToast } from "@/hooks/use-toast";
+import ChatList from "@/components/chats/ChatList";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -91,6 +93,9 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
   // Subscribe to realtime messages using canonical UUID
   // Note: If UUID is null, realtime won't work (backend data issue)
   useRealtimeMessages(canonicalUuid ?? undefined);
+
+  // Subscribe to realtime chat list updates (multi-device sync, live updates)
+  useRealtimeChatList();
   
   // Fetch character details for the chat (backend uses snake_case character_id)
   const characterId = chat?.characterId ?? (chat as any)?.character_id;
@@ -112,6 +117,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     queryKey: ["/api/chats"],
     enabled: authReady && showChatList,
     staleTime: 30 * 1000,
+    placeholderData: keepPreviousData, // Show cached data instantly while loading fresh data
   });
   
   // Mutation for sending messages
@@ -200,27 +206,50 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
       }
       return response.json();
     },
-    onSuccess: (data, deletedChatId) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
-      toast({
-        title: t('success'),
-        description: t('chatDeleted'),
-      });
+    onMutate: async (deletedChatId) => {
+      // Cancel any outgoing refetches to avoid overwriting optimistic update
+      await queryClient.cancelQueries({ queryKey: ["/api/chats"] });
 
-      // Only navigate away if we deleted the current chat
+      // Snapshot previous value for rollback
+      const previousChats = queryClient.getQueryData(["/api/chats"]);
+
+      // Optimistically remove from chat cache
+      queryClient.setQueryData(["/api/chats"], (old: any) =>
+        old?.filter((chat: any) => chat.id !== deletedChatId)
+      );
+
+      // Navigate away immediately if deleting current chat
       const isNumericMatch = chatId ? Number.isFinite(Number(chatId)) && Number(chatId) === deletedChatId : false;
       const isChatMatch = chat?.id === deletedChatId || (chat?.uuid && chatId === String(chat.uuid));
       if (isNumericMatch || isChatMatch) {
         navigateToPath('/chats');
       }
+
+      // Return context for potential rollback
+      return { previousChats, deletedChatId };
     },
-    onError: (error) => {
+    onError: (error, deletedChatId, context) => {
+      // Rollback optimistic update on error
+      if (context?.previousChats) {
+        queryClient.setQueryData(["/api/chats"], context.previousChats);
+      }
+
       toast({
         title: t('error'),
         description: t('failedToDeleteChat'),
         variant: "destructive",
       });
       console.error('Delete operation error:', error);
+    },
+    onSuccess: () => {
+      toast({
+        title: t('success'),
+        description: t('chatDeleted'),
+      });
+    },
+    onSettled: () => {
+      // Always refetch to sync with server (whether success or error)
+      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
     },
   });
 
@@ -249,22 +278,6 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
       console.warn("Failed to restore pinned chats", error);
     } finally {
       setIsInitialized(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    try {
-      const stored = localStorage.getItem("pinnedChats");
-      if (stored) {
-        const parsed = JSON.parse(stored) as number[];
-        if (Array.isArray(parsed)) {
-          setPinnedChatIds(parsed.slice(0, 20));
-        }
-      }
-    } catch (error) {
-      console.warn("Failed to restore pinned chats", error);
     }
   }, []);
 
@@ -562,13 +575,6 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
   
-  // Refresh chat list when returning to it
-  useEffect(() => {
-    if (showChatList) {
-      queryClient.invalidateQueries({ queryKey: ["/api/chats"] });
-    }
-  }, [showChatList]);
-  
   // If we're showing the chat list
   if (showChatList) {
     return (
@@ -739,9 +745,13 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
                       <span className="font-medium text-gray-300">{t(group)}</span>
                       <span>{items.length}</span>
                     </div>
-                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {items.map((chat) => renderChatCard(chat, { group }))}
-                    </div>
+                    <ChatList
+                      items={items}
+                      renderItem={(chat) => renderChatCard(chat, { group })}
+                      initialBatchSize={9}
+                      batchIncrement={6}
+                      className="grid gap-3 md:grid-cols-2 xl:grid-cols-3"
+                    />
                   </div>
                 );
               })}

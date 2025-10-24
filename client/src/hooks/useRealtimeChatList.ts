@@ -4,18 +4,21 @@ import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
 
 /**
- * Per-user realtime subscription for chat list updates.
+ * User-level realtime subscription for chat list updates.
  *
- * Subscribes to ALL chat messages for the authenticated user via Supabase Realtime.
- * When a new message arrives in ANY chat, the chat list is invalidated so
- * unread counts and timestamps update in real-time.
+ * Subscribes to:
+ * 1. INSERT/UPDATE/DELETE on chats table (chat created/deleted/renamed)
+ * 2. INSERT on chat_messages table (new messages update preview/timestamp)
+ *
+ * When changes occur, invalidates chat list cache for fresh data.
  *
  * Key benefits:
- * - Single WebSocket connection for entire app
- * - Catches messages in background chats
- * - Automatic reconnection handled by Supabase
+ * - Multi-device sync (delete on phone, disappears on laptop)
+ * - Live updates (new messages update chat preview)
+ * - Real-time sorting (chats reorder when updated)
+ * - No manual invalidation needed
  *
- * Usage: Call once at app root level (e.g., in MainApp)
+ * Usage: Call in ChatsPage component when showing chat list
  */
 export function useRealtimeChatList() {
   const { user, isReady } = useAuth();
@@ -29,7 +32,22 @@ export function useRealtimeChatList() {
     console.log(`[Realtime] Subscribing to chat list for user ${user.id}`);
 
     const channel = supabase
-      .channel(`user-chat-list:${user.id}`)
+      .channel(`user_${user.id}_chats`)
+      // Listen to chat table changes (create, delete, update chat)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'chats',
+          filter: `user_id=eq.${user.id}`,
+        },
+        (payload) => {
+          console.log('[Realtime] Chat list change detected:', payload.eventType);
+          queryClient.invalidateQueries({ queryKey: ['/api/chats'] });
+        }
+      )
+      // Listen to new messages in any chat (updates preview/timestamp)
       .on(
         'postgres_changes',
         {
@@ -40,9 +58,6 @@ export function useRealtimeChatList() {
         },
         (payload) => {
           console.log('[Realtime] New message detected, invalidating chat list');
-
-          // Invalidate chat list query so it refetches
-          // This updates unread counts, timestamps, and latest message previews
           queryClient.invalidateQueries({ queryKey: ['/api/chats'] });
         }
       )
