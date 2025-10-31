@@ -12,6 +12,7 @@ Routes:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from typing import List
 from pydantic import BaseModel
@@ -129,7 +130,8 @@ async def get_character(character_id: int, db: Session = Depends(get_db)):
         character = await service.get_character(character_id)
         if not character:
             raise HTTPException(status_code=404, detail="Character not found")
-        return character
+        headers = {"X-Opening-Line-Regenerated": "true" if service.opening_line_regenerated else "false"}
+        return JSONResponse(content=character, headers=headers)
     except CharacterServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -148,8 +150,8 @@ async def create_character(
         if not success:
             raise HTTPException(status_code=400, detail=error)
         
-        # Return the raw dict directly to bypass Pydantic schema conversion
-        return character
+        headers = {"X-Opening-Line-Regenerated": "true" if service.opening_line_regenerated else "false"}
+        return JSONResponse(content=character, headers=headers)
     except CharacterServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
 

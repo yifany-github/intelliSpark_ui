@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
@@ -23,6 +24,18 @@ class MessageService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.logger = logging.getLogger(__name__)
+
+    @staticmethod
+    def _deserialize_state_snapshot(state_json: Optional[str]) -> Optional[Dict[str, str]]:
+        if not state_json:
+            return None
+        try:
+            parsed = json.loads(state_json)
+            if isinstance(parsed, dict):
+                return parsed
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return None
+        return None
 
     def _validate_uuid_format(self, uuid_value: UUID) -> None:
         if not isinstance(uuid_value, UUID):
@@ -65,6 +78,7 @@ class MessageService:
                     "role": message.role,
                     "content": message.content,
                     "timestamp": message.timestamp.isoformat() + "Z" if message.timestamp else None,
+                    "state_snapshot": self._deserialize_state_snapshot(message.state_snapshot),
                 }
                 for message in messages
             ]
@@ -102,6 +116,7 @@ class MessageService:
                 "role": message.role,
                 "content": message.content,
                 "timestamp": message.timestamp.isoformat() + "Z" if message.timestamp else None,
+                "state_snapshot": self._deserialize_state_snapshot(message.state_snapshot),
             }
 
             self.logger.info("Message created successfully: %s in chat %s", message.id, chat_id)
