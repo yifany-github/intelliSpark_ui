@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { ChatMessage } from '../../types';
 import { format } from 'date-fns';
-import { Menu, X, RefreshCw, Copy, Palette } from 'lucide-react';
+import { Menu, RefreshCw, Copy, Palette } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import {
   DropdownMenu,
@@ -11,14 +11,16 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import ImageWithFallback from '@/components/ui/ImageWithFallback';
+import StatePanel from '@/components/chats/StatePanel';
 
 interface ChatBubbleProps {
   message: ChatMessage;
   avatarUrl?: string;
   onRegenerate?: () => void;
+  stateSnapshot?: Record<string, string>;
 }
 
-const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
+const ChatBubble = ({ message, avatarUrl, onRegenerate, stateSnapshot }: ChatBubbleProps) => {
   const { toast } = useToast();
   const isAI = message.role === 'assistant';
   const isSystem = message.role === 'system';
@@ -217,6 +219,12 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate }: ChatBubbleProps) => {
             <span className="inline-block w-1 h-4 ml-1 bg-pink-300 animate-pulse"></span>
           )}
           
+          {isAI && stateSnapshot && Object.keys(stateSnapshot).length > 0 && (
+            <div className="mt-4">
+              <StatePanel state={stateSnapshot} />
+            </div>
+          )}
+
           {isAI && (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

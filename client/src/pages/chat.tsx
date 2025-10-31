@@ -96,6 +96,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     );
   }
 
+  const isInitializing = Boolean(chatId && chatEnabled && !chat && !chatError && !isLoadingChat);
+  const showPlaceholderMessage = isInitializing;
+
   if (chatError) {
     console.error("[Chat] Failed to load chat:", chatError);
     return (
@@ -160,6 +163,59 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     queryKey: [`/api/characters/${characterId}`],
     enabled: authReady && !!characterId,
   });
+
+  type ChatStateResponse = {
+    chat_id: number;
+    state: Record<string, string>;
+    updated_at: string | null;
+  };
+
+  const { data: remoteState } = useQuery<ChatStateResponse>({
+    queryKey: [`/api/chats/${messagesCacheKey}/state`],
+    enabled: messagesEnabled,
+    staleTime: 10_000,
+  });
+
+  const displayMessages = useMemo<ChatMessage[]>(() => {
+    if (!messages.length) {
+      if (character?.openingLine) {
+        const timestamp = new Date().toISOString();
+        return [
+          {
+            id: -1,
+            chatId: chat?.id ?? 0,
+            role: "assistant",
+            content: character.openingLine,
+            timestamp,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          } as ChatMessage,
+        ];
+      }
+      return [];
+    }
+    return messages;
+  }, [messages, character?.openingLine, chat?.id]);
+
+  const extractStateSnapshot = (message: ChatMessage | (ChatMessage & { state_snapshot?: Record<string, string> })) => {
+    const snapshot = (message as any)?.stateSnapshot ?? (message as any)?.state_snapshot;
+    if (snapshot && typeof snapshot === "object") {
+      return snapshot as Record<string, string>;
+    }
+    return undefined;
+  };
+
+  const latestStateSnapshot = useMemo<Record<string, string> | undefined>(() => {
+    for (let idx = displayMessages.length - 1; idx >= 0; idx -= 1) {
+      const snapshot = extractStateSnapshot(displayMessages[idx]);
+      if (snapshot && Object.keys(snapshot).length > 0) {
+        return snapshot;
+      }
+    }
+    return undefined;
+  }, [displayMessages]);
+
+  const mergedState = latestStateSnapshot ?? remoteState?.state ?? null;
 
   const generateQuickReplies = useCallback(() => {
     if (!character) return;
@@ -309,8 +365,12 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   // Derive loading states
   const waitingForFirstMessage = !!chat && messages.length === 0;
   const showTypingPlaceholder =
-    isLoadingChat || waitingForFirstMessage || isLoadingMessages || isLoadingCharacter;
-  const showEmptyState = !messagesError && !showTypingPlaceholder && messages.length === 0 && !!chat;
+    (isLoadingChat && !showPlaceholderMessage) ||
+    waitingForFirstMessage ||
+    isLoadingMessages ||
+    isLoadingCharacter ||
+    isInitializing;
+  const showEmptyState = !messagesError && !showTypingPlaceholder && displayMessages.length === 0 && !!chat;
 
   // Regenerate the last AI message
   const regenerateLastMessage = () => {
@@ -406,7 +466,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+  }, [displayMessages, isTyping]);
   
   // Refresh chat list when returning to it
   useEffect(() => {
@@ -804,7 +864,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                     <p className="text-xs text-gray-400 sm:text-sm">
                       {chat
                         ? (chat.title || t('untitledChat'))
-                        : (isLoadingChat ? t('loading') : t('creatingChat'))}
+                        : isInitializing
+                          ? t('creatingChat')
+                          : t('loading')}
                     </p>
                   </div>
                 </div>
@@ -872,9 +934,11 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 <>
                   {showTypingPlaceholder &&
                     renderTypingBubble({
-                      message: character?.name
-                        ? `${character.name} ${t('isPreparingMessage')}`
-                        : t('loadingMessages'),
+                      message: isInitializing
+                        ? t('creatingChat')
+                        : character?.name
+                          ? `${character.name} ${t('isPreparingMessage')}`
+                          : t('loadingMessages'),
                     })}
 
                   {!showTypingPlaceholder && showEmptyState &&
@@ -884,15 +948,26 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                     })}
 
                   {!showTypingPlaceholder &&
-                    messages.length > 0 &&
-                    messages.map((message) => (
-                      <ChatBubble
-                        key={message.id}
-                        message={message}
-                        avatarUrl={character?.avatarUrl}
-                        onRegenerate={message.role === 'assistant' ? regenerateLastMessage : undefined}
-                      />
-                    ))}
+                    displayMessages.length > 0 &&
+                    displayMessages.map((message, index) => {
+                      const isAssistant = message.role === "assistant";
+                      const isSynthetic = message.id === -1;
+                      const snapshot = extractStateSnapshot(message);
+                      const hasSnapshot = snapshot && Object.keys(snapshot).length > 0;
+                      const isLatestAssistant = isAssistant && !isSynthetic && index === displayMessages.length - 1;
+                      const fallbackState = !hasSnapshot && isLatestAssistant && mergedState ? mergedState : undefined;
+                      const stateSnapshot = hasSnapshot ? snapshot : fallbackState;
+
+                      return (
+                        <ChatBubble
+                          key={message.id}
+                          message={message}
+                          avatarUrl={character?.avatarUrl}
+                          onRegenerate={isAssistant && !isSynthetic ? regenerateLastMessage : undefined}
+                          stateSnapshot={stateSnapshot}
+                        />
+                      );
+                    })}
                 </>
               )}
 
@@ -912,7 +987,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             <ChatInput
               onSendMessage={sendMessage}
               isLoading={isSending || isTyping}
-              disabled={!chatId || !chat}
+              disabled={!chat}
               placeholder={!chat ? t('creatingChat') : undefined}
               className="border-t border-pink-500/10 bg-slate-900/80 backdrop-blur-xl relative z-10"
               showAvatar={!!character}
