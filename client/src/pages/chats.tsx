@@ -81,6 +81,18 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
   const messagesCacheKey = canonicalUuid ?? chatId;
   const messagesEnabled = authReady && !!messagesCacheKey;
 
+  type ChatStateResponse = {
+    chat_id: number;
+    state: Record<string, string>;
+    updated_at: string | null;
+  };
+
+  const { data: remoteState } = useQuery<ChatStateResponse>({
+    queryKey: [`/api/chats/${messagesCacheKey}/state`],
+    enabled: messagesEnabled,
+    staleTime: 10_000,
+  });
+
   const {
     data: messages = [],
     isLoading: isLoadingMessages,
@@ -90,14 +102,6 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     enabled: messagesEnabled,
   });
 
-  // Subscribe to realtime messages using canonical UUID
-  // Note: If UUID is null, realtime won't work (backend data issue)
-  useRealtimeMessages(canonicalUuid ?? undefined);
-
-  // Subscribe to realtime chat list updates (multi-device sync, live updates)
-  useRealtimeChatList();
-  
-  // Fetch character details for the chat (backend uses snake_case character_id)
   const characterId = chat?.characterId ?? (chat as any)?.character_id;
 
   const {
@@ -107,7 +111,56 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     queryKey: [`/api/characters/${characterId}`],
     enabled: authReady && !!characterId,
   });
+
+  const displayMessages = useMemo<ChatMessage[]>(() => {
+    if (!messages.length) {
+      if (character?.openingLine) {
+        const timestamp = new Date().toISOString();
+        return [
+          {
+            id: -1,
+            chatId: chat?.id ?? 0,
+            role: "assistant",
+            content: character.openingLine,
+            timestamp,
+            createdAt: timestamp,
+            updatedAt: timestamp,
+          } as ChatMessage,
+        ];
+      }
+      return [];
+    }
+    return messages;
+  }, [messages, character?.openingLine, chat?.id]);
+
+  const extractStateSnapshot = (message: ChatMessage | (ChatMessage & { state_snapshot?: Record<string, string> })) => {
+    const snapshot = (message as any)?.stateSnapshot ?? (message as any)?.state_snapshot;
+    if (snapshot && typeof snapshot === "object") {
+      return snapshot as Record<string, string>;
+    }
+    return undefined;
+  };
+
+  const latestStateSnapshot = useMemo<Record<string, string> | undefined>(() => {
+    for (let idx = displayMessages.length - 1; idx >= 0; idx -= 1) {
+      const snapshot = extractStateSnapshot(displayMessages[idx]);
+      if (snapshot && Object.keys(snapshot).length > 0) {
+        return snapshot;
+      }
+    }
+    return undefined;
+  }, [displayMessages]);
+
+  const mergedState = latestStateSnapshot ?? remoteState?.state ?? null;
+
+  // Subscribe to realtime messages using canonical UUID
+  // Note: If UUID is null, realtime won't work (backend data issue)
+  useRealtimeMessages(canonicalUuid ?? undefined);
+
+  // Subscribe to realtime chat list updates (multi-device sync, live updates)
+  useRealtimeChatList();
   
+  // Fetch character details for the chat (backend uses snake_case character_id)
   
   // Fetch all chats for the chat list
   const {
@@ -573,7 +626,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
   // Scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+  }, [displayMessages, isTyping]);
   
   // If we're showing the chat list
   if (showChatList) {
@@ -832,7 +885,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
           </AlertDialog>
         </div>
       </div>
-      
+
       {/* Chat Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {isLoadingMessages ? (
@@ -843,19 +896,30 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
           <div className="text-center py-4">
             <p className="text-red-500">{t('errorLoading')}</p>
           </div>
-        ) : messages.length === 0 ? (
+        ) : displayMessages.length === 0 ? (
           <div className="text-center py-8">
             <p className="text-gray-400">{t('noMessagesYet')}</p>
           </div>
         ) : (
-          messages.map(message => (
-            <ChatBubble 
-              key={message.id} 
-              message={message} 
-              avatarUrl={character?.avatarUrl}
-              onRegenerate={message.role === 'assistant' ? regenerateLastMessage : undefined}
-            />
-          ))
+          displayMessages.map((message, index) => {
+            const isAssistant = message.role === "assistant";
+            const isSynthetic = message.id === -1;
+            const snapshot = extractStateSnapshot(message);
+            const hasSnapshot = snapshot && Object.keys(snapshot).length > 0;
+            const isLatestAssistant = isAssistant && !isSynthetic && index === displayMessages.length - 1;
+            const fallbackState = !hasSnapshot && isLatestAssistant && mergedState ? mergedState : undefined;
+            const stateSnapshot = hasSnapshot ? snapshot : fallbackState;
+
+            return (
+              <ChatBubble 
+                key={message.id} 
+                message={message} 
+                avatarUrl={character?.avatarUrl}
+                onRegenerate={isAssistant && !isSynthetic ? regenerateLastMessage : undefined}
+                stateSnapshot={stateSnapshot}
+              />
+            );
+          })
         )}
         
         {isTyping && (

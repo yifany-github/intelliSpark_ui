@@ -1,0 +1,199 @@
+"""Character state management service for chat continuity."""
+
+from __future__ import annotations
+
+import json
+import logging
+from typing import Dict, Optional, Sequence
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..models import Character, CharacterChatState, Chat
+from .ai_model_manager import get_ai_model_manager
+
+
+class CharacterStateManager:
+    """Persist and retrieve per-chat character state snapshots."""
+
+    NSFW_KEYS: Sequence[str] = ("胸部", "下体", "衣服", "姿势", "情绪", "环境")
+    SAFE_KEYS: Sequence[str] = ("衣着", "仪态", "情绪", "环境", "动作", "语气")
+    ALLOWED_KEYS: Sequence[str] = tuple(dict.fromkeys(NSFW_KEYS + SAFE_KEYS))
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+        self.logger = logging.getLogger(__name__)
+
+    async def get_state(self, chat_id: int) -> Dict[str, str]:
+        stmt = select(CharacterChatState).where(CharacterChatState.chat_id == chat_id)
+        result = await self.session.execute(stmt)
+        state_row = result.scalars().first()
+        if not state_row or not state_row.state_json:
+            return {}
+        try:
+            return json.loads(state_row.state_json)
+        except json.JSONDecodeError as exc:
+            self.logger.warning("Invalid state JSON for chat %s: %s", chat_id, exc)
+            return {}
+
+    async def _load_character(self, chat_id: int) -> Optional[Character]:
+        chat_stmt = select(Chat).where(Chat.id == chat_id)
+        chat_result = await self.session.execute(chat_stmt)
+        chat = chat_result.scalars().first()
+        if not chat:
+            return None
+        return await self.session.get(Character, chat.character_id)
+
+    def _select_keys(self, character: Optional[Character]) -> Sequence[str]:
+        if character is not None and getattr(character, "nsfw_level", 0) == 0:
+            return self.SAFE_KEYS
+        return self.NSFW_KEYS
+
+    def _fallback_state_map(self, safe_mode: bool) -> Dict[str, str]:
+        if safe_mode:
+            return {
+                "衣着": "穿搭整洁得体，色调温和",
+                "仪态": "站姿放松，自信自然",
+                "情绪": "心情愉悦，对交流充满期待",
+                "环境": "温暖明亮的室内空间，布置舒适",
+                "动作": "双手自然垂放，偶尔整理袖口",
+                "语气": "亲切柔和，带着一丝兴奋",
+            }
+        return {
+            "胸部": "柔软饱满，布料轻贴，伴随呼吸微微起伏",
+            "下体": "带着余热与敏感，隐约透出渴望",
+            "衣服": "贴身衣物略显凌乱，勾勒出诱人曲线",
+            "姿势": "身体微微前倾，呈现出主动亲近的姿态",
+            "情绪": "期待、雀跃并带着羞怯的悸动",
+            "环境": "私密空间光线暖柔，空气中弥漫甜香",
+        }
+
+    async def _ensure_character_default_state(
+        self,
+        character: Character,
+        keys_to_use: Sequence[str],
+        safe_mode: bool,
+    ) -> Dict[str, str]:
+        fallback_template = self._fallback_state_map(safe_mode)
+        try:
+            ai_manager = await get_ai_model_manager()
+            state_seed = await ai_manager.generate_character_state_seed(character)
+            if not isinstance(state_seed, dict):
+                state_seed = {}
+        except Exception as exc:
+            self.logger.warning(
+                "Failed to generate default state template for character %s: %s",
+                character.id,
+                exc,
+            )
+            state_seed = {}
+
+        merged = fallback_template.copy()
+        for key in keys_to_use:
+            value = state_seed.get(key)
+            if isinstance(value, str) and value.strip():
+                merged[key] = value.strip()
+
+        try:
+            character.default_state_json = json.dumps(merged, ensure_ascii=False)
+            self.session.add(character)
+            await self.session.commit()
+        except Exception as exc:
+            await self.session.rollback()
+            self.logger.warning(
+                "Unable to persist default state template for character %s: %s",
+                character.id,
+                exc,
+            )
+
+        return merged
+
+    def _load_character_template(
+        self,
+        character: Character,
+    ) -> Optional[Dict[str, str]]:
+        raw = getattr(character, "default_state_json", None)
+        if not raw:
+            return None
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return parsed
+        except json.JSONDecodeError:
+            self.logger.warning(
+                "Invalid default_state_json for character %s; ignoring stored template",
+                character.id,
+            )
+        return None
+
+    async def initialize_state(self, chat_id: int, character: Optional[Character]) -> Dict[str, str]:
+        existing = await self.get_state(chat_id)
+        if existing:
+            return existing
+
+        if character is None:
+            character = await self._load_character(chat_id)
+
+        if character is not None:
+            self.logger.debug("Initializing state for chat %s (character=%s)", chat_id, character.name)
+
+        keys_to_use = self._select_keys(character)
+        safe_mode = character is not None and getattr(character, "nsfw_level", 0) == 0
+        fallback_template = self._fallback_state_map(safe_mode)
+        base_state = fallback_template.copy()
+
+        if character is not None:
+            template = self._load_character_template(character)
+            if template is None:
+                template = await self._ensure_character_default_state(character, keys_to_use, safe_mode)
+            for key in keys_to_use:
+                value = template.get(key)
+                if isinstance(value, str) and value.strip():
+                    base_state[key] = value.strip()
+
+        state_row = CharacterChatState(chat_id=chat_id, state_json=json.dumps(base_state, ensure_ascii=False))
+        self.session.add(state_row)
+        try:
+            await self.session.commit()
+        except Exception:
+            await self.session.rollback()
+            return await self.get_state(chat_id) or base_state
+        return base_state
+
+    async def update_state(self, chat_id: int, state_update: Dict[str, str]) -> Dict[str, str]:
+        if not state_update:
+            raise ValueError("state_update cannot be empty")
+
+        invalid_keys = set(state_update.keys()) - set(self.ALLOWED_KEYS)
+        if invalid_keys:
+            raise ValueError(f"Invalid state keys: {', '.join(sorted(invalid_keys))}")
+
+        stmt = select(CharacterChatState).where(CharacterChatState.chat_id == chat_id)
+        result = await self.session.execute(stmt)
+        state_row = result.scalars().first()
+
+        if state_row is None:
+            current_state = await self.initialize_state(chat_id, None)
+            result = await self.session.execute(stmt)
+            state_row = result.scalars().first()
+            if state_row is None:
+                raise RuntimeError("Failed to initialize character chat state record")
+        else:
+            try:
+                current_state = json.loads(state_row.state_json or "{}")
+            except json.JSONDecodeError:
+                current_state = {key: "未设定" for key in self.ALLOWED_KEYS}
+
+        for key, value in state_update.items():
+            normalized = (value or "").strip()
+            current_state[key] = normalized if normalized else "未设定"
+
+        if state_row is None:
+            # initialize_state already created the row
+            stmt = select(CharacterChatState).where(CharacterChatState.chat_id == chat_id)
+            result = await self.session.execute(stmt)
+            state_row = result.scalars().first()
+
+        state_row.state_json = json.dumps(current_state, ensure_ascii=False)
+        await self.session.commit()
+        return current_state

@@ -12,6 +12,7 @@ Features:
 - Integration with AI service for character enhancement (future)
 """
 
+import json
 from typing import List, Optional, Tuple, Dict, Any
 from sqlalchemy.orm import Session
 import logging
@@ -20,6 +21,7 @@ from models import Character
 from schemas import CharacterCreate
 from utils.character_utils import transform_character_to_response, transform_character_list_to_response
 from .storage_manager import get_storage_manager, StorageManagerError
+from .ai_model_manager import AIModelManager
 
 
 class CharacterServiceError(Exception):
@@ -34,6 +36,10 @@ class ValidationResult:
         self.error = error
 
 
+NSFW_DEFAULT_STATE_KEYS = ("胸部", "下体", "衣服", "姿势", "情绪", "环境")
+SAFE_DEFAULT_STATE_KEYS = ("衣着", "仪态", "情绪", "环境", "动作", "语气")
+
+
 class CharacterService:
     """Service for handling character operations"""
     
@@ -41,6 +47,8 @@ class CharacterService:
         self.db = db
         self.admin_context = admin_context
         self.logger = logging.getLogger(__name__)
+        self._ai_manager: Optional[AIModelManager] = None
+        self._last_opening_line_regenerated: bool = False
     
     async def get_all_characters(self, include_private: bool = None, include_deleted: bool = False) -> List[Dict[str, Any]]:
         """
@@ -235,8 +243,12 @@ class CharacterService:
                 is_public=character_data.isPublic,
                 created_by=user_id
             )
-            
+
             self.db.add(character)
+
+            await self._maybe_set_opening_line(character, force=True)
+            await self._maybe_set_default_state(character, force=True)
+
             self.db.commit()
             self.db.refresh(character)
             
@@ -336,6 +348,65 @@ class CharacterService:
         # TODO: Implement AI enhancement using AIService
         # For now, return original data
         return data.dict()
+
+    async def _get_ai_manager(self) -> AIModelManager:
+        if self._ai_manager is None:
+            manager = AIModelManager()
+            try:
+                await manager.initialize()
+            except Exception as exc:
+                self.logger.warning("AI model manager initialization issue: %s", exc)
+            self._ai_manager = manager
+        return self._ai_manager
+
+    async def _maybe_set_opening_line(self, character: Character, force: bool = False) -> None:
+        self._last_opening_line_regenerated = False
+        if not force and getattr(character, "opening_line", None):
+            return
+
+        fallback_line = f"你好，我是{character.name}，期待与你开始这段故事。"
+        opening_line: Optional[str] = None
+
+        try:
+            ai_manager = await self._get_ai_manager()
+            opening_line = await ai_manager.generate_opening_line(character)
+        except Exception as exc:
+            self.logger.warning("Failed to generate opening line for %s: %s", character.name, exc)
+
+        if not opening_line or not opening_line.strip():
+            opening_line = fallback_line
+
+        character.opening_line = opening_line.strip()
+        self._last_opening_line_regenerated = True
+
+    @property
+    def opening_line_regenerated(self) -> bool:
+        return self._last_opening_line_regenerated
+
+    async def _maybe_set_default_state(self, character: Character, force: bool = False) -> None:
+        """Ensure character has a cached default state template."""
+        existing = getattr(character, "default_state_json", None)
+        if not force and existing:
+            return
+
+        keys_to_use = SAFE_DEFAULT_STATE_KEYS if getattr(character, "nsfw_level", 0) == 0 else NSFW_DEFAULT_STATE_KEYS
+        fallback_state = {key: "未设定" for key in keys_to_use}
+        try:
+            ai_manager = await self._get_ai_manager()
+            state_seed = await ai_manager.generate_character_state_seed(character)
+            if not isinstance(state_seed, dict):
+                state_seed = {}
+        except Exception as exc:
+            state_seed = {}
+            self.logger.warning("Failed to generate default state for %s: %s", character.name, exc)
+
+        merged_state: Dict[str, str] = fallback_state.copy()
+        for key in keys_to_use:
+            value = state_seed.get(key)
+            if isinstance(value, str) and value.strip():
+                merged_state[key] = value.strip()
+
+        character.default_state_json = json.dumps(merged_state, ensure_ascii=False)
     
     async def update_character(
         self, 
@@ -365,36 +436,63 @@ class CharacterService:
             # Check ownership (owner or admin)
             if not is_admin and character.created_by != user_id:
                 return False, {}, "You can only edit characters you created"
-            
+
+            opening_line_needs_refresh = False
+            default_state_needs_refresh = False
+            self._last_opening_line_regenerated = False
+
             # Validate required fields if provided
             if hasattr(character_data, 'name') and character_data.name is not None:
                 if len(character_data.name.strip()) < 2:
                     return False, {}, "Character name must be at least 2 characters"
-                character.name = character_data.name.strip()
+                new_name = character_data.name.strip()
+                if new_name != character.name:
+                    opening_line_needs_refresh = True
+                character.name = new_name
             
             if hasattr(character_data, 'description') and character_data.description is not None:
                 if len(character_data.description.strip()) < 10:
                     return False, {}, "Description must be at least 10 characters"
-                character.description = character_data.description.strip()
+                new_description = character_data.description.strip()
+                if new_description != (character.description or ""):
+                    opening_line_needs_refresh = True
+                    default_state_needs_refresh = True
+                character.description = new_description
             
             if hasattr(character_data, 'personaPrompt') and character_data.personaPrompt is not None:
                 if len(character_data.personaPrompt) > 5000:
                     return False, {}, "Persona prompt must be 5000 characters or less"
-                character.persona_prompt = character_data.personaPrompt
+                persona_value = character_data.personaPrompt
+                if persona_value != (character.persona_prompt or ""):
+                    opening_line_needs_refresh = True
+                    default_state_needs_refresh = True
+                character.persona_prompt = persona_value
                 # Update backstory if not explicitly provided
                 if not (hasattr(character_data, 'backstory') and character_data.backstory):
-                    character.backstory = character_data.personaPrompt
+                    if (character.backstory or "") != persona_value:
+                        opening_line_needs_refresh = True
+                        default_state_needs_refresh = True
+                    character.backstory = persona_value
             
             if hasattr(character_data, 'backstory') and character_data.backstory is not None:
+                if (character.backstory or "") != character_data.backstory:
+                    opening_line_needs_refresh = True
+                    default_state_needs_refresh = True
                 character.backstory = character_data.backstory
                 
             if hasattr(character_data, 'avatarUrl') and character_data.avatarUrl is not None:
+                if (character.avatar_url or "") != character_data.avatarUrl:
+                    default_state_needs_refresh = True
                 character.avatar_url = character_data.avatarUrl
                 
             if hasattr(character_data, 'voiceStyle') and character_data.voiceStyle is not None:
+                if character.voice_style != character_data.voiceStyle:
+                    opening_line_needs_refresh = True
                 character.voice_style = character_data.voiceStyle
                 
             if hasattr(character_data, 'traits') and character_data.traits is not None:
+                if character.traits != character_data.traits:
+                    opening_line_needs_refresh = True
                 character.traits = character_data.traits
                 
             if hasattr(character_data, 'category') and character_data.category is not None:
@@ -409,8 +507,10 @@ class CharacterService:
                 character.age = character_data.age
                 
             if hasattr(character_data, 'nsfwLevel') and character_data.nsfwLevel is not None:
-                if character_data.nsfwLevel not in [0, 1]:
-                    return False, {}, "NSFW level must be 0 or 1"
+                if character_data.nsfwLevel < 0 or character_data.nsfwLevel > 3:
+                    return False, {}, "NSFW level must be between 0 and 3"
+                if character.nsfw_level != character_data.nsfwLevel:
+                    default_state_needs_refresh = True
                 character.nsfw_level = character_data.nsfwLevel
                 
             if hasattr(character_data, 'conversationStyle') and character_data.conversationStyle is not None:
@@ -424,6 +524,12 @@ class CharacterService:
             effective_age = character_data.age if hasattr(character_data, 'age') and character_data.age is not None else character.age
             if (effective_nsfw or 0) > 0 and (effective_age is None or effective_age < 18):
                 return False, {}, "NSFW characters must have age 18 or above"
+
+            if opening_line_needs_refresh or not (character.opening_line and character.opening_line.strip()):
+                await self._maybe_set_opening_line(character, force=opening_line_needs_refresh)
+
+            if default_state_needs_refresh or not getattr(character, "default_state_json", None):
+                await self._maybe_set_default_state(character, force=default_state_needs_refresh)
 
             self.db.commit()
             self.db.refresh(character)
@@ -821,77 +927,22 @@ class CharacterService:
     
     async def sync_all_discovered_characters(self) -> Dict[str, Any]:
         """
-        Sync all discovered character files to database
-        
-        This method auto-discovers character files and ensures they are properly
-        synced to the database with up-to-date metadata.
-        
+        [DEPRECATED] Hardcoded character sync removed in Issue #129.
+
+        All characters are now user-created through the UI.
+        This method is kept for backward compatibility but returns empty results.
+
         Returns:
-            Dict with sync results: {
-                "discovered": int,
-                "created": List[str],
-                "updated": List[str],
-                "errors": List[str]
-            }
+            Dict with empty sync results
         """
-        from utils.character_discovery import discover_character_files, validate_character_file
-        
-        try:
-            # Discover all character files
-            discovered_characters = discover_character_files()
-            sync_results = {
-                "discovered": len(discovered_characters),
-                "created": [],
-                "updated": [],
-                "renamed": [],
-                "errors": []
-            }
-            
-            self.logger.info(f"Starting sync for {len(discovered_characters)} discovered characters")
-            
-            # First pass: Handle renames by checking for orphaned database characters
-            await self._handle_character_renames(discovered_characters, sync_results)
-            
-            # Second pass: Create or update characters
-            for char_name, module_path in discovered_characters.items():
-                try:
-                    # Check if character exists in database
-                    existing = self.db.query(Character).filter(Character.name == char_name).first()
-                    
-                    if not existing:
-                        # Create new character from file
-                        success = await self._create_character_from_file(char_name, module_path)
-                        if success:
-                            sync_results["created"].append(char_name)
-                            self.logger.info(f"Created character from file: {char_name}")
-                        else:
-                            sync_results["errors"].append(f"Failed to create {char_name}")
-                    else:
-                        # Update existing character from file
-                        updates_made = await self._update_character_from_file(existing, module_path)
-                        if updates_made:
-                            sync_results["updated"].append(char_name)
-                            self.logger.debug(f"Updated character from file: {char_name}")
-                        else:
-                            # No updates needed - this is normal, not an error
-                            self.logger.debug(f"No updates needed for character: {char_name}")
-                
-                except Exception as e:
-                    error_msg = f"Error syncing {char_name}: {e}"
-                    self.logger.error(error_msg)
-                    sync_results["errors"].append(error_msg)
-            
-            # Single commit for all changes
-            if sync_results["created"] or sync_results["updated"] or sync_results["renamed"]:
-                self.db.commit()
-                self.logger.info(f"Character sync completed - Created: {len(sync_results['created'])}, Updated: {len(sync_results['updated'])}, Renamed: {len(sync_results['renamed'])}, Errors: {len(sync_results['errors'])}")
-            
-            return sync_results
-            
-        except Exception as e:
-            self.logger.error(f"Error during character sync: {e}")
-            self.db.rollback()
-            raise CharacterServiceError(f"Character sync failed: {e}")
+        self.logger.info("Character sync skipped (hardcoded characters removed in Issue #129)")
+        return {
+            "discovered": 0,
+            "created": [],
+            "updated": [],
+            "renamed": [],
+            "errors": []
+        }
     
     async def _create_character_from_file(self, char_name: str, module_path: str) -> bool:
         """

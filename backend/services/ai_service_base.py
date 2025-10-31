@@ -58,7 +58,8 @@ class AIServiceBase(ABC):
         self,
         character: Character,
         messages: List[ChatMessage],
-        user_preferences: Optional[dict] = None
+        user_preferences: Optional[dict] = None,
+        state: Optional[Dict[str, str]] = None,
     ) -> Tuple[str, Dict[str, Any]]:
         """
         Generate AI response for conversation
@@ -67,6 +68,7 @@ class AIServiceBase(ABC):
             character: Character to roleplay as
             messages: Conversation history
             user_preferences: User settings (temperature, nsfw_level, etc.)
+            state: Persisted character state for continuity (optional)
             
         Returns:
             Tuple[str, Dict]: (response_text, token_info)
@@ -132,10 +134,9 @@ class AIServiceBase(ABC):
         if hardcoded_prompt:
             return hardcoded_prompt
 
-        # Prefer PromptEngine for user-created characters with persona/backstory
-        if character and (getattr(character, 'persona_prompt', None) or getattr(character, 'backstory', None)):
+        # Use PromptEngine for all characters (post-Issue #129)
+        if character:
             try:
-                # Select SAFE/NSFW system prompt via binary toggle (Issue #156)
                 from utils.prompt_selector import select_system_prompt
                 from .prompt_engine import PromptEngine
                 selected_system_prompt, prompt_type = select_system_prompt(character)
@@ -144,22 +145,16 @@ class AIServiceBase(ABC):
                 return {
                     "persona_prompt": compiled.get("system_text", ""),
                     "few_shot_contents": [],
-                    "use_cache": True,
+                    "use_cache": False,  # No caching in simplified architecture
                     "use_few_shot": False
                 }
             except Exception as e:
-                self.logger.warning(f"PromptEngine unavailable/failed, falling back to enhancer: {e}")
-
-        # Fallback to dynamic enhancer
-        if character:
-            from utils.character_prompt_enhancer import CharacterPromptEnhancer
-            try:
-                from utils.prompt_selector import select_system_prompt
-                selected_system_prompt, _ = select_system_prompt(character)
-            except Exception:
-                selected_system_prompt = None
-            enhancer = CharacterPromptEnhancer(system_prompt=selected_system_prompt)
-            return enhancer.enhance_dynamic_prompt(character)
+                self.logger.error(f"PromptEngine failed: {e}")
+                # Return basic fallback
+                return {
+                    "persona_prompt": f"你是{character.name}。",
+                    "few_shot_contents": []
+                }
 
         # No character provided
         return {
@@ -169,91 +164,34 @@ class AIServiceBase(ABC):
     
     def _load_hardcoded_character(self, character: Character) -> Optional[dict]:
         """
-        Load hardcoded character data if available using auto-discovery (shared implementation)
-        
+        [DEPRECATED] Hardcoded character loading removed in Issue #129.
+
+        This method is kept for backward compatibility but always returns None.
+        All characters now use PromptEngine for dynamic prompt generation.
+
         Args:
             character: Character to load
-            
+
         Returns:
-            Optional[dict]: Character data or None if not hardcoded
+            None (always)
         """
-        if not character:
-            return None
-
-        # Respect config: optionally disable any hardcoded character loading entirely
-        try:
-            from config import settings
-            if not getattr(settings, 'enable_hardcoded_character_loading', False):
-                self.logger.debug("Hardcoded character loading disabled via config - using dynamic prompts")
-                return None
-        except Exception:
-            # If settings import fails, be safe and do not load hardcoded characters
-            return None
-
-        # Auto-discover characters from prompts/characters/ directory
-        from utils.character_discovery import discover_character_files
-        
-        try:
-            hardcoded_characters = discover_character_files()
-            module_path = hardcoded_characters.get(character.name)
-            
-            if module_path:
-                import importlib
-                module = importlib.import_module(module_path)
-                
-                # Validate required attributes exist
-                if hasattr(module, 'PERSONA_PROMPT') and hasattr(module, 'FEW_SHOT_EXAMPLES'):
-                    # Respect character-specific control flags (shared across all AI services)
-                    character_data = {
-                        "persona_prompt": module.PERSONA_PROMPT,
-                        "few_shot_contents": module.FEW_SHOT_EXAMPLES,
-                        # Control flags for cache and few-shot behavior
-                        "use_cache": getattr(module, 'USE_CACHE', True),
-                        "use_few_shot": getattr(module, 'USE_FEW_SHOT', True),
-                    }
-                    
-                    self.logger.debug(f"Loaded character {character.name}: cache={character_data['use_cache']}, few_shot={character_data['use_few_shot']}")
-                    return character_data
-                else:
-                    self.logger.error(f"Character {character.name} missing required attributes (PERSONA_PROMPT, FEW_SHOT_EXAMPLES)")
-                    return None
-            else:
-                self.logger.debug(f"Character {character.name} not found in auto-discovered characters")
-                return None
-                
-        except Exception as e:
-            self.logger.error(f"Failed to load character {character.name} via auto-discovery: {e}")
-            return None
+        self.logger.debug("Hardcoded character loading removed in Issue #129")
+        return None
     
     def _is_hardcoded_character(self, character: Character) -> bool:
         """
-        Check if character is hardcoded using auto-discovery (shared implementation)
-        
+        [DEPRECATED] Hardcoded character detection removed in Issue #129.
+
+        This method is kept for backward compatibility but always returns False.
+        All characters are now user-created.
+
         Args:
             character: Character to check
-            
-        Returns:
-            bool: True if character is hardcoded
-        """
-        if not character:
-            return False
-        
-        # Respect config: optionally disable any hardcoded character detection entirely
-        try:
-            from config import settings
-            if not getattr(settings, 'enable_hardcoded_character_loading', False):
-                return False
-        except Exception:
-            return False
 
-        from utils.character_discovery import discover_character_files
-        
-        try:
-            hardcoded_characters = discover_character_files()
-            return character.name in hardcoded_characters
-        except Exception as e:
-            self.logger.error(f"Error checking if character {character.name} is hardcoded: {e}")
-            return False
+        Returns:
+            False (always)
+        """
+        return False
     
     def _manage_conversation_length(
         self, 
