@@ -356,7 +356,13 @@ async def get_chat_state(
 
     manager = CharacterStateManager(db)
     character = await db.get(Character, chat.character_id)
-    state = await manager.initialize_state(chat.id, character)
+
+    try:
+        state = await manager.initialize_state(chat.id, character)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
 
     state_row = (
         await db.execute(
@@ -392,8 +398,13 @@ async def update_chat_state(
     manager = CharacterStateManager(db)
     try:
         state = await manager.update_state(chat.id, payload.state_update)
+        await db.commit()
     except ValueError as exc:
+        await db.rollback()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        await db.rollback()
+        raise
 
     state_row = (
         await db.execute(

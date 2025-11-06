@@ -300,6 +300,7 @@ class ChatService:
 
             # Seed persistent state for the chat
             await self.state_manager.initialize_state(chat.id, character)
+            await self.db.commit()
 
             if not chat.uuid:
                 chat.uuid = uuid.uuid4()
@@ -315,6 +316,7 @@ class ChatService:
             return False, None, f"Chat creation failed: {exc}", False
 
     async def generate_opening_line_async(self, chat_id: int, character_id: int) -> None:
+        session: Optional[AsyncSession] = None
         try:
             async with AsyncSessionLocal() as session:
                 chat = await session.get(Chat, chat_id)
@@ -337,7 +339,7 @@ class ChatService:
                     return
 
                 state_manager = CharacterStateManager(session)
-                await state_manager.initialize_state(chat_id, character)
+                state = await state_manager.initialize_state(chat_id, character)
 
                 reused = bool(character.opening_line and character.opening_line.strip())
                 if reused:
@@ -356,8 +358,11 @@ class ChatService:
                         user_id=chat.user_id,
                         role="assistant",
                         content=opening_line,
+                        state_snapshot=self._serialize_state_snapshot(state),
                     )
                 )
+                if not reused:
+                    session.add(character)
                 await session.commit()
 
                 self.ai_service.log_opening_line_usage(
@@ -372,6 +377,11 @@ class ChatService:
                 )
 
         except Exception as exc:
+            if session is not None:
+                try:
+                    await session.rollback()
+                except Exception:
+                    pass
             self.logger.error("Background opening line generation failed for chat %s: %s", chat_id, exc)
 
     async def generate_ai_response(
@@ -464,49 +474,51 @@ class ChatService:
                 )
 
                 state_update = token_info.pop("state_update", {}) if token_info else {}
-                if state_update:
-                    try:
+
+                try:
+                    if state_update:
                         state = await self.state_manager.update_state(chat.id, state_update)
-                    except ValueError as exc:
-                        latency_ms = (time.perf_counter() - start) * 1000
-                        breaker_status = await self.BREAKER.after_success(breaker_key)
+                    state_json = self._serialize_state_snapshot(state)
 
-                        payload = self._error_payload("state_invalid")
-                        payload["detail"] = str(exc)
-                        retry_meta = self._retry_meta(
-                            attempts=attempt,
-                            breaker_state=breaker_status.state,
-                        )
+                    message_model = ChatMessage(
+                        chat_id=chat_id,
+                        chat_uuid=chat_uuid_value,
+                        user_id=user_id,
+                        role="assistant",
+                        content=response_content,
+                        state_snapshot=state_json,
+                    )
+                    self.db.add(message_model)
+                    await self.db.commit()
+                    await self.db.refresh(message_model)
 
-                        self.logger.warning("Invalid state update for chat %s: %s", chat.id, exc)
-                        log_chat_generation_attempt(
-                            chat_id=chat_id,
-                            chat_uuid=chat_uuid_str,
-                            user_id=user_id,
-                            character_id=chat_character_id,
-                            breaker_state=breaker_status.state.value,
-                            attempt=attempt,
-                            max_attempts=self.MAX_GENERATION_ATTEMPTS,
-                            latency_ms=latency_ms,
-                            result="failure",
-                            error_code="state_invalid",
-                        )
-                        payload["retryMeta"] = retry_meta
-                        return False, payload, str(exc)
+                except ValueError as exc:
+                    await self.db.rollback()
+                    latency_ms = (time.perf_counter() - start) * 1000
+                    breaker_status = await self.BREAKER.after_success(breaker_key)
 
-                state_json = self._serialize_state_snapshot(state)
+                    payload = self._error_payload("state_invalid")
+                    payload["detail"] = str(exc)
+                    retry_meta = self._retry_meta(
+                        attempts=attempt,
+                        breaker_state=breaker_status.state,
+                    )
 
-                message_model = ChatMessage(
-                    chat_id=chat_id,
-                    chat_uuid=chat_uuid_value,
-                    user_id=user_id,
-                    role="assistant",
-                    content=response_content,
-                    state_snapshot=state_json,
-                )
-                self.db.add(message_model)
-                await self.db.commit()
-                await self.db.refresh(message_model)
+                    self.logger.warning("Invalid state update for chat %s: %s", chat.id, exc)
+                    log_chat_generation_attempt(
+                        chat_id=chat_id,
+                        chat_uuid=chat_uuid_str,
+                        user_id=user_id,
+                        character_id=chat_character_id,
+                        breaker_state=breaker_status.state.value,
+                        attempt=attempt,
+                        max_attempts=self.MAX_GENERATION_ATTEMPTS,
+                        latency_ms=latency_ms,
+                        result="failure",
+                        error_code="state_invalid",
+                    )
+                    payload["retryMeta"] = retry_meta
+                    return False, payload, str(exc)
 
                 deduction_description = (
                     f"AI response generation for chat {chat_id} (Input: {token_info.get('input_tokens', 0)}, "
@@ -749,6 +761,8 @@ class ChatService:
                 state_snapshot=opening_state_json,
             )
             self.db.add(opening_message)
+            if not reused:
+                self.db.add(character)
             await self.db.commit()
             await self.db.refresh(opening_message)
 

@@ -117,17 +117,9 @@ class CharacterStateManager:
             if isinstance(value, str) and value.strip():
                 merged[key] = value.strip()
 
-        try:
-            character.default_state_json = json.dumps(merged, ensure_ascii=False)
-            self.session.add(character)
-            await self.session.commit()
-        except Exception as exc:
-            await self.session.rollback()
-            self.logger.warning(
-                "Unable to persist default state template for character %s: %s",
-                character.id,
-                exc,
-            )
+        character.default_state_json = json.dumps(merged, ensure_ascii=False)
+        self.session.add(character)
+        await self.session.flush()
 
         return merged
 
@@ -196,13 +188,7 @@ class CharacterStateManager:
         else:
             state_row.state_json = serialized
 
-        try:
-            await self.session.commit()
-        except Exception as exc:
-            await self.session.rollback()
-            self.logger.warning("Failed to persist hydrated state for chat %s: %s", chat_id, exc)
-            return base_state
-
+        await self.session.flush()
         return base_state
 
     async def update_state(self, chat_id: int, state_update: Dict[str, str]) -> Dict[str, str]:
@@ -229,12 +215,15 @@ class CharacterStateManager:
             elif key not in current_state or not current_state[key]:
                 current_state[key] = fallback_template.get(key, "")
 
-        stmt = select(CharacterChatState).where(CharacterChatState.chat_id == chat_id)
+        stmt = (
+            select(CharacterChatState)
+            .where(CharacterChatState.chat_id == chat_id)
+        )
         result = await self.session.execute(stmt)
         state_row = result.scalars().first()
         if state_row is None:
             raise RuntimeError("Failed to load character chat state record after initialization")
 
         state_row.state_json = json.dumps(current_state, ensure_ascii=False)
-        await self.session.commit()
+        await self.session.flush()
         return current_state
