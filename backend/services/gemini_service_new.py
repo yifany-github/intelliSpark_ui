@@ -42,6 +42,7 @@ class GeminiService(AIServiceBase):
     def __init__(self, api_key: Optional[str] = None):
         """Initialize Gemini service"""
         super().__init__("gemini-2.0-flash-001", api_key)
+        self._intent_service = None  # Lazy-loaded intent service
 
     async def initialize(self) -> bool:
         """Initialize Gemini service client"""
@@ -92,8 +93,11 @@ class GeminiService(AIServiceBase):
             # Manage conversation length to stay within token limits
             managed_messages = self._manage_conversation_length(messages)
 
-            # Build conversation prompt with full history
-            conversation_prompt = self._build_conversation_prompt(managed_messages, character, state)
+            # Detect sexual activity stage for targeted user-agency protection
+            stage = await self._detect_user_intent_background(managed_messages)
+
+            # Build conversation prompt with full history, state, and stage reminder
+            conversation_prompt = self._build_conversation_prompt(managed_messages, character, state, stage)
 
             # Get selected system prompt (SAFE vs NSFW)
             selected_system_prompt, prompt_type = select_system_prompt(character)
@@ -122,6 +126,10 @@ class GeminiService(AIServiceBase):
                     "total_tokens": input_tokens + output_tokens
                 }
                 clean_text, state_update = self._extract_state_update(response.text.strip())
+
+                # Remove character name prefix if LLM echoed it
+                clean_text = self._remove_character_name_prefix(clean_text, character)
+
                 if state_update:
                     token_info["state_update"] = state_update
 
@@ -293,6 +301,70 @@ class GeminiService(AIServiceBase):
         # Fallback to generic name
         return "AI助手"
 
+    def _remove_character_name_prefix(self, text: str, character: Optional[Character]) -> str:
+        """Remove character name prefix if LLM echoed it from the prompt"""
+        if not text or not character:
+            return text
+
+        character_name = self._extract_character_name(character)
+
+        # Check for patterns like "恩爱 秘密教学: " or "恩爱: " at the start
+        import re
+        # Normalize whitespace in character name for flexible matching
+        name_pattern = re.escape(character_name).replace(r'\ ', r'\s+')
+        # Pattern: character name followed by optional colon and space
+        pattern = rf'^{name_pattern}\s*[:：]\s*'
+        cleaned = re.sub(pattern, '', text, count=1)
+
+        if cleaned != text:
+            self.logger.debug(f"🧹 Removed character name prefix from response")
+
+        return cleaned
+
+    @property
+    def intent_service(self):
+        """Lazy-loaded intent service instance (industry standard pattern)"""
+        if self._intent_service is None:
+            try:
+                from .nsfw_intent_service import NSFWIntentService
+                # Share the Gemini client to avoid duplication
+                self._intent_service = NSFWIntentService(gemini_client=self.client)
+                self.logger.info("🎯 NSFWIntentService initialized for this conversation")
+            except (ImportError, Exception) as e:
+                self.logger.warning(f"⚠️ Intent service unavailable: {e}")
+                return None
+        return self._intent_service
+
+    async def _detect_user_intent_background(self, messages: List[ChatMessage]) -> Optional[str]:
+        """
+        Detect sexual activity stage in background for user-agency protection
+
+        Returns stage (e.g., "抽插时") or None if detection fails
+        """
+        try:
+            # Use the shared stage detection service
+            if self.intent_service:
+                stage = await self.intent_service.detect_user_intent(messages)
+                return stage
+            else:
+                return None
+        except Exception as e:
+            self.logger.warning(f"⚠️ Stage detection failed: {e}")
+            return None  # Graceful fallback - conversation continues without stage reminder
+
+    def _build_intent_guidance(self, stage: str) -> str:
+        """
+        Build SHORT stage-specific reminder based on detected stage
+
+        Returns empty string for low-risk stages, short reminder for high-risk stages
+        """
+        # Use the centralized reminder from the stage detection service
+        if self.intent_service:
+            return self.intent_service.build_intent_guidance(stage)
+        else:
+            # No fallback needed - empty string is fine
+            return ""
+
     def _parse_state_seed(self, text: str, allowed_keys: Iterable[str]) -> Dict[str, str]:
         if not text:
             return {}
@@ -351,11 +423,15 @@ class GeminiService(AIServiceBase):
         messages: List[ChatMessage],
         character: Optional[Character] = None,
         state: Optional[Dict[str, str]] = None,
+        stage: Optional[str] = None,
     ) -> List[Dict]:
         """
-        Build conversation prompt with FULL conversation history.
+        Build conversation prompt with FULL conversation history, state tracking, and stage reminder.
 
-        Simplified version - no intent guidance, just natural conversation flow.
+        Combines:
+        - Stage reminder (SHORT negative constraint, only for high-risk stages)
+        - State tracking (character state persistence)
+        - Natural conversation flow
         """
 
         character_name = self._extract_character_name(character)
@@ -370,6 +446,13 @@ class GeminiService(AIServiceBase):
                 # Use dynamic character name for any bot
                 conversation_history += f"{character_name}: {message.content}\n"
 
+        # Build context sections
+        stage_reminder = ""
+        if stage:
+            reminder_text = self._build_intent_guidance(stage)
+            if reminder_text:  # Only inject if there's a reminder (high-risk stage)
+                stage_reminder = f"{reminder_text}\n\n"
+
         state_context = ""
         if state:
             try:
@@ -379,15 +462,18 @@ class GeminiService(AIServiceBase):
             if state_json:
                 state_context = f"[当前状态: {state_json}]\n\n"
 
-        # Create conversation prompt
+        # Create conversation prompt with stage reminder and state
         if conversation_history:
             # End with character name to prompt natural continuation
-            full_prompt = f"{state_context}{conversation_history.rstrip()}\n{character_name}:"
+            full_prompt = f"{stage_reminder}{state_context}{conversation_history.rstrip()}\n{character_name}:"
         else:
             # For new conversations, just start with character name
-            full_prompt = f"{state_context}{character_name}:"
+            full_prompt = f"{stage_reminder}{state_context}{character_name}:"
 
-        self.logger.info(f"💬 Conversation prompt built: {len(messages)} messages for {character_name}")
+        if stage_reminder:
+            self.logger.info(f"💬 Conversation prompt with stage reminder: {len(messages)} messages for {character_name}, stage '{stage}'")
+        else:
+            self.logger.info(f"💬 Conversation prompt built: {len(messages)} messages for {character_name}")
 
         # Return in Gemini API format
         return [{

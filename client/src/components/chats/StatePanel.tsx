@@ -15,28 +15,40 @@ const KEY_ORDER = Array.from(new Set([...PRIMARY_KEYS, ...SAFE_KEYS]));
 
 const ACCENTS = [
   {
-    container: "bg-gradient-to-br from-rose-500/15 via-pink-500/10 to-transparent border-rose-400/30",
+    beam: "from-rose-400/30 via-fuchsia-500/15 to-transparent",
+    icon: "bg-rose-300/70",
     label: "text-rose-100",
+    glow: "shadow-[0_0_25px_rgba(244,114,182,0.25)]",
   },
   {
-    container: "bg-gradient-to-br from-fuchsia-500/15 via-purple-500/10 to-transparent border-fuchsia-400/30",
-    label: "text-fuchsia-100",
-  },
-  {
-    container: "bg-gradient-to-br from-indigo-500/15 via-blue-500/10 to-transparent border-indigo-400/30",
+    beam: "from-purple-400/30 via-indigo-500/15 to-transparent",
+    icon: "bg-indigo-300/70",
     label: "text-indigo-100",
+    glow: "shadow-[0_0_25px_rgba(165,180,252,0.25)]",
   },
   {
-    container: "bg-gradient-to-br from-emerald-500/15 via-teal-500/10 to-transparent border-emerald-400/30",
-    label: "text-emerald-100",
-  },
-  {
-    container: "bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-transparent border-amber-400/30",
-    label: "text-amber-100",
-  },
-  {
-    container: "bg-gradient-to-br from-sky-500/15 via-cyan-500/10 to-transparent border-sky-400/30",
+    beam: "from-blue-400/30 via-cyan-500/15 to-transparent",
+    icon: "bg-sky-300/70",
     label: "text-sky-100",
+    glow: "shadow-[0_0_25px_rgba(125,211,252,0.25)]",
+  },
+  {
+    beam: "from-emerald-400/30 via-teal-500/15 to-transparent",
+    icon: "bg-emerald-300/70",
+    label: "text-emerald-100",
+    glow: "shadow-[0_0_25px_rgba(52,211,153,0.25)]",
+  },
+  {
+    beam: "from-amber-400/30 via-orange-500/15 to-transparent",
+    icon: "bg-amber-300/70",
+    label: "text-amber-100",
+    glow: "shadow-[0_0_25px_rgba(253,230,138,0.25)]",
+  },
+  {
+    beam: "from-pink-400/30 via-rose-500/15 to-transparent",
+    icon: "bg-pink-300/70",
+    label: "text-pink-100",
+    glow: "shadow-[0_0_25px_rgba(244,114,182,0.2)]",
   },
 ];
 
@@ -54,12 +66,7 @@ export const StatePanel = ({ state, className, defaultOpen = false }: StatePanel
     return entries;
   }, [state]);
 
-  const summary = useMemo(() => {
-    const preferredKey = KEY_ORDER.find((key) => state[key]);
-    const preview = preferredKey ? state[preferredKey] : orderedEntries[0]?.[1];
-    if (!preview) return "";
-    return preview.length > 46 ? `${preview.slice(0, 46)}…` : preview;
-  }, [orderedEntries, state]);
+  // Removed confusing preview text - just show "状态面板" label
 
   if (!orderedEntries.length) {
     return null;
@@ -70,22 +77,15 @@ export const StatePanel = ({ state, className, defaultOpen = false }: StatePanel
       open={open}
       onOpenChange={setOpen}
       className={cn(
-        "rounded-2xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-sm",
-        "shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]",
+        "rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 via-white/5 to-transparent px-3 py-3 backdrop-blur-md",
+        "shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_30px_rgba(0,0,0,0.18)]",
         className,
       )}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2">
-          <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-white/70">
-            <Sparkles className="h-3 w-3 text-pink-200" />
-            状态面板
-          </div>
-          {summary && (
-            <span className="hidden truncate text-xs text-white/70 sm:block">
-              {summary}
-            </span>
-          )}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-white/80">
+          <Sparkles className="h-3 w-3 text-pink-200" />
+          状态面板
         </div>
         <CollapsibleTrigger asChild>
           <button
@@ -102,29 +102,28 @@ export const StatePanel = ({ state, className, defaultOpen = false }: StatePanel
           </button>
         </CollapsibleTrigger>
       </div>
-      <CollapsibleContent className="mt-3 space-y-2">
+      <CollapsibleContent className="mt-4 grid gap-3 sm:grid-cols-2">
         {orderedEntries.map(([key, value], index) => {
           const accent = ACCENTS[index % ACCENTS.length];
           return (
             <div
               key={key}
-              className={cn(
-                "rounded-2xl border px-3 py-3 text-sm leading-6 text-white/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]",
-                accent.container,
-              )}
+              className={cn("relative overflow-hidden rounded-3xl border border-white/12 bg-white/10 px-4 py-4 backdrop-blur-xl transition hover:border-white/18", accent.glow)}
             >
+              <div
+                className={cn(
+                  "pointer-events-none absolute inset-px rounded-[26px] bg-gradient-to-br opacity-80 blur-sm",
+                  accent.beam,
+                )}
+                aria-hidden
+              />
               <div className="flex items-center gap-2">
-                <span className="inline-flex h-1.5 w-1.5 rounded-full bg-white/60" aria-hidden />
-                <span
-                  className={cn(
-                    "text-[12px] font-semibold uppercase tracking-[0.25em] text-white/70",
-                    accent.label,
-                  )}
-                >
+                <span className={cn("relative inline-flex h-2 w-2 rounded-full", accent.icon)} aria-hidden />
+                <span className={cn("relative text-[13px] font-bold uppercase tracking-[0.22em] text-white", accent.label)}>
                   {key}
                 </span>
               </div>
-              <p className="mt-2 whitespace-pre-wrap text-[15px] leading-7 text-white/95">
+              <p className="relative mt-3 whitespace-pre-wrap text-[15px] leading-7 text-white/95">
                 {value}
               </p>
             </div>

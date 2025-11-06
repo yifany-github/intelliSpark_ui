@@ -24,6 +24,29 @@ class CharacterStateManager:
         self.session = session
         self.logger = logging.getLogger(__name__)
 
+    @staticmethod
+    def _normalize_state_value(value: Optional[str]) -> str:
+        if not value:
+            return ""
+        normalized = value.strip()
+        return "" if not normalized or normalized == "未设定" else normalized
+
+    def _filter_state_keys(
+        self,
+        state: Optional[Dict[str, str]],
+        keys_to_use: Sequence[str],
+    ) -> Dict[str, str]:
+        """Return normalized subset of state limited to the allowed keys."""
+        if not state:
+            return {}
+
+        filtered: Dict[str, str] = {}
+        for key in keys_to_use:
+            normalized = self._normalize_state_value(state.get(key))
+            if normalized:
+                filtered[key] = normalized
+        return filtered
+
     async def get_state(self, chat_id: int) -> Dict[str, str]:
         stmt = select(CharacterChatState).where(CharacterChatState.chat_id == chat_id)
         result = await self.session.execute(stmt)
@@ -127,10 +150,6 @@ class CharacterStateManager:
         return None
 
     async def initialize_state(self, chat_id: int, character: Optional[Character]) -> Dict[str, str]:
-        existing = await self.get_state(chat_id)
-        if existing:
-            return existing
-
         if character is None:
             character = await self._load_character(chat_id)
 
@@ -140,6 +159,22 @@ class CharacterStateManager:
         keys_to_use = self._select_keys(character)
         safe_mode = character is not None and getattr(character, "nsfw_level", 0) == 0
         fallback_template = self._fallback_state_map(safe_mode)
+
+        stmt = select(CharacterChatState).where(CharacterChatState.chat_id == chat_id)
+        result = await self.session.execute(stmt)
+        state_row = result.scalars().first()
+
+        current_state_raw: Dict[str, str] = {}
+        if state_row and state_row.state_json:
+            try:
+                parsed = json.loads(state_row.state_json)
+                if isinstance(parsed, dict):
+                    current_state_raw = parsed
+            except json.JSONDecodeError:
+                self.logger.warning("Invalid state JSON for chat %s; regenerating defaults", chat_id)
+
+        filtered_existing = self._filter_state_keys(current_state_raw, keys_to_use)
+
         base_state = fallback_template.copy()
 
         if character is not None:
@@ -147,52 +182,58 @@ class CharacterStateManager:
             if template is None:
                 template = await self._ensure_character_default_state(character, keys_to_use, safe_mode)
             for key in keys_to_use:
-                value = template.get(key)
-                if isinstance(value, str) and value.strip():
-                    base_state[key] = value.strip()
+                normalized = self._normalize_state_value(template.get(key))
+                if normalized:
+                    base_state[key] = normalized
 
-        state_row = CharacterChatState(chat_id=chat_id, state_json=json.dumps(base_state, ensure_ascii=False))
-        self.session.add(state_row)
+        # Overlay existing state on top of defaults/template
+        base_state.update(filtered_existing)
+
+        serialized = json.dumps(base_state, ensure_ascii=False)
+        if state_row is None:
+            state_row = CharacterChatState(chat_id=chat_id, state_json=serialized)
+            self.session.add(state_row)
+        else:
+            state_row.state_json = serialized
+
         try:
             await self.session.commit()
-        except Exception:
+        except Exception as exc:
             await self.session.rollback()
-            return await self.get_state(chat_id) or base_state
+            self.logger.warning("Failed to persist hydrated state for chat %s: %s", chat_id, exc)
+            return base_state
+
         return base_state
 
     async def update_state(self, chat_id: int, state_update: Dict[str, str]) -> Dict[str, str]:
         if not state_update:
             raise ValueError("state_update cannot be empty")
 
-        invalid_keys = set(state_update.keys()) - set(self.ALLOWED_KEYS)
+        character = await self._load_character(chat_id)
+        keys_to_use = self._select_keys(character)
+        safe_mode = character is not None and getattr(character, "nsfw_level", 0) == 0
+
+        invalid_keys = set(state_update.keys()) - set(keys_to_use)
         if invalid_keys:
             raise ValueError(f"Invalid state keys: {', '.join(sorted(invalid_keys))}")
+
+        # Ensure we are working with a sanitized baseline state
+        current_state = await self.initialize_state(chat_id, character)
+
+        fallback_template = self._fallback_state_map(safe_mode)
+
+        for key, value in state_update.items():
+            normalized = self._normalize_state_value(value)
+            if normalized:
+                current_state[key] = normalized
+            elif key not in current_state or not current_state[key]:
+                current_state[key] = fallback_template.get(key, "")
 
         stmt = select(CharacterChatState).where(CharacterChatState.chat_id == chat_id)
         result = await self.session.execute(stmt)
         state_row = result.scalars().first()
-
         if state_row is None:
-            current_state = await self.initialize_state(chat_id, None)
-            result = await self.session.execute(stmt)
-            state_row = result.scalars().first()
-            if state_row is None:
-                raise RuntimeError("Failed to initialize character chat state record")
-        else:
-            try:
-                current_state = json.loads(state_row.state_json or "{}")
-            except json.JSONDecodeError:
-                current_state = {key: "未设定" for key in self.ALLOWED_KEYS}
-
-        for key, value in state_update.items():
-            normalized = (value or "").strip()
-            current_state[key] = normalized if normalized else "未设定"
-
-        if state_row is None:
-            # initialize_state already created the row
-            stmt = select(CharacterChatState).where(CharacterChatState.chat_id == chat_id)
-            result = await self.session.execute(stmt)
-            state_row = result.scalars().first()
+            raise RuntimeError("Failed to load character chat state record after initialization")
 
         state_row.state_json = json.dumps(current_state, ensure_ascii=False)
         await self.session.commit()

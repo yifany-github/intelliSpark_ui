@@ -355,10 +355,8 @@ async def get_chat_state(
         raise HTTPException(status_code=404, detail="Chat not found")
 
     manager = CharacterStateManager(db)
-    state = await manager.get_state(chat.id)
-    if not state:
-        character = await db.get(Character, chat.character_id)
-        state = await manager.initialize_state(chat.id, character)
+    character = await db.get(Character, chat.character_id)
+    state = await manager.initialize_state(chat.id, character)
 
     state_row = (
         await db.execute(

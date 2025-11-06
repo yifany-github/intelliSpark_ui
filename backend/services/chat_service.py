@@ -401,9 +401,7 @@ class ChatService:
         if not character:
             return False, self._error_payload("character_not_found"), "Character not found"
 
-        state = await self.state_manager.get_state(chat.id)
-        if not state:
-            state = await self.state_manager.initialize_state(chat.id, character)
+        state = await self.state_manager.initialize_state(chat.id, character)
 
         msg_stmt = (
             select(ChatMessage)
@@ -695,9 +693,7 @@ class ChatService:
             if not character:
                 return False, {}, "Character not found"
 
-            state = await self.state_manager.get_state(chat.id)
-            if not state:
-                state = await self.state_manager.initialize_state(chat.id, character)
+            state = await self.state_manager.initialize_state(chat.id, character)
 
             existing_opening = (
                 await self.db.execute(
@@ -708,6 +704,20 @@ class ChatService:
             ).scalars().first()
             if existing_opening:
                 existing_state = self._deserialize_state_snapshot(existing_opening.state_snapshot) or state
+                keys_to_use = (
+                    CharacterStateManager.SAFE_KEYS
+                    if getattr(character, "nsfw_level", 0) == 0
+                    else CharacterStateManager.NSFW_KEYS
+                )
+                if existing_state:
+                    existing_state = {
+                        key: value
+                        for key, value in existing_state.items()
+                        if key in keys_to_use and isinstance(value, str) and value.strip()
+                    }
+                    # Fall back to sanitized state if legacy snapshot was empty after filtering
+                    if not existing_state:
+                        existing_state = state
                 message_payload = {
                     "id": existing_opening.id,
                     "chat_id": existing_opening.chat_id,

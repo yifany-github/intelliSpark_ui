@@ -180,22 +180,24 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     if (!messages.length) {
       if (character?.openingLine) {
         const timestamp = new Date().toISOString();
-        return [
-          {
-            id: -1,
-            chatId: chat?.id ?? 0,
-            role: "assistant",
-            content: character.openingLine,
-            timestamp,
-            createdAt: timestamp,
-            updatedAt: timestamp,
-          } as ChatMessage,
-        ];
+        const placeholder: ChatMessage = {
+          id: -1,
+          chatId: chat?.id ?? 0,
+          role: "assistant",
+          content: character.openingLine,
+          timestamp,
+          createdAt: timestamp,
+          updatedAt: timestamp,
+        } as ChatMessage;
+        if (remoteState?.state) {
+          (placeholder as any).stateSnapshot = remoteState.state;
+        }
+        return [placeholder];
       }
       return [];
     }
     return messages;
-  }, [messages, character?.openingLine, chat?.id]);
+  }, [messages, character?.openingLine, chat?.id, remoteState?.state]);
 
   const extractStateSnapshot = (message: ChatMessage | (ChatMessage & { state_snapshot?: Record<string, string> })) => {
     const snapshot = (message as any)?.stateSnapshot ?? (message as any)?.state_snapshot;
@@ -204,18 +206,6 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     }
     return undefined;
   };
-
-  const latestStateSnapshot = useMemo<Record<string, string> | undefined>(() => {
-    for (let idx = displayMessages.length - 1; idx >= 0; idx -= 1) {
-      const snapshot = extractStateSnapshot(displayMessages[idx]);
-      if (snapshot && Object.keys(snapshot).length > 0) {
-        return snapshot;
-      }
-    }
-    return undefined;
-  }, [displayMessages]);
-
-  const mergedState = latestStateSnapshot ?? remoteState?.state ?? null;
 
   const generateQuickReplies = useCallback(() => {
     if (!character) return;
@@ -949,25 +939,41 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
                   {!showTypingPlaceholder &&
                     displayMessages.length > 0 &&
-                    displayMessages.map((message, index) => {
-                      const isAssistant = message.role === "assistant";
-                      const isSynthetic = message.id === -1;
-                      const snapshot = extractStateSnapshot(message);
-                      const hasSnapshot = snapshot && Object.keys(snapshot).length > 0;
-                      const isLatestAssistant = isAssistant && !isSynthetic && index === displayMessages.length - 1;
-                      const fallbackState = !hasSnapshot && isLatestAssistant && mergedState ? mergedState : undefined;
-                      const stateSnapshot = hasSnapshot ? snapshot : fallbackState;
+                    (() => {
+                      let lastAssistantSnapshot: Record<string, string> | undefined =
+                        remoteState?.state && Object.keys(remoteState.state).length > 0 ? remoteState.state : undefined;
 
-                      return (
-                        <ChatBubble
-                          key={message.id}
-                          message={message}
-                          avatarUrl={character?.avatarUrl}
-                          onRegenerate={isAssistant && !isSynthetic ? regenerateLastMessage : undefined}
-                          stateSnapshot={stateSnapshot}
-                        />
-                      );
-                    })}
+                      return displayMessages.map((message) => {
+                        const isAssistant = message.role === "assistant";
+                        const isSynthetic = message.id === -1;
+                        const snapshot = extractStateSnapshot(message);
+                        const hasSnapshot = snapshot && Object.keys(snapshot).length > 0;
+                        let stateSnapshot: Record<string, string> | undefined;
+
+                        if (hasSnapshot) {
+                          stateSnapshot = snapshot;
+                        } else if (isAssistant && !isSynthetic) {
+                          stateSnapshot = lastAssistantSnapshot;
+                        } else if (isSynthetic && remoteState?.state) {
+                          stateSnapshot = remoteState.state;
+                        }
+
+                        if (isAssistant && stateSnapshot) {
+                          lastAssistantSnapshot = stateSnapshot;
+                        }
+
+                        return (
+                          <ChatBubble
+                            key={message.id}
+                            message={message}
+                            avatarUrl={character?.avatarUrl}
+                            onRegenerate={isAssistant && !isSynthetic ? regenerateLastMessage : undefined}
+                            stateSnapshot={stateSnapshot}
+                          />
+                        );
+                      });
+                    })()
+                  }
                 </>
               )}
 
