@@ -73,6 +73,8 @@ class Character(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)  # Short description
+    opening_line = Column(Text, nullable=True)  # Cached chat opener
+    default_state_json = Column(Text, nullable=True)  # Cached state seed template
     avatar_url = Column(String(500), nullable=True)  # Keep for backward compatibility
     backstory = Column(Text, nullable=False)
     persona_prompt = Column(Text, nullable=True)  # Optional persona prompt that overrides backstory for LLM
@@ -139,6 +141,22 @@ class Chat(Base):
     user = relationship("User", back_populates="chats")
     character = relationship("Character", back_populates="chats")
     messages = relationship("ChatMessage", back_populates="chat", foreign_keys="ChatMessage.chat_id")
+    state = relationship(
+        "CharacterChatState",
+        back_populates="chat",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+
+
+class CharacterChatState(Base):
+    __tablename__ = "character_chat_states"
+
+    chat_id = Column(Integer, ForeignKey("chats.id"), primary_key=True)
+    state_json = Column(Text, nullable=True)
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    chat = relationship("Chat", back_populates="state", uselist=False)
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
@@ -150,6 +168,7 @@ class ChatMessage(Base):
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)  # For per-user realtime subscriptions
     role = Column(String(50), nullable=False)  # 'user' or 'assistant'
     content = Column(String(10000), nullable=False)  # 10KB limit to prevent DoS attacks
+    state_snapshot = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=func.now())
 
     # Relationships

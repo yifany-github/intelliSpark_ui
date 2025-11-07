@@ -32,3 +32,10 @@
 ## Architecture Overview
 - The React client calls FastAPI endpoints under `/routes`, sharing contract types defined in `backend/schemas.py`.
 - Prompt-based features should place reusable content in `backend/prompts/` so updates stay centralized.
+
+## Active Technologies
+- TypeScript (React 18) / Python ≥3.8 (FastAPI) + React, Tailwind CSS, React Query, FastAPI, SQLAlchemy, Supabase, Stripe, Gemini (001-optimize-prompt-state)
+- SQLite (dev) / PostgreSQL (prod) (001-optimize-prompt-state)
+
+## Recent Changes
+- 001-optimize-prompt-state: Added TypeScript (React 18) / Python ≥3.8 (FastAPI) + React, Tailwind CSS, React Query, FastAPI, SQLAlchemy, Supabase, Stripe, Gemini

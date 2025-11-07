@@ -1,17 +1,18 @@
 """
-NSFW Intent Detection Service for IntelliSpark AI Chat Application
+Sexual Stage Detection Service for IntelliSpark AI Chat Application
 
-This service implements user intent detection for NSFW conversations to prevent
-AI from rushing to sexual climax and improve pacing control.
+This service detects objective sexual activity stages (not subjective intent) to inject
+targeted reminders that prevent AI from assuming user state (e.g., "你快射了").
 
-Based on 2024 research from leading NSFW AI platforms (CrushOn AI, SpicyChat AI),
-this service uses few-shot prompting to achieve 95%+ accuracy in intent classification.
+Goal: Keep AI reactive (describing what it observes) rather than predictive (narrating future states)
 
-Features:
-- User intent detection: explore, buildup, climax, control
-- Few-shot prompting for high accuracy classification
-- Lightweight integration with existing GeminiService
-- Background processing to maintain response speed
+Stages aligned with system.py lines 148-162:
+- 插入前, 准备插入, 插入时, 抽插时, 角色高潮（自然发生）, 其他
+
+Key difference from intent detection:
+- Stage = objective fact (what's happening now)
+- Intent = subjective guess (what user wants)
+- Stages map directly to system prompt sections
 """
 
 from typing import List, Dict, Any, Optional
@@ -22,6 +23,8 @@ from google.genai import types
 
 from models import ChatMessage
 from config import settings
+from prompts.sexual_stage_detection import build_stage_detection_prompt
+from prompts.sexual_stage_reminders import get_stage_reminder
 
 
 class NSFWIntentService:
@@ -56,60 +59,60 @@ class NSFWIntentService:
     
     async def detect_user_intent(self, recent_messages: List[ChatMessage]) -> str:
         """
-        Detect user sexual intent using few-shot prompting
-        
+        Detect sexual activity stage (objective, not subjective intent)
+
         Args:
             recent_messages: Last 2-3 messages from conversation
-            
+
         Returns:
-            Intent category: "explore", "buildup", "climax", or "control"
+            Stage: "其他", "插入前", "准备插入", "插入时", "抽插时", "角色高潮（自然发生）"
         """
-        
+
         if not self.client:
-            self.logger.warning("No Gemini client available, returning default intent")
-            return "explore"
-        
+            self.logger.warning("No Gemini client available, returning default stage")
+            return "其他"
+
         if not recent_messages:
-            return "explore"
+            return "其他"
         
         try:
             # Format recent conversation for analysis
             conversation = self._format_messages_for_analysis(recent_messages[-3:])
-            
-            # Build few-shot intent detection prompt
-            intent_prompt = self._build_intent_detection_prompt(conversation)
-            
-            # Generate intent classification
+
+            # Build stage detection prompt (centralized in prompts/)
+            stage_prompt = build_stage_detection_prompt(conversation)
+
+            # Generate stage classification
             response = self.client.models.generate_content(
                 model=self.model_name,
-                contents=[{"role": "user", "parts": [{"text": intent_prompt}]}],
+                contents=[{"role": "user", "parts": [{"text": stage_prompt}]}],
                 config=types.GenerateContentConfig(
-                    max_output_tokens=10,  # Very short response
-                    temperature=0.1  # Low temperature for consistent classification
+                    max_output_tokens=10,
+                    temperature=0.1
                 )
             )
-            
+
             if response and response.text:
-                detected_intent = response.text.strip().lower()
-                
-                # Validate intent category
-                valid_intents = ["explore", "buildup", "climax", "control"]
-                if detected_intent in valid_intents:
-                    self.logger.info(f"🎯 User intent detected: {detected_intent}")
-                    return detected_intent
+                detected_stage = response.text.strip()
+
+                # Validate stage - must match system.py stages exactly
+                valid_stages = ["其他", "插入前", "准备插入", "插入时", "抽插时", "角色高潮（自然发生）"]
+                if detected_stage in valid_stages:
+                    self.logger.info(f"🎯 Sexual stage detected: {detected_stage}")
+                    return detected_stage
                 else:
-                    self.logger.warning(f"Invalid intent detected: {detected_intent}, defaulting to 'explore'")
-                    return "explore"
+                    self.logger.warning(f"Invalid stage detected: {detected_stage}, defaulting to '其他'")
+                    return "其他"
             else:
-                self.logger.warning("Empty response from intent detection, defaulting to 'explore'")
-                return "explore"
-                
+                self.logger.warning("Empty response from stage detection, defaulting to '其他'")
+                return "其他"
+
         except (ConnectionError, TimeoutError) as e:
             self.logger.warning(f"Gemini API temporarily unavailable: {e}")
-            return "explore"  # Safe fallback
+            return "其他"  # Safe fallback
         except Exception as e:
-            self.logger.error(f"Unexpected error detecting user intent: {e}")
-            return "explore"  # Safe fallback
+            self.logger.error(f"Unexpected error detecting stage: {e}")
+            return "其他"  # Safe fallback
     
     def _format_messages_for_analysis(self, messages: List[ChatMessage]) -> str:
         """Format messages for intent analysis"""
@@ -126,84 +129,40 @@ class NSFWIntentService:
         return "\n".join(conversation_lines)
     
     def _build_intent_detection_prompt(self, conversation: str) -> str:
-        """Build few-shot prompt for intent detection"""
-        
-        return f"""分析用户的性意图，从以下模式中学习：
-
-例子1 - explore:
-用户: 我想了解你更多
-用户: 慢慢来，先亲吻一下
-用户: 我们可以先聊聊吗
-意图: explore
-
-例子2 - buildup:
-用户: 继续刺激我
-用户: 再用力一点
-用户: 不要停，继续
-意图: buildup
-
-例子3 - climax:
-用户: 我快不行了
-用户: 我要射了
-用户: 马上就要到了
-意图: climax
-
-例子4 - control:
-用户: 给我来个口交
-用户: 按我说的做
-用户: 跪下
-用户: 我想要你狠狠干我
-意图: control
-
-当前对话:
-{conversation}
-
-关键判断标准：
-- explore: 想要慢慢来、探索、了解
-- buildup: 要求继续当前动作、升级刺激
-- climax: 表达即将高潮、准备结束
-- control: 直接命令、具体性要求、主导语气
-
-只返回一个词:"""
+        """Legacy method - now delegates to centralized prompt"""
+        # This method is kept for backward compatibility
+        # Actual prompt is now in prompts/sexual_stage_detection.py
+        return build_stage_detection_prompt(conversation)
     
-    def build_intent_guidance(self, user_intent: str) -> str:
+    def build_intent_guidance(self, stage: str) -> str:
         """
-        Build response guidance based on detected user intent
-        
+        Build SHORT stage-specific reminder (not long prescriptive guidance)
+
         Args:
-            user_intent: Detected intent category
-            
+            stage: Detected sexual activity stage
+
         Returns:
-            Guidance text for response generation
+            Short reminder text (empty if low-risk stage)
         """
-        
-        INTENT_GUIDANCE = {
-            "explore": "角色通过行动和感受表达欲望，避免询问式语言，让情感自然流露。营造紧张感和期待感。例如：*直接轻吻你的脖子* '你闻起来好香...' *手慢慢滑向敏感部位*，而不是问'你想要我吻哪里？'",
-            
-            "buildup": "角色主动升级刺激和推进情节，通过行动而非问题建立紧张感，沉浸在当下感受中。例如：*不等回应就开始脱你的衣服* '忍不住了...' *舌头舔舐你的乳头*，而不是问'我可以继续吗？'",
-            
-            "climax": "角色完全基于感官体验和情感释放，用描述性语言表达高潮状态，专注于身体和心灵的真实反应。例如：*加快抽插节奏* '我感觉到了...快射给我' *紧紧抱住你* 而不是问'你准备好了吗？'",
-            
-            "control": "角色表达具体需求时保持人格特色，用陈述句代替问句，体现角色的主导个性。例如：'让我看到你想要我' *同时手已经开始爱抚* '我要感受你的一切' *直接含住你的肉棒*"
-        }
-        
-        guidance = INTENT_GUIDANCE.get(user_intent, INTENT_GUIDANCE["explore"])
-        self.logger.info(f"💡 Intent guidance for '{user_intent}': {guidance[:50]}...")
-        
-        return guidance
+        # Delegate to centralized reminder mapping
+        reminder = get_stage_reminder(stage)
+
+        if reminder:
+            self.logger.info(f"💡 Stage reminder for '{stage}': {reminder}")
+
+        return reminder
     
-    def should_prevent_auto_completion(self, user_intent: str) -> bool:
+    def should_prevent_auto_completion(self, stage: str) -> bool:
         """
-        Determine if auto-completion should be prevented based on intent
-        
+        Determine if this is a high-risk stage requiring reminder
+
         Args:
-            user_intent: Detected intent category
-            
+            stage: Detected sexual activity stage
+
         Returns:
-            True if auto-completion should be prevented
+            True if this stage requires reminder injection
         """
-        
-        # High risk intents that commonly lead to auto-completion
-        high_risk_intents = ["explore", "control"]
-        
-        return user_intent in high_risk_intents
+        # High risk stages from prompts/sexual_stage_reminders.py
+        high_risk_stages = ["准备插入", "插入时", "抽插时", "角色高潮（自然发生）"]
+
+        return stage in high_risk_stages

@@ -97,6 +97,17 @@ def transform_character_to_response(character: Character, db_session=None) -> Di
         "trendingScore": float(character.trending_score) if character.trending_score else 0.0,
         "lastActivity": character.last_activity.isoformat() + "Z" if character.last_activity else None
     }
+    if getattr(character, "opening_line", None):
+        response["openingLine"] = character.opening_line
+    default_state_raw = getattr(character, "default_state_json", None)
+    if default_state_raw:
+        try:
+            import json
+            parsed = json.loads(default_state_raw) if isinstance(default_state_raw, str) else default_state_raw
+            if isinstance(parsed, dict):
+                response["defaultState"] = parsed
+        except Exception:
+            pass
 
     # Enrich with creator username if db_session provided and character has creator
     if db_session and character.created_by:

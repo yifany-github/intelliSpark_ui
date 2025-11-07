@@ -105,7 +105,8 @@ class AIModelManager:
         character: Character,
         messages: List[ChatMessage],
         user_preferences: Optional[dict] = None,
-        user: Optional[User] = None
+        user: Optional[User] = None,
+        state: Optional[Dict[str, str]] = None,
     ) -> Tuple[str, Dict[str, Any]]:
         """
         Generate AI response using optimal model selection
@@ -127,7 +128,12 @@ class AIModelManager:
         
         try:
             service = self.services[selected_provider]
-            response, token_info = await service.generate_response(character, messages, user_preferences)
+            response, token_info = await service.generate_response(
+                character,
+                messages,
+                user_preferences,
+                state,
+            )
             
             # Add model information to response
             enhanced_info = {
@@ -148,7 +154,12 @@ class AIModelManager:
                 if fallback_provider and fallback_provider in self.services:
                     try:
                         fallback_service = self.services[fallback_provider]
-                        response, token_info = await fallback_service.generate_response(character, messages, user_preferences)
+                        response, token_info = await fallback_service.generate_response(
+                            character,
+                            messages,
+                            user_preferences,
+                            state,
+                        )
                         
                         enhanced_info = {
                             **token_info,
@@ -182,10 +193,10 @@ class AIModelManager:
             opening_line = await service.generate_opening_line(character)
             self.logger.info(f"✅ Opening line generated using {service.service_name}")
             return opening_line
-            
+
         except Exception as e:
             self.logger.error(f"❌ Error generating opening line with {selected_provider.value}: {e}")
-            
+
             # Try fallback
             if self.admin_settings["fallback_enabled"]:
                 fallback_provider = await self._get_fallback_model(selected_provider)
@@ -197,9 +208,54 @@ class AIModelManager:
                         return opening_line
                     except Exception as e:
                         self.logger.warning(f"Fallback opening line generation failed: {e}")
-            
+
             # Final fallback
             return f"Hello! I'm {character.name}. {character.backstory[:100] if character.backstory else 'Nice to meet you!'}..."
+
+    async def generate_character_state_seed(
+        self,
+        character: Character,
+        user: Optional[User] = None,
+    ) -> Dict[str, str]:
+        """Generate per-character default state template."""
+
+        safe_mode = (character.nsfw_level or 0) == 0
+        selected_provider = await self._select_model(user, character)
+
+        async def _invoke(provider: ModelProvider) -> Dict[str, str]:
+            service = self.services.get(provider)
+            if service and hasattr(service, "generate_state_seed"):
+                return await service.generate_state_seed(character, safe_mode=safe_mode)
+            return {}
+
+        if not selected_provider:
+            return {}
+
+        try:
+            state_seed = await _invoke(selected_provider)
+            if state_seed:
+                self.logger.info(
+                    "✅ State seed generated using %s", self.services[selected_provider].service_name
+                )
+                return state_seed
+        except Exception as exc:
+            self.logger.error("❌ Error generating state seed with %s: %s", selected_provider.value, exc)
+
+        if self.admin_settings["fallback_enabled"]:
+            fallback_provider = await self._get_fallback_model(selected_provider)
+            if fallback_provider and fallback_provider in self.services:
+                try:
+                    state_seed = await _invoke(fallback_provider)
+                    if state_seed:
+                        self.logger.info(
+                            "✅ Fallback state seed generated using %s",
+                            self.services[fallback_provider].service_name,
+                        )
+                        return state_seed
+                except Exception as exc:
+                    self.logger.warning("Fallback state seed generation failed: %s", exc)
+
+        return {}
     
     async def _select_model(
         self,

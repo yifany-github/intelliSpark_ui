@@ -14,11 +14,12 @@ Features:
 """
 
 from typing import Dict, Any, List, Optional
+import json
 import logging
 
 # Import multi-model manager
 from .ai_model_manager import get_ai_model_manager
-from ..gemini_service import GeminiService  # Fallback compatibility
+from .gemini_service_new import GeminiService  # Simplified service (Issue #129)
 
 
 class AIServiceError(Exception):
@@ -33,6 +34,25 @@ class AIService:
         self.logger = logging.getLogger(__name__)
         self._ai_manager = None
         self._fallback_service = None  # Fallback to old GeminiService if needed
+
+    def log_opening_line_usage(
+        self,
+        *,
+        character_id: Optional[int],
+        character_name: Optional[str],
+        chat_id: Optional[int],
+        reused: bool,
+    ) -> None:
+        """Emit structured log for opening-line generation vs reuse."""
+
+        status = "reused" if reused else "generated"
+        self.logger.info(
+            "analytics.opening_line.%s | character_id=%s chat_id=%s character_name=%s",
+            status,
+            character_id if character_id is not None else "unknown",
+            chat_id if chat_id is not None else "unknown",
+            character_name or "unknown",
+        )
         
     async def _get_ai_manager(self):
         """Get initialized AI model manager"""
@@ -76,7 +96,8 @@ class AIService:
         character_prompt: str,
         conversation_history: List[Dict[str, Any]],
         user_message: str,
-        user_preferences: Optional[Dict[str, Any]] = None
+        user_preferences: Optional[Dict[str, Any]] = None,
+        state: Optional[Dict[str, str]] = None,
     ) -> Dict[str, Any]:
         """
         Generate AI response for chat conversation
@@ -93,11 +114,14 @@ class AIService:
         """
         # TODO: Implement chat response generation using Gemini service
         # This will be implemented in Phase 2
+        state_context = json.dumps(state, ensure_ascii=False) if state else None
+
         return {
             'response': f"[{character_name}]: This is a placeholder response.",
             'tokens_used': 1,
             'model': 'gemini-pro',
-            'success': True
+            'success': True,
+            'state_context': state_context,
         }
     
     async def generate_opening_line(

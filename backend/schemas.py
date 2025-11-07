@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, validator
 import bleach
-from typing import List, Dict, Optional, Any, Union
+from typing import List, Dict, Optional, Any, Union, Set
 from datetime import datetime
 from uuid import UUID
 
@@ -118,6 +118,8 @@ class Character(CharacterBase):
     createdBy: Optional[int] = Field(default=None, alias="created_by")
     createdByUsername: Optional[str] = Field(default=None, alias="created_by_username")
     createdAt: datetime = Field(alias="created_at")  # Map database field to frontend field
+    openingLine: Optional[str] = Field(default=None, alias="opening_line")
+    defaultState: Optional[Dict[str, str]] = Field(default=None, alias="default_state_json")
 
     # Admin management and analytics fields
     isFeatured: bool = Field(default=False, alias="is_featured")
@@ -132,6 +134,21 @@ class Character(CharacterBase):
     deletedAt: Optional[datetime] = Field(default=None, alias="deleted_at")
     deletedBy: Optional[int] = Field(default=None, alias="deleted_by")
     deleteReason: Optional[str] = Field(default=None, alias="delete_reason")
+
+    @validator("defaultState", pre=True)
+    def parse_default_state(cls, value):
+        if value is None:
+            return None
+        if isinstance(value, dict):
+            return value
+        try:
+            import json
+            parsed = json.loads(value)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            pass
+        return None
 
 # Chat schemas
 class ChatBase(BaseSchema):
@@ -150,6 +167,46 @@ class Chat(ChatBase):
     idempotency_key: Optional[str] = Field(default=None, alias="idempotency_key")
     created_at: datetime
     updated_at: datetime
+
+
+ALLOWED_STATE_KEYS: Set[str] = {
+    "胸部",
+    "下体",
+    "衣服",
+    "姿势",
+    "情绪",
+    "环境",
+    "衣着",
+    "仪态",
+    "动作",
+    "语气",
+}
+
+
+class ChatState(BaseSchema):
+    chat_id: int
+    state: Dict[str, str]
+    updated_at: datetime
+
+    @validator("state")
+    def validate_state(cls, value: Dict[str, str]) -> Dict[str, str]:
+        invalid_keys = set(value.keys()) - ALLOWED_STATE_KEYS
+        if invalid_keys:
+            raise ValueError(f"Invalid state keys: {', '.join(sorted(invalid_keys))}")
+        return {k: v for k, v in value.items() if v is not None}
+
+
+class ChatStateUpdate(BaseSchema):
+    state_update: Dict[str, str] = Field(..., alias="state_update")
+
+    @validator("state_update")
+    def validate_update(cls, value: Dict[str, str]) -> Dict[str, str]:
+        if not value:
+            raise ValueError("state_update cannot be empty")
+        invalid_keys = set(value.keys()) - ALLOWED_STATE_KEYS
+        if invalid_keys:
+            raise ValueError(f"Invalid state keys: {', '.join(sorted(invalid_keys))}")
+        return {k: v for k, v in value.items() if v is not None}
 
 # Enriched chat for API responses (includes character info)
 class EnrichedChat(BaseSchema):
@@ -193,6 +250,7 @@ class ChatMessage(ChatMessageBase):
     id: int
     uuid: Optional[UUID] = None  # UUID field for new security model
     timestamp: datetime
+    stateSnapshot: Optional[Dict[str, str]] = Field(default=None, alias="state_snapshot")
 
 # API response schemas
 class MessageResponse(BaseSchema):

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
@@ -25,6 +26,7 @@ from .ai_model_manager import get_ai_model_manager
 from .circuit_breaker import BreakerState, CircuitBreaker
 from .telemetry import log_chat_generation_attempt
 from ..utils.character_utils import ensure_avatar_url
+from .character_state_manager import CharacterStateManager
 
 
 class ChatServiceError(Exception):
@@ -50,6 +52,7 @@ class ChatService:
         "chat_not_found": "chat.error.notFound",
         "user_not_found": "chat.error.userNotFound",
         "character_not_found": "chat.error.characterNotFound",
+        "state_invalid": "chat.error.stateInvalid",
         "unknown": "chat.error.unknown",
     }
 
@@ -58,6 +61,28 @@ class ChatService:
         self.db = db
         self.logger = logging.getLogger(__name__)
         self.ai_service = AIService()
+        self.state_manager = CharacterStateManager(db)
+
+    @staticmethod
+    def _serialize_state_snapshot(state: Optional[Dict[str, str]]) -> Optional[str]:
+        if not state:
+            return None
+        try:
+            return json.dumps(state, ensure_ascii=False)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _deserialize_state_snapshot(state_json: Optional[str]) -> Optional[Dict[str, str]]:
+        if not state_json:
+            return None
+        try:
+            parsed = json.loads(state_json)
+            if isinstance(parsed, dict):
+                return parsed
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return None
+        return None
 
     async def get_user_chats(self, user_id: int, character_id: Optional[int] = None, idempotency_key: Optional[str] = None) -> List[Dict[str, Any]]:
         try:
@@ -273,6 +298,10 @@ class ChatService:
             await self.db.commit()
             await self.db.refresh(chat)
 
+            # Seed persistent state for the chat
+            await self.state_manager.initialize_state(chat.id, character)
+            await self.db.commit()
+
             if not chat.uuid:
                 chat.uuid = uuid.uuid4()
                 await self.db.commit()
@@ -287,6 +316,7 @@ class ChatService:
             return False, None, f"Chat creation failed: {exc}", False
 
     async def generate_opening_line_async(self, chat_id: int, character_id: int) -> None:
+        session: Optional[AsyncSession] = None
         try:
             async with AsyncSessionLocal() as session:
                 chat = await session.get(Chat, chat_id)
@@ -299,8 +329,27 @@ class ChatService:
                     self.logger.error("Character %s not found for opening line generation", character_id)
                     return
 
-                ai_manager = await get_ai_model_manager()
-                opening_line = await ai_manager.generate_opening_line(character)
+                existing_assistant = await session.execute(
+                    select(func.count())
+                    .select_from(ChatMessage)
+                    .where(ChatMessage.chat_id == chat_id, ChatMessage.role == "assistant")
+                )
+                if existing_assistant.scalar() > 0:
+                    self.logger.info("Skipping opening line for chat %s; assistant message already exists", chat_id)
+                    return
+
+                state_manager = CharacterStateManager(session)
+                state = await state_manager.initialize_state(chat_id, character)
+
+                reused = bool(character.opening_line and character.opening_line.strip())
+                if reused:
+                    opening_line = character.opening_line
+                else:
+                    ai_manager = await get_ai_model_manager()
+                    opening_line = await ai_manager.generate_opening_line(character)
+                    if not opening_line or not opening_line.strip():
+                        opening_line = f"你好，我是{character.name}，很高兴认识你。"
+                    character.opening_line = opening_line
 
                 session.add(
                     ChatMessage(
@@ -309,13 +358,30 @@ class ChatService:
                         user_id=chat.user_id,
                         role="assistant",
                         content=opening_line,
+                        state_snapshot=self._serialize_state_snapshot(state),
                     )
                 )
+                if not reused:
+                    session.add(character)
                 await session.commit()
 
-                self.logger.info("Background opening line created for chat %s", chat_id)
+                self.ai_service.log_opening_line_usage(
+                    character_id=character.id,
+                    character_name=character.name,
+                    chat_id=chat.id,
+                    reused=reused,
+                )
+
+                self.logger.info(
+                    "Background opening line %s for chat %s", "reused" if reused else "generated", chat_id
+                )
 
         except Exception as exc:
+            if session is not None:
+                try:
+                    await session.rollback()
+                except Exception:
+                    pass
             self.logger.error("Background opening line generation failed for chat %s: %s", chat_id, exc)
 
     async def generate_ai_response(
@@ -344,6 +410,8 @@ class ChatService:
         character = await self.db.get(Character, chat.character_id)
         if not character:
             return False, self._error_payload("character_not_found"), "Character not found"
+
+        state = await self.state_manager.initialize_state(chat.id, character)
 
         msg_stmt = (
             select(ChatMessage)
@@ -402,18 +470,55 @@ class ChatService:
                     character=character,
                     messages=messages,
                     user=user_obj,
+                    state=state,
                 )
 
-                message_model = ChatMessage(
-                    chat_id=chat_id,
-                    chat_uuid=chat_uuid_value,
-                    user_id=user_id,
-                    role="assistant",
-                    content=response_content,
-                )
-                self.db.add(message_model)
-                await self.db.commit()
-                await self.db.refresh(message_model)
+                state_update = token_info.pop("state_update", {}) if token_info else {}
+
+                try:
+                    if state_update:
+                        state = await self.state_manager.update_state(chat.id, state_update)
+                    state_json = self._serialize_state_snapshot(state)
+
+                    message_model = ChatMessage(
+                        chat_id=chat_id,
+                        chat_uuid=chat_uuid_value,
+                        user_id=user_id,
+                        role="assistant",
+                        content=response_content,
+                        state_snapshot=state_json,
+                    )
+                    self.db.add(message_model)
+                    await self.db.commit()
+                    await self.db.refresh(message_model)
+
+                except ValueError as exc:
+                    await self.db.rollback()
+                    latency_ms = (time.perf_counter() - start) * 1000
+                    breaker_status = await self.BREAKER.after_success(breaker_key)
+
+                    payload = self._error_payload("state_invalid")
+                    payload["detail"] = str(exc)
+                    retry_meta = self._retry_meta(
+                        attempts=attempt,
+                        breaker_state=breaker_status.state,
+                    )
+
+                    self.logger.warning("Invalid state update for chat %s: %s", chat.id, exc)
+                    log_chat_generation_attempt(
+                        chat_id=chat_id,
+                        chat_uuid=chat_uuid_str,
+                        user_id=user_id,
+                        character_id=chat_character_id,
+                        breaker_state=breaker_status.state.value,
+                        attempt=attempt,
+                        max_attempts=self.MAX_GENERATION_ATTEMPTS,
+                        latency_ms=latency_ms,
+                        result="failure",
+                        error_code="state_invalid",
+                    )
+                    payload["retryMeta"] = retry_meta
+                    return False, payload, str(exc)
 
                 deduction_description = (
                     f"AI response generation for chat {chat_id} (Input: {token_info.get('input_tokens', 0)}, "
@@ -451,6 +556,7 @@ class ChatService:
                     "role": message_model.role,
                     "content": message_model.content,
                     "timestamp": message_model.timestamp.isoformat() + "Z" if message_model.timestamp else None,
+                    "state_snapshot": state,
                 }
 
                 retry_meta = self._retry_meta(
@@ -599,8 +705,52 @@ class ChatService:
             if not character:
                 return False, {}, "Character not found"
 
-            ai_manager = await get_ai_model_manager()
-            opening_line = await ai_manager.generate_opening_line(character)
+            state = await self.state_manager.initialize_state(chat.id, character)
+
+            existing_opening = (
+                await self.db.execute(
+                    select(ChatMessage)
+                    .where(ChatMessage.chat_id == chat_id, ChatMessage.role == "assistant")
+                    .order_by(ChatMessage.id)
+                )
+            ).scalars().first()
+            if existing_opening:
+                existing_state = self._deserialize_state_snapshot(existing_opening.state_snapshot) or state
+                keys_to_use = (
+                    CharacterStateManager.SAFE_KEYS
+                    if getattr(character, "nsfw_level", 0) == 0
+                    else CharacterStateManager.NSFW_KEYS
+                )
+                if existing_state:
+                    existing_state = {
+                        key: value
+                        for key, value in existing_state.items()
+                        if key in keys_to_use and isinstance(value, str) and value.strip()
+                    }
+                    # Fall back to sanitized state if legacy snapshot was empty after filtering
+                    if not existing_state:
+                        existing_state = state
+                message_payload = {
+                    "id": existing_opening.id,
+                    "chat_id": existing_opening.chat_id,
+                    "role": existing_opening.role,
+                    "content": existing_opening.content,
+                    "timestamp": existing_opening.timestamp.isoformat() + "Z" if existing_opening.timestamp else None,
+                    "state_snapshot": existing_state,
+                }
+                return True, {"message": message_payload}, None
+
+            reused = bool(character.opening_line and character.opening_line.strip())
+            if reused:
+                opening_line = character.opening_line
+            else:
+                ai_manager = await get_ai_model_manager()
+                opening_line = await ai_manager.generate_opening_line(character)
+                if not opening_line or not opening_line.strip():
+                    opening_line = f"你好，我是{character.name}，很高兴认识你。"
+                character.opening_line = opening_line
+
+            opening_state_json = self._serialize_state_snapshot(state)
 
             opening_message = ChatMessage(
                 chat_id=chat_id,
@@ -608,8 +758,11 @@ class ChatService:
                 user_id=user_id,
                 role="assistant",
                 content=opening_line,
+                state_snapshot=opening_state_json,
             )
             self.db.add(opening_message)
+            if not reused:
+                self.db.add(character)
             await self.db.commit()
             await self.db.refresh(opening_message)
 
@@ -619,9 +772,20 @@ class ChatService:
                 "role": opening_message.role,
                 "content": opening_message.content,
                 "timestamp": opening_message.timestamp.isoformat() + "Z" if opening_message.timestamp else None,
+                "state_snapshot": state,
             }
 
-            self.logger.info("Opening line generated for chat %s", chat_id)
+            self.ai_service.log_opening_line_usage(
+                character_id=character.id,
+                character_name=character.name,
+                chat_id=chat.id,
+                reused=reused,
+            )
+            self.logger.info(
+                "Opening line %s for chat %s",
+                "reused" if reused else "generated",
+                chat_id,
+            )
             return True, message_payload, None
 
         except Exception as exc:

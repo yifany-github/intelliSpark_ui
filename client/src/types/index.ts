@@ -41,6 +41,7 @@ export interface Character {
   trendingScore?: number;
   lastActivity?: string;
   isFavorite?: boolean;
+  openingLine?: string;
 }
 
 export interface Chat {
@@ -63,6 +64,7 @@ export interface ChatMessage {
   timestamp?: string;
   createdAt: string;
   updatedAt: string;
+  stateSnapshot?: Record<string, string>;
 }
 
 export interface ChatGenerationRetryMeta {

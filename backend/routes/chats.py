@@ -17,6 +17,7 @@ Routes:
 """
 
 import asyncio
+from sqlalchemy import select
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -67,9 +68,12 @@ from schemas import (
     ChatMessage as ChatMessageSchema,
     ChatMessageCreate,
     ChatGenerationSuccess,
-    MessageResponse
+    MessageResponse,
+    ChatState,
+    ChatStateUpdate,
 )
-from models import User
+from models import User, Chat, Character, CharacterChatState
+from backend.services.character_state_manager import CharacterStateManager
 
 # Create router with prefix and tags
 router = APIRouter(prefix="/chats", tags=["chats"])
@@ -84,6 +88,7 @@ ERROR_STATUS_BY_CODE = {
     "chat_not_found": 404,
     "user_not_found": 404,
     "character_not_found": 404,
+    "state_invalid": 400,
     "unknown": 500,
 }
 
@@ -329,6 +334,88 @@ async def generate_opening_line(
         return message
     except ChatServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{chat_id}/state", response_model=ChatState)
+async def get_chat_state(
+    chat_id: str,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    is_uuid, parsed_id = parse_chat_identifier(chat_id)
+
+    stmt = select(Chat).where(Chat.user_id == current_user.id)
+    if is_uuid:
+        stmt = stmt.where(Chat.uuid == parsed_id)
+    else:
+        stmt = stmt.where(Chat.id == parsed_id)
+
+    chat = (await db.execute(stmt)).scalars().first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    manager = CharacterStateManager(db)
+    character = await db.get(Character, chat.character_id)
+
+    try:
+        state = await manager.initialize_state(chat.id, character)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        raise
+
+    state_row = (
+        await db.execute(
+            select(CharacterChatState).where(CharacterChatState.chat_id == chat.id)
+        )
+    ).scalars().first()
+    updated_at = (
+        state_row.updated_at.isoformat() + "Z" if state_row and state_row.updated_at else None
+    )
+
+    return {"chat_id": chat.id, "state": state, "updated_at": updated_at}
+
+
+@router.post("/{chat_id}/state", response_model=ChatState)
+async def update_chat_state(
+    chat_id: str,
+    payload: ChatStateUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: User = Depends(get_current_user),
+):
+    is_uuid, parsed_id = parse_chat_identifier(chat_id)
+
+    stmt = select(Chat).where(Chat.user_id == current_user.id)
+    if is_uuid:
+        stmt = stmt.where(Chat.uuid == parsed_id)
+    else:
+        stmt = stmt.where(Chat.id == parsed_id)
+
+    chat = (await db.execute(stmt)).scalars().first()
+    if not chat:
+        raise HTTPException(status_code=404, detail="Chat not found")
+
+    manager = CharacterStateManager(db)
+    try:
+        state = await manager.update_state(chat.id, payload.state_update)
+        await db.commit()
+    except ValueError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        await db.rollback()
+        raise
+
+    state_row = (
+        await db.execute(
+            select(CharacterChatState).where(CharacterChatState.chat_id == chat.id)
+        )
+    ).scalars().first()
+    updated_at = (
+        state_row.updated_at.isoformat() + "Z" if state_row and state_row.updated_at else None
+    )
+
+    return {"chat_id": chat.id, "state": state, "updated_at": updated_at}
 
 
 @router.delete("", response_model=MessageResponse)

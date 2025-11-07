@@ -2,15 +2,17 @@
 
 from __future__ import annotations
 
+import json
 import logging
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Sequence
 from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models import Chat, ChatMessage
+from models import Chat, ChatMessage, Character
 from schemas import ChatMessageCreate
+from .character_state_manager import CharacterStateManager
 
 
 class MessageServiceError(Exception):
@@ -23,6 +25,36 @@ class MessageService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.logger = logging.getLogger(__name__)
+
+    @staticmethod
+    def _deserialize_state_snapshot(state_json: Optional[str]) -> Optional[Dict[str, str]]:
+        if not state_json:
+            return None
+        try:
+            parsed = json.loads(state_json)
+            if isinstance(parsed, dict):
+                return parsed
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return None
+        return None
+
+    @staticmethod
+    def _filter_snapshot_keys(
+        snapshot: Optional[Dict[str, str]],
+        keys_to_use: Sequence[str],
+    ) -> Optional[Dict[str, str]]:
+        if not snapshot:
+            return None
+
+        filtered: Dict[str, str] = {}
+        for key in keys_to_use:
+            value = snapshot.get(key)
+            if isinstance(value, str):
+                trimmed = value.strip()
+                if trimmed:
+                    filtered[key] = trimmed
+
+        return filtered if filtered else None
 
     def _validate_uuid_format(self, uuid_value: UUID) -> None:
         if not isinstance(uuid_value, UUID):
@@ -48,7 +80,13 @@ class MessageService:
         offset: Optional[int] = None,
     ) -> List[Dict[str, Any]]:
         try:
-            await self._ensure_chat_access(chat_id, user_id)
+            chat = await self._ensure_chat_access(chat_id, user_id)
+            character = await self.db.get(Character, chat.character_id) if chat else None
+            keys_to_use = (
+                CharacterStateManager.SAFE_KEYS
+                if character is not None and getattr(character, "nsfw_level", 0) == 0
+                else CharacterStateManager.NSFW_KEYS
+            )
 
             stmt = select(ChatMessage).where(ChatMessage.chat_id == chat_id).order_by(ChatMessage.id)
             if offset:
@@ -65,6 +103,10 @@ class MessageService:
                     "role": message.role,
                     "content": message.content,
                     "timestamp": message.timestamp.isoformat() + "Z" if message.timestamp else None,
+                    "state_snapshot": self._filter_snapshot_keys(
+                        self._deserialize_state_snapshot(message.state_snapshot),
+                        keys_to_use,
+                    ),
                 }
                 for message in messages
             ]
@@ -102,6 +144,7 @@ class MessageService:
                 "role": message.role,
                 "content": message.content,
                 "timestamp": message.timestamp.isoformat() + "Z" if message.timestamp else None,
+                "state_snapshot": self._deserialize_state_snapshot(message.state_snapshot),
             }
 
             self.logger.info("Message created successfully: %s in chat %s", message.id, chat_id)

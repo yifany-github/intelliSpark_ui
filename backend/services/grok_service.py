@@ -14,15 +14,18 @@ Features:
 API Documentation: https://docs.x.ai/api
 """
 
+import asyncio
+import json
+import logging
+import re
+from typing import Any, Dict, List, Optional, Tuple
+
 import openai  # xAI uses OpenAI-compatible API
-from typing import List, Dict, Any, Optional, Tuple
+
 from models import Character, ChatMessage
-from .ai_service_base import AIServiceBase, AIServiceError
 from prompts.system import SYSTEM_PROMPT
 from utils.prompt_selector import select_system_prompt
-from prompts.character_templates import OPENING_LINE_TEMPLATE
-import logging
-import asyncio
+from .ai_service_base import AIServiceBase, AIServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +90,8 @@ class GrokService(AIServiceBase):
         self,
         character: Character,
         messages: List[ChatMessage],
-        user_preferences: Optional[dict] = None
+        user_preferences: Optional[dict] = None,
+        state: Optional[Dict[str, str]] = None,
     ) -> Tuple[str, Dict[str, Any]]:
         """Generate AI response using Grok"""
         
@@ -112,7 +116,7 @@ class GrokService(AIServiceBase):
             managed_messages = self._manage_conversation_length(messages)
             
             # Build messages for Grok API
-            grok_messages = self._build_grok_messages(character_prompt, managed_messages, character)
+            grok_messages = self._build_grok_messages(character_prompt, managed_messages, character, state)
             
             # Apply user preferences
             generation_config = self._build_generation_config(user_preferences)
@@ -125,7 +129,8 @@ class GrokService(AIServiceBase):
             )
             
             if response and response.choices and response.choices[0].message:
-                response_text = response.choices[0].message.content.strip()
+                raw_text = response.choices[0].message.content.strip()
+                response_text, state_update = self._extract_state_update(raw_text)
                 
                 # Calculate token usage
                 token_info = {
@@ -133,6 +138,8 @@ class GrokService(AIServiceBase):
                     "output_tokens": response.usage.completion_tokens if response.usage else 0,
                     "total_tokens": response.usage.total_tokens if response.usage else 0
                 }
+                if state_update:
+                    token_info["state_update"] = state_update
                 
                 self.logger.info(f"✅ Grok response generated: {token_info['total_tokens']} tokens")
                 return response_text, token_info
@@ -188,7 +195,8 @@ class GrokService(AIServiceBase):
         self, 
         character_prompt: dict, 
         messages: List[ChatMessage], 
-        character: Optional[Character]
+        character: Optional[Character],
+        state: Optional[Dict[str, str]] = None,
     ) -> List[Dict[str, str]]:
         """
         Build message format for Grok API
@@ -206,6 +214,14 @@ class GrokService(AIServiceBase):
         # Add system message with character context
         system_message = self._build_system_message(character_prompt, character)
         grok_messages.append({"role": "system", "content": system_message})
+
+        if state:
+            try:
+                state_json = json.dumps(state, ensure_ascii=False)
+            except (TypeError, ValueError):
+                state_json = ""
+            if state_json:
+                grok_messages.append({"role": "system", "content": f"[当前状态: {state_json}]"})
         
         # Add few-shot examples as conversation history
         few_shot_contents = character_prompt.get("few_shot_contents", [])
@@ -303,13 +319,32 @@ Grok AI Instructions:
                     messages.append({"role": current_role, "content": '\n'.join(current_content)})
                 current_role = "assistant"
                 current_content = [line.split(':', 1)[1].strip()]
-            else:
-                if current_content:
-                    current_content.append(line)
+        else:
+            if current_content:
+                current_content.append(line)
         
         # Add final message
         if current_role and current_content:
             messages.append({"role": current_role, "content": '\n'.join(current_content)})
+
+    def _extract_state_update(self, response_text: str) -> Tuple[str, Dict[str, str]]:
+        pattern = r"\[\[STATE_UPDATE\]\](?P<json>{.*?})\[\[/STATE_UPDATE\]\]"
+        match = re.search(pattern, response_text, re.DOTALL)
+        if not match:
+            return response_text, {}
+
+        raw_block = match.group(0)
+        raw_json = match.group("json")
+        try:
+            state_update = json.loads(raw_json)
+            if not isinstance(state_update, dict):
+                state_update = {}
+        except json.JSONDecodeError:
+            self.logger.warning("⚠️ Failed to parse Grok state update block: %s", raw_json)
+            state_update = {}
+
+        cleaned = response_text.replace(raw_block, "").strip()
+        return cleaned, state_update
     
     def _build_generation_config(self, user_preferences: Optional[dict]) -> dict:
         """
