@@ -9,8 +9,13 @@ from typing import Dict, Optional, Sequence
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..models import Character, CharacterChatState, Chat
-from .ai_model_manager import get_ai_model_manager
+try:
+    from ..models import Character, CharacterChatState, Chat
+    from .ai_model_manager import get_ai_model_manager
+except ImportError:
+    # Fallback for script execution
+    from models import Character, CharacterChatState, Chat
+    from services.ai_model_manager import get_ai_model_manager
 
 
 class CharacterStateManager:

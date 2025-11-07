@@ -54,7 +54,7 @@ class AIModelManager:
         self.last_health_check: Dict[ModelProvider, datetime] = {}
         self.admin_settings = {
             "enabled_models": [ModelProvider.GEMINI, ModelProvider.GROK],
-            "default_model": ModelProvider.GROK,
+            "default_model": ModelProvider.GEMINI,
             "fallback_enabled": True,
             "health_check_interval": 300  # 5 minutes
         }
