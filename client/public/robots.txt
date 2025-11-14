@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+
+# Disallow admin and API paths
+Disallow: /admin/
+Disallow: /api/
+Disallow: /assets/private/
+
+# Sitemap location
+Sitemap: https://yychat.com/sitemap.xml
