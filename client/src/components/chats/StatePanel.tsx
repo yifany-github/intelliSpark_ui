@@ -1,6 +1,5 @@
-import { useMemo, useState } from "react";
-import { ChevronDown, Sparkles } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useMemo } from "react";
+import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // State value can be either a string (legacy) or an object with value and description
@@ -12,7 +11,6 @@ type StateValue = string | {
 interface StatePanelProps {
   state: Record<string, StateValue>;
   className?: string;
-  defaultOpen?: boolean;
 }
 
 const PRIMARY_KEYS = ["胸部", "下体", "衣服", "姿势", "情绪", "环境"];
@@ -112,33 +110,35 @@ const ACCENTS = [
   },
 ];
 
-export const StatePanel = ({ state, className, defaultOpen = false }: StatePanelProps) => {
-  const [open, setOpen] = useState(defaultOpen);
-
-  // DEBUG: Log incoming state
-  console.log('[StatePanel] Received state:', state);
-  console.log('[StatePanel] State keys:', Object.keys(state));
-  console.log('[StatePanel] State entries:', Object.entries(state).map(([k, v]) => `${k}: ${typeof v}`));
-
+export const StatePanel = ({ state, className }: StatePanelProps) => {
   const orderedEntries = useMemo(() => {
     const entries = Object.entries(state).filter(([, value]) => {
       if (typeof value === 'string') return value.trim().length > 0;
       return value && ('value' in value || 'description' in value);
     });
 
-    console.log('[StatePanel] Filtered entries:', entries.map(([k]) => k));
+    // 分离量化和描述性状态
+    const quantified = entries.filter(([, value]) =>
+      typeof value === 'object' && value !== null && 'value' in value
+    );
+    const descriptive = entries.filter(([, value]) =>
+      typeof value === 'string'
+    );
 
-    entries.sort((a, b) => {
+    // 分别排序
+    const sortByOrder = (a: [string, any], b: [string, any]) => {
       const aIndex = KEY_ORDER.indexOf(a[0]);
       const bIndex = KEY_ORDER.indexOf(b[0]);
       const safeA = aIndex === -1 ? KEY_ORDER.length + 1 : aIndex;
       const safeB = bIndex === -1 ? KEY_ORDER.length + 1 : bIndex;
       return safeA - safeB;
-    });
+    };
 
-    console.log('[StatePanel] Ordered entries:', entries.map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`));
+    quantified.sort(sortByOrder);
+    descriptive.sort(sortByOrder);
 
-    return entries;
+    // 量化状态优先
+    return [...quantified, ...descriptive];
   }, [state]);
 
   // Removed confusing preview text - just show "状态面板" label
@@ -148,36 +148,15 @@ export const StatePanel = ({ state, className, defaultOpen = false }: StatePanel
   }
 
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={setOpen}
-      className={cn(
-        "rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 via-white/5 to-transparent px-3 py-3 backdrop-blur-md",
-        "shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_30px_rgba(0,0,0,0.18)]",
-        className,
-      )}
-    >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-white/80">
-          <Sparkles className="h-3 w-3 text-pink-200" />
-          状态面板
-        </div>
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2 py-1 text-[11px] font-medium text-white/80 transition hover:bg-white/20"
-          >
-            {open ? "收起" : "展开"}
-            <ChevronDown
-              className={cn(
-                "h-3 w-3 transition-transform",
-                open ? "rotate-180" : "",
-              )}
-            />
-          </button>
-        </CollapsibleTrigger>
+    <div className={cn("space-y-3", className)}>
+      {/* Simple title */}
+      <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-white/60">
+        <Sparkles className="h-3.5 w-3.5 text-pink-300" />
+        <span>角色状态</span>
       </div>
-      <CollapsibleContent className="mt-4 grid gap-3 sm:grid-cols-2">
+
+      {/* Simplified state cards */}
+      <div className="space-y-2.5">
         {orderedEntries.map(([key, value], index) => {
           const accent = ACCENTS[index % ACCENTS.length];
           const quantified = isQuantified(value);
@@ -188,24 +167,18 @@ export const StatePanel = ({ state, className, defaultOpen = false }: StatePanel
           return (
             <div
               key={key}
-              className={cn("relative overflow-hidden rounded-3xl border border-white/12 bg-white/10 px-4 py-4 backdrop-blur-xl transition hover:border-white/18", accent.glow)}
+              className="relative rounded-xl border border-white/8 bg-white/5 px-3.5 py-3 backdrop-blur-sm transition hover:bg-white/8"
             >
-              <div
-                className={cn(
-                  "pointer-events-none absolute inset-px rounded-[26px] bg-gradient-to-br opacity-80 blur-sm",
-                  accent.beam,
-                )}
-                aria-hidden
-              />
-              <div className="flex items-center justify-between gap-2 mb-1">
+              {/* Header with name and value */}
+              <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <span className={cn("relative inline-flex h-2 w-2 rounded-full", accent.icon)} aria-hidden />
-                  <span className={cn("relative text-[13px] font-bold uppercase tracking-[0.22em] text-white", accent.label)}>
+                  <span className={cn("inline-flex h-1.5 w-1.5 rounded-full", accent.icon)} />
+                  <span className={cn("text-xs font-semibold", accent.label)}>
                     {key}
                   </span>
                 </div>
                 {displayValue !== null && progressColor && (
-                  <span className={cn("relative text-[13px] font-bold tabular-nums px-2 py-0.5 rounded-full", progressColor.bg, progressColor.text)}>
+                  <span className={cn("text-xs font-bold tabular-nums", progressColor.text)}>
                     {displayValue}/10
                   </span>
                 )}
@@ -213,8 +186,8 @@ export const StatePanel = ({ state, className, defaultOpen = false }: StatePanel
 
               {/* Progress bar for quantified states */}
               {displayValue !== null && progressColor && (
-                <div className="relative mb-3">
-                  <div className={cn("h-2 rounded-full overflow-hidden", progressColor.bg)}>
+                <div className="mb-2.5">
+                  <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
                     <div
                       className={cn("h-full rounded-full transition-all duration-500 ease-out", progressColor.bar)}
                       style={{ width: `${(displayValue / 10) * 100}%` }}
@@ -223,16 +196,17 @@ export const StatePanel = ({ state, className, defaultOpen = false }: StatePanel
                 </div>
               )}
 
+              {/* Description */}
               {description && (
-                <p className="relative whitespace-pre-wrap text-[15px] leading-7 text-white/95">
+                <p className="text-[13px] leading-relaxed text-white/85">
                   {description}
                 </p>
               )}
             </div>
           );
         })}
-      </CollapsibleContent>
-    </Collapsible>
+      </div>
+    </div>
   );
 };
 

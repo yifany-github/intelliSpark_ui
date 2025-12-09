@@ -18,7 +18,7 @@ import { invalidateTokenBalance } from "@/services/tokenService";
 import { queryClient } from "@/lib/queryClient";
 import { useRealtimeMessages } from "@/hooks/useRealtimeMessages";
 import { useChatGeneration } from "@/hooks/useChatGeneration";
-import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft, Sparkles, Filter, Pin, Trash2, Info } from "lucide-react";
+import { ChevronLeft, MoreVertical, Menu, X, Heart, Star, Share, Bookmark, ArrowLeft, Sparkles, Filter, Pin, Trash2, Info, ChevronDown } from "lucide-react";
 import {
   Sheet,
   SheetContent,
@@ -26,6 +26,12 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import StatePanel from "@/components/chats/StatePanel";
 import ImageWithFallback from "@/components/ui/ImageWithFallback";
 import { ImprovedTokenBalance } from "@/components/payment/ImprovedTokenBalance";
 import GlobalLayout from "@/components/layout/GlobalLayout";
@@ -53,6 +59,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   const [pinnedChatIds, setPinnedChatIds] = useState<number[]>([]);
   const [isBrowserMounted, setIsBrowserMounted] = useState(false);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
+  const [recentChatsOpen, setRecentChatsOpen] = useState(true); // 控制最近聊天列表折叠状态
 
   // If no chatId is provided, show chat list
   const showChatListOnly = !chatId;
@@ -176,13 +183,6 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     staleTime: 10_000,
   });
 
-  // DEBUG: Log remoteState
-  console.log('[remoteState]:', remoteState);
-  if (remoteState?.state) {
-    console.log('[remoteState.state] Keys:', Object.keys(remoteState.state));
-    console.log('[remoteState.state] Entries:', Object.entries(remoteState.state).map(([k, v]) => `${k}: ${typeof v}`));
-  }
-
   const displayMessages = useMemo<ChatMessage[]>(() => {
     if (!messages.length) {
       if (character?.openingLine) {
@@ -208,17 +208,27 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
   const extractStateSnapshot = (message: ChatMessage | (ChatMessage & { state_snapshot?: Record<string, string | { value: number; description: string }> })) => {
     const snapshot = (message as any)?.stateSnapshot ?? (message as any)?.state_snapshot;
-    console.log(`[extractStateSnapshot] Message ${message.id}:`, {
-      hasStateSnapshot: !!(message as any)?.stateSnapshot,
-      hasState_snapshot: !!(message as any)?.state_snapshot,
-      snapshotKeys: snapshot ? Object.keys(snapshot) : null,
-      snapshotValues: snapshot ? Object.entries(snapshot).map(([k, v]) => `${k}: ${typeof v}`) : null,
-    });
     if (snapshot && typeof snapshot === "object") {
       return snapshot as Record<string, string | { value: number; description: string }>;
     }
     return undefined;
   };
+
+  // Extract current state from latest assistant message for state panel
+  const currentState = useMemo(() => {
+    // Try to get state from latest assistant message first
+    for (let i = displayMessages.length - 1; i >= 0; i--) {
+      const message = displayMessages[i];
+      if (message.role === 'assistant') {
+        const snapshot = extractStateSnapshot(message);
+        if (snapshot && Object.keys(snapshot).length > 0) {
+          return snapshot;
+        }
+      }
+    }
+    // Fallback to remoteState if no state found in messages
+    return remoteState?.state && Object.keys(remoteState.state).length > 0 ? remoteState.state : undefined;
+  }, [displayMessages, remoteState?.state]);
 
   const generateQuickReplies = useCallback(() => {
     if (!character) return;
@@ -622,7 +632,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
               "hidden lg:flex lg:w-[19rem] xl:w-[20rem]"
             )}
           >
-          {/* Left sidebar header matching main chat header height */}
+          {/* Left sidebar header */}
           <div className="px-4 py-3 sm:py-4 border-b border-pink-500/10 flex-shrink-0">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -635,42 +645,57 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 </button>
                 <div>
                   <p className="text-xs uppercase tracking-wider text-gray-500">
-                    {t('recentChats')}
+                    {character?.name || t('chatDetails')}
                   </p>
                   <h2 className="text-base sm:text-lg font-semibold text-white">
-                    {t('chats')}
+                    {t('characterState')}
                   </h2>
                 </div>
               </div>
               <button
                 onClick={() => queryClient.invalidateQueries({ queryKey: ["/api/chats"] })}
                 className="p-2 rounded-full hover:bg-gray-700/70 transition-colors"
-                title={t('refreshChats')}
+                title={t('refreshState')}
               >
                 <Sparkles className="w-4 h-4" />
               </button>
             </div>
           </div>
 
-          {/* Search and filter section */}
-          <div className="px-4 pt-3 pb-3 border-b border-gray-700/60">
-            <div className="relative">
-              <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-              <Input
-                value={recentSearch}
-                onChange={(event) => setRecentSearch(event.target.value)}
-                placeholder={t('searchChatsPlaceholder')}
-                className="bg-gray-900/60 border-gray-700/70 text-sm pl-10 placeholder:text-gray-500 focus-visible:ring-brand-accent/70"
-              />
+          {/* Character State Panel - 可滚动区域 */}
+          {currentState && Object.keys(currentState).length > 0 && (
+            <div className="flex-1 overflow-y-auto scrollbar-thin px-4 py-4 border-b border-pink-500/10">
+              <StatePanel state={currentState} />
+            </div>
+          )}
+
+          {/* 可折叠的最近聊天列表 */}
+          <Collapsible open={recentChatsOpen} onOpenChange={setRecentChatsOpen} className="flex-shrink-0">
+            <div className="px-4 pt-3 pb-3 border-b border-gray-700/60 flex-shrink-0">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-white">{t('recentChats')}</h3>
+                <CollapsibleTrigger asChild>
+                  <button className="p-1.5 rounded-lg hover:bg-gray-700/70 transition-colors">
+                    <ChevronDown className={cn(
+                      "w-4 h-4 transition-transform duration-200",
+                      recentChatsOpen ? "" : "-rotate-90"
+                    )} />
+                  </button>
+                </CollapsibleTrigger>
+              </div>
+
+              <div className="relative">
+                <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <Input
+                  value={recentSearch}
+                  onChange={(event) => setRecentSearch(event.target.value)}
+                  placeholder={t('searchChatsPlaceholder')}
+                  className="bg-gray-900/60 border-gray-700/70 text-sm pl-10 placeholder:text-gray-500 focus-visible:ring-brand-accent/70"
+                />
+              </div>
             </div>
 
-            <div className="mt-3 flex items-center justify-between text-xs text-gray-400">
-              <span>{t('pinnedConversations')}</span>
-
-            </div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto scrollbar-thin">
+            <CollapsibleContent className="max-h-[300px] overflow-y-auto scrollbar-thin">
             {character && (
               <div className="px-4 pt-4">
                 <div className="rounded-2xl border-2 border-pink-400/60 bg-gradient-to-br from-pink-500/20 via-purple-500/20 to-indigo-500/20 p-3 shadow-lg backdrop-blur-sm">
@@ -827,7 +852,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 </div>
               )}
             </div>
-          </div>
+            </CollapsibleContent>
+          </Collapsible>
           </div>
 
           {/* Main Chat Area */}
@@ -965,13 +991,10 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
                         if (hasSnapshot) {
                           stateSnapshot = snapshot;
-                          console.log(`[Message ${message.id}] Using message snapshot:`, Object.keys(snapshot));
                         } else if (isAssistant && !isSynthetic) {
                           stateSnapshot = lastAssistantSnapshot;
-                          console.log(`[Message ${message.id}] Using lastAssistantSnapshot:`, lastAssistantSnapshot ? Object.keys(lastAssistantSnapshot) : 'undefined');
                         } else if (isSynthetic && remoteState?.state) {
                           stateSnapshot = remoteState.state;
-                          console.log(`[Message ${message.id}] Using remoteState:`, Object.keys(remoteState.state));
                         }
 
                         if (isAssistant && stateSnapshot) {

@@ -11,7 +11,6 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import ImageWithFallback from '@/components/ui/ImageWithFallback';
-import StatePanel from '@/components/chats/StatePanel';
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -217,12 +216,6 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate, stateSnapshot }: ChatBub
           />
           {isAI && isTyping && (
             <span className="inline-block w-1 h-4 ml-1 bg-pink-300 animate-pulse"></span>
-          )}
-          
-          {isAI && stateSnapshot && Object.keys(stateSnapshot).length > 0 && (
-            <div className="mt-4">
-              <StatePanel state={stateSnapshot} />
-            </div>
           )}
 
           {isAI && (
