@@ -83,7 +83,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
 
   type ChatStateResponse = {
     chat_id: number;
-    state: Record<string, string>;
+    state: Record<string, string | { value: number; description: string }>;
     updated_at: string | null;
   };
 
@@ -135,10 +135,10 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
     return messages;
   }, [messages, character?.openingLine, chat?.id, remoteState?.state]);
 
-  const extractStateSnapshot = (message: ChatMessage | (ChatMessage & { state_snapshot?: Record<string, string> })) => {
+  const extractStateSnapshot = (message: ChatMessage | (ChatMessage & { state_snapshot?: Record<string, string | { value: number; description: string }> })) => {
     const snapshot = (message as any)?.stateSnapshot ?? (message as any)?.state_snapshot;
     if (snapshot && typeof snapshot === "object") {
-      return snapshot as Record<string, string>;
+      return snapshot as Record<string, string | { value: number; description: string }>;
     }
     return undefined;
   };
@@ -892,7 +892,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
           </div>
         ) : (
           (() => {
-            let lastAssistantSnapshot: Record<string, string> | undefined =
+            let lastAssistantSnapshot: Record<string, string | { value: number; description: string }> | undefined =
               remoteState?.state && Object.keys(remoteState.state).length > 0 ? remoteState.state : undefined;
 
             return displayMessages.map((message) => {
@@ -900,7 +900,7 @@ const ChatsPage = ({ chatId }: ChatsPageProps) => {
               const isSynthetic = message.id === -1;
               const snapshot = extractStateSnapshot(message);
               const hasSnapshot = snapshot && Object.keys(snapshot).length > 0;
-              let stateSnapshot: Record<string, string> | undefined;
+              let stateSnapshot: Record<string, string | { value: number; description: string }> | undefined;
 
               if (hasSnapshot) {
                 stateSnapshot = snapshot;

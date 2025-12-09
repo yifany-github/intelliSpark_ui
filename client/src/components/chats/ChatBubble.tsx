@@ -17,7 +17,7 @@ interface ChatBubbleProps {
   message: ChatMessage;
   avatarUrl?: string;
   onRegenerate?: () => void;
-  stateSnapshot?: Record<string, string>;
+  stateSnapshot?: Record<string, string | { value: number; description: string }>;
 }
 
 const ChatBubble = ({ message, avatarUrl, onRegenerate, stateSnapshot }: ChatBubbleProps) => {

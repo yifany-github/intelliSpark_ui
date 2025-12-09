@@ -199,7 +199,7 @@ const ProfileEditModal = ({ isOpen, onClose }: ProfileEditModalProps) => {
           </DialogTitle>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto pr-2">
+        <form onSubmit={handleSubmit} className="space-y-6 max-h-[calc(100vh-200px)] overflow-y-auto scrollbar-hide">
           {/* Avatar Selection */}
           <div className="flex flex-col items-center gap-4">
             {/* Current Avatar Preview */}

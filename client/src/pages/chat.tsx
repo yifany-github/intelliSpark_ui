@@ -166,7 +166,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
   type ChatStateResponse = {
     chat_id: number;
-    state: Record<string, string>;
+    state: Record<string, string | { value: number; description: string }>;
     updated_at: string | null;
   };
 
@@ -175,6 +175,13 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     enabled: messagesEnabled,
     staleTime: 10_000,
   });
+
+  // DEBUG: Log remoteState
+  console.log('[remoteState]:', remoteState);
+  if (remoteState?.state) {
+    console.log('[remoteState.state] Keys:', Object.keys(remoteState.state));
+    console.log('[remoteState.state] Entries:', Object.entries(remoteState.state).map(([k, v]) => `${k}: ${typeof v}`));
+  }
 
   const displayMessages = useMemo<ChatMessage[]>(() => {
     if (!messages.length) {
@@ -199,10 +206,16 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     return messages;
   }, [messages, character?.openingLine, chat?.id, remoteState?.state]);
 
-  const extractStateSnapshot = (message: ChatMessage | (ChatMessage & { state_snapshot?: Record<string, string> })) => {
+  const extractStateSnapshot = (message: ChatMessage | (ChatMessage & { state_snapshot?: Record<string, string | { value: number; description: string }> })) => {
     const snapshot = (message as any)?.stateSnapshot ?? (message as any)?.state_snapshot;
+    console.log(`[extractStateSnapshot] Message ${message.id}:`, {
+      hasStateSnapshot: !!(message as any)?.stateSnapshot,
+      hasState_snapshot: !!(message as any)?.state_snapshot,
+      snapshotKeys: snapshot ? Object.keys(snapshot) : null,
+      snapshotValues: snapshot ? Object.entries(snapshot).map(([k, v]) => `${k}: ${typeof v}`) : null,
+    });
     if (snapshot && typeof snapshot === "object") {
-      return snapshot as Record<string, string>;
+      return snapshot as Record<string, string | { value: number; description: string }>;
     }
     return undefined;
   };
@@ -940,7 +953,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                   {!showTypingPlaceholder &&
                     displayMessages.length > 0 &&
                     (() => {
-                      let lastAssistantSnapshot: Record<string, string> | undefined =
+                      let lastAssistantSnapshot: Record<string, string | { value: number; description: string }> | undefined =
                         remoteState?.state && Object.keys(remoteState.state).length > 0 ? remoteState.state : undefined;
 
                       return displayMessages.map((message) => {
@@ -948,14 +961,17 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                         const isSynthetic = message.id === -1;
                         const snapshot = extractStateSnapshot(message);
                         const hasSnapshot = snapshot && Object.keys(snapshot).length > 0;
-                        let stateSnapshot: Record<string, string> | undefined;
+                        let stateSnapshot: Record<string, string | { value: number; description: string }> | undefined;
 
                         if (hasSnapshot) {
                           stateSnapshot = snapshot;
+                          console.log(`[Message ${message.id}] Using message snapshot:`, Object.keys(snapshot));
                         } else if (isAssistant && !isSynthetic) {
                           stateSnapshot = lastAssistantSnapshot;
+                          console.log(`[Message ${message.id}] Using lastAssistantSnapshot:`, lastAssistantSnapshot ? Object.keys(lastAssistantSnapshot) : 'undefined');
                         } else if (isSynthetic && remoteState?.state) {
                           stateSnapshot = remoteState.state;
+                          console.log(`[Message ${message.id}] Using remoteState:`, Object.keys(remoteState.state));
                         }
 
                         if (isAssistant && stateSnapshot) {

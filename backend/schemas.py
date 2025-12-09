@@ -119,7 +119,7 @@ class Character(CharacterBase):
     createdByUsername: Optional[str] = Field(default=None, alias="created_by_username")
     createdAt: datetime = Field(alias="created_at")  # Map database field to frontend field
     openingLine: Optional[str] = Field(default=None, alias="opening_line")
-    defaultState: Optional[Dict[str, str]] = Field(default=None, alias="default_state_json")
+    defaultState: Optional[Dict[str, Union[str, Dict[str, Any]]]] = Field(default=None, alias="default_state_json")
 
     # Admin management and analytics fields
     isFeatured: bool = Field(default=False, alias="is_featured")
@@ -170,26 +170,35 @@ class Chat(ChatBase):
 
 
 ALLOWED_STATE_KEYS: Set[str] = {
+    # NSFW descriptive keys
     "胸部",
     "下体",
     "衣服",
     "姿势",
-    "情绪",
     "环境",
+    # SAFE descriptive keys
     "衣着",
     "仪态",
     "动作",
     "语气",
+    # Quantifiable keys (both NSFW and SAFE)
+    "情绪",
+    "好感度",
+    "信任度",
+    "兴奋度",
+    "疲惫度",
+    "欲望值",
+    "敏感度",
 }
 
 
 class ChatState(BaseSchema):
     chat_id: int
-    state: Dict[str, str]
+    state: Dict[str, Union[str, Dict[str, Any]]]
     updated_at: datetime
 
     @validator("state")
-    def validate_state(cls, value: Dict[str, str]) -> Dict[str, str]:
+    def validate_state(cls, value: Dict[str, Union[str, Dict[str, Any]]]) -> Dict[str, Union[str, Dict[str, Any]]]:
         invalid_keys = set(value.keys()) - ALLOWED_STATE_KEYS
         if invalid_keys:
             raise ValueError(f"Invalid state keys: {', '.join(sorted(invalid_keys))}")
@@ -197,10 +206,10 @@ class ChatState(BaseSchema):
 
 
 class ChatStateUpdate(BaseSchema):
-    state_update: Dict[str, str] = Field(..., alias="state_update")
+    state_update: Dict[str, Union[str, Dict[str, Any]]] = Field(..., alias="state_update")
 
     @validator("state_update")
-    def validate_update(cls, value: Dict[str, str]) -> Dict[str, str]:
+    def validate_update(cls, value: Dict[str, Union[str, Dict[str, Any]]]) -> Dict[str, Union[str, Dict[str, Any]]]:
         if not value:
             raise ValueError("state_update cannot be empty")
         invalid_keys = set(value.keys()) - ALLOWED_STATE_KEYS
@@ -250,7 +259,7 @@ class ChatMessage(ChatMessageBase):
     id: int
     uuid: Optional[UUID] = None  # UUID field for new security model
     timestamp: datetime
-    stateSnapshot: Optional[Dict[str, str]] = Field(default=None, alias="state_snapshot")
+    stateSnapshot: Optional[Dict[str, Union[str, Dict[str, Any]]]] = Field(default=None, alias="state_snapshot")
 
 # API response schemas
 class MessageResponse(BaseSchema):

@@ -13,7 +13,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import text
-from database import engine
+from database import sync_engine as engine
 
 def upgrade():
     """Add age and nsfw_level columns (idempotent at DB level if not present)."""

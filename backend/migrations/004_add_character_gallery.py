@@ -19,7 +19,7 @@ parent_dir = Path(__file__).parent.parent
 sys.path.insert(0, str(parent_dir))
 
 from sqlalchemy import text
-from database import engine
+from database import sync_engine as engine
 
 logger = logging.getLogger(__name__)
 

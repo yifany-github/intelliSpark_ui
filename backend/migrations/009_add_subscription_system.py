@@ -8,7 +8,7 @@ to support monthly subscription model with 2-month token carry-over.
 import os
 from sqlalchemy import text, create_engine
 
-DB_URL = os.environ.get("DATABASE_URL", "sqlite:///./backend/roleplay_chat.db")
+DB_URL = os.environ.get("DATABASE_URL", "sqlite:///./roleplay_chat.db")
 engine = create_engine(DB_URL)
 
 def upgrade():
