@@ -79,6 +79,7 @@ export type TranslationKey =
   | 'chat.error.userNotFound'
   | 'chat.error.characterNotFound'
   | 'chat.error.unknown'
+  | 'chat.characterState'
   | 'searchChatsPlaceholder'
   | 'pinnedConversations'
   | 'activeNow'
@@ -976,6 +977,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'chat.error.userNotFound': 'We could not verify your session. Please sign in again.',
     'chat.error.characterNotFound': 'The character profile was not found.',
     'chat.error.unknown': 'Something unexpected happened. Please try again.',
+    'chat.characterState': 'Character State',
     noMessagesYet: 'No messages yet. Start the conversation!',
     startNewChat: 'Start a new chat',
     todaysChatTime: 'Today\'s Chat Time',
@@ -1819,6 +1821,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     'chat.error.userNotFound': '无法验证用户会话，请重新登录。',
     'chat.error.characterNotFound': '角色信息缺失。',
     'chat.error.unknown': '发生未知错误，请稍后重试。',
+    'chat.characterState': '角色状态',
     // Payment form localization - Chinese
     paymentDetails: '付款详情',
     billingInformation: '账单信息',
@@ -2672,6 +2675,22 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     localStorage.setItem('interfaceLanguage', interfaceLanguage);
     // Update HTML lang attribute for accessibility
     document.documentElement.lang = interfaceLanguage;
+
+    // Sync chatLanguage with interfaceLanguage for unified multilingual experience
+    // This ensures LLM outputs match the UI language
+    setChatLanguage(interfaceLanguage);
+
+    // Invalidate all character queries to refetch with new language
+    // This includes both /api/characters (list) and /api/characters/:id (details)
+    // Dynamic import to avoid circular dependency
+    import('@/lib/queryClient').then(({ queryClient }) => {
+      queryClient.invalidateQueries({
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === 'string' && key.startsWith('/api/characters');
+        }
+      });
+    });
   }, [interfaceLanguage]);
 
   useEffect(() => {

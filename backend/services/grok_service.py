@@ -97,8 +97,12 @@ class GrokService(AIServiceBase):
         
         if not self.is_available:
             return self._simulate_response(character, messages), {"tokens_used": 1}
-        
+
         try:
+            # Extract chat_language from user_preferences and set it for prompt generation
+            if user_preferences and 'chat_language' in user_preferences:
+                self.chat_language = user_preferences['chat_language']
+
             # Get character prompt configuration
             character_prompt = self._get_character_prompt(character)
             

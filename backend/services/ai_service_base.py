@@ -141,7 +141,15 @@ class AIServiceBase(ABC):
                 from .prompt_engine import PromptEngine
                 selected_system_prompt, prompt_type = select_system_prompt(character)
                 engine = PromptEngine(system_prompt=selected_system_prompt)
-                compiled = engine.compile(character)
+
+                # Extract chat_language from request context if available
+                # Default to 'zh' for backward compatibility
+                chat_language = None
+                if hasattr(self, 'chat_language'):
+                    chat_language = self.chat_language
+
+                user_prefs = {'chat_language': chat_language} if chat_language else None
+                compiled = engine.compile(character, user_prefs=user_prefs)
                 return {
                     "persona_prompt": compiled.get("system_text", ""),
                     "few_shot_contents": [],

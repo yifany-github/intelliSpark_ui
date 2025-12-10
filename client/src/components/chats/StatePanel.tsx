@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 // State value can be either a string (legacy) or an object with value and description
 type StateValue = string | {
@@ -12,6 +13,33 @@ interface StatePanelProps {
   state: Record<string, StateValue>;
   className?: string;
 }
+
+// State key translations
+const STATE_KEY_TRANSLATIONS: Record<string, { en: string; zh: string }> = {
+  // NSFW keys
+  "胸部": { en: "Chest", zh: "胸部" },
+  "下体": { en: "Lower Body", zh: "下体" },
+  "衣服": { en: "Clothing", zh: "衣服" },
+  "姿势": { en: "Posture", zh: "姿势" },
+  // Safe keys
+  "衣着": { en: "Attire", zh: "衣着" },
+  "仪态": { en: "Demeanor", zh: "仪态" },
+  "动作": { en: "Action", zh: "动作" },
+  "语气": { en: "Tone", zh: "语气" },
+  // Common keys
+  "情绪": { en: "Emotion", zh: "情绪" },
+  "环境": { en: "Environment", zh: "环境" },
+  "心情": { en: "Mood", zh: "心情" },
+  "好感度": { en: "Affection", zh: "好感度" },
+  "信任度": { en: "Trust", zh: "信任度" },
+  "兴奋度": { en: "Excitement", zh: "兴奋度" },
+  "疲惫度": { en: "Fatigue", zh: "疲惫度" },
+  "欲望值": { en: "Desire", zh: "欲望值" },
+  "敏感度": { en: "Sensitivity", zh: "敏感度" },
+  "紧张度": { en: "Tension", zh: "紧张度" },
+  "愉悦度": { en: "Pleasure", zh: "愉悦度" },
+  "羞耻感": { en: "Shame", zh: "羞耻感" },
+};
 
 const PRIMARY_KEYS = ["胸部", "下体", "衣服", "姿势", "情绪", "环境"];
 const SAFE_KEYS = ["衣着", "仪态", "情绪", "环境", "动作", "语气"];
@@ -111,6 +139,17 @@ const ACCENTS = [
 ];
 
 export const StatePanel = ({ state, className }: StatePanelProps) => {
+  const { t, interfaceLanguage } = useLanguage();
+
+  // Translate state key
+  const translateKey = (key: string): string => {
+    const translation = STATE_KEY_TRANSLATIONS[key];
+    if (translation) {
+      return interfaceLanguage === 'en' ? translation.en : translation.zh;
+    }
+    return key; // Fallback to original key if no translation
+  };
+
   const orderedEntries = useMemo(() => {
     const entries = Object.entries(state).filter(([, value]) => {
       if (typeof value === 'string') return value.trim().length > 0;
@@ -152,7 +191,7 @@ export const StatePanel = ({ state, className }: StatePanelProps) => {
       {/* Simple title */}
       <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-white/60">
         <Sparkles className="h-3.5 w-3.5 text-pink-300" />
-        <span>角色状态</span>
+        <span>{t('chat.characterState')}</span>
       </div>
 
       {/* Simplified state cards */}
@@ -174,7 +213,7 @@ export const StatePanel = ({ state, className }: StatePanelProps) => {
                 <div className="flex items-center gap-2">
                   <span className={cn("inline-flex h-1.5 w-1.5 rounded-full", accent.icon)} />
                   <span className={cn("text-xs font-semibold", accent.label)}>
-                    {key}
+                    {translateKey(key)}
                   </span>
                 </div>
                 {displayValue !== null && progressColor && (

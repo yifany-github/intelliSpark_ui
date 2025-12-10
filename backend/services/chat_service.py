@@ -315,7 +315,9 @@ class ChatService:
             self.logger.error("Error creating chat: %s", exc)
             return False, None, f"Chat creation failed: {exc}", False
 
-    async def generate_opening_line_async(self, chat_id: int, character_id: int) -> None:
+    async def generate_opening_line_async(
+        self, chat_id: int, character_id: int, chat_language: Optional[str] = None
+    ) -> None:
         session: Optional[AsyncSession] = None
         try:
             async with AsyncSessionLocal() as session:
@@ -341,14 +343,25 @@ class ChatService:
                 state_manager = CharacterStateManager(session)
                 state = await state_manager.initialize_state(chat_id, character)
 
-                reused = bool(character.opening_line and character.opening_line.strip())
+                # Select opening line based on language preference
+                opening_line_base = character.opening_line
+                if chat_language == "en" and hasattr(character, "opening_line_en") and character.opening_line_en:
+                    opening_line_base = character.opening_line_en
+                elif chat_language == "zh" and hasattr(character, "opening_line_zh") and character.opening_line_zh:
+                    opening_line_base = character.opening_line_zh
+
+                reused = bool(opening_line_base and opening_line_base.strip())
                 if reused:
-                    opening_line = character.opening_line
+                    opening_line = opening_line_base
                 else:
                     ai_manager = await get_ai_model_manager()
                     opening_line = await ai_manager.generate_opening_line(character)
                     if not opening_line or not opening_line.strip():
-                        opening_line = f"你好，我是{character.name}，很高兴认识你。"
+                        # Fallback opening line in appropriate language
+                        if chat_language == "en":
+                            opening_line = f"Hello, I'm {character.name}. Nice to meet you."
+                        else:
+                            opening_line = f"你好，我是{character.name}，很高兴认识你。"
                     character.opening_line = opening_line
 
                 session.add(
@@ -389,6 +402,7 @@ class ChatService:
         chat_id: int,
         user_id: int,
         *,
+        chat_language: Optional[str] = None,
         debug_force_error: Optional[str] = None,
     ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
         chat_stmt = select(Chat).where(Chat.id == chat_id, Chat.user_id == user_id)
@@ -466,10 +480,16 @@ class ChatService:
                         forced_code = "unknown"
                     raise DebugForcedError(forced_code)
 
+                # Prepare user preferences including chat language
+                user_prefs = {}
+                if chat_language:
+                    user_prefs['chat_language'] = chat_language
+
                 response_content, token_info = await ai_manager.generate_response(
                     character=character,
                     messages=messages,
                     user=user_obj,
+                    user_preferences=user_prefs,
                     state=state,
                 )
 
@@ -620,20 +640,25 @@ class ChatService:
         chat_uuid: UUID,
         user_id: int,
         *,
+        chat_language: Optional[str] = None,
         debug_force_error: Optional[str] = None,
     ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
         stmt = select(Chat).where(Chat.uuid == chat_uuid, Chat.user_id == user_id)
         chat = (await self.db.execute(stmt)).scalars().first()
         if not chat:
             return False, {}, "Chat not found or access denied"
-        return await self.generate_ai_response(chat.id, user_id, debug_force_error=debug_force_error)
+        return await self.generate_ai_response(
+            chat.id, user_id, chat_language=chat_language, debug_force_error=debug_force_error
+        )
 
-    async def generate_opening_line_by_uuid(self, chat_uuid: UUID, user_id: int) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+    async def generate_opening_line_by_uuid(
+        self, chat_uuid: UUID, user_id: int, *, chat_language: Optional[str] = None
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
         stmt = select(Chat).where(Chat.uuid == chat_uuid, Chat.user_id == user_id)
         chat = (await self.db.execute(stmt)).scalars().first()
         if not chat:
             return False, {}, "Chat not found or access denied"
-        return await self.generate_opening_line(chat.id, user_id)
+        return await self.generate_opening_line(chat.id, user_id, chat_language=chat_language)
 
     async def delete_chat(self, chat_id: int, user_id: int) -> Tuple[bool, Optional[str]]:
         try:
@@ -691,7 +716,9 @@ class ChatService:
             self.logger.error("Error clearing chats for user %s: %s", user_id, exc)
             return False, f"Failed to clear chat history: {exc}"
 
-    async def generate_opening_line(self, chat_id: int, user_id: int) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+    async def generate_opening_line(
+        self, chat_id: int, user_id: int, *, chat_language: Optional[str] = None
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
         try:
             stmt = select(Chat).where(Chat.id == chat_id, Chat.user_id == user_id)
             chat = (await self.db.execute(stmt)).scalars().first()
@@ -740,14 +767,25 @@ class ChatService:
                 }
                 return True, {"message": message_payload}, None
 
-            reused = bool(character.opening_line and character.opening_line.strip())
+            # Select opening line based on language preference
+            opening_line_base = character.opening_line
+            if chat_language == "en" and hasattr(character, "opening_line_en") and character.opening_line_en:
+                opening_line_base = character.opening_line_en
+            elif chat_language == "zh" and hasattr(character, "opening_line_zh") and character.opening_line_zh:
+                opening_line_base = character.opening_line_zh
+
+            reused = bool(opening_line_base and opening_line_base.strip())
             if reused:
-                opening_line = character.opening_line
+                opening_line = opening_line_base
             else:
                 ai_manager = await get_ai_model_manager()
                 opening_line = await ai_manager.generate_opening_line(character)
                 if not opening_line or not opening_line.strip():
-                    opening_line = f"你好，我是{character.name}，很高兴认识你。"
+                    # Fallback opening line in appropriate language
+                    if chat_language == "en":
+                        opening_line = f"Hello, I'm {character.name}. Nice to meet you."
+                    else:
+                        opening_line = f"你好，我是{character.name}，很高兴认识你。"
                 character.opening_line = opening_line
 
             opening_state_json = self._serialize_state_snapshot(state)

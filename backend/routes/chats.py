@@ -160,14 +160,19 @@ async def get_chat_status(
 
 @router.post("", response_model=ChatSchema)
 async def create_chat(
+    request: Request,
     chat_data: ChatCreate,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user)
 ):
     """Create new chat immediately and trigger background AI opening line generation"""
     try:
+        # Extract preferred language from Accept-Language header
+        accept_lang = request.headers.get("Accept-Language", "en")
+        chat_language = "zh" if "zh" in accept_lang.lower() else "en"
+
         service = ChatService(db)
-        
+
         # ✅ FAST: Create chat immediately without waiting for AI generation
         success, chat, error, created = await service.create_chat_immediate(chat_data, current_user.id)
 
@@ -177,12 +182,13 @@ async def create_chat(
         if chat is None:
             raise HTTPException(status_code=500, detail="Failed to create chat")
 
-        # 🚀 BACKGROUND: Trigger async opening line generation
+        # 🚀 BACKGROUND: Trigger async opening line generation with language preference
         if created:
             task = asyncio.create_task(
                 service.generate_opening_line_async(
                     chat_id=chat.id,
                     character_id=chat_data.characterId,
+                    chat_language=chat_language,
                 ),
                 name=f"generate-opening-line:{getattr(chat, 'uuid', chat.id)}",
             )
@@ -256,7 +262,11 @@ async def generate_ai_response(
         # Parse the identifier
         is_uuid, parsed_id = parse_chat_identifier(chat_id)
 
-        logger.info(f"Generating AI response for chat_id={chat_id}, user_id={current_user.id}")
+        # Extract preferred language from Accept-Language header
+        accept_lang = request.headers.get("Accept-Language", "en")
+        chat_language = "zh" if "zh" in accept_lang.lower() else "en"
+
+        logger.info(f"Generating AI response for chat_id={chat_id}, user_id={current_user.id}, language={chat_language}")
 
         service = ChatService(db)
         debug_force_error: Optional[str] = None
@@ -277,12 +287,14 @@ async def generate_ai_response(
             success, response, error = await service.generate_ai_response_by_uuid(
                 parsed_id,
                 current_user.id,
+                chat_language=chat_language,
                 debug_force_error=debug_force_error,
             )
         else:
             success, response, error = await service.generate_ai_response(
                 parsed_id,
                 current_user.id,
+                chat_language=chat_language,
                 debug_force_error=debug_force_error,
             )
 
@@ -321,12 +333,20 @@ async def generate_opening_line(
     try:
         # Parse the identifier
         is_uuid, parsed_id = parse_chat_identifier(chat_id)
-        
+
+        # Extract preferred language from Accept-Language header
+        accept_lang = request.headers.get("Accept-Language", "en")
+        chat_language = "zh" if "zh" in accept_lang.lower() else "en"
+
         service = ChatService(db)
         if is_uuid:
-            success, message, error = await service.generate_opening_line_by_uuid(parsed_id, current_user.id)
+            success, message, error = await service.generate_opening_line_by_uuid(
+                parsed_id, current_user.id, chat_language=chat_language
+            )
         else:
-            success, message, error = await service.generate_opening_line(parsed_id, current_user.id)
+            success, message, error = await service.generate_opening_line(
+                parsed_id, current_user.id, chat_language=chat_language
+            )
         
         if not success:
             raise HTTPException(status_code=400, detail=error)
