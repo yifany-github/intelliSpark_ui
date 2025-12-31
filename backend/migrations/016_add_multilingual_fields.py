@@ -14,7 +14,7 @@ import sys
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from database import sync_engine
 
 
@@ -24,8 +24,8 @@ def run_migration():
 
     with sync_engine.begin() as conn:
         # Check if columns already exist
-        result = conn.execute(text("PRAGMA table_info(characters)"))
-        columns = [row[1] for row in result]
+        inspector = inspect(conn)
+        columns = {column["name"] for column in inspector.get_columns("characters")}
 
         # Add English language columns if they don't exist
         if "name_en" not in columns:

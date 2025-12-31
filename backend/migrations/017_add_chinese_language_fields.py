@@ -9,7 +9,7 @@ Run with: python migrations/017_add_chinese_language_fields.py
 
 import sys
 import os
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 
 # Add parent directory to path to import database module
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -23,8 +23,8 @@ def run_migration():
 
     with sync_engine.begin() as conn:
         # Check if columns already exist
-        result = conn.execute(text("PRAGMA table_info(characters)"))
-        columns = [row[1] for row in result]
+        inspector = inspect(conn)
+        columns = {column["name"] for column in inspector.get_columns("characters")}
 
         fields_to_add = [
             ("name_zh", "VARCHAR(255)"),

@@ -151,8 +151,13 @@ class CharacterStateManager:
         merged = fallback_template.copy()
         for key in keys_to_use:
             value = state_seed.get(key)
-            if isinstance(value, str) and value.strip():
-                merged[key] = value.strip()
+            normalized = self._normalize_state_value(value)
+            if not normalized:
+                continue
+            if key in self.QUANTIFIABLE_KEYS and isinstance(normalized, dict):
+                merged[key] = normalized
+            elif key not in self.QUANTIFIABLE_KEYS and isinstance(normalized, str):
+                merged[key] = normalized
 
         character.default_state_json = json.dumps(merged, ensure_ascii=False)
         self.session.add(character)

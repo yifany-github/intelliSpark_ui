@@ -216,7 +216,7 @@ class AIModelManager:
         self,
         character: Character,
         user: Optional[User] = None,
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Any]:
         """Generate per-character default state template."""
 
         safe_mode = (character.nsfw_level or 0) == 0

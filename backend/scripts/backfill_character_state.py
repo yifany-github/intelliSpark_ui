@@ -4,7 +4,12 @@ import argparse
 import asyncio
 import json
 import logging
+import os
+import sys
 from typing import Optional
+
+# Add parent directory to path for imports when run as script
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.orm import Session
 

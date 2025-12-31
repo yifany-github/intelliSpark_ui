@@ -2,17 +2,42 @@
 
 import sys
 import os
+from typing import Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker
 from config import Settings
 
 # Get database URL from config
 settings = Settings()
 DATABASE_URL = settings.database_url
+
+
+def _column_nullable(engine, table: str, column: str) -> Optional[bool]:
+    inspector = inspect(engine)
+    if not inspector.has_table(table):
+        print(f"⚠️  Table {table} not found; skipping")
+        return None
+    for col in inspector.get_columns(table):
+        if col["name"] == column:
+            return col.get("nullable", True)
+    print(f"⚠️  Column {table}.{column} not found; skipping")
+    return None
+
+
+def _clear_column(session, engine, table: str, column: str) -> int:
+    nullable = _column_nullable(engine, table, column)
+    if nullable is None:
+        return 0
+    if nullable:
+        stmt = f"UPDATE {table} SET {column} = NULL WHERE {column} IS NOT NULL"
+    else:
+        stmt = f"UPDATE {table} SET {column} = '' WHERE {column} <> ''"
+    result = session.execute(text(stmt))
+    return result.rowcount
 
 def migrate():
     """Clear default_state_json from all characters to force regeneration with quantified format."""
@@ -22,16 +47,12 @@ def migrate():
 
     try:
         # Clear default_state_json from all characters
-        result = session.execute(
-            text("UPDATE characters SET default_state_json = NULL WHERE default_state_json IS NOT NULL")
-        )
-        print(f"✓ Cleared default_state_json from {result.rowcount} characters")
+        cleared_characters = _clear_column(session, engine, "characters", "default_state_json")
+        print(f"✓ Cleared default_state_json from {cleared_characters} characters")
 
         # Clear all existing chat states to force regeneration
-        result = session.execute(
-            text("UPDATE character_chat_states SET state_json = NULL WHERE state_json IS NOT NULL")
-        )
-        print(f"✓ Cleared state_json from {result.rowcount} chat states")
+        cleared_chat_states = _clear_column(session, engine, "character_chat_states", "state_json")
+        print(f"✓ Cleared state_json from {cleared_chat_states} chat states")
 
         session.commit()
         print("\n✅ Migration completed successfully!")
