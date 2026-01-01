@@ -36,6 +36,8 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+QUANTIFIABLE_KEYS = {"情绪", "好感度", "信任度", "兴奋度", "疲惫度", "欲望值", "敏感度"}
+
 class GeminiService(AIServiceBase):
     """Simplified Gemini service with clean architecture (post-Issue #129)"""
 
@@ -77,7 +79,7 @@ class GeminiService(AIServiceBase):
         character: Character,
         messages: List[ChatMessage],
         user_preferences: Optional[dict] = None,
-        state: Optional[Dict[str, str]] = None,
+        state: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, Dict[str, Any]]:
         """Generate AI response using Gemini with simplified direct flow"""
 
@@ -85,6 +87,10 @@ class GeminiService(AIServiceBase):
             return self._simulate_response(character, messages), {"tokens_used": 1}
 
         try:
+            # Extract chat_language from user_preferences and set it for prompt generation
+            if user_preferences and 'chat_language' in user_preferences:
+                self.chat_language = user_preferences['chat_language']
+
             # Get character prompt using PromptEngine (unified path for all characters)
             character_prompt = self._get_character_prompt(character)
 
@@ -180,7 +186,7 @@ class GeminiService(AIServiceBase):
             self.logger.error(f"❌ Error generating opening line: {e}")
             return fallback_line
 
-    async def generate_state_seed(self, character: Character, *, safe_mode: bool) -> Dict[str, str]:
+    async def generate_state_seed(self, character: Character, *, safe_mode: bool) -> Dict[str, Any]:
         """Generate a default state seed for a character."""
 
         allowed_keys: Iterable[str] = SAFE_STATE_KEYS if safe_mode else NSFW_STATE_KEYS
@@ -222,7 +228,9 @@ class GeminiService(AIServiceBase):
             if response and response.text:
                 parsed = self._parse_state_seed(response.text, allowed_keys)
                 if parsed:
-                    return parsed
+                    merged = fallback_state.copy()
+                    merged.update(parsed)
+                    return merged
                 self.logger.warning("⚠️ Unable to parse state seed from Gemini response; using fallback")
             else:
                 self.logger.warning("⚠️ Empty response when generating state seed; using fallback")
@@ -365,7 +373,7 @@ class GeminiService(AIServiceBase):
             # No fallback needed - empty string is fine
             return ""
 
-    def _parse_state_seed(self, text: str, allowed_keys: Iterable[str]) -> Dict[str, str]:
+    def _parse_state_seed(self, text: str, allowed_keys: Iterable[str]) -> Dict[str, Any]:
         if not text:
             return {}
 
@@ -389,19 +397,48 @@ class GeminiService(AIServiceBase):
         if not isinstance(parsed, dict):
             return {}
 
-        result: Dict[str, str] = {}
+        result: Dict[str, Any] = {}
         for key in allowed_keys:
             value = parsed.get(key)
+            key_str = str(key)
+            if key_str in QUANTIFIABLE_KEYS:
+                normalized = self._normalize_quantified_value(value)
+                if normalized:
+                    result[key_str] = normalized
+                continue
             if isinstance(value, str) and value.strip():
-                result[str(key)] = value.strip()
+                result[key_str] = value.strip()
         return result
 
-    def _simulate_state_seed(self, allowed_keys: Iterable[str], *, safe_mode: bool) -> Dict[str, str]:
+    @staticmethod
+    def _normalize_quantified_value(value: Any) -> Optional[Dict[str, Any]]:
+        if not isinstance(value, dict):
+            return None
+        raw_value = value.get("value")
+        try:
+            numeric_value = int(float(raw_value))
+        except (TypeError, ValueError):
+            return None
+        if numeric_value < 0 or numeric_value > 10:
+            return None
+        description = value.get("description")
+        if not isinstance(description, str):
+            return None
+        description = description.strip()
+        if not description or description == "未设定":
+            return None
+        return {"value": numeric_value, "description": description}
+
+    def _simulate_state_seed(self, allowed_keys: Iterable[str], *, safe_mode: bool) -> Dict[str, Any]:
         if safe_mode:
             base = {
                 "衣着": "穿搭整洁得体，色调温和",
                 "仪态": "站姿放松，自信自然",
-                "情绪": "心情愉悦，对交流充满期待",
+                "情绪": {"value": 6, "description": "心情愉悦，对交流充满期待"},
+                "好感度": {"value": 4, "description": "初次见面，保持礼貌的距离感"},
+                "信任度": {"value": 3, "description": "略有戒备，需要时间建立信任"},
+                "兴奋度": {"value": 5, "description": "保持平稳的心态"},
+                "疲惫度": {"value": 3, "description": "精力充沛，状态良好"},
                 "环境": "温暖明亮的室内空间，布置舒适",
                 "动作": "双手自然垂放，偶尔整理袖口",
                 "语气": "亲切柔和，带着一丝兴奋",
@@ -412,7 +449,13 @@ class GeminiService(AIServiceBase):
                 "下体": "带着余热与敏感，隐约透出渴望",
                 "衣服": "贴身衣物略显凌乱，勾勒出诱人曲线",
                 "姿势": "身体微微前倾，呈现出主动亲近的姿态",
-                "情绪": "期待、雀跃并带着羞怯的悸动",
+                "情绪": {"value": 6, "description": "期待、雀跃并带着羞怯的悸动"},
+                "好感度": {"value": 5, "description": "对你充满好奇，愿意进一步了解"},
+                "信任度": {"value": 4, "description": "在这个私密空间中略显放松"},
+                "兴奋度": {"value": 5, "description": "内心涌动着期待感"},
+                "疲惫度": {"value": 3, "description": "精力充沛，身体充满活力"},
+                "欲望值": {"value": 4, "description": "身体开始感受到微妙的渴望"},
+                "敏感度": {"value": 6, "description": "肌肤对触碰的反应敏锐"},
                 "环境": "私密空间光线暖柔，空气中弥漫甜香",
             }
 
@@ -422,7 +465,7 @@ class GeminiService(AIServiceBase):
         self,
         messages: List[ChatMessage],
         character: Optional[Character] = None,
-        state: Optional[Dict[str, str]] = None,
+        state: Optional[Dict[str, Any]] = None,
         stage: Optional[str] = None,
     ) -> List[Dict]:
         """
@@ -481,7 +524,7 @@ class GeminiService(AIServiceBase):
             "parts": [{"text": full_prompt}]
         }]
 
-    def _extract_state_update(self, response_text: str) -> Tuple[str, Dict[str, str]]:
+    def _extract_state_update(self, response_text: str) -> Tuple[str, Dict[str, Any]]:
         pattern = r"\[\[STATE_UPDATE\]\](?P<json>{.*?})\[\[/STATE_UPDATE\]\]"
         match = re.search(pattern, response_text, re.DOTALL)
         if not match:

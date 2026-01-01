@@ -36,19 +36,19 @@ class PromptEngine:
         self.warn_persona_chars = 2000  # Soft warning threshold
     
     def compile(
-        self, 
-        character: Character, 
+        self,
+        character: Character,
         chat_context: Optional[List[ChatMessage]] = None,
         user_prefs: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Compile a complete prompt from character and context.
-        
+
         Args:
             character: Character model with persona_prompt/backstory
             chat_context: Recent chat messages for conversation context
-            user_prefs: User preferences (not used for NSFW - handled upstream)
-            
+            user_prefs: User preferences including chat_language
+
         Returns:
             Dictionary with compiled prompt data:
             {
@@ -62,11 +62,16 @@ class PromptEngine:
         try:
             # Step 1: Determine persona source (persona_prompt vs backstory)
             persona_text, persona_source = self._get_persona_text(character)
-            
-            # Step 2: Build system instruction sections
-            sections = self._build_sections(character, persona_text)
-            
-            # Step 3: Assemble full system text
+
+            # Step 2: Extract language preference from user_prefs
+            chat_language = None
+            if user_prefs and 'chat_language' in user_prefs:
+                chat_language = user_prefs['chat_language']
+
+            # Step 3: Build system instruction sections
+            sections = self._build_sections(character, persona_text, chat_language)
+
+            # Step 4: Assemble full system text
             system_text = self._assemble_system_text(sections)
             
             # Step 4: Format conversation context
@@ -121,38 +126,74 @@ class PromptEngine:
             return persona_text, "backstory"
     
     def _build_sections(
-        self, 
-        character: Character, 
-        persona_text: str
+        self,
+        character: Character,
+        persona_text: str,
+        chat_language: Optional[str] = None
     ) -> Dict[str, str]:
-        """Build individual prompt sections (NSFW-agnostic)."""
+        """Build individual prompt sections including language instruction."""
         sections = {}
-        
+
         # Core system instruction (preselected upstream)
         if self.system_prompt:
             sections["system_header"] = self.system_prompt.strip()
-        
+
         # Character persona (main section)
         if persona_text:
             sections["persona"] = f"角色设定：\n{persona_text}"
-        
+
         # Optional gender hint (1-line)
         if character.gender:
             sections["gender_hint"] = f"性别定位：{character.gender}"
-        
+
+        # Language instruction (critical for output language)
+        if chat_language:
+            language_map = {
+                "zh": "中文(简体)",
+                "en": "English"
+            }
+            target_language = language_map.get(chat_language, chat_language)
+
+            # Build language-specific STATE_UPDATE examples
+            if chat_language == "en":
+                state_example = '{"情绪": {"value": 7, "description": "Feeling more relaxed, a warm smile on face"}, "好感度": {"value": 5, "description": "Curious about you, willing to learn more"}}'
+                state_instruction = "Write ALL state descriptions in English"
+            else:
+                state_example = '{"情绪": {"value": 7, "description": "更加放松，脸上露出温暖的笑容"}, "好感度": {"value": 5, "description": "对你充满好奇，愿意进一步了解"}}'
+                state_instruction = "所有状态描述必须用中文书写"
+
+            sections["language_instruction"] = f"""**CRITICAL LANGUAGE OVERRIDE INSTRUCTION**:
+THIS INSTRUCTION OVERRIDES ALL PREVIOUS LANGUAGE EXAMPLES IN THE SYSTEM PROMPT.
+
+You MUST respond in {target_language} ONLY. This applies to:
+1. All dialogue and narrative text
+2. ALL "description" fields in [[STATE_UPDATE]] JSON blocks
+3. Character actions, thoughts, and environment descriptions
+4. Every single piece of text in your response
+
+CRITICAL REQUIREMENT FOR STATE UPDATES:
+- Ignore any Chinese examples you saw in the system prompt above
+- {state_instruction}
+- Correct format: [[STATE_UPDATE]]{state_example}[[/STATE_UPDATE]]
+
+If you see examples like "更加放松，脸上露出温暖的笑容" in the system prompt, those are just templates.
+For {target_language} output, translate them to {target_language}.
+
+If the user writes in a different language, STILL respond entirely in {target_language}."""
+
         return sections
     
     def _assemble_system_text(self, sections: Dict[str, str]) -> str:
         """Assemble sections into complete system text."""
         ordered_sections = []
-        
-        # Order: header → persona → gender
-        section_order = ["system_header", "persona", "gender_hint"]
-        
+
+        # Order: header → persona → gender → language_instruction (at end for emphasis)
+        section_order = ["system_header", "persona", "gender_hint", "language_instruction"]
+
         for section_key in section_order:
             if section_key in sections and sections[section_key]:
                 ordered_sections.append(sections[section_key])
-        
+
         return "\n\n".join(ordered_sections)
     
     def _format_messages(

@@ -1,17 +1,103 @@
-import { useMemo, useState } from "react";
-import { ChevronDown, Sparkles } from "lucide-react";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useMemo } from "react";
+import { Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useLanguage } from "@/contexts/LanguageContext";
+
+// State value can be either a string (legacy) or an object with value and description
+type StateValue = string | {
+  value: number;
+  description: string;
+};
 
 interface StatePanelProps {
-  state: Record<string, string>;
+  state: Record<string, StateValue>;
   className?: string;
-  defaultOpen?: boolean;
 }
+
+// State key translations
+const STATE_KEY_TRANSLATIONS: Record<string, { en: string; zh: string }> = {
+  // NSFW keys
+  "胸部": { en: "Chest", zh: "胸部" },
+  "下体": { en: "Lower Body", zh: "下体" },
+  "衣服": { en: "Clothing", zh: "衣服" },
+  "姿势": { en: "Posture", zh: "姿势" },
+  // Safe keys
+  "衣着": { en: "Attire", zh: "衣着" },
+  "仪态": { en: "Demeanor", zh: "仪态" },
+  "动作": { en: "Action", zh: "动作" },
+  "语气": { en: "Tone", zh: "语气" },
+  // Common keys
+  "情绪": { en: "Emotion", zh: "情绪" },
+  "环境": { en: "Environment", zh: "环境" },
+  "心情": { en: "Mood", zh: "心情" },
+  "好感度": { en: "Affection", zh: "好感度" },
+  "信任度": { en: "Trust", zh: "信任度" },
+  "兴奋度": { en: "Excitement", zh: "兴奋度" },
+  "疲惫度": { en: "Fatigue", zh: "疲惫度" },
+  "欲望值": { en: "Desire", zh: "欲望值" },
+  "敏感度": { en: "Sensitivity", zh: "敏感度" },
+  "紧张度": { en: "Tension", zh: "紧张度" },
+  "愉悦度": { en: "Pleasure", zh: "愉悦度" },
+  "羞耻感": { en: "Shame", zh: "羞耻感" },
+};
 
 const PRIMARY_KEYS = ["胸部", "下体", "衣服", "姿势", "情绪", "环境"];
 const SAFE_KEYS = ["衣着", "仪态", "情绪", "环境", "动作", "语气"];
-const KEY_ORDER = Array.from(new Set([...PRIMARY_KEYS, ...SAFE_KEYS]));
+const QUANTIFIED_KEYS_ORDER = ["情绪", "好感度", "信任度", "兴奋度", "疲惫度", "欲望值", "敏感度"];
+const KEY_ORDER = Array.from(new Set([...QUANTIFIED_KEYS_ORDER, ...PRIMARY_KEYS, ...SAFE_KEYS]));
+
+// Quantifiable dimensions that should display progress bars
+const QUANTIFIABLE_KEYS = new Set([
+  "情绪", "心情", "好感度", "信任度", "兴奋度", "疲惫度",
+  "欲望值", "敏感度", "紧张度", "愉悦度", "羞耻感"
+]);
+
+// Get color based on value (0-10 scale)
+const getProgressColor = (value: number, key: string): { bar: string; bg: string; text: string } => {
+  // Special handling for negative-connotation states
+  const isNegative = ["疲惫度", "紧张度", "羞耻感"].includes(key);
+
+  if (isNegative) {
+    // For negative states, high values are bad (red), low values are good (green)
+    if (value <= 3) return {
+      bar: "bg-gradient-to-r from-emerald-500 to-green-500",
+      bg: "bg-emerald-500/20",
+      text: "text-emerald-300"
+    };
+    if (value <= 6) return {
+      bar: "bg-gradient-to-r from-amber-500 to-orange-500",
+      bg: "bg-amber-500/20",
+      text: "text-amber-300"
+    };
+    return {
+      bar: "bg-gradient-to-r from-red-500 to-rose-500",
+      bg: "bg-red-500/20",
+      text: "text-red-300"
+    };
+  } else {
+    // For positive states, high values are good (green/blue), low values are concerning (red)
+    if (value <= 3) return {
+      bar: "bg-gradient-to-r from-red-500 to-rose-500",
+      bg: "bg-red-500/20",
+      text: "text-red-300"
+    };
+    if (value <= 6) return {
+      bar: "bg-gradient-to-r from-amber-500 to-yellow-500",
+      bg: "bg-amber-500/20",
+      text: "text-amber-300"
+    };
+    return {
+      bar: "bg-gradient-to-r from-blue-500 to-cyan-500",
+      bg: "bg-blue-500/20",
+      text: "text-blue-300"
+    };
+  }
+};
+
+// Check if a state value is quantified
+const isQuantified = (value: StateValue): value is { value: number; description: string } => {
+  return typeof value === 'object' && value !== null && 'value' in value && 'description' in value;
+};
 
 const ACCENTS = [
   {
@@ -52,18 +138,46 @@ const ACCENTS = [
   },
 ];
 
-export const StatePanel = ({ state, className, defaultOpen = false }: StatePanelProps) => {
-  const [open, setOpen] = useState(defaultOpen);
+export const StatePanel = ({ state, className }: StatePanelProps) => {
+  const { t, interfaceLanguage } = useLanguage();
+
+  // Translate state key
+  const translateKey = (key: string): string => {
+    const translation = STATE_KEY_TRANSLATIONS[key];
+    if (translation) {
+      return interfaceLanguage === 'en' ? translation.en : translation.zh;
+    }
+    return key; // Fallback to original key if no translation
+  };
+
   const orderedEntries = useMemo(() => {
-    const entries = Object.entries(state).filter(([, value]) => value);
-    entries.sort((a, b) => {
+    const entries = Object.entries(state).filter(([, value]) => {
+      if (typeof value === 'string') return value.trim().length > 0;
+      return value && ('value' in value || 'description' in value);
+    });
+
+    // 分离量化和描述性状态
+    const quantified = entries.filter(([, value]) =>
+      typeof value === 'object' && value !== null && 'value' in value
+    );
+    const descriptive = entries.filter(([, value]) =>
+      typeof value === 'string'
+    );
+
+    // 分别排序
+    const sortByOrder = (a: [string, any], b: [string, any]) => {
       const aIndex = KEY_ORDER.indexOf(a[0]);
       const bIndex = KEY_ORDER.indexOf(b[0]);
       const safeA = aIndex === -1 ? KEY_ORDER.length + 1 : aIndex;
       const safeB = bIndex === -1 ? KEY_ORDER.length + 1 : bIndex;
       return safeA - safeB;
-    });
-    return entries;
+    };
+
+    quantified.sort(sortByOrder);
+    descriptive.sort(sortByOrder);
+
+    // 量化状态优先
+    return [...quantified, ...descriptive];
   }, [state]);
 
   // Removed confusing preview text - just show "状态面板" label
@@ -73,64 +187,65 @@ export const StatePanel = ({ state, className, defaultOpen = false }: StatePanel
   }
 
   return (
-    <Collapsible
-      open={open}
-      onOpenChange={setOpen}
-      className={cn(
-        "rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 via-white/5 to-transparent px-3 py-3 backdrop-blur-md",
-        "shadow-[inset_0_1px_0_rgba(255,255,255,0.12),0_8px_30px_rgba(0,0,0,0.18)]",
-        className,
-      )}
-    >
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-1 rounded-full bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.35em] text-white/80">
-          <Sparkles className="h-3 w-3 text-pink-200" />
-          状态面板
-        </div>
-        <CollapsibleTrigger asChild>
-          <button
-            type="button"
-            className="flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2 py-1 text-[11px] font-medium text-white/80 transition hover:bg-white/20"
-          >
-            {open ? "收起" : "展开"}
-            <ChevronDown
-              className={cn(
-                "h-3 w-3 transition-transform",
-                open ? "rotate-180" : "",
-              )}
-            />
-          </button>
-        </CollapsibleTrigger>
+    <div className={cn("space-y-3", className)}>
+      {/* Simple title */}
+      <div className="flex items-center gap-1.5 px-1 text-[11px] font-medium text-white/60">
+        <Sparkles className="h-3.5 w-3.5 text-pink-300" />
+        <span>{t('chat.characterState')}</span>
       </div>
-      <CollapsibleContent className="mt-4 grid gap-3 sm:grid-cols-2">
+
+      {/* Simplified state cards */}
+      <div className="space-y-2.5">
         {orderedEntries.map(([key, value], index) => {
           const accent = ACCENTS[index % ACCENTS.length];
+          const quantified = isQuantified(value);
+          const displayValue = quantified ? value.value : null;
+          const description = quantified ? value.description : (typeof value === 'string' ? value : '');
+          const progressColor = displayValue !== null ? getProgressColor(displayValue, key) : null;
+
           return (
             <div
               key={key}
-              className={cn("relative overflow-hidden rounded-3xl border border-white/12 bg-white/10 px-4 py-4 backdrop-blur-xl transition hover:border-white/18", accent.glow)}
+              className="relative rounded-xl border border-white/8 bg-white/5 px-3.5 py-3 backdrop-blur-sm transition hover:bg-white/8"
             >
-              <div
-                className={cn(
-                  "pointer-events-none absolute inset-px rounded-[26px] bg-gradient-to-br opacity-80 blur-sm",
-                  accent.beam,
+              {/* Header with name and value */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className={cn("inline-flex h-1.5 w-1.5 rounded-full", accent.icon)} />
+                  <span className={cn("text-xs font-semibold", accent.label)}>
+                    {translateKey(key)}
+                  </span>
+                </div>
+                {displayValue !== null && progressColor && (
+                  <span className={cn("text-xs font-bold tabular-nums", progressColor.text)}>
+                    {displayValue}/10
+                  </span>
                 )}
-                aria-hidden
-              />
-              <div className="flex items-center gap-2">
-                <span className={cn("relative inline-flex h-2 w-2 rounded-full", accent.icon)} aria-hidden />
-                <span className={cn("relative text-[13px] font-bold uppercase tracking-[0.22em] text-white", accent.label)}>
-                  {key}
-                </span>
               </div>
-              <p className="relative mt-3 whitespace-pre-wrap text-[15px] leading-7 text-white/95">
-                {value}
-              </p>
+
+              {/* Progress bar for quantified states */}
+              {displayValue !== null && progressColor && (
+                <div className="mb-2.5">
+                  <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+                    <div
+                      className={cn("h-full rounded-full transition-all duration-500 ease-out", progressColor.bar)}
+                      style={{ width: `${(displayValue / 10) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Description */}
+              {description && (
+                <p className="text-[13px] leading-relaxed text-white/85">
+                  {description}
+                </p>
+              )}
             </div>
           );
         })}
-      </CollapsibleContent>
-    </Collapsible>
+      </div>
+    </div>
   );
 };
 

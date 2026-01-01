@@ -17,7 +17,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy import text
-from database import engine
+from database import sync_engine as engine
 
 def upgrade():
     """Add character analytics and admin management fields"""

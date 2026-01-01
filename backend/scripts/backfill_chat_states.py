@@ -9,7 +9,7 @@ render historical state panels immediately after deploying the state tracker.
 import argparse
 import json
 import logging
-from typing import Dict, Iterable, Optional
+from typing import Any, Dict, Iterable, Optional
 
 from sqlalchemy import asc
 from sqlalchemy.orm import Session, joinedload
@@ -23,7 +23,11 @@ logger = logging.getLogger(__name__)
 SAFE_FALLBACK = {
     "衣着": "穿搭整洁得体，色调温和",
     "仪态": "站姿放松，自信自然",
-    "情绪": "心情愉悦，对交流充满期待",
+    "情绪": {"value": 6, "description": "心情愉悦，对交流充满期待"},
+    "好感度": {"value": 4, "description": "初次见面，保持礼貌的距离感"},
+    "信任度": {"value": 3, "description": "略有戒备，需要时间建立信任"},
+    "兴奋度": {"value": 5, "description": "保持平稳的心态"},
+    "疲惫度": {"value": 3, "description": "精力充沛，状态良好"},
     "环境": "温暖明亮的室内空间，布置舒适",
     "动作": "双手自然垂放，偶尔整理袖口",
     "语气": "亲切柔和，带着一丝兴奋",
@@ -34,21 +38,18 @@ NSFW_FALLBACK = {
     "下体": "带着余热与敏感，隐约透出渴望",
     "衣服": "贴身衣物略显凌乱，勾勒出诱人曲线",
     "姿势": "身体微微前倾，呈现出主动亲近的姿态",
-    "情绪": "期待、雀跃并带着羞怯的悸动",
+    "情绪": {"value": 6, "description": "期待、雀跃并带着羞怯的悸动"},
+    "好感度": {"value": 5, "description": "对你充满好奇，愿意进一步了解"},
+    "信任度": {"value": 4, "description": "在这个私密空间中略显放松"},
+    "兴奋度": {"value": 5, "description": "内心涌动着期待感"},
+    "疲惫度": {"value": 3, "description": "精力充沛，身体充满活力"},
+    "欲望值": {"value": 4, "description": "身体开始感受到微妙的渴望"},
+    "敏感度": {"value": 6, "description": "肌肤对触碰的反应敏锐"},
     "环境": "私密空间光线暖柔，空气中弥漫甜香",
 }
 
 
-def _normalize(value: Optional[str]) -> str:
-    if not value:
-        return ""
-    trimmed = value.strip()
-    if not trimmed or trimmed == "未设定":
-        return ""
-    return trimmed
-
-
-def _filtered_state(snapshot: Optional[str], keys: Iterable[str]) -> Dict[str, str]:
+def _filtered_state(snapshot: Optional[str], keys: Iterable[str]) -> Dict[str, Any]:
     if not snapshot:
         return {}
     try:
@@ -59,15 +60,15 @@ def _filtered_state(snapshot: Optional[str], keys: Iterable[str]) -> Dict[str, s
     if not isinstance(parsed, dict):
         return {}
 
-    filtered: Dict[str, str] = {}
+    filtered: Dict[str, Any] = {}
     for key in keys:
-        normalized = _normalize(parsed.get(key))
+        normalized = CharacterStateManager._normalize_state_value(parsed.get(key))
         if normalized:
             filtered[key] = normalized
     return filtered
 
 
-def _build_base_state(character: Character, keys: Iterable[str], safe_mode: bool) -> Dict[str, str]:
+def _build_base_state(character: Character, keys: Iterable[str], safe_mode: bool) -> Dict[str, Any]:
     base = (SAFE_FALLBACK if safe_mode else NSFW_FALLBACK).copy()
 
     template_raw = getattr(character, "default_state_json", None)
@@ -78,7 +79,7 @@ def _build_base_state(character: Character, keys: Iterable[str], safe_mode: bool
             template = {}
         if isinstance(template, dict):
             for key in keys:
-                normalized = _normalize(template.get(key))
+                normalized = CharacterStateManager._normalize_state_value(template.get(key))
                 if normalized:
                     base[key] = normalized
     return base

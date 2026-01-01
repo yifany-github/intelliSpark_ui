@@ -111,27 +111,89 @@ async def get_default_avatars():
         raise HTTPException(status_code=500, detail=f"Failed to get default avatars: {str(e)}")
 
 
+def localize_character(character: dict, preferred_lang: str = "en") -> dict:
+    """
+    Localize character fields based on preferred language.
+    Supports bidirectional translation: English (_en) and Chinese (_zh).
+    """
+    if preferred_lang == "en":
+        # Use English fields if available
+        if character.get("name_en"):
+            character["name"] = character["name_en"]
+        if character.get("description_en"):
+            character["description"] = character["description_en"]
+        if character.get("backstory_en"):
+            character["backstory"] = character["backstory_en"]
+        if character.get("opening_line_en"):
+            character["opening_line"] = character["opening_line_en"]
+        if character.get("default_state_json_en"):
+            character["default_state_json"] = character["default_state_json_en"]
+
+    elif preferred_lang == "zh":
+        # Use Chinese fields if available
+        if character.get("name_zh"):
+            character["name"] = character["name_zh"]
+        if character.get("description_zh"):
+            character["description"] = character["description_zh"]
+        if character.get("backstory_zh"):
+            character["backstory"] = character["backstory_zh"]
+        if character.get("opening_line_zh"):
+            character["opening_line"] = character["opening_line_zh"]
+        if character.get("default_state_json_zh"):
+            character["default_state_json"] = character["default_state_json_zh"]
+
+    # Remove _en and _zh fields from response to reduce payload size
+    for key in list(character.keys()):
+        if key.endswith("_en") or key.endswith("_zh"):
+            del character[key]
+
+    return character
+
+
 @router.get("")
-async def get_characters(db: Session = Depends(get_db)):
-    """Get all characters with creator usernames"""
+async def get_characters(
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Get all characters with creator usernames, localized based on Accept-Language header"""
     try:
+        # Detect preferred language from Accept-Language header
+        accept_lang = request.headers.get("Accept-Language", "en")
+        preferred_lang = "zh" if "zh" in accept_lang.lower() else "en"
+
         service = CharacterService(db)
         characters = await service.get_all_characters()
-        return characters
+
+        # Localize each character
+        localized_characters = [localize_character(char, preferred_lang) for char in characters]
+
+        return localized_characters
     except CharacterServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/{character_id}")
-async def get_character(character_id: int, db: Session = Depends(get_db)):
-    """Get character by ID with creator username"""
+async def get_character(
+    character_id: int,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    """Get character by ID with creator username, localized based on Accept-Language header"""
     try:
+        # Detect preferred language from Accept-Language header
+        accept_lang = request.headers.get("Accept-Language", "en")
+        preferred_lang = "zh" if "zh" in accept_lang.lower() else "en"
+
         service = CharacterService(db)
         character = await service.get_character(character_id)
         if not character:
             raise HTTPException(status_code=404, detail="Character not found")
+
+        # Localize character
+        localized_character = localize_character(character, preferred_lang)
+
         headers = {"X-Opening-Line-Regenerated": "true" if service.opening_line_regenerated else "false"}
-        return JSONResponse(content=character, headers=headers)
+        return JSONResponse(content=localized_character, headers=headers)
     except CharacterServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -20,6 +20,16 @@ async function buildHeaders(
   if (accessToken) {
     headers.set("Authorization", `Bearer ${accessToken}`);
   }
+
+  // Add Accept-Language header based on user's language preference
+  try {
+    const language = localStorage.getItem('interfaceLanguage') || 'en';
+    headers.set("Accept-Language", language);
+  } catch (e) {
+    // If localStorage is not available, default to 'en'
+    headers.set("Accept-Language", "en");
+  }
+
   return headers;
 }
 

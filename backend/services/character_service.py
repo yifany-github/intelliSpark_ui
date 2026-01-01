@@ -22,6 +22,7 @@ from schemas import CharacterCreate
 from utils.character_utils import transform_character_to_response, transform_character_list_to_response
 from .storage_manager import get_storage_manager, StorageManagerError
 from .ai_model_manager import AIModelManager
+from .character_state_manager import CharacterStateManager
 
 
 class CharacterServiceError(Exception):
@@ -36,8 +37,32 @@ class ValidationResult:
         self.error = error
 
 
-NSFW_DEFAULT_STATE_KEYS = ("胸部", "下体", "衣服", "姿势", "情绪", "环境")
-SAFE_DEFAULT_STATE_KEYS = ("衣着", "仪态", "情绪", "环境", "动作", "语气")
+NSFW_DEFAULT_STATE_KEYS = (
+    "胸部",
+    "下体",
+    "衣服",
+    "姿势",
+    "情绪",
+    "环境",
+    "好感度",
+    "信任度",
+    "兴奋度",
+    "疲惫度",
+    "欲望值",
+    "敏感度",
+)
+SAFE_DEFAULT_STATE_KEYS = (
+    "衣着",
+    "仪态",
+    "情绪",
+    "环境",
+    "动作",
+    "语气",
+    "好感度",
+    "信任度",
+    "兴奋度",
+    "疲惫度",
+)
 
 
 class CharacterService:
@@ -400,11 +425,16 @@ class CharacterService:
             state_seed = {}
             self.logger.warning("Failed to generate default state for %s: %s", character.name, exc)
 
-        merged_state: Dict[str, str] = fallback_state.copy()
+        merged_state: Dict[str, Any] = fallback_state.copy()
         for key in keys_to_use:
             value = state_seed.get(key)
-            if isinstance(value, str) and value.strip():
-                merged_state[key] = value.strip()
+            normalized = CharacterStateManager._normalize_state_value(value)
+            if not normalized:
+                continue
+            if key in CharacterStateManager.QUANTIFIABLE_KEYS and isinstance(normalized, dict):
+                merged_state[key] = normalized
+            elif key not in CharacterStateManager.QUANTIFIABLE_KEYS and isinstance(normalized, str):
+                merged_state[key] = normalized
 
         character.default_state_json = json.dumps(merged_state, ensure_ascii=False)
     

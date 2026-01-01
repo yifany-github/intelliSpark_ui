@@ -27,7 +27,7 @@ class MessageService:
         self.logger = logging.getLogger(__name__)
 
     @staticmethod
-    def _deserialize_state_snapshot(state_json: Optional[str]) -> Optional[Dict[str, str]]:
+    def _deserialize_state_snapshot(state_json: Optional[str]) -> Optional[Dict[str, Any]]:
         if not state_json:
             return None
         try:
@@ -40,19 +40,24 @@ class MessageService:
 
     @staticmethod
     def _filter_snapshot_keys(
-        snapshot: Optional[Dict[str, str]],
+        snapshot: Optional[Dict[str, Any]],
         keys_to_use: Sequence[str],
-    ) -> Optional[Dict[str, str]]:
+    ) -> Optional[Dict[str, Union[str, Dict[str, Any]]]]:
         if not snapshot:
             return None
 
-        filtered: Dict[str, str] = {}
+        filtered: Dict[str, Union[str, Dict[str, Any]]] = {}
         for key in keys_to_use:
             value = snapshot.get(key)
+            # Support both string values (descriptive) and dict values (quantified)
             if isinstance(value, str):
                 trimmed = value.strip()
                 if trimmed:
                     filtered[key] = trimmed
+            elif isinstance(value, dict):
+                # Quantified state format: {"value": number, "description": string}
+                if 'value' in value and 'description' in value:
+                    filtered[key] = value
 
         return filtered if filtered else None
 

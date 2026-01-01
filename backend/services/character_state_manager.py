@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Dict, Optional, Sequence
+from typing import Dict, Optional, Sequence, Union, Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,38 +21,60 @@ except ImportError:
 class CharacterStateManager:
     """Persist and retrieve per-chat character state snapshots."""
 
-    NSFW_KEYS: Sequence[str] = ("胸部", "下体", "衣服", "姿势", "情绪", "环境")
-    SAFE_KEYS: Sequence[str] = ("衣着", "仪态", "情绪", "环境", "动作", "语气")
+    NSFW_KEYS: Sequence[str] = ("胸部", "下体", "衣服", "姿势", "情绪", "环境", "好感度", "信任度", "兴奋度", "疲惫度", "欲望值", "敏感度")
+    SAFE_KEYS: Sequence[str] = ("衣着", "仪态", "情绪", "环境", "动作", "语气", "好感度", "信任度", "兴奋度", "疲惫度")
     ALLOWED_KEYS: Sequence[str] = tuple(dict.fromkeys(NSFW_KEYS + SAFE_KEYS))
+
+    # Quantifiable state keys that should have numeric values
+    QUANTIFIABLE_KEYS: Sequence[str] = ("情绪", "好感度", "信任度", "兴奋度", "疲惫度", "欲望值", "敏感度")
 
     def __init__(self, session: AsyncSession):
         self.session = session
         self.logger = logging.getLogger(__name__)
 
     @staticmethod
-    def _normalize_state_value(value: Optional[str]) -> str:
+    def _normalize_state_value(value: Union[None, str, Dict[str, Any]]) -> Union[str, Dict[str, Any]]:
+        """Normalize state value, supporting both string and quantified format."""
         if not value:
             return ""
-        normalized = value.strip()
-        return "" if not normalized or normalized == "未设定" else normalized
+
+        # Handle quantified format (dict with 'value' and 'description')
+        if isinstance(value, dict):
+            if 'value' in value and 'description' in value:
+                # Validate value is in 0-10 range
+                numeric_value = value.get('value', 5)
+                if not isinstance(numeric_value, (int, float)) or numeric_value < 0 or numeric_value > 10:
+                    numeric_value = 5  # Default to neutral
+                desc = value.get('description', '').strip()
+                if not desc or desc == "未设定":
+                    return ""
+                return {"value": int(numeric_value), "description": desc}
+            return ""
+
+        # Handle string format (legacy)
+        if isinstance(value, str):
+            normalized = value.strip()
+            return "" if not normalized or normalized == "未设定" else normalized
+
+        return ""
 
     def _filter_state_keys(
         self,
-        state: Optional[Dict[str, str]],
+        state: Optional[Dict[str, Any]],
         keys_to_use: Sequence[str],
-    ) -> Dict[str, str]:
+    ) -> Dict[str, Union[str, Dict[str, Any]]]:
         """Return normalized subset of state limited to the allowed keys."""
         if not state:
             return {}
 
-        filtered: Dict[str, str] = {}
+        filtered: Dict[str, Union[str, Dict[str, Any]]] = {}
         for key in keys_to_use:
             normalized = self._normalize_state_value(state.get(key))
             if normalized:
                 filtered[key] = normalized
         return filtered
 
-    async def get_state(self, chat_id: int) -> Dict[str, str]:
+    async def get_state(self, chat_id: int) -> Dict[str, Union[str, Dict[str, Any]]]:
         stmt = select(CharacterChatState).where(CharacterChatState.chat_id == chat_id)
         result = await self.session.execute(stmt)
         state_row = result.scalars().first()
@@ -77,12 +99,16 @@ class CharacterStateManager:
             return self.SAFE_KEYS
         return self.NSFW_KEYS
 
-    def _fallback_state_map(self, safe_mode: bool) -> Dict[str, str]:
+    def _fallback_state_map(self, safe_mode: bool) -> Dict[str, Union[str, Dict[str, Any]]]:
         if safe_mode:
             return {
                 "衣着": "穿搭整洁得体，色调温和",
                 "仪态": "站姿放松，自信自然",
-                "情绪": "心情愉悦，对交流充满期待",
+                "情绪": {"value": 6, "description": "心情愉悦，对交流充满期待"},
+                "好感度": {"value": 4, "description": "初次见面，保持礼貌的距离感"},
+                "信任度": {"value": 3, "description": "略有戒备，需要时间建立信任"},
+                "兴奋度": {"value": 5, "description": "保持平稳的心态"},
+                "疲惫度": {"value": 3, "description": "精力充沛，状态良好"},
                 "环境": "温暖明亮的室内空间，布置舒适",
                 "动作": "双手自然垂放，偶尔整理袖口",
                 "语气": "亲切柔和，带着一丝兴奋",
@@ -92,7 +118,13 @@ class CharacterStateManager:
             "下体": "带着余热与敏感，隐约透出渴望",
             "衣服": "贴身衣物略显凌乱，勾勒出诱人曲线",
             "姿势": "身体微微前倾，呈现出主动亲近的姿态",
-            "情绪": "期待、雀跃并带着羞怯的悸动",
+            "情绪": {"value": 6, "description": "期待、雀跃并带着羞怯的悸动"},
+            "好感度": {"value": 5, "description": "对你充满好奇，愿意进一步了解"},
+            "信任度": {"value": 4, "description": "在这个私密空间中略显放松"},
+            "兴奋度": {"value": 5, "description": "内心涌动着期待感"},
+            "疲惫度": {"value": 3, "description": "精力充沛，身体充满活力"},
+            "欲望值": {"value": 4, "description": "身体开始感受到微妙的渴望"},
+            "敏感度": {"value": 6, "description": "肌肤对触碰的反应敏锐"},
             "环境": "私密空间光线暖柔，空气中弥漫甜香",
         }
 
@@ -119,8 +151,13 @@ class CharacterStateManager:
         merged = fallback_template.copy()
         for key in keys_to_use:
             value = state_seed.get(key)
-            if isinstance(value, str) and value.strip():
-                merged[key] = value.strip()
+            normalized = self._normalize_state_value(value)
+            if not normalized:
+                continue
+            if key in self.QUANTIFIABLE_KEYS and isinstance(normalized, dict):
+                merged[key] = normalized
+            elif key not in self.QUANTIFIABLE_KEYS and isinstance(normalized, str):
+                merged[key] = normalized
 
         character.default_state_json = json.dumps(merged, ensure_ascii=False)
         self.session.add(character)

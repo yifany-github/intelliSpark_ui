@@ -82,6 +82,11 @@ export function useRealtimeMessages(
               return key.startsWith('/api/chats/') && !key.includes('/messages');
             }
           });
+
+          // Also invalidate state query to update character state panel
+          queryClient.invalidateQueries({
+            queryKey: [`/api/chats/${canonicalUuid}/state`],
+          });
         }
       )
       .subscribe((status) => {

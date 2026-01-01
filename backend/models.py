@@ -109,7 +109,19 @@ class Character(Base):
     deleted_at = Column(DateTime, nullable=True)
     deleted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
     delete_reason = Column(Text, nullable=True)
-    
+
+    # Multilingual fields (i18n support)
+    name_en = Column(String(255), nullable=True)  # English character name
+    description_en = Column(Text, nullable=True)  # English description
+    backstory_en = Column(Text, nullable=True)  # English backstory
+    opening_line_en = Column(Text, nullable=True)  # English opening line
+    default_state_json_en = Column(Text, nullable=True)  # English state JSON
+    name_zh = Column(String(255), nullable=True)  # Chinese character name
+    description_zh = Column(Text, nullable=True)  # Chinese description
+    backstory_zh = Column(Text, nullable=True)  # Chinese backstory
+    opening_line_zh = Column(Text, nullable=True)  # Chinese opening line
+    default_state_json_zh = Column(Text, nullable=True)  # Chinese state JSON
+
     # Table-level constraints
     __table_args__ = (
         CheckConstraint('age >= 1 AND age <= 200', name='check_age_range'),

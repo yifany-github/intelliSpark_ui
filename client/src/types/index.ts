@@ -64,7 +64,7 @@ export interface ChatMessage {
   timestamp?: string;
   createdAt: string;
   updatedAt: string;
-  stateSnapshot?: Record<string, string>;
+  stateSnapshot?: Record<string, string | { value: number; description: string }>;
 }
 
 export interface ChatGenerationRetryMeta {

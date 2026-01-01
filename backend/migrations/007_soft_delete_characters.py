@@ -16,7 +16,7 @@ from sqlalchemy import text, create_engine
 
 # Create a lightweight engine without importing app settings to avoid env dependency during migrations
 # Falls back to local SQLite DB used in development if DATABASE_URL is not set
-DB_URL = os.environ.get("DATABASE_URL", "sqlite:///./backend/roleplay_chat.db")
+DB_URL = os.environ.get("DATABASE_URL", "sqlite:///./roleplay_chat.db")
 engine = create_engine(DB_URL)
 
 def upgrade():

@@ -209,6 +209,64 @@ export default function TopNavigation({
     return rawTier;
   }, [t, user]);
 
+  // Get next tier upgrade info dynamically
+  const nextTierInfo = useMemo(() => {
+    const rawTier = (user as any)?.subscriptionTier ?? (user as any)?.subscription_tier ?? (user as any)?.plan;
+    const normalized = rawTier ? String(rawTier).toLowerCase() : 'free';
+
+    // Define tier progression: free -> starter -> pro -> premium
+    if (!rawTier || normalized.includes('free')) {
+      return {
+        name: language === 'zh' ? 'Starter 套餐' : 'Starter Plan',
+        tokens: 300,
+        price: language === 'zh' ? '¥4.99' : '$4.99',
+        period: language === 'zh' ? '每月' : '/month',
+        features: [
+          language === 'zh' ? '每月获得 300 个代币' : '300 tokens/month',
+          language === 'zh' ? '代币2个月后过期' : 'Tokens expire after 2 months',
+          language === 'zh' ? '随时取消' : 'Cancel anytime',
+        ]
+      };
+    } else if (normalized.includes('starter') || normalized.includes('basic')) {
+      return {
+        name: language === 'zh' ? 'Pro 套餐' : 'Pro Plan',
+        tokens: 1000,
+        price: language === 'zh' ? '¥9.99' : '$9.99',
+        period: language === 'zh' ? '每月' : '/month',
+        features: [
+          language === 'zh' ? '每月获得 1000 个代币' : '1000 tokens/month',
+          language === 'zh' ? '代币2个月后过期' : 'Tokens expire after 2 months',
+          language === 'zh' ? '自动续订' : 'Auto-renewal',
+        ]
+      };
+    } else if (normalized.includes('pro') || normalized.includes('standard')) {
+      return {
+        name: language === 'zh' ? 'Premium 套餐' : 'Premium Plan',
+        tokens: 3000,
+        price: language === 'zh' ? '¥19.99' : '$19.99',
+        period: language === 'zh' ? '每月' : '/month',
+        features: [
+          language === 'zh' ? '每月获得 3000 个代币' : '3000 tokens/month',
+          language === 'zh' ? '代币2个月后过期' : 'Tokens expire after 2 months',
+          language === 'zh' ? '无限对话' : 'Unlimited conversations',
+        ]
+      };
+    } else {
+      // Already on premium, show premium benefits
+      return {
+        name: language === 'zh' ? 'Premium 套餐' : 'Premium Plan',
+        tokens: 3000,
+        price: language === 'zh' ? '¥19.99' : '$19.99',
+        period: language === 'zh' ? '每月' : '/month',
+        features: [
+          language === 'zh' ? '每月获得 3000 个代币' : '3000 tokens/month',
+          language === 'zh' ? '最高档套餐' : 'Highest tier',
+          language === 'zh' ? '优先支持' : 'Priority support',
+        ]
+      };
+    }
+  }, [user, language]);
+
   const showChineseName = language === 'zh';
   const appNameText = showChineseName ? (t('appNameChinese') || '歪歪') : (t('appNameEnglish') || 'YY Chat');
 
@@ -402,13 +460,13 @@ export default function TopNavigation({
                   </div>
                   <div className="mt-2 text-xs text-slate-300 leading-relaxed space-y-2">
                     <div className="flex items-center justify-between">
-                      <span>{t('starterPlan')}</span>
-                      <span className="font-semibold text-amber-200">¥58 / {t('perMonth')}</span>
+                      <span>{nextTierInfo.name}</span>
+                      <span className="font-semibold text-amber-200">{nextTierInfo.price} {nextTierInfo.period}</span>
                     </div>
                     <ul className="space-y-1 text-slate-400">
-                      <li>• {t('monthlyTokens')}</li>
-                      <li>• {t('prioritySupport')}</li>
-                      <li>• {t('exclusiveStories')}</li>
+                      {nextTierInfo.features.map((feature, index) => (
+                        <li key={index}>• {feature}</li>
+                      ))}
                     </ul>
                   </div>
                 </div>

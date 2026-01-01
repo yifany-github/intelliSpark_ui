@@ -109,6 +109,30 @@ def transform_character_to_response(character: Character, db_session=None) -> Di
         except Exception:
             pass
 
+    # Include multilingual fields for localization (English)
+    if getattr(character, "name_en", None):
+        response["name_en"] = character.name_en
+    if getattr(character, "description_en", None):
+        response["description_en"] = character.description_en
+    if getattr(character, "backstory_en", None):
+        response["backstory_en"] = character.backstory_en
+    if getattr(character, "opening_line_en", None):
+        response["opening_line_en"] = character.opening_line_en
+    if getattr(character, "default_state_json_en", None):
+        response["default_state_json_en"] = character.default_state_json_en
+
+    # Include multilingual fields for localization (Chinese)
+    if getattr(character, "name_zh", None):
+        response["name_zh"] = character.name_zh
+    if getattr(character, "description_zh", None):
+        response["description_zh"] = character.description_zh
+    if getattr(character, "backstory_zh", None):
+        response["backstory_zh"] = character.backstory_zh
+    if getattr(character, "opening_line_zh", None):
+        response["opening_line_zh"] = character.opening_line_zh
+    if getattr(character, "default_state_json_zh", None):
+        response["default_state_json_zh"] = character.default_state_json_zh
+
     # Enrich with creator username if db_session provided and character has creator
     if db_session and character.created_by:
         from models import User
