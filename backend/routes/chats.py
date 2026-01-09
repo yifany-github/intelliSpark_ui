@@ -58,6 +58,8 @@ def parse_chat_identifier(chat_id: str) -> tuple[bool, Union[int, UUID]]:
 
 from config import settings
 from database import get_async_db
+from utils.datetime_utils import format_datetime
+from utils.language_utils import parse_accept_language
 from auth.routes import get_current_user
 from backend.services.chat_service import ChatService, ChatServiceError
 from backend.services.message_service import MessageService, MessageServiceError
@@ -103,6 +105,7 @@ def _log_background_task_result(task: asyncio.Task) -> None:
 
 @router.get("", response_model=List[EnrichedChat])
 async def get_chats(
+    request: Request,
     character_id: Optional[int] = None,
     idempotency_key: Optional[str] = None,
     db: AsyncSession = Depends(get_async_db),
@@ -110,8 +113,14 @@ async def get_chats(
 ):
     """Get user's chats with character data"""
     try:
+        preferred_lang = parse_accept_language(request.headers.get("Accept-Language"))
         service = ChatService(db)
-        return await service.get_user_chats(current_user.id, character_id=character_id, idempotency_key=idempotency_key)
+        return await service.get_user_chats(
+            current_user.id,
+            character_id=character_id,
+            idempotency_key=idempotency_key,
+            preferred_lang=preferred_lang,
+        )
     except ChatServiceError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -168,13 +177,16 @@ async def create_chat(
     """Create new chat immediately and trigger background AI opening line generation"""
     try:
         # Extract preferred language from Accept-Language header
-        accept_lang = request.headers.get("Accept-Language", "en")
-        chat_language = "zh" if "zh" in accept_lang.lower() else "en"
+        chat_language = parse_accept_language(request.headers.get("Accept-Language"))
 
         service = ChatService(db)
 
         # ✅ FAST: Create chat immediately without waiting for AI generation
-        success, chat, error, created = await service.create_chat_immediate(chat_data, current_user.id)
+        success, chat, error, created = await service.create_chat_immediate(
+            chat_data,
+            current_user.id,
+            chat_language=chat_language,
+        )
 
         if not success:
             raise HTTPException(status_code=400, detail=error)
@@ -263,8 +275,7 @@ async def generate_ai_response(
         is_uuid, parsed_id = parse_chat_identifier(chat_id)
 
         # Extract preferred language from Accept-Language header
-        accept_lang = request.headers.get("Accept-Language", "en")
-        chat_language = "zh" if "zh" in accept_lang.lower() else "en"
+        chat_language = parse_accept_language(request.headers.get("Accept-Language"))
 
         logger.info(f"Generating AI response for chat_id={chat_id}, user_id={current_user.id}, language={chat_language}")
 
@@ -335,8 +346,7 @@ async def generate_opening_line(
         is_uuid, parsed_id = parse_chat_identifier(chat_id)
 
         # Extract preferred language from Accept-Language header
-        accept_lang = request.headers.get("Accept-Language", "en")
-        chat_language = "zh" if "zh" in accept_lang.lower() else "en"
+        chat_language = parse_accept_language(request.headers.get("Accept-Language"))
 
         service = ChatService(db)
         if is_uuid:
@@ -359,6 +369,7 @@ async def generate_opening_line(
 @router.get("/{chat_id}/state", response_model=ChatState)
 async def get_chat_state(
     chat_id: str,
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -376,9 +387,10 @@ async def get_chat_state(
 
     manager = CharacterStateManager(db)
     character = await db.get(Character, chat.character_id)
+    preferred_lang = parse_accept_language(request.headers.get("Accept-Language"))
 
     try:
-        state = await manager.initialize_state(chat.id, character)
+        state = await manager.initialize_state(chat.id, character, language=preferred_lang)
         await db.commit()
     except Exception:
         await db.rollback()
@@ -389,9 +401,7 @@ async def get_chat_state(
             select(CharacterChatState).where(CharacterChatState.chat_id == chat.id)
         )
     ).scalars().first()
-    updated_at = (
-        state_row.updated_at.isoformat() + "Z" if state_row and state_row.updated_at else None
-    )
+    updated_at = format_datetime(state_row.updated_at) if state_row else None
 
     return {"chat_id": chat.id, "state": state, "updated_at": updated_at}
 
@@ -400,6 +410,7 @@ async def get_chat_state(
 async def update_chat_state(
     chat_id: str,
     payload: ChatStateUpdate,
+    request: Request,
     db: AsyncSession = Depends(get_async_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -416,8 +427,9 @@ async def update_chat_state(
         raise HTTPException(status_code=404, detail="Chat not found")
 
     manager = CharacterStateManager(db)
+    preferred_lang = parse_accept_language(request.headers.get("Accept-Language"))
     try:
-        state = await manager.update_state(chat.id, payload.state_update)
+        state = await manager.update_state(chat.id, payload.state_update, language=preferred_lang)
         await db.commit()
     except ValueError as exc:
         await db.rollback()
@@ -431,9 +443,7 @@ async def update_chat_state(
             select(CharacterChatState).where(CharacterChatState.chat_id == chat.id)
         )
     ).scalars().first()
-    updated_at = (
-        state_row.updated_at.isoformat() + "Z" if state_row and state_row.updated_at else None
-    )
+    updated_at = format_datetime(state_row.updated_at) if state_row else None
 
     return {"chat_id": chat.id, "state": state, "updated_at": updated_at}
 

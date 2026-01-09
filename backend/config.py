@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     # AI Model settings
     gemini_api_key: Optional[str] = None
     grok_api_key: Optional[str] = None  # xAI Grok API key
+    openai_api_key: Optional[str] = None  # OpenAI API key
     
     # Legacy Firebase settings (deprecated)
     firebase_api_key: Optional[str] = None
@@ -34,6 +35,7 @@ class Settings(BaseSettings):
     # App settings
     app_name: str = "ProductInsightAI Backend"
     debug: bool = True
+    sqlalchemy_echo: bool = False
     
     # Redis settings (optional, used for rate limiting storage)
     redis_url: Optional[str] = None
@@ -87,6 +89,9 @@ def validate_settings():
     
     if not settings.grok_api_key:
         print("WARNING: GROK_API_KEY not found. Grok AI responses will be simulated.")
+
+    if not settings.openai_api_key:
+        print("WARNING: OPENAI_API_KEY not found. OpenAI responses will be simulated.")
     
     if not settings.stripe_secret_key:
         print("WARNING: STRIPE_SECRET_KEY not found. Payment processing will not work.")
@@ -123,8 +128,10 @@ def validate_settings():
         # Fallback to non-masked if parsing fails
         print(f"Database URL: {settings.database_url}")
     print(f"Debug mode: {settings.debug}")
+    print(f"SQLAlchemy echo enabled: {settings.sqlalchemy_echo}")
     print(f"Gemini API Key present: {'Yes' if settings.gemini_api_key else 'No'}")
     print(f"Grok API Key present: {'Yes' if settings.grok_api_key else 'No'}")
+    print(f"OpenAI API Key present: {'Yes' if settings.openai_api_key else 'No'}")
     print(f"Supabase JWT Secret present: {'Yes' if settings.supabase_jwt_secret else 'No'}")
     print(f"Secret Key present: {'Yes' if settings.secret_key else 'No'}")
     print(f"Stripe Secret Key present: {'Yes' if settings.stripe_secret_key else 'No'}")

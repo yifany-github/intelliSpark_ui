@@ -99,12 +99,13 @@ class GrokService(AIServiceBase):
             return self._simulate_response(character, messages), {"tokens_used": 1}
 
         try:
-            # Extract chat_language from user_preferences and set it for prompt generation
+            # Extract chat_language from user_preferences for prompt generation
+            chat_language = None
             if user_preferences and 'chat_language' in user_preferences:
-                self.chat_language = user_preferences['chat_language']
+                chat_language = user_preferences['chat_language']
 
             # Get character prompt configuration
-            character_prompt = self._get_character_prompt(character)
+            character_prompt = self._get_character_prompt(character, chat_language=chat_language)
             
             # Log character loading info
             if character:
@@ -332,22 +333,30 @@ Grok AI Instructions:
             messages.append({"role": current_role, "content": '\n'.join(current_content)})
 
     def _extract_state_update(self, response_text: str) -> Tuple[str, Dict[str, str]]:
-        pattern = r"\[\[STATE_UPDATE\]\](?P<json>{.*?})\[\[/STATE_UPDATE\]\]"
-        match = re.search(pattern, response_text, re.DOTALL)
-        if not match:
+        pattern = r"\[\[STATE_UPDATE\]\](?P<content>.*?)\[\[/STATE_UPDATE\]\]"
+        matches = list(re.finditer(pattern, response_text, re.DOTALL))
+        if not matches:
+            if "[[STATE_UPDATE]]" in response_text:
+                cleaned = response_text.split("[[STATE_UPDATE]]", 1)[0].strip()
+                return cleaned, {}
             return response_text, {}
 
-        raw_block = match.group(0)
-        raw_json = match.group("json")
-        try:
-            state_update = json.loads(raw_json)
-            if not isinstance(state_update, dict):
-                state_update = {}
-        except json.JSONDecodeError:
-            self.logger.warning("⚠️ Failed to parse Grok state update block: %s", raw_json)
-            state_update = {}
+        raw_content = matches[0].group("content")
+        state_update: Dict[str, str] = {}
 
-        cleaned = response_text.replace(raw_block, "").strip()
+        if raw_content:
+            start = raw_content.find("{")
+            end = raw_content.rfind("}")
+            if start != -1 and end != -1 and start < end:
+                candidate = raw_content[start : end + 1]
+                try:
+                    state_update = json.loads(candidate)
+                    if not isinstance(state_update, dict):
+                        state_update = {}
+                except json.JSONDecodeError:
+                    self.logger.warning("⚠️ Failed to parse Grok state update block: %s", candidate)
+
+        cleaned = re.sub(pattern, "", response_text, flags=re.DOTALL).strip()
         return cleaned, state_update
     
     def _build_generation_config(self, user_preferences: Optional[dict]) -> dict:

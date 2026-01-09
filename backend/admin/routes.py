@@ -24,6 +24,7 @@ from auth.admin_routes import get_current_admin
 from auth.admin_jwt import TokenPayload, create_token_pair
 from payment.token_service import TokenService
 from backend.services.storage_manager import get_storage_manager, StorageManagerError
+from utils.datetime_utils import format_datetime
 
 # Login request schema
 class LoginRequest(BaseModel):
@@ -626,8 +627,8 @@ async def get_admin_chat_detail(
             "title": chat.title,
             "character_id": chat.character_id,
             "character_name": character.name if character else None,
-            "created_at": chat.created_at.isoformat() + "Z" if chat.created_at else None,
-            "updated_at": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
+            "created_at": format_datetime(chat.created_at),
+            "updated_at": format_datetime(chat.updated_at),
         },
         "character": {
             "id": character.id,
@@ -638,7 +639,7 @@ async def get_admin_chat_detail(
                 "id": message.id,
                 "role": message.role,
                 "content": message.content,
-                "timestamp": message.timestamp.isoformat() + "Z" if message.timestamp else None
+                "timestamp": format_datetime(message.timestamp)
             }
             for message in messages
         ]

@@ -26,7 +26,10 @@ from .ai_model_manager import get_ai_model_manager
 from .circuit_breaker import BreakerState, CircuitBreaker
 from .telemetry import log_chat_generation_attempt
 from ..utils.character_utils import ensure_avatar_url
+from ..utils.datetime_utils import format_datetime
+from ..utils.language_utils import normalize_language_code
 from .character_state_manager import CharacterStateManager
+from .translation_service import get_translation_service
 
 
 class ChatServiceError(Exception):
@@ -84,7 +87,53 @@ class ChatService:
             return None
         return None
 
-    async def get_user_chats(self, user_id: int, character_id: Optional[int] = None, idempotency_key: Optional[str] = None) -> List[Dict[str, Any]]:
+    @staticmethod
+    def _normalize_language(language: Optional[str]) -> Optional[str]:
+        if not language:
+            return None
+        return normalize_language_code(language)
+
+    def _localized_character_field(
+        self,
+        character: Character,
+        field: str,
+        preferred_lang: Optional[str],
+    ) -> Optional[str]:
+        if not character:
+            return None
+        lang = self._normalize_language(preferred_lang)
+        if lang == "zh":
+            localized = getattr(character, f"{field}_zh", None)
+            return localized or getattr(character, field, None)
+        localized = getattr(character, f"{field}_en", None)
+        return localized or getattr(character, field, None)
+
+    async def _ensure_response_language(self, text: str, target_lang: Optional[str]) -> str:
+        if not text or not target_lang:
+            return text
+
+        translator = get_translation_service()
+        if not getattr(translator, "client", None):
+            return text
+
+        normalized = self._normalize_language(target_lang) or target_lang
+        detected = translator.detect_language(text)
+        if normalized in {"zh", "en", "es", "ko"} and detected == normalized:
+            return text
+
+        try:
+            return await translator.translate_text(text, normalized, context="assistant response")
+        except Exception as exc:
+            self.logger.warning("Response translation failed: %s", exc)
+            return text
+
+    async def get_user_chats(
+        self,
+        user_id: int,
+        character_id: Optional[int] = None,
+        idempotency_key: Optional[str] = None,
+        preferred_lang: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         try:
             stmt = (
                 select(Chat)
@@ -134,14 +183,14 @@ class ChatService:
                         "idempotency_key": chat.idempotency_key,
                         "idempotencyKey": chat.idempotency_key,
                         "title": chat.title,
-                        "created_at": chat.created_at.isoformat() + "Z" if chat.created_at else None,
-                        "updated_at": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
+                        "created_at": format_datetime(chat.created_at),
+                        "updated_at": format_datetime(chat.updated_at),
                         "character": (
                             {
                                 "id": character.id,
-                                "name": character.name,
+                                "name": self._localized_character_field(character, "name", preferred_lang),
                                 "avatarUrl": ensure_avatar_url(character),
-                                "description": character.description,
+                                "description": self._localized_character_field(character, "description", preferred_lang),
                             }
                             if character
                             else None
@@ -154,9 +203,7 @@ class ChatService:
                                     if len(latest_message.content) > 100
                                     else latest_message.content
                                 ),
-                                "timestamp": latest_message.timestamp.isoformat() + "Z"
-                                if latest_message.timestamp
-                                else None,
+                                "timestamp": format_datetime(latest_message.timestamp),
                             }
                             if latest_message
                             else None
@@ -189,8 +236,8 @@ class ChatService:
                 "idempotency_key": chat.idempotency_key,
                 "idempotencyKey": chat.idempotency_key,
                 "title": chat.title,
-                "created_at": chat.created_at.isoformat() + "Z" if chat.created_at else None,
-                "updated_at": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
+                "created_at": format_datetime(chat.created_at),
+                "updated_at": format_datetime(chat.updated_at),
             }
 
         except Exception as exc:
@@ -212,8 +259,8 @@ class ChatService:
                 "idempotency_key": chat.idempotency_key,
                 "idempotencyKey": chat.idempotency_key,
                 "title": chat.title,
-                "created_at": chat.created_at.isoformat() + "Z" if chat.created_at else None,
-                "updated_at": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
+                "created_at": format_datetime(chat.created_at),
+                "updated_at": format_datetime(chat.updated_at),
             }
 
         except Exception as exc:
@@ -255,10 +302,10 @@ class ChatService:
                 "messageCount": message_count,
                 "lastMessageId": latest_message.id if latest_message else None,
                 "lastMessageRole": latest_message.role if latest_message else None,
-                "lastMessageTimestamp": latest_message.timestamp.isoformat() + "Z"
-                if latest_message and latest_message.timestamp
-                else None,
-                "updatedAt": chat.updated_at.isoformat() + "Z" if chat.updated_at else None,
+                "lastMessageTimestamp": format_datetime(
+                    latest_message.timestamp if latest_message else None
+                ),
+                "updatedAt": format_datetime(chat.updated_at),
             }
         except Exception as exc:
             self.logger.error("Error fetching chat status %s: %s", identifier, exc)
@@ -268,6 +315,7 @@ class ChatService:
         self,
         chat_data: ChatCreate,
         user_id: int,
+        chat_language: Optional[str] = None,
     ) -> Tuple[bool, Optional[Chat], Optional[str], bool]:
         try:
             if chat_data.idempotencyKey:
@@ -299,7 +347,7 @@ class ChatService:
             await self.db.refresh(chat)
 
             # Seed persistent state for the chat
-            await self.state_manager.initialize_state(chat.id, character)
+            await self.state_manager.initialize_state(chat.id, character, language=chat_language)
             await self.db.commit()
 
             if not chat.uuid:
@@ -341,7 +389,11 @@ class ChatService:
                     return
 
                 state_manager = CharacterStateManager(session)
-                state = await state_manager.initialize_state(chat_id, character)
+                state = await state_manager.initialize_state(
+                    chat_id,
+                    character,
+                    language=chat_language,
+                )
 
                 # Select opening line based on language preference
                 opening_line_base = character.opening_line
@@ -425,7 +477,11 @@ class ChatService:
         if not character:
             return False, self._error_payload("character_not_found"), "Character not found"
 
-        state = await self.state_manager.initialize_state(chat.id, character)
+        state = await self.state_manager.initialize_state(
+            chat.id,
+            character,
+            language=chat_language,
+        )
 
         msg_stmt = (
             select(ChatMessage)
@@ -493,11 +549,18 @@ class ChatService:
                     state=state,
                 )
 
+                if chat_language:
+                    response_content = await self._ensure_response_language(response_content, chat_language)
+
                 state_update = token_info.pop("state_update", {}) if token_info else {}
 
                 try:
                     if state_update:
-                        state = await self.state_manager.update_state(chat.id, state_update)
+                        state = await self.state_manager.update_state(
+                            chat.id,
+                            state_update,
+                            language=chat_language,
+                        )
                     state_json = self._serialize_state_snapshot(state)
 
                     message_model = ChatMessage(
@@ -575,7 +638,7 @@ class ChatService:
                     "chat_id": message_model.chat_id,
                     "role": message_model.role,
                     "content": message_model.content,
-                    "timestamp": message_model.timestamp.isoformat() + "Z" if message_model.timestamp else None,
+                    "timestamp": format_datetime(message_model.timestamp),
                     "state_snapshot": state,
                 }
 
@@ -732,7 +795,11 @@ class ChatService:
             if not character:
                 return False, {}, "Character not found"
 
-            state = await self.state_manager.initialize_state(chat.id, character)
+            state = await self.state_manager.initialize_state(
+                chat.id,
+                character,
+                language=chat_language,
+            )
 
             existing_opening = (
                 await self.db.execute(
@@ -762,7 +829,7 @@ class ChatService:
                     "chat_id": existing_opening.chat_id,
                     "role": existing_opening.role,
                     "content": existing_opening.content,
-                    "timestamp": existing_opening.timestamp.isoformat() + "Z" if existing_opening.timestamp else None,
+                    "timestamp": format_datetime(existing_opening.timestamp),
                     "state_snapshot": existing_state,
                 }
                 return True, {"message": message_payload}, None
@@ -809,7 +876,7 @@ class ChatService:
                 "chat_id": opening_message.chat_id,
                 "role": opening_message.role,
                 "content": opening_message.content,
-                "timestamp": opening_message.timestamp.isoformat() + "Z" if opening_message.timestamp else None,
+                "timestamp": format_datetime(opening_message.timestamp),
                 "state_snapshot": state,
             }
 

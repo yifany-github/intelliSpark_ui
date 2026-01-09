@@ -183,7 +183,7 @@ const FavoritesCharacterCard = (
       return (
         <div className="flex items-center gap-1 bg-gradient-to-r from-amber-300 via-amber-400 to-amber-500 px-2.5 py-1 rounded-full shadow-[0_0_30px_rgba(251,191,36,0.35)] text-xs font-semibold text-amber-900">
           <Crown className="w-3.5 h-3.5" />
-          官方推荐
+          {t('officialRecommendation')}
         </div>
       );
     }
@@ -199,14 +199,14 @@ const FavoritesCharacterCard = (
       return (
         <div className="flex items-center gap-1">
         <div className="w-2 h-2 bg-brand-secondary rounded-full" />
-        <span className="text-xs text-brand-secondary">活跃</span>
+        <span className="text-xs text-brand-secondary">{t('active')}</span>
         </div>
       );
     }
     return (
       <div className="flex items-center gap-1">
         <div className="w-2 h-2 bg-gray-400 rounded-full" />
-        <span className="text-xs text-gray-400">新角色</span>
+        <span className="text-xs text-gray-400">{t('newCharacter')}</span>
       </div>
     );
   })();

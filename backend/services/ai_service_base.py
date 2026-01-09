@@ -116,7 +116,11 @@ class AIServiceBase(ABC):
         """
         pass
     
-    def _get_character_prompt(self, character: Character) -> dict:
+    def _get_character_prompt(
+        self,
+        character: Character,
+        chat_language: Optional[str] = None,
+    ) -> dict:
         """
         Get character prompt configuration (shared implementation)
         
@@ -141,12 +145,6 @@ class AIServiceBase(ABC):
                 from .prompt_engine import PromptEngine
                 selected_system_prompt, prompt_type = select_system_prompt(character)
                 engine = PromptEngine(system_prompt=selected_system_prompt)
-
-                # Extract chat_language from request context if available
-                # Default to 'zh' for backward compatibility
-                chat_language = None
-                if hasattr(self, 'chat_language'):
-                    chat_language = self.chat_language
 
                 user_prefs = {'chat_language': chat_language} if chat_language else None
                 compiled = engine.compile(character, user_prefs=user_prefs)

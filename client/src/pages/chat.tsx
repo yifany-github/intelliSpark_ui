@@ -216,7 +216,9 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
   // Extract current state from latest assistant message for state panel
   const currentState = useMemo(() => {
-    // Try to get state from latest assistant message first
+    if (remoteState?.state && Object.keys(remoteState.state).length > 0) {
+      return remoteState.state;
+    }
     for (let i = displayMessages.length - 1; i >= 0; i--) {
       const message = displayMessages[i];
       if (message.role === 'assistant') {
@@ -226,8 +228,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
         }
       }
     }
-    // Fallback to remoteState if no state found in messages
-    return remoteState?.state && Object.keys(remoteState.state).length > 0 ? remoteState.state : undefined;
+    return undefined;
   }, [displayMessages, remoteState?.state]);
 
   const generateQuickReplies = useCallback(() => {

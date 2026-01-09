@@ -26,7 +26,8 @@ async def translate_character(
     character: Character,
     session: Session,
     target_lang: str = "both",
-    dry_run: bool = False
+    dry_run: bool = False,
+    force_names: bool = False
 ):
     """Translate a single character.
 
@@ -35,6 +36,7 @@ async def translate_character(
         session: Database session
         target_lang: "en", "zh", or "both"
         dry_run: If True, print what would be translated without saving
+        force_names: If True, overwrite name translations even if present
     """
     translation_service = get_translation_service()
 
@@ -42,16 +44,22 @@ async def translate_character(
     print(f"Translating character: {character.name} (ID: {character.id})")
     print(f"{'='*60}")
 
-    # Detect source language
+    # Detect source language for longer fields and for name
     source_lang = translation_service.detect_language(character.backstory or character.description or "")
+    name_source_lang = translation_service.detect_language(character.name or "")
     print(f"Detected source language: {source_lang}")
 
     needs_translation = []
+    name_needs_en = target_lang in ["en", "both"] and name_source_lang == "zh"
+    name_needs_zh = target_lang in ["zh", "both"] and name_source_lang == "en"
 
     # Check which translations are needed
+    if name_needs_en and (force_names or not character.name_en):
+        needs_translation.append("name → name_en")
+    if name_needs_zh and (force_names or not character.name_zh):
+        needs_translation.append("name → name_zh")
+
     if target_lang in ["en", "both"] and source_lang == "zh":
-        if not character.name_en:
-            needs_translation.append("name → name_en")
         if not character.description_en and character.description:
             needs_translation.append("description → description_en")
         if not character.backstory_en:
@@ -63,8 +71,6 @@ async def translate_character(
 
     if target_lang in ["zh", "both"] and source_lang == "en":
         # For English source characters, populate Chinese fields
-        if not character.name_zh:
-            needs_translation.append("name → name_zh")
         if not character.description_zh and character.description:
             needs_translation.append("description → description_zh")
         if not character.backstory_zh:
@@ -96,7 +102,7 @@ async def translate_character(
     }
 
     # Translate to English
-    if target_lang in ["en", "both"] and source_lang == "zh":
+    if target_lang in ["en", "both"] and (source_lang == "zh" or name_needs_en):
         print("\n📝 Translating to English...")
         translated_en = await translation_service.translate_character_data(
             character_data,
@@ -104,7 +110,7 @@ async def translate_character(
         )
 
         # Update English fields
-        if "name" in translated_en and not character.name_en:
+        if "name" in translated_en and name_needs_en and (force_names or not character.name_en):
             character.name_en = translated_en["name"]
             print(f"  ✓ name_en: {translated_en['name'][:50]}...")
 
@@ -125,7 +131,7 @@ async def translate_character(
             print(f"  ✓ default_state_json_en translated")
 
     # Translate to Chinese
-    if target_lang in ["zh", "both"] and source_lang == "en":
+    if target_lang in ["zh", "both"] and (source_lang == "en" or name_needs_zh):
         print("\n📝 Translating to Chinese...")
         translated_zh = await translation_service.translate_character_data(
             character_data,
@@ -133,7 +139,7 @@ async def translate_character(
         )
 
         # Update Chinese fields
-        if "name" in translated_zh and not character.name_zh:
+        if "name" in translated_zh and name_needs_zh and (force_names or not character.name_zh):
             character.name_zh = translated_zh["name"]
             print(f"  ✓ name_zh: {translated_zh['name'][:50]}...")
 
@@ -176,6 +182,11 @@ async def main():
     )
     parser.add_argument("--dry-run", action="store_true", help="Preview without saving")
     parser.add_argument("--skip-existing", action="store_true", help="Skip characters that already have translations")
+    parser.add_argument(
+        "--force-names",
+        action="store_true",
+        help="Overwrite name_en/name_zh even if already set"
+    )
 
     args = parser.parse_args()
 
@@ -222,7 +233,8 @@ async def main():
                     character,
                     session,
                     target_lang=args.target,
-                    dry_run=args.dry_run
+                    dry_run=args.dry_run,
+                    force_names=args.force_names
                 )
 
             except Exception as e:

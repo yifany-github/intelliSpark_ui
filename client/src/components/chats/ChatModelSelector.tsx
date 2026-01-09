@@ -3,10 +3,10 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
-import { 
-  DropdownMenu, 
-  DropdownMenuContent, 
-  DropdownMenuItem, 
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
@@ -86,6 +86,7 @@ const ChatModelSelector = () => {
     // Shorter names for the dropdown
     if (model.value === "gemini") return "Gemini";
     if (model.value === "grok") return "Grok";
+    if (model.value === "openai") return "GPT-5 mini (Coming Soon)";
     return model.name;
   };
 
@@ -108,14 +109,27 @@ const ChatModelSelector = () => {
   }
 
   const currentModel = getCurrentModel();
-  const availableCount = availableModels.models.filter(m => m.is_available).length;
+
+  // Process models to disable OpenAI (temporary hardcode)
+  const processedModels = availableModels.models.map(model => {
+    if (model.value === "openai") {
+      return {
+        ...model,
+        is_available: false,
+        name: `${model.name} (Coming Soon)`
+      };
+    }
+    return model;
+  });
+
+  const availableCount = processedModels.filter(m => m.is_available).length;
 
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm" 
+        <Button
+          variant="outline"
+          size="sm"
           className="bg-gray-800 border-gray-700 hover:bg-gray-700 text-white"
           disabled={setModelMutation.isPending}
         >
@@ -136,18 +150,18 @@ const ChatModelSelector = () => {
           <p className="text-xs text-gray-500">Changes apply to new messages</p>
         </div>
         <DropdownMenuSeparator className="bg-gray-700" />
-        {availableModels.models.map((model) => (
+        <DropdownMenuSeparator className="bg-gray-700" />
+        {processedModels.map((model) => (
           <DropdownMenuItem
             key={model.value}
             onClick={() => handleModelChange(model.value)}
             disabled={!model.is_available || setModelMutation.isPending}
-            className={`flex items-start space-x-2 p-2 cursor-pointer ${
-              !model.is_available 
-                ? "opacity-60 cursor-not-allowed" 
-                : selectedModel === model.value
+            className={`flex items-start space-x-2 p-2 cursor-pointer ${!model.is_available
+              ? "opacity-60 cursor-not-allowed"
+              : selectedModel === model.value
                 ? "bg-gray-700"
                 : "hover:bg-gray-700"
-            }`}
+              }`}
           >
             <div className="flex-shrink-0 mt-0.5">
               {!model.is_available ? (
@@ -160,9 +174,8 @@ const ChatModelSelector = () => {
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-1 mb-0.5">
-                <span className={`text-sm font-medium ${
-                  model.is_available ? "text-white" : "text-gray-500"
-                }`}>
+                <span className={`text-sm font-medium ${model.is_available ? "text-white" : "text-gray-500"
+                  }`}>
                   {model.name}
                 </span>
                 {model.is_default && (
@@ -176,11 +189,10 @@ const ChatModelSelector = () => {
                   </Badge>
                 )}
               </div>
-              <p className={`text-xs leading-tight ${
-                model.is_available ? "text-gray-400" : "text-gray-600"
-              }`}>
-                {model.description.length > 60 
-                  ? `${model.description.substring(0, 60)}...` 
+              <p className={`text-xs leading-tight ${model.is_available ? "text-gray-400" : "text-gray-600"
+                }`}>
+                {model.description.length > 60
+                  ? `${model.description.substring(0, 60)}...`
                   : model.description
                 }
               </p>

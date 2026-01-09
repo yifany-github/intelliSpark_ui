@@ -5,6 +5,7 @@ from models import Character
 from typing import Dict, Any, Optional, List
 from config import settings
 from backend.services.storage_manager import get_storage_manager, StorageManagerError
+from utils.datetime_utils import format_datetime
 
 # Constants for persona parsing
 PERSONA_DESCRIPTION_PATTERN = r'你是([^#]+?)(?=\n\n|\n####|$)'
@@ -83,10 +84,10 @@ def transform_character_to_response(character: Character, db_session=None) -> Di
         "isPublic": character.is_public,  # snake_case to camelCase
         "galleryEnabled": getattr(character, 'gallery_enabled', False),
         "createdBy": character.created_by,  # snake_case to camelCase
-        "createdAt": character.created_at.isoformat() + "Z" if character.created_at else None,  # ISO format
+        "createdAt": format_datetime(character.created_at),  # ISO format
         # Soft delete fields for admin visibility
         "isDeleted": getattr(character, 'is_deleted', False),
-        "deletedAt": character.deleted_at.isoformat() + "Z" if getattr(character, 'deleted_at', None) else None,
+        "deletedAt": format_datetime(getattr(character, 'deleted_at', None)),
         "deletedBy": getattr(character, 'deleted_by', None),
         "deleteReason": getattr(character, 'delete_reason', None),
         # Admin management and analytics fields
@@ -95,7 +96,7 @@ def transform_character_to_response(character: Character, db_session=None) -> Di
         "likeCount": character.like_count,
         "chatCount": character.chat_count,
         "trendingScore": float(character.trending_score) if character.trending_score else 0.0,
-        "lastActivity": character.last_activity.isoformat() + "Z" if character.last_activity else None
+        "lastActivity": format_datetime(character.last_activity)
     }
     if getattr(character, "opening_line", None):
         response["openingLine"] = character.opening_line

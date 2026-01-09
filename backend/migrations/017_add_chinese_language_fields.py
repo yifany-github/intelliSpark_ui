@@ -22,9 +22,9 @@ def run_migration():
     print("Starting migration: Add Chinese language fields...")
 
     with sync_engine.begin() as conn:
-        # Check if columns already exist
+        # Check if columns already exist using inspector (db agnostic)
         inspector = inspect(conn)
-        columns = {column["name"] for column in inspector.get_columns("characters")}
+        columns = [col['name'] for col in inspector.get_columns('characters')]
 
         fields_to_add = [
             ("name_zh", "VARCHAR(255)"),

@@ -29,6 +29,7 @@ from models import Character, CharacterGalleryImage, User
 from .upload_service import UploadService
 from utils.file_validation import comprehensive_image_validation
 from utils.character_utils import resolve_asset_url
+from utils.datetime_utils import format_datetime
 
 
 class CharacterGalleryServiceError(Exception):
@@ -145,7 +146,7 @@ class CharacterGalleryService:
                 "primary_image": primary,
                 "images": formatted_images,
                 "categories": await self._get_image_categories(gallery_images),
-                "last_updated": character.gallery_updated_at.isoformat() + "Z" if character.gallery_updated_at else None,
+                "last_updated": format_datetime(character.gallery_updated_at),
                 "fallback_avatar": resolve_asset_url(character.avatar_url) if character.avatar_url else None
             }
             
@@ -401,7 +402,7 @@ class CharacterGalleryService:
             "file_size": gallery_image.file_size,
             "dimensions": gallery_image.dimensions,
             "file_format": gallery_image.file_format,
-            "created_at": gallery_image.created_at.isoformat() + "Z" if gallery_image.created_at else None,
+            "created_at": format_datetime(gallery_image.created_at),
             "is_gallery_image": True
         }
     
@@ -493,7 +494,7 @@ class CharacterGalleryService:
                 "total_gallery_images": total_images,
                 "average_images_per_character": avg_images_per_character,
                 "category_distribution": category_stats,
-                "last_updated": datetime.utcnow().isoformat() + "Z"
+                "last_updated": format_datetime(datetime.utcnow())
             }
             
         except Exception as e:

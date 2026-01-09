@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from models import Chat, ChatMessage, Character
 from schemas import ChatMessageCreate
 from .character_state_manager import CharacterStateManager
+from utils.datetime_utils import format_datetime
 
 
 class MessageServiceError(Exception):
@@ -107,7 +108,7 @@ class MessageService:
                     "chat_id": message.chat_id,
                     "role": message.role,
                     "content": message.content,
-                    "timestamp": message.timestamp.isoformat() + "Z" if message.timestamp else None,
+                    "timestamp": format_datetime(message.timestamp),
                     "state_snapshot": self._filter_snapshot_keys(
                         self._deserialize_state_snapshot(message.state_snapshot),
                         keys_to_use,
@@ -148,7 +149,7 @@ class MessageService:
                 "chat_id": message.chat_id,
                 "role": message.role,
                 "content": message.content,
-                "timestamp": message.timestamp.isoformat() + "Z" if message.timestamp else None,
+                "timestamp": format_datetime(message.timestamp),
                 "state_snapshot": self._deserialize_state_snapshot(message.state_snapshot),
             }
 

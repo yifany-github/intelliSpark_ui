@@ -19,6 +19,7 @@ from google.genai import types
 from typing import List, Optional, Dict, Tuple, Any, Iterable
 import json
 import re
+import os
 from models import Character, ChatMessage
 from .ai_service_base import AIServiceBase, AIServiceError
 from utils.prompt_selector import select_system_prompt
@@ -32,6 +33,7 @@ from prompts.state_initialization_safe import (
     SAFE_STATE_KEYS,
     build_state_initialization_prompt_safe,
 )
+from utils.language_utils import get_language_labels, normalize_language_code
 import logging
 
 logger = logging.getLogger(__name__)
@@ -43,7 +45,9 @@ class GeminiService(AIServiceBase):
 
     def __init__(self, api_key: Optional[str] = None):
         """Initialize Gemini service"""
-        super().__init__("gemini-2.0-flash-001", api_key)
+        default_model = "gemini-2.0-flash-001"
+        model_name = os.getenv("GEMINI_MODEL", "").strip() or default_model
+        super().__init__(model_name, api_key)
         self._intent_service = None  # Lazy-loaded intent service
 
     async def initialize(self) -> bool:
@@ -84,15 +88,16 @@ class GeminiService(AIServiceBase):
         """Generate AI response using Gemini with simplified direct flow"""
 
         if not self.is_available:
-            return self._simulate_response(character, messages), {"tokens_used": 1}
+            raise AIServiceError("Gemini service unavailable")
 
         try:
-            # Extract chat_language from user_preferences and set it for prompt generation
+            # Extract chat_language from user_preferences for prompt generation
+            target_language = None
             if user_preferences and 'chat_language' in user_preferences:
-                self.chat_language = user_preferences['chat_language']
+                target_language = normalize_language_code(user_preferences['chat_language'])
 
             # Get character prompt using PromptEngine (unified path for all characters)
-            character_prompt = self._get_character_prompt(character)
+            character_prompt = self._get_character_prompt(character, chat_language=target_language)
 
             self.logger.info(f"🎭 Generating response for character: {character.name if character else 'default'}")
 
@@ -103,7 +108,13 @@ class GeminiService(AIServiceBase):
             stage = await self._detect_user_intent_background(managed_messages)
 
             # Build conversation prompt with full history, state, and stage reminder
-            conversation_prompt = self._build_conversation_prompt(managed_messages, character, state, stage)
+            conversation_prompt = self._build_conversation_prompt(
+                managed_messages,
+                character,
+                state,
+                stage,
+                language=target_language,
+            )
 
             # Get selected system prompt (SAFE vs NSFW)
             selected_system_prompt, prompt_type = select_system_prompt(character)
@@ -113,12 +124,14 @@ class GeminiService(AIServiceBase):
             system_instruction = f"{selected_system_prompt}\n\n{character_prompt}"
 
             # Direct API call (no caching)
+            thinking_config = self._build_thinking_config()
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=conversation_prompt,
                 config=types.GenerateContentConfig(
-                    system_instruction=system_instruction
-                )
+                    system_instruction=system_instruction,
+                    thinking_config=thinking_config,
+                ),
             )
 
             if response and response.text:
@@ -140,13 +153,18 @@ class GeminiService(AIServiceBase):
                     token_info["state_update"] = state_update
 
                 return clean_text, token_info
-            else:
-                self.logger.warning("⚠️ Empty response from Gemini, using fallback")
-                return self._simulate_response(character, messages), {"tokens_used": 1}
+
+            block_reason = self._get_block_reason(response)
+            if block_reason:
+                self.logger.warning("⚠️ Gemini blocked response: %s", block_reason)
+                raise AIServiceError(f"Gemini blocked response: {block_reason}")
+
+            self.logger.warning("⚠️ Empty response from Gemini")
+            raise AIServiceError("Empty response from Gemini")
 
         except Exception as e:
             self.logger.error(f"❌ Error generating Gemini response: {e}")
-            return self._simulate_response(character, messages), {"tokens_used": 1}
+            raise AIServiceError(str(e))
 
     async def generate_opening_line(self, character: Character) -> str:
         """Generate an opening line for a character"""
@@ -159,8 +177,7 @@ class GeminiService(AIServiceBase):
         )
 
         if not self.is_available:
-            self.logger.warning("⚠️ No Gemini client available, using fallback opening line")
-            return fallback_line
+            raise AIServiceError("Gemini service unavailable")
 
         try:
             prompt_bundle = build_opening_line_prompt(
@@ -172,25 +189,43 @@ class GeminiService(AIServiceBase):
                 model=self.model_name,
                 contents=prompt_bundle.user_prompt,
                 config=types.GenerateContentConfig(
-                    system_instruction=prompt_bundle.system_instruction
-                )
+                    system_instruction=prompt_bundle.system_instruction,
+                    thinking_config=self._build_thinking_config(),
+                ),
             )
 
             if response and response.text:
                 return response.text.strip()
-            else:
-                self.logger.warning("⚠️ Empty response from Gemini for opening line, using fallback")
-                return fallback_line
+
+            block_reason = self._get_block_reason(response)
+            if block_reason:
+                self.logger.warning("⚠️ Gemini blocked opening line: %s", block_reason)
+                raise AIServiceError(f"Gemini blocked opening line: {block_reason}")
+
+            self.logger.warning("⚠️ Empty response from Gemini for opening line")
+            raise AIServiceError("Empty response from Gemini for opening line")
 
         except Exception as e:
             self.logger.error(f"❌ Error generating opening line: {e}")
-            return fallback_line
+            raise AIServiceError(str(e))
 
-    async def generate_state_seed(self, character: Character, *, safe_mode: bool) -> Dict[str, Any]:
+    async def generate_state_seed(
+        self,
+        character: Character,
+        *,
+        safe_mode: bool,
+        language: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Generate a default state seed for a character."""
 
         allowed_keys: Iterable[str] = SAFE_STATE_KEYS if safe_mode else NSFW_STATE_KEYS
-        fallback_state = self._simulate_state_seed(allowed_keys, safe_mode=safe_mode)
+        raw_language = normalize_language_code(language or "zh")
+        target_language = "zh" if raw_language == "zh" else "en"
+        fallback_state = self._simulate_state_seed(
+            allowed_keys,
+            safe_mode=safe_mode,
+            language=target_language,
+        )
 
         if not self.is_available:
             self.logger.warning("⚠️ No Gemini client available, using fallback state seed")
@@ -209,19 +244,22 @@ class GeminiService(AIServiceBase):
                     character_name=character.name,
                     persona_prompt=persona_text,
                     avatar_url=character.avatar_url,
+                    language=target_language,
                 )
             else:
                 prompt_bundle = build_state_initialization_prompt(
                     character_name=character.name,
                     persona_prompt=persona_text,
                     avatar_url=character.avatar_url,
+                    language=target_language,
                 )
 
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=prompt_bundle.user_prompt,
                 config=types.GenerateContentConfig(
-                    system_instruction=prompt_bundle.system_instruction
+                    system_instruction=prompt_bundle.system_instruction,
+                    thinking_config=self._build_thinking_config(),
                 ),
             )
 
@@ -242,7 +280,11 @@ class GeminiService(AIServiceBase):
 
     # PRIVATE METHODS - Simplified implementations
 
-    def _get_character_prompt(self, character: Optional[Character]) -> str:
+    def _get_character_prompt(
+        self,
+        character: Optional[Character],
+        chat_language: Optional[str] = None,
+    ) -> str:
         """
         Get character prompt using PromptEngine (unified path for all characters).
 
@@ -255,7 +297,8 @@ class GeminiService(AIServiceBase):
             # Use PromptEngine for all characters
             selected_system_prompt, _ = select_system_prompt(character)
             engine = PromptEngine(system_prompt=selected_system_prompt)
-            compiled = engine.compile(character)
+            user_prefs = {"chat_language": chat_language} if chat_language else None
+            compiled = engine.compile(character, user_prefs=user_prefs)
 
             # Extract persona text from compiled result
             persona_source = compiled['used_fields'].get('persona_source', 'unknown')
@@ -269,6 +312,8 @@ class GeminiService(AIServiceBase):
                 persona_parts.append(sections['persona'])
             if 'gender_hint' in sections:
                 persona_parts.append(sections['gender_hint'])
+            if 'language_instruction' in sections:
+                persona_parts.append(sections['language_instruction'])
 
             return '\n\n'.join(persona_parts) if persona_parts else ""
 
@@ -360,7 +405,7 @@ class GeminiService(AIServiceBase):
             self.logger.warning(f"⚠️ Stage detection failed: {e}")
             return None  # Graceful fallback - conversation continues without stage reminder
 
-    def _build_intent_guidance(self, stage: str) -> str:
+    def _build_intent_guidance(self, stage: str, language: Optional[str] = None) -> str:
         """
         Build SHORT stage-specific reminder based on detected stage
 
@@ -368,7 +413,7 @@ class GeminiService(AIServiceBase):
         """
         # Use the centralized reminder from the stage detection service
         if self.intent_service:
-            return self.intent_service.build_intent_guidance(stage)
+            return self.intent_service.build_intent_guidance(stage, language=language)
         else:
             # No fallback needed - empty string is fine
             return ""
@@ -429,7 +474,13 @@ class GeminiService(AIServiceBase):
             return None
         return {"value": numeric_value, "description": description}
 
-    def _simulate_state_seed(self, allowed_keys: Iterable[str], *, safe_mode: bool) -> Dict[str, Any]:
+    def _simulate_state_seed(
+        self,
+        allowed_keys: Iterable[str],
+        *,
+        safe_mode: bool,
+        language: str = "zh",
+    ) -> Dict[str, Any]:
         if safe_mode:
             base = {
                 "衣着": "穿搭整洁得体，色调温和",
@@ -459,7 +510,38 @@ class GeminiService(AIServiceBase):
                 "环境": "私密空间光线暖柔，空气中弥漫甜香",
             }
 
-        return {str(key): base.get(str(key), "未设定") for key in allowed_keys}
+        if language == "en":
+            if safe_mode:
+                base = {
+                    "衣着": "Neat, modest outfit in soft tones",
+                    "仪态": "Relaxed posture, confident and natural",
+                    "情绪": {"value": 6, "description": "Cheerful mood, eager to engage"},
+                    "好感度": {"value": 4, "description": "First impressions, polite distance"},
+                    "信任度": {"value": 3, "description": "Slightly cautious, trust needs time"},
+                    "兴奋度": {"value": 5, "description": "Steady and composed"},
+                    "疲惫度": {"value": 3, "description": "Energetic and well-rested"},
+                    "环境": "Warm, well-lit indoor space with cozy decor",
+                    "动作": "Hands relaxed at the sides, occasionally tidies sleeves",
+                    "语气": "Warm and gentle, with a hint of excitement",
+                }
+            else:
+                base = {
+                    "胸部": "Soft and full, fabric lightly pressed, subtly rising with breath",
+                    "下体": "Warm and sensitive, a faint trace of desire",
+                    "衣服": "Close-fitting garments slightly disheveled, outlining enticing curves",
+                    "姿势": "Leaning forward a little, an inviting, intimate posture",
+                    "情绪": {"value": 6, "description": "Anticipation and shy excitement beneath a warm smile"},
+                    "好感度": {"value": 5, "description": "Curious about you, willing to grow closer"},
+                    "信任度": {"value": 4, "description": "Relaxing in this private space, still a little guarded"},
+                    "兴奋度": {"value": 5, "description": "A steady undercurrent of excitement"},
+                    "疲惫度": {"value": 3, "description": "Plenty of energy, body feels lively"},
+                    "欲望值": {"value": 4, "description": "A subtle, growing desire"},
+                    "敏感度": {"value": 6, "description": "Skin responds keenly to touch"},
+                    "环境": "Soft, warm lighting in a private space, air sweet with perfume",
+                }
+
+        missing_value = "Not set" if language == "en" else "未设定"
+        return {str(key): base.get(str(key), missing_value) for key in allowed_keys}
 
     def _build_conversation_prompt(
         self,
@@ -467,6 +549,7 @@ class GeminiService(AIServiceBase):
         character: Optional[Character] = None,
         state: Optional[Dict[str, Any]] = None,
         stage: Optional[str] = None,
+        language: Optional[str] = None,
     ) -> List[Dict]:
         """
         Build conversation prompt with FULL conversation history, state tracking, and stage reminder.
@@ -478,21 +561,24 @@ class GeminiService(AIServiceBase):
         """
 
         character_name = self._extract_character_name(character)
+        target_language = normalize_language_code(language) if language else "zh"
+        labels = get_language_labels(target_language)
+        user_label = labels["user"]
+        state_prefix = labels["state_prefix"]
 
         # Build natural conversation history
         conversation_history = ""
 
         for message in messages:
             if message.role == 'user':
-                conversation_history += f"用户: {message.content}\n"
+                conversation_history += f"{user_label}: {message.content}\n"
             elif message.role == 'assistant':
-                # Use dynamic character name for any bot
                 conversation_history += f"{character_name}: {message.content}\n"
 
         # Build context sections
         stage_reminder = ""
         if stage:
-            reminder_text = self._build_intent_guidance(stage)
+            reminder_text = self._build_intent_guidance(stage, language=target_language)
             if reminder_text:  # Only inject if there's a reminder (high-risk stage)
                 stage_reminder = f"{reminder_text}\n\n"
 
@@ -503,7 +589,7 @@ class GeminiService(AIServiceBase):
             except (TypeError, ValueError):
                 state_json = ""
             if state_json:
-                state_context = f"[当前状态: {state_json}]\n\n"
+                state_context = f"[{state_prefix}: {state_json}]\n\n"
 
         # Create conversation prompt with stage reminder and state
         if conversation_history:
@@ -524,23 +610,93 @@ class GeminiService(AIServiceBase):
             "parts": [{"text": full_prompt}]
         }]
 
+    def _get_block_reason(self, response: Any) -> Optional[str]:
+        if not response:
+            return None
+
+        feedback = getattr(response, "prompt_feedback", None)
+        if feedback:
+            if getattr(feedback, "blocked", None):
+                block_reason = getattr(feedback, "block_reason", None)
+                return str(block_reason or "prompt_feedback.blocked")
+            block_reason = getattr(feedback, "block_reason", None)
+            if block_reason:
+                return str(block_reason)
+
+        candidates = getattr(response, "candidates", None) or []
+        for candidate in candidates:
+            finish_reason = getattr(candidate, "finish_reason", None)
+            if finish_reason:
+                finish_str = str(finish_reason)
+                finish_upper = finish_str.upper()
+                if finish_upper in {"SAFETY", "RECITATION", "BLOCKLIST", "PROHIBITED_CONTENT"}:
+                    return f"finish_reason={finish_str}"
+
+            safety_ratings = getattr(candidate, "safety_ratings", None) or []
+            for rating in safety_ratings:
+                if getattr(rating, "blocked", False):
+                    category = getattr(rating, "category", None)
+                    if category:
+                        return f"safety_ratings_blocked:{category}"
+                    return "safety_ratings_blocked"
+
+        return None
+
+    @staticmethod
+    def _thinking_budget_for_level(level: str) -> Optional[int]:
+        level = level.lower()
+        if level == "minimal":
+            return 0
+        if level == "low":
+            return 128
+        if level == "high":
+            return -1
+        return None
+
+    def _build_thinking_config(self) -> Optional[types.ThinkingConfig]:
+        level = os.getenv("GEMINI_THINKING_LEVEL", "").strip().lower()
+        budget_env = os.getenv("GEMINI_THINKING_BUDGET", "").strip()
+
+        if level:
+            try:
+                return types.ThinkingConfig(thinking_level=level)
+            except Exception:
+                budget = self._thinking_budget_for_level(level)
+                if budget is not None:
+                    return types.ThinkingConfig(thinking_budget=budget)
+
+        if budget_env:
+            try:
+                return types.ThinkingConfig(thinking_budget=int(budget_env))
+            except ValueError:
+                self.logger.warning("Invalid GEMINI_THINKING_BUDGET=%s", budget_env)
+        return None
+
     def _extract_state_update(self, response_text: str) -> Tuple[str, Dict[str, Any]]:
-        pattern = r"\[\[STATE_UPDATE\]\](?P<json>{.*?})\[\[/STATE_UPDATE\]\]"
-        match = re.search(pattern, response_text, re.DOTALL)
-        if not match:
+        pattern = r"\[\[STATE_UPDATE\]\](?P<content>.*?)\[\[/STATE_UPDATE\]\]"
+        matches = list(re.finditer(pattern, response_text, re.DOTALL))
+        if not matches:
+            if "[[STATE_UPDATE]]" in response_text:
+                cleaned = response_text.split("[[STATE_UPDATE]]", 1)[0].strip()
+                return cleaned, {}
             return response_text, {}
 
-        raw_block = match.group(0)
-        raw_json = match.group("json")
-        try:
-            state_update = json.loads(raw_json)
-            if not isinstance(state_update, dict):
-                state_update = {}
-        except json.JSONDecodeError:
-            self.logger.warning("⚠️ Failed to parse state update block: %s", raw_json)
-            state_update = {}
+        raw_content = matches[0].group("content")
+        state_update: Dict[str, Any] = {}
 
-        cleaned = response_text.replace(raw_block, "").strip()
+        if raw_content:
+            start = raw_content.find("{")
+            end = raw_content.rfind("}")
+            if start != -1 and end != -1 and start < end:
+                candidate = raw_content[start : end + 1]
+                try:
+                    state_update = json.loads(candidate)
+                    if not isinstance(state_update, dict):
+                        state_update = {}
+                except json.JSONDecodeError:
+                    self.logger.warning("⚠️ Failed to parse state update block: %s", candidate)
+
+        cleaned = re.sub(pattern, "", response_text, flags=re.DOTALL).strip()
         return cleaned, state_update
 
     def _simulate_response(
@@ -549,16 +705,4 @@ class GeminiService(AIServiceBase):
         messages: List[ChatMessage]
     ) -> str:
         """Simulate AI response when Gemini is not available"""
-
-        # Get the last user message
-        last_user_message = ""
-        for msg in reversed(messages):
-            if msg.role == "user":
-                last_user_message = msg.content
-                break
-
-        # Simple fallback response
-        if character and character.name:
-            return f"*responds as {character.name}*\n\nI find your question quite interesting. Let me consider how best to answer you."
-        else:
-            return "I understand. How can I help you today?"
+        return super()._simulate_response(character, messages)

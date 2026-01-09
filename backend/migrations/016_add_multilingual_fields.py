@@ -23,9 +23,9 @@ def run_migration():
     print("Starting migration: Add multilingual fields to characters table")
 
     with sync_engine.begin() as conn:
-        # Check if columns already exist
+        # Check if columns already exist using inspector (db agnostic)
         inspector = inspect(conn)
-        columns = {column["name"] for column in inspector.get_columns("characters")}
+        columns = {col['name'] for col in inspector.get_columns('characters')}
 
         # Add English language columns if they don't exist
         if "name_en" not in columns:

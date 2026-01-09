@@ -25,6 +25,7 @@ from models import Character, ChatMessage, User
 from .ai_service_base import AIServiceBase, AIServiceError
 from .gemini_service_new import GeminiService
 from .grok_service import GrokService
+from .openai_service import OpenAIService
 from config import settings
 import logging
 import asyncio
@@ -43,6 +44,7 @@ class ModelProvider(Enum):
     """Supported AI model providers"""
     GEMINI = "gemini"
     GROK = "grok"
+    OPENAI = "openai"
 
 class AIModelManager:
     """Central manager for multiple AI services"""
@@ -53,7 +55,7 @@ class AIModelManager:
         self.service_status: Dict[ModelProvider, ModelStatus] = {}
         self.last_health_check: Dict[ModelProvider, datetime] = {}
         self.admin_settings = {
-            "enabled_models": [ModelProvider.GEMINI, ModelProvider.GROK],
+            "enabled_models": [ModelProvider.GEMINI, ModelProvider.GROK, ModelProvider.OPENAI],
             "default_model": ModelProvider.GEMINI,
             "fallback_enabled": True,
             "health_check_interval": 300  # 5 minutes
@@ -96,6 +98,22 @@ class AIModelManager:
         except Exception as e:
             self.service_status[ModelProvider.GROK] = ModelStatus.UNAVAILABLE
             self.logger.error(f"❌ Grok service initialization error: {e}")
+
+        # Initialize OpenAI service
+        try:
+            openai_api_key = getattr(settings, "openai_api_key", None)
+            openai_service = OpenAIService(api_key=openai_api_key)
+            if await openai_service.initialize():
+                self.services[ModelProvider.OPENAI] = openai_service
+                self.service_status[ModelProvider.OPENAI] = ModelStatus.AVAILABLE
+                success_count += 1
+                self.logger.info("✅ OpenAI service initialized")
+            else:
+                self.service_status[ModelProvider.OPENAI] = ModelStatus.UNAVAILABLE
+                self.logger.warning("⚠️ OpenAI service failed to initialize")
+        except Exception as e:
+            self.service_status[ModelProvider.OPENAI] = ModelStatus.UNAVAILABLE
+            self.logger.error(f"❌ OpenAI service initialization error: {e}")
         
         self.logger.info(f"✅ AI Model Manager initialized: {success_count}/{len(ModelProvider)} services available")
         return success_count > 0
@@ -216,6 +234,7 @@ class AIModelManager:
         self,
         character: Character,
         user: Optional[User] = None,
+        language: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Generate per-character default state template."""
 
@@ -225,7 +244,11 @@ class AIModelManager:
         async def _invoke(provider: ModelProvider) -> Dict[str, str]:
             service = self.services.get(provider)
             if service and hasattr(service, "generate_state_seed"):
-                return await service.generate_state_seed(character, safe_mode=safe_mode)
+                return await service.generate_state_seed(
+                    character,
+                    safe_mode=safe_mode,
+                    language=language,
+                )
             return {}
 
         if not selected_provider:
@@ -331,6 +354,9 @@ class AIModelManager:
     
     async def _get_fallback_model(self, failed_provider: ModelProvider) -> Optional[ModelProvider]:
         """Get fallback model when primary fails"""
+        preferred_fallback = ModelProvider.GROK
+        if failed_provider != preferred_fallback and await self._is_model_available(preferred_fallback):
+            return preferred_fallback
         for provider in self.admin_settings["enabled_models"]:
             if provider != failed_provider and await self._is_model_available(provider):
                 return provider

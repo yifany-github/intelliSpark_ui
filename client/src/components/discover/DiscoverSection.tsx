@@ -433,7 +433,7 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
         return (
           <div className="flex items-center gap-1 bg-gradient-to-r from-yellow-400 via-yellow-500 to-amber-400 px-2.5 py-1 rounded-full shadow-glow shadow-yellow-400/30 animate-pulse">
             <Crown className="w-3.5 h-3.5 text-amber-900 drop-shadow" />
-            <span className="text-xs text-amber-900 font-semibold tracking-wide leading-none">官方推荐</span>
+            <span className="text-xs text-amber-900 font-semibold tracking-wide leading-none">{t('officialRecommendation')}</span>
           </div>
         );
       }
@@ -449,14 +449,14 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
         return (
           <div className="flex items-center space-x-1 leading-none">
             <div className="w-2 h-2 bg-brand-secondary rounded-full" />
-            <span className="text-xs text-brand-secondary font-medium leading-none">活跃</span>
+            <span className="text-xs text-brand-secondary font-medium leading-none">{t('active')}</span>
           </div>
         );
       }
       return (
         <div className="flex items-center space-x-1 leading-none">
           <div className="w-2 h-2 bg-gray-400 rounded-full" />
-          <span className="text-xs text-gray-400 font-medium leading-none">新角色</span>
+          <span className="text-xs text-gray-400 font-medium leading-none">{t('newCharacter')}</span>
         </div>
       );
     })();
