@@ -29,6 +29,7 @@ from schemas import Character as CharacterSchema, CharacterCreate, CharacterUpda
 from models import User
 from routes.admin import is_admin
 from pathlib import Path
+from utils.language_utils import parse_accept_language
 import os
 
 # Create router with prefix and tags
@@ -158,8 +159,7 @@ async def get_characters(
     """Get all characters with creator usernames, localized based on Accept-Language header"""
     try:
         # Detect preferred language from Accept-Language header
-        accept_lang = request.headers.get("Accept-Language", "en")
-        preferred_lang = "zh" if "zh" in accept_lang.lower() else "en"
+        preferred_lang = parse_accept_language(request.headers.get("Accept-Language"))
 
         service = CharacterService(db)
         characters = await service.get_all_characters()
@@ -181,8 +181,7 @@ async def get_character(
     """Get character by ID with creator username, localized based on Accept-Language header"""
     try:
         # Detect preferred language from Accept-Language header
-        accept_lang = request.headers.get("Accept-Language", "en")
-        preferred_lang = "zh" if "zh" in accept_lang.lower() else "en"
+        preferred_lang = parse_accept_language(request.headers.get("Accept-Language"))
 
         service = CharacterService(db)
         character = await service.get_character(character_id)

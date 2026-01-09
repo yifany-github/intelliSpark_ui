@@ -425,6 +425,7 @@ export type TranslationKey =
   | 'saveDraft'
   | 'creating'
   | 'preview'
+  | 'previewDetails'
   | 'howCharacterAppears'
   | 'characterNameRequired'
   | 'characterDescriptionRequired'
@@ -466,11 +467,13 @@ export type TranslationKey =
   | 'animeManga'
   | 'moviesTv'
   | 'featured'
+  | 'officialRecommendation'
   | 'featuredCharacters'
   | 'handpickedSelections'
   | 'trendingThisWeek'
   | 'hotPicksCommunity'
   | 'newArrivals'
+  | 'newCharacter'
   | 'freshCharactersAdded'
   | 'mostPopular'
   | 'communityFavorites'
@@ -1391,6 +1394,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     animeManga: 'Anime & Manga',
     moviesTv: 'Movies & TV',
     featured: 'Featured',
+    officialRecommendation: 'Official Pick',
     noCharactersFoundInCategory: 'No {category} Characters Found',
     tryExploringOtherCategories: 'Try exploring other categories or check back later for new additions.',
     featuredCharacters: 'Featured Characters',
@@ -1398,6 +1402,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     trendingThisWeek: 'Trending This Week',
     hotPicksCommunity: 'Hot picks from the community',
     newArrivals: 'New Arrivals',
+    newCharacter: 'New Character',
     freshCharactersAdded: 'Fresh characters added recently',
     mostPopular: 'Most Popular',
     communityFavorites: 'Community favorites',
@@ -1559,6 +1564,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     removeFavorite: 'Remove from favorites',
     remove: 'Remove',
     preview: 'Preview',
+    previewDetails: 'Preview Details',
     noFavoritesYet: 'No favorites yet',
     noCharactersFound: 'No characters found',
     startExploring: 'Start exploring characters and add them to your favorites',
@@ -2235,6 +2241,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     animeManga: '动漫',
     moviesTv: '影视',
     featured: '精选',
+    officialRecommendation: '官方推荐',
     noCharactersFoundInCategory: '未找到{category}角色',
     tryExploringOtherCategories: '试试其他分类或稍后查看新增内容',
     featuredCharacters: '精选角色',
@@ -2242,6 +2249,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     trendingThisWeek: '本周热门',
     hotPicksCommunity: '社区热选',
     newArrivals: '新上线',
+    newCharacter: '新角色',
     freshCharactersAdded: '最新添加的角色',
     mostPopular: '最受欢迎',
     communityFavorites: '社区最爱',
@@ -2404,6 +2412,7 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     removeFavorite: '取消收藏',
     remove: '移除',
     preview: '预览',
+    previewDetails: '预览详情',
     noFavoritesYet: '还没有收藏',
     noCharactersFound: '未找到角色',
     startExploring: '开始探索角色并将它们添加到收藏夹',
@@ -2680,14 +2689,16 @@ export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }
     // This ensures LLM outputs match the UI language
     setChatLanguage(interfaceLanguage);
 
-    // Invalidate all character queries to refetch with new language
-    // This includes both /api/characters (list) and /api/characters/:id (details)
+    // Invalidate character + chat queries to refetch with new language
+    // This includes /api/characters* and /api/chats* payloads
     // Dynamic import to avoid circular dependency
     import('@/lib/queryClient').then(({ queryClient }) => {
       queryClient.invalidateQueries({
         predicate: (query) => {
           const key = query.queryKey[0];
-          return typeof key === 'string' && key.startsWith('/api/characters');
+          return typeof key === 'string' && (
+            key.startsWith('/api/characters') || key.startsWith('/api/chats')
+          );
         }
       });
     });

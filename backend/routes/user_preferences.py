@@ -131,7 +131,8 @@ async def get_available_ai_models(
         # Model descriptions for user-friendly display
         model_descriptions = {
             "gemini": "Google Gemini - Advanced conversational AI with excellent character roleplay capabilities",
-            "grok": "xAI Grok - Alternative AI model with unique personality and different conversation style"
+            "grok": "xAI Grok - Alternative AI model with unique personality and different conversation style",
+            "openai": "OpenAI GPT-5 mini - Strong general-purpose model with reliable dialogue quality"
         }
         
         for model_key, status_info in model_status.items():

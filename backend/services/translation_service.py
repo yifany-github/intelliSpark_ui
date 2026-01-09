@@ -6,9 +6,10 @@ Uses Grok API to support NSFW content translation.
 
 import json
 import logging
-from typing import Dict, Optional, Literal
+from typing import Dict, Literal, Optional
 import openai
 from config import settings
+from utils.language_utils import get_language_name, normalize_language_code
 
 
 logger = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ class TranslationService:
             )
             self.model = "grok-3-mini"  # Use same model as chat service (supports NSFW)
 
-    def detect_language(self, text: str) -> Literal["zh", "en"]:
+    def detect_language(self, text: str) -> str:
         """Detect if text is primarily Chinese or English.
 
         Args:
@@ -41,19 +42,27 @@ class TranslationService:
         if not text or len(text.strip()) == 0:
             return "en"
 
-        # Count Chinese characters
-        chinese_chars = sum(1 for char in text if '\u4e00' <= char <= '\u9fff')
         total_chars = len(text)
+        if total_chars == 0:
+            return "en"
 
-        # If more than 30% Chinese characters, consider it Chinese
-        if total_chars > 0 and chinese_chars / total_chars > 0.3:
+        chinese_chars = sum(1 for char in text if '\u4e00' <= char <= '\u9fff')
+        if chinese_chars / total_chars > 0.3:
             return "zh"
+
+        korean_chars = sum(1 for char in text if '\uac00' <= char <= '\ud7a3')
+        if korean_chars / total_chars > 0.2:
+            return "ko"
+
+        if any(char in "áéíóúñü¿¡" for char in text.lower()):
+            return "es"
+
         return "en"
 
     async def translate_text(
         self,
         text: str,
-        target_lang: Literal["zh", "en"],
+        target_lang: str,
         context: Optional[str] = None
     ) -> str:
         """Translate text to target language using Grok API.
@@ -73,17 +82,15 @@ class TranslationService:
         if not text or len(text.strip()) == 0:
             return text
 
-        # Detect source language
+        target_lang = normalize_language_code(target_lang, default="en")
         source_lang = self.detect_language(text)
-
-        # If already in target language, return as is
         if source_lang == target_lang:
             return text
 
         try:
             # Build system and user prompts based on target language
             if target_lang == "zh":
-                system_prompt = """你是一位专业的翻译专家。你的任务是将英文内容翻译成自然流畅的中文。
+                system_prompt = """你是一位专业的翻译专家。你的任务是将内容翻译成自然流畅的中文。
 要求：
 1. 保持原文的语气、风格和情感
 2. 翻译要地道、符合中文表达习惯
@@ -91,12 +98,12 @@ class TranslationService:
 4. 只返回翻译结果，不要添加任何解释"""
                 user_prompt = f"""{f'内容类型：{context}' if context else ''}
 
-英文原文：
+原文：
 {text}
 
 请翻译为中文："""
-            else:
-                system_prompt = """You are a professional translator. Your task is to translate Chinese content into natural, fluent English.
+            elif target_lang == "en":
+                system_prompt = """You are a professional translator. Your task is to translate the content into natural, fluent English.
 Requirements:
 1. Maintain the original tone, style, and emotion
 2. Translation should be idiomatic and natural in English
@@ -104,10 +111,24 @@ Requirements:
 4. Return only the translation without any explanations"""
                 user_prompt = f"""{f'Content type: {context}' if context else ''}
 
-Chinese original:
+Original:
 {text}
 
 Translate to English:"""
+            else:
+                target_name = get_language_name(target_lang)
+                system_prompt = f"""You are a professional translator. Your task is to translate the content into natural, fluent {target_name}.
+Requirements:
+1. Maintain the original tone, style, and emotion
+2. Translation should be idiomatic and natural in {target_name}
+3. For NSFW content, translate faithfully without censorship
+4. Return only the translation without any explanations"""
+                user_prompt = f"""{f'Content type: {context}' if context else ''}
+
+Original:
+{text}
+
+Translate to {target_name}:"""
 
             response = await self.client.chat.completions.create(
                 model=self.model,
@@ -127,10 +148,71 @@ Translate to English:"""
             logger.error(f"Translation failed: {e}")
             return text
 
+    async def translate_name(
+        self,
+        name: str,
+        target_lang: str
+    ) -> str:
+        """Translate or transliterate a character display name.
+
+        Args:
+            name: Name to translate
+            target_lang: Target language ("zh" or "en")
+
+        Returns:
+            Translated name
+        """
+        if not self.client:
+            logger.error("Translation service unavailable - GROK_API_KEY not set")
+            return name
+
+        if not name or len(name.strip()) == 0:
+            return name
+
+        target_lang = normalize_language_code(target_lang, default="en")
+        source_lang = self.detect_language(name)
+        if source_lang == target_lang:
+            return name
+
+        try:
+            system_prompt = (
+                "You are a localization translator for character display names. "
+                "If the input is a proper name, transliterate rather than translate meaning. "
+                "If it is a descriptive title or phrase, translate semantically. "
+                "If it mixes a proper name and a descriptor, keep the name and translate the descriptor. "
+                "Return only the translated name."
+            )
+            target_name = get_language_name(target_lang)
+            user_prompt = (
+                f"Name:\n{name}\n\n"
+                f"Target language: {target_name}.\n"
+                "Translate:"
+            )
+
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=0.2,
+                max_tokens=128
+            )
+
+            translated = response.choices[0].message.content.strip()
+            if not translated:
+                return name
+            logger.info(f"Translated name from {source_lang} to {target_lang}")
+            return translated
+
+        except Exception as e:
+            logger.error(f"Name translation failed: {e}")
+            return name
+
     async def translate_state_json(
         self,
         state_json: str,
-        target_lang: Literal["zh", "en"]
+        target_lang: str
     ) -> str:
         """Translate state JSON structure.
 
@@ -143,6 +225,7 @@ Translate to English:"""
         """
         if not self.client or not state_json:
             return state_json
+        target_lang = normalize_language_code(target_lang, default="en")
 
         try:
             state = json.loads(state_json)
@@ -222,6 +305,65 @@ Translate to English:"""
             logger.error(f"State JSON translation failed: {e}")
             return state_json
 
+    async def translate_state_json_values(
+        self,
+        state: Dict,
+        target_lang: str,
+    ) -> Dict:
+        """Translate all string values and description fields in a state dict.
+
+        Preserves keys and numeric values, returns a dict on success.
+        """
+        if not self.client or not state:
+            return state
+
+        target_lang = normalize_language_code(target_lang, default="en")
+        target_name = get_language_name(target_lang)
+
+        try:
+            state_json = json.dumps(state, ensure_ascii=False)
+            system_prompt = (
+                "You are a translation engine. Translate ONLY the human-readable string values "
+                "and any object 'description' fields into the target language. "
+                "Do NOT translate JSON keys. Preserve numbers and structure. "
+                "Return ONLY valid JSON."
+            )
+            user_prompt = (
+                f"Target language: {target_name}\n\n"
+                f"JSON:\n{state_json}\n\n"
+                "Translate now:"
+            )
+
+            response = await self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.2,
+                max_tokens=4000,
+            )
+
+            translated = response.choices[0].message.content.strip()
+            if not translated:
+                return state
+
+            # Extract JSON payload if the model wrapped it.
+            start = translated.find("{")
+            end = translated.rfind("}")
+            if start != -1 and end != -1 and start < end:
+                translated = translated[start : end + 1]
+
+            parsed = json.loads(translated)
+            if isinstance(parsed, dict):
+                logger.info("Translated state JSON to %s", target_lang)
+                return parsed
+
+        except Exception as e:
+            logger.error(f"State JSON translation failed: {e}")
+
+        return state
+
     async def translate_character_data(
         self,
         character_data: Dict,
@@ -244,8 +386,10 @@ Translate to English:"""
 
         # Translate name
         if character_data.get("name"):
-            # Names are usually kept as is, but we can add translation if needed
-            translated["name"] = character_data["name"]
+            translated["name"] = await self.translate_name(
+                character_data["name"],
+                target_lang
+            )
 
         # Translate description
         if character_data.get("description"):

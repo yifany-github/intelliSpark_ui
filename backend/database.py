@@ -136,6 +136,19 @@ def _anonymous_prepared_statement_name() -> str:
     """Return empty string so asyncpg uses unnamed statements."""
     return ""
 
+def _build_ssl_context() -> ssl.SSLContext:
+    """Create SSL context, honoring custom CA bundle when provided."""
+    insecure = os.getenv("DB_SSL_INSECURE", "").lower() in {"1", "true", "yes"}
+    if insecure:
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
+        return ctx
+    cafile = os.getenv("SSL_CERT_FILE") or os.getenv("DB_SSL_CA_BUNDLE")
+    if cafile:
+        return ssl.create_default_context(cafile=cafile)
+    return ssl.create_default_context()
+
 
 # Async engine/session used by the FastAPI request lifecycle
 ASYNC_DATABASE_URL = _build_async_database_url(settings.database_url)
@@ -180,7 +193,7 @@ if ASYNC_DATABASE_URL.startswith("postgresql+asyncpg://"):
         async_connect_args["prepared_statement_name_func"] = (
             _anonymous_prepared_statement_name
         )
-    async_connect_args["ssl"] = ssl.create_default_context()
+    async_connect_args["ssl"] = _build_ssl_context()
     print("[database] async_connect_args after detection", async_connect_args)
 
     if pool_detected or supabase_in_dsn or settings.pgbouncer_disable_cache:
@@ -197,7 +210,7 @@ async_engine_kwargs = {
     "connect_args": dict(async_connect_args),
     "pool_pre_ping": True,
     "pool_reset_on_return": "rollback",
-    "echo": settings.debug,
+    "echo": settings.sqlalchemy_echo,
 }
 
 if ASYNC_DATABASE_URL.startswith("sqlite+aiosqlite://"):

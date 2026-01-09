@@ -86,6 +86,7 @@ const ChatModelSelector = () => {
     // Shorter names for the dropdown
     if (model.value === "gemini") return "Gemini";
     if (model.value === "grok") return "Grok";
+    if (model.value === "openai") return "GPT-5 mini";
     return model.name;
   };
 

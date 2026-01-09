@@ -150,17 +150,19 @@ class PromptEngine:
         if chat_language:
             language_map = {
                 "zh": "中文(简体)",
-                "en": "English"
+                "en": "English",
+                "es": "Español",
+                "ko": "한국어",
             }
             target_language = language_map.get(chat_language, chat_language)
 
             # Build language-specific STATE_UPDATE examples
-            if chat_language == "en":
-                state_example = '{"情绪": {"value": 7, "description": "Feeling more relaxed, a warm smile on face"}, "好感度": {"value": 5, "description": "Curious about you, willing to learn more"}}'
-                state_instruction = "Write ALL state descriptions in English"
-            else:
+            if chat_language == "zh":
                 state_example = '{"情绪": {"value": 7, "description": "更加放松，脸上露出温暖的笑容"}, "好感度": {"value": 5, "description": "对你充满好奇，愿意进一步了解"}}'
                 state_instruction = "所有状态描述必须用中文书写"
+            else:
+                state_example = '{"情绪": {"value": 7, "description": "Feeling more relaxed, a warm smile on face"}, "好感度": {"value": 5, "description": "Curious about you, willing to learn more"}}'
+                state_instruction = f"Write ALL state descriptions in {target_language}"
 
             sections["language_instruction"] = f"""**CRITICAL LANGUAGE OVERRIDE INSTRUCTION**:
 THIS INSTRUCTION OVERRIDES ALL PREVIOUS LANGUAGE EXAMPLES IN THE SYSTEM PROMPT.
@@ -173,6 +175,7 @@ You MUST respond in {target_language} ONLY. This applies to:
 
 CRITICAL REQUIREMENT FOR STATE UPDATES:
 - Ignore any Chinese examples you saw in the system prompt above
+- Do NOT translate JSON keys. Keep keys exactly as provided (e.g., 情绪, 好感度, 信任度, 兴奋度, 疲惫度, 欲望值, 敏感度, 胸部, 下体, 衣服, 姿势, 环境).
 - {state_instruction}
 - Correct format: [[STATE_UPDATE]]{state_example}[[/STATE_UPDATE]]
 

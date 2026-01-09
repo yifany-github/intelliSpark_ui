@@ -16,6 +16,7 @@ Key difference from intent detection:
 """
 
 from typing import List, Dict, Any, Optional
+import os
 import logging
 import asyncio
 from google import genai
@@ -32,7 +33,10 @@ class NSFWIntentService:
     
     def __init__(self, gemini_client=None):
         self.logger = logging.getLogger(__name__)
-        self.model_name = "gemini-2.0-flash-001"
+        default_model = "gemini-2.0-flash-001"
+        intent_override = os.getenv("GEMINI_INTENT_MODEL", "").strip()
+        shared_override = os.getenv("GEMINI_MODEL", "").strip()
+        self.model_name = intent_override or shared_override or default_model
         
         # Use shared client or create new one
         if gemini_client:
@@ -88,7 +92,8 @@ class NSFWIntentService:
                 contents=[{"role": "user", "parts": [{"text": stage_prompt}]}],
                 config=types.GenerateContentConfig(
                     max_output_tokens=10,
-                    temperature=0.1
+                    temperature=0.1,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
                 )
             )
 
@@ -134,7 +139,7 @@ class NSFWIntentService:
         # Actual prompt is now in prompts/sexual_stage_detection.py
         return build_stage_detection_prompt(conversation)
     
-    def build_intent_guidance(self, stage: str) -> str:
+    def build_intent_guidance(self, stage: str, language: Optional[str] = None) -> str:
         """
         Build SHORT stage-specific reminder (not long prescriptive guidance)
 
@@ -145,7 +150,7 @@ class NSFWIntentService:
             Short reminder text (empty if low-risk stage)
         """
         # Delegate to centralized reminder mapping
-        reminder = get_stage_reminder(stage)
+        reminder = get_stage_reminder(stage, language=language or "zh")
 
         if reminder:
             self.logger.info(f"💡 Stage reminder for '{stage}': {reminder}")
