@@ -142,7 +142,7 @@ const AIModelSelector = () => {
           <p className="text-gray-400 text-sm mt-1">
             {modelsError?.message || prefsError?.message || "Please check your connection and try refreshing the page"}
           </p>
-          <Button 
+          <Button
             onClick={() => {
               window.location.reload();
             }}
@@ -156,40 +156,52 @@ const AIModelSelector = () => {
     );
   }
 
+  // Process models to disable OpenAI (temporary hardcode)
+  const processedModels = availableModels?.models.map(model => {
+    if (model.value === "openai") {
+      return {
+        ...model,
+        is_available: false,
+        name: `${model.name} (Coming Soon)`,
+        description: "Not available for current character settings"
+      };
+    }
+    return model;
+  }) || [];
+
   return (
     <Card className="bg-gray-800 border-gray-700 p-6">
       <div className="flex items-center space-x-2 mb-4">
         <Bot className="w-5 h-5 text-blue-400" />
         <h3 className="font-semibold text-lg text-white">AI Model Selection</h3>
       </div>
-      
+
       <div className="space-y-4">
         <p className="text-sm text-gray-400">
           Choose your preferred AI model for character conversations. Different models have unique personalities and conversation styles.
         </p>
-        
-        {availableModels?.models && availableModels.models.length > 0 ? (
-          <RadioGroup 
-            value={selectedModel} 
+
+        {processedModels && processedModels.length > 0 ? (
+          <RadioGroup
+            value={selectedModel}
             onValueChange={handleModelChange}
             className="space-y-3"
           >
-            {availableModels.models.map((model) => (
-              <div 
-                key={model.value} 
-                className={`flex items-center space-x-3 p-3 rounded-lg border transition-colors ${
-                  model.is_available 
-                    ? "border-gray-600 hover:border-gray-500 cursor-pointer" 
-                    : "border-gray-700 opacity-60 cursor-not-allowed"
-                } ${selectedModel === model.value ? "border-blue-500 bg-blue-500/10" : ""}`}
+            {processedModels.map((model) => (
+              <div
+                key={model.value}
+                className={`flex items-center space-x-3 p-3 rounded-lg border transition-colors ${model.is_available
+                  ? "border-gray-600 hover:border-gray-500 cursor-pointer"
+                  : "border-gray-700 opacity-60 cursor-not-allowed"
+                  } ${selectedModel === model.value ? "border-blue-500 bg-blue-500/10" : ""}`}
                 onClick={() => {
                   if (model.is_available && !setModelMutation.isPending) {
                     handleModelChange(model.value);
                   }
                 }}
               >
-                <RadioGroupItem 
-                  value={model.value} 
+                <RadioGroupItem
+                  value={model.value}
                   id={model.value}
                   disabled={!model.is_available || setModelMutation.isPending}
                   className="text-blue-400 pointer-events-none"
@@ -197,11 +209,10 @@ const AIModelSelector = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center space-x-2 mb-1">
                     {getModelIcon(model)}
-                    <Label 
-                      htmlFor={model.value} 
-                      className={`font-medium cursor-pointer select-none ${
-                        model.is_available ? "text-white" : "text-gray-500"
-                      }`}
+                    <Label
+                      htmlFor={model.value}
+                      className={`font-medium cursor-pointer select-none ${model.is_available ? "text-white" : "text-gray-500"
+                        }`}
                     >
                       {model.name}
                     </Label>
@@ -223,12 +234,12 @@ const AIModelSelector = () => {
             <p className="text-gray-400">No AI models available at the moment</p>
           </div>
         )}
-        
+
         {selectedModel && (
           <div className="mt-4 p-3 bg-gray-700/50 rounded-lg">
             <p className="text-sm text-gray-300">
               <span className="font-medium">Current selection:</span>{" "}
-              {availableModels?.models.find(m => m.value === selectedModel)?.name || selectedModel}
+              {processedModels.find(m => m.value === selectedModel)?.name || selectedModel}
             </p>
           </div>
         )}
