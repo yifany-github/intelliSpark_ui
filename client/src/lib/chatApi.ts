@@ -49,3 +49,13 @@ export async function requestChatGeneration(
     throw err;
   }
 }
+
+export async function requestMessageTts(
+  messageId: number,
+): Promise<{ audioUrl: string }> {
+  const response = await apiRequest(
+    "POST",
+    `/api/chat/messages/${messageId}/tts`,
+  );
+  return (await response.json()) as { audioUrl: string };
+}

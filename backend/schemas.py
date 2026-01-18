@@ -260,6 +260,9 @@ class ChatMessage(ChatMessageBase):
     uuid: Optional[UUID] = None  # UUID field for new security model
     timestamp: datetime
     stateSnapshot: Optional[Dict[str, Union[str, Dict[str, Any]]]] = Field(default=None, alias="state_snapshot")
+    audioUrl: Optional[str] = Field(default=None, alias="audio_url")
+    audioStatus: Optional[str] = Field(default=None, alias="audio_status")
+    audioError: Optional[str] = Field(default=None, alias="audio_error")
 
 # API response schemas
 class MessageResponse(BaseSchema):

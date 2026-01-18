@@ -33,12 +33,14 @@ try:
     from routes.admin import router as new_admin_router  # New AI admin routes
     from routes.search import router as search_router  # Search routes
     from routes.user_preferences import router as preferences_router
+    from routes.tts_routes import router as tts_router
 except ModuleNotFoundError:
     from backend.routes.characters import router as characters_router
     from backend.routes.chats import router as chats_router
     from backend.routes.admin import router as new_admin_router  # New AI admin routes
     from backend.routes.search import router as search_router  # Search routes
     from backend.routes.user_preferences import router as preferences_router
+    from backend.routes.tts_routes import router as tts_router
 
 try:
     from admin.routes import router as admin_router
@@ -153,6 +155,7 @@ app.include_router(chats_router, prefix="/api")
 app.include_router(new_admin_router, prefix="/api")  # New AI admin routes
 app.include_router(search_router, prefix="/api")  # Search routes
 app.include_router(preferences_router, prefix="/api")  # User preferences routes
+app.include_router(tts_router, prefix="/api")
 app.include_router(admin_router, prefix="/api/admin")  # Legacy admin routes
 app.include_router(auth_router, prefix="/api/auth", tags=["authentication"])
 app.include_router(admin_auth_router, prefix="/api/auth", tags=["admin-authentication"])  # New JWT admin auth

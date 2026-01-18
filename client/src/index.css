@@ -489,6 +489,103 @@
     pointer-events: none;
   }
 
+  .chat-audio-bubble {
+    @apply rounded-[18px] rounded-bl-[4px] px-4 py-3 text-white/90 relative;
+    background: linear-gradient(
+      135deg,
+      rgba(56, 189, 248, 0.3) 0%,
+      rgba(168, 85, 247, 0.28) 50%,
+      rgba(236, 72, 153, 0.25) 100%
+    );
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    box-shadow:
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.12),
+      0 6px 20px -6px rgba(56, 189, 248, 0.4);
+  }
+
+  .chat-audio-bubble--playing {
+    box-shadow:
+      inset 0 1px 1px 0 rgba(255, 255, 255, 0.15),
+      0 10px 26px -8px rgba(56, 189, 248, 0.55);
+  }
+
+  .chat-audio-bubble::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      transparent 60%
+    );
+    pointer-events: none;
+  }
+
+  .audio-play-button {
+    @apply flex h-9 w-9 items-center justify-center rounded-full text-white/90 transition;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 4px 10px -4px rgba(15, 23, 42, 0.6);
+  }
+
+  .audio-play-button:hover {
+    background: rgba(15, 23, 42, 0.7);
+  }
+
+  .audio-wave {
+    display: flex;
+    align-items: flex-end;
+    gap: 3px;
+    height: 22px;
+  }
+
+  .audio-wave-bar {
+    width: 4px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.82);
+    opacity: 0.7;
+    transform-origin: bottom;
+  }
+
+  .audio-wave-bar--playing {
+    animation: audioWave 1.2s ease-in-out infinite;
+    opacity: 0.9;
+  }
+
+  .audio-progress {
+    margin-top: 6px;
+    height: 3px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.28);
+    overflow: hidden;
+  }
+
+  .audio-progress__fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      rgba(125, 211, 252, 0.9) 0%,
+      rgba(244, 114, 182, 0.8) 100%
+    );
+    transition: width 0.2s ease-out;
+  }
+
+  .chat-audio-bubble--playing .audio-progress__fill {
+    box-shadow: 0 0 8px rgba(125, 211, 252, 0.5);
+  }
+
+  @keyframes audioWave {
+    0%,
+    100% {
+      transform: scaleY(0.6);
+    }
+    50% {
+      transform: scaleY(1.2);
+    }
+  }
+
   .chat-bubble-user {
     @apply rounded-[18px] rounded-br-[4px] p-3 text-white relative;
     background: linear-gradient(

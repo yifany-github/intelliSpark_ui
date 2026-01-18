@@ -61,6 +61,12 @@ export interface ChatMessage {
   chatId: number;
   role: "user" | "assistant" | "system";
   content: string;
+  audioUrl?: string;
+  audio_url?: string;
+  audioStatus?: string;
+  audio_status?: string;
+  audioError?: string;
+  audio_error?: string;
   timestamp?: string;
   createdAt: string;
   updatedAt: string;

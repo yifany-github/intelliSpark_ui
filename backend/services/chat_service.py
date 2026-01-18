@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -30,6 +31,8 @@ from ..utils.datetime_utils import format_datetime
 from ..utils.language_utils import normalize_language_code
 from .character_state_manager import CharacterStateManager
 from .translation_service import get_translation_service
+
+logger = logging.getLogger(__name__)
 
 
 class ChatServiceError(Exception):
@@ -86,6 +89,37 @@ class ChatService:
         except (TypeError, ValueError, json.JSONDecodeError):
             return None
         return None
+
+    @staticmethod
+    def _extract_state_update_from_text(response_text: str) -> Tuple[str, Dict[str, Any]]:
+        if not response_text:
+            return "", {}
+
+        pattern = r"\[\[STATE_UPDATE\]\](?P<content>.*?)\[\[/STATE_UPDATE\]\]"
+        matches = list(re.finditer(pattern, response_text, re.DOTALL))
+        if not matches:
+            if "[[STATE_UPDATE]]" in response_text:
+                cleaned = response_text.split("[[STATE_UPDATE]]", 1)[0].strip()
+                return cleaned, {}
+            return response_text, {}
+
+        raw_content = matches[0].group("content")
+        state_update: Dict[str, Any] = {}
+
+        if raw_content:
+            start = raw_content.find("{")
+            end = raw_content.rfind("}")
+            if start != -1 and end != -1 and start < end:
+                candidate = raw_content[start : end + 1]
+                try:
+                    state_update = json.loads(candidate)
+                    if not isinstance(state_update, dict):
+                        state_update = {}
+                except json.JSONDecodeError:
+                    logger.warning("Failed to parse state update block: %s", candidate)
+
+        cleaned = re.sub(pattern, "", response_text, flags=re.DOTALL).strip()
+        return cleaned, state_update
 
     @staticmethod
     def _normalize_language(language: Optional[str]) -> Optional[str]:
@@ -549,10 +583,20 @@ class ChatService:
                     state=state,
                 )
 
+                if token_info and token_info.get("model") in {"error", "fallback"}:
+                    raise ChatServiceError("AI service unavailable")
+
                 if chat_language:
                     response_content = await self._ensure_response_language(response_content, chat_language)
 
                 state_update = token_info.pop("state_update", {}) if token_info else {}
+                cleaned_content, parsed_update = self._extract_state_update_from_text(response_content)
+                if parsed_update:
+                    if state_update:
+                        state_update = {**parsed_update, **state_update}
+                    else:
+                        state_update = parsed_update
+                response_content = cleaned_content
 
                 try:
                     if state_update:
@@ -638,6 +682,9 @@ class ChatService:
                     "chat_id": message_model.chat_id,
                     "role": message_model.role,
                     "content": message_model.content,
+                    "audio_url": message_model.audio_url,
+                    "audio_status": message_model.audio_status,
+                    "audio_error": message_model.audio_error,
                     "timestamp": format_datetime(message_model.timestamp),
                     "state_snapshot": state,
                 }
@@ -829,6 +876,9 @@ class ChatService:
                     "chat_id": existing_opening.chat_id,
                     "role": existing_opening.role,
                     "content": existing_opening.content,
+                    "audio_url": existing_opening.audio_url,
+                    "audio_status": existing_opening.audio_status,
+                    "audio_error": existing_opening.audio_error,
                     "timestamp": format_datetime(existing_opening.timestamp),
                     "state_snapshot": existing_state,
                 }
@@ -876,6 +926,9 @@ class ChatService:
                 "chat_id": opening_message.chat_id,
                 "role": opening_message.role,
                 "content": opening_message.content,
+                "audio_url": opening_message.audio_url,
+                "audio_status": opening_message.audio_status,
+                "audio_error": opening_message.audio_error,
                 "timestamp": format_datetime(opening_message.timestamp),
                 "state_snapshot": state,
             }

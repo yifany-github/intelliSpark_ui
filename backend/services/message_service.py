@@ -108,6 +108,9 @@ class MessageService:
                     "chat_id": message.chat_id,
                     "role": message.role,
                     "content": message.content,
+                    "audio_url": message.audio_url,
+                    "audio_status": message.audio_status,
+                    "audio_error": message.audio_error,
                     "timestamp": format_datetime(message.timestamp),
                     "state_snapshot": self._filter_snapshot_keys(
                         self._deserialize_state_snapshot(message.state_snapshot),
@@ -149,6 +152,9 @@ class MessageService:
                 "chat_id": message.chat_id,
                 "role": message.role,
                 "content": message.content,
+                "audio_url": message.audio_url,
+                "audio_status": message.audio_status,
+                "audio_error": message.audio_error,
                 "timestamp": format_datetime(message.timestamp),
                 "state_snapshot": self._deserialize_state_snapshot(message.state_snapshot),
             }

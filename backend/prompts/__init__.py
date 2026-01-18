@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from .tts_prompt import build_tts_prompt
+
 
 @dataclass
 class PromptBundle:
@@ -9,4 +11,4 @@ class PromptBundle:
     user_prompt: str
 
 
-__all__ = ["PromptBundle"]
+__all__ = ["PromptBundle", "build_tts_prompt"]
