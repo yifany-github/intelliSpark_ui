@@ -1,7 +1,8 @@
 import { useRef, useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { ChatMessage } from '../../types';
 import { format } from 'date-fns';
-import { Menu, RefreshCw, Copy, Palette } from 'lucide-react';
+import { Copy, Loader2, Menu, Palette, Pause, Play, RefreshCw, Volume2 } from 'lucide-react';
 import DOMPurify from 'dompurify';
 import {
   DropdownMenu,
@@ -9,8 +10,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
+import TypingIndicator from '@/components/ui/TypingIndicator';
 import { useToast } from '@/hooks/use-toast';
 import ImageWithFallback from '@/components/ui/ImageWithFallback';
+import { requestMessageTts } from '@/lib/chatApi';
+import { invalidateTokenBalance } from '@/services/tokenService';
 
 interface ChatBubbleProps {
   message: ChatMessage;
@@ -21,11 +25,23 @@ interface ChatBubbleProps {
 
 const ChatBubble = ({ message, avatarUrl, onRegenerate, stateSnapshot }: ChatBubbleProps) => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const isAI = message.role === 'assistant';
   const isSystem = message.role === 'system';
   const [displayedContent, setDisplayedContent] = useState(message.content);
   const [isTyping, setIsTyping] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlFromMessage = message.audio_url || message.audioUrl;
+  const audioStatusFromMessage = message.audio_status || message.audioStatus;
+  const audioErrorFromMessage = message.audio_error || message.audioError;
+  const [audioUrl, setAudioUrl] = useState<string | undefined>(audioUrlFromMessage);
+  const [audioStatus, setAudioStatus] = useState<string | undefined>(audioStatusFromMessage);
+  const [audioError, setAudioError] = useState<string | undefined>(audioErrorFromMessage);
+  const [isAudioLoading, setIsAudioLoading] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [audioDuration, setAudioDuration] = useState<number | null>(null);
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
   const hasInitialized = useRef(false);
   const userMessageInitialized = useRef(false);
 
@@ -140,6 +156,17 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate, stateSnapshot }: ChatBub
     return () => clearInterval(intervalId);
   }, [message.id, message.content, isAI]);
 
+  useEffect(() => {
+    setAudioUrl(audioUrlFromMessage);
+    setAudioStatus(audioStatusFromMessage);
+    setAudioError(audioErrorFromMessage);
+  }, [audioUrlFromMessage, audioStatusFromMessage, audioErrorFromMessage]);
+
+  useEffect(() => {
+    setAudioDuration(null);
+    setAudioCurrentTime(0);
+  }, [audioUrl]);
+
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
     toast({
@@ -162,6 +189,180 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate, stateSnapshot }: ChatBub
     // Sanitize HTML to prevent XSS attacks
     return DOMPurify.sanitize(content);
   };
+
+  const formatAudioTime = (seconds: number | null) => {
+    if (!seconds || Number.isNaN(seconds) || !Number.isFinite(seconds)) {
+      return "0:00";
+    }
+    const clamped = Math.max(0, Math.floor(seconds));
+    const minutes = Math.floor(clamped / 60);
+    const remaining = clamped % 60;
+    return `${minutes}:${remaining.toString().padStart(2, "0")}`;
+  };
+
+  const audioProgress = audioDuration
+    ? Math.min(100, (audioCurrentTime / audioDuration) * 100)
+    : 0;
+
+  const waveformBars = [6, 12, 9, 16, 10, 14, 8, 12];
+
+  const updateCachedAudioMeta = (updates: {
+    audioUrl?: string;
+    audioStatus?: string | null;
+    audioError?: string | null;
+  }) => {
+    queryClient.setQueriesData<ChatMessage[]>(
+      {
+        predicate: (query) => {
+          const key = query.queryKey[0];
+          return typeof key === 'string' && key.includes('/api/chats/') && key.includes('/messages');
+        },
+      },
+      (oldMessages) => {
+        if (!oldMessages) {
+          return oldMessages;
+        }
+        let updated = false;
+        const nextMessages = oldMessages.map((msg) => {
+          if (msg.id !== message.id) {
+            return msg;
+          }
+          updated = true;
+          const hasAudioUrl = Object.prototype.hasOwnProperty.call(updates, "audioUrl");
+          const hasAudioStatus = Object.prototype.hasOwnProperty.call(updates, "audioStatus");
+          const hasAudioError = Object.prototype.hasOwnProperty.call(updates, "audioError");
+          const nextAudioUrl = hasAudioUrl
+            ? updates.audioUrl ?? undefined
+            : msg.audioUrl ?? msg.audio_url;
+          const nextAudioStatus = hasAudioStatus
+            ? updates.audioStatus ?? undefined
+            : msg.audioStatus ?? msg.audio_status;
+          const nextAudioError = hasAudioError
+            ? updates.audioError ?? undefined
+            : msg.audioError ?? msg.audio_error;
+          return {
+            ...msg,
+            audioUrl: nextAudioUrl,
+            audio_url: nextAudioUrl,
+            audioStatus: nextAudioStatus ?? undefined,
+            audio_status: nextAudioStatus ?? undefined,
+            audioError: nextAudioError ?? undefined,
+            audio_error: nextAudioError ?? undefined,
+          };
+        });
+        return updated ? nextMessages : oldMessages;
+      }
+    );
+  };
+
+  const parseTtsError = (error: unknown) => {
+    if (!(error instanceof Error)) {
+      return { status: null, detail: null };
+    }
+    const match = error.message.match(/^(\d+):\s*(.*)$/s);
+    if (!match) {
+      return { status: null, detail: error.message };
+    }
+    const status = Number(match[1]);
+    let detail = match[2];
+    try {
+      const parsed = JSON.parse(match[2]);
+      if (parsed?.detail) {
+        detail = parsed.detail;
+      }
+    } catch {
+      // ignore parse errors
+    }
+    return { status, detail };
+  };
+
+  const getTtsErrorMessage = (error: unknown) => {
+    const { status, detail } = parseTtsError(error);
+    if (status === 402) {
+      return "Not enough tokens to generate audio.";
+    }
+    if (status === 422) {
+      return "Audio unavailable for this response.";
+    }
+    return detail || "TTS request failed";
+  };
+
+  const isPlayInterruptedError = (error: unknown) => {
+    if (!(error instanceof Error)) {
+      return false;
+    }
+    if (error.name === "AbortError") {
+      return true;
+    }
+    return error.message.includes("interrupted by a new load request");
+  };
+
+  const handleAudioToggle = async () => {
+    if (isAudioLoading) {
+      return;
+    }
+    if (audioStatus === "blocked") {
+      return;
+    }
+
+    const audio = audioRef.current;
+    if (audioUrl) {
+      if (!audio) {
+        return;
+      }
+      if (audio.paused) {
+        try {
+          await audio.play();
+        } catch (error) {
+          if (!isPlayInterruptedError(error)) {
+            toast({
+              title: "Unable to play audio",
+              description: getTtsErrorMessage(error),
+              duration: 3000,
+            });
+          }
+        }
+      } else {
+        audio.pause();
+      }
+      return;
+    }
+
+    setIsAudioLoading(true);
+    try {
+      const response = await requestMessageTts(message.id);
+      setAudioUrl(response.audioUrl);
+      setAudioStatus("ready");
+      setAudioError(undefined);
+      updateCachedAudioMeta({
+        audioUrl: response.audioUrl,
+        audioStatus: "ready",
+        audioError: null,
+      });
+      invalidateTokenBalance();
+    } catch (error) {
+      const parsed = parseTtsError(error);
+      if (parsed.status === 422) {
+        const nextError = parsed.detail || "TTS blocked for this response";
+        setAudioStatus("blocked");
+        setAudioError(nextError);
+        updateCachedAudioMeta({ audioStatus: "blocked", audioError: nextError });
+        toast({
+          title: "Audio unavailable",
+          description: "This response cannot be generated as audio.",
+          duration: 3000,
+        });
+        return;
+      }
+      toast({
+        title: "TTS failed",
+        description: getTtsErrorMessage(error),
+        duration: 3000,
+      });
+    } finally {
+      setIsAudioLoading(false);
+    }
+  };
   
   // Handle system messages (errors) differently
   if (isSystem) {
@@ -176,6 +377,13 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate, stateSnapshot }: ChatBub
     );
   }
   
+  const showAudioBubble = isAI && audioStatus !== "blocked" && (isAudioLoading || audioUrl);
+  const audioButtonTitle = audioStatus === "blocked"
+    ? "Audio unavailable for this response"
+    : audioUrl
+      ? "Play audio"
+      : "Generate audio (20 tokens)";
+
   return (
     <div className={`flex items-end mb-4 ${!isAI && 'justify-end'}`}>
       {isAI && (
@@ -219,31 +427,114 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate, stateSnapshot }: ChatBub
           )}
 
           {isAI && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button className="float-right text-white/60 hover:text-white ml-2 mt-1">
-                  <Menu size={14} />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleCopy}>
-                  <Copy className="mr-2 h-4 w-4" />
-                  <span>Copy</span>
-                </DropdownMenuItem>
-                {onRegenerate && (
-                  <DropdownMenuItem onClick={onRegenerate}>
-                    <RefreshCw className="mr-2 h-4 w-4" />
-                    <span>Regenerate</span>
-                  </DropdownMenuItem>
+            <div className="flex items-center justify-end gap-2 mt-2 text-white/60">
+              <button
+                className="flex h-6 w-6 items-center justify-center rounded-full text-white/60 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                onClick={handleAudioToggle}
+                title={audioButtonTitle}
+                aria-label={audioButtonTitle}
+                disabled={isAudioLoading || audioStatus === "blocked"}
+              >
+                {isAudioLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isPlaying ? (
+                  <Pause className="h-4 w-4" />
+                ) : (
+                  <Volume2 className="h-4 w-4" />
                 )}
-                <DropdownMenuItem>
-                  <Palette className="mr-2 h-4 w-4" />
-                  <span>Change Tone</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="flex h-6 w-6 items-center justify-center rounded-full text-white/60 transition hover:text-white">
+                    <Menu size={14} />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={handleCopy}>
+                    <Copy className="mr-2 h-4 w-4" />
+                    <span>Copy</span>
+                  </DropdownMenuItem>
+                  {onRegenerate && (
+                    <DropdownMenuItem onClick={onRegenerate}>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      <span>Regenerate</span>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem>
+                    <Palette className="mr-2 h-4 w-4" />
+                    <span>Change Tone</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <audio
+                ref={audioRef}
+                className="hidden"
+                preload="metadata"
+                src={audioUrl}
+                onLoadedMetadata={() => {
+                  const audio = audioRef.current;
+                  if (audio && Number.isFinite(audio.duration)) {
+                    setAudioDuration(audio.duration);
+                  }
+                }}
+                onTimeUpdate={() => {
+                  const audio = audioRef.current;
+                  if (audio) {
+                    setAudioCurrentTime(audio.currentTime);
+                  }
+                }}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onEnded={() => {
+                  setIsPlaying(false);
+                  setAudioCurrentTime(0);
+                }}
+              />
+            </div>
           )}
         </div>
+        {showAudioBubble && (
+          <div className="mt-1.5">
+            <div className={`chat-audio-bubble ${isPlaying ? "chat-audio-bubble--playing" : ""}`}>
+              {isAudioLoading ? (
+                <TypingIndicator />
+              ) : (
+                <div className="flex items-center gap-3">
+                  <button
+                    className="audio-play-button"
+                    onClick={handleAudioToggle}
+                    aria-label={isPlaying ? "Pause audio" : "Play audio"}
+                  >
+                    {isPlaying ? <Pause className="h-5 w-5" /> : <Play className="h-5 w-5" />}
+                  </button>
+                  <div className="flex-1">
+                    <div className="audio-wave">
+                      {waveformBars.map((height, index) => (
+                        <div
+                          key={`wave-${message.id}-${index}`}
+                          className={`audio-wave-bar ${isPlaying ? "audio-wave-bar--playing" : ""}`}
+                          style={{
+                            height: `${height}px`,
+                            animationDelay: `${index * 0.12}s`,
+                          }}
+                        />
+                      ))}
+                    </div>
+                    <div className="audio-progress">
+                      <div
+                        className="audio-progress__fill"
+                        style={{ width: `${audioProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                  <span className="text-[11px] text-white/60 tabular-nums">
+                    {formatAudioTime(audioDuration)}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
         <div className={`text-xs text-gray-500 mt-1 ${isAI ? 'ml-2' : 'mr-2 text-right'}`}>
           {messageTime}
         </div>

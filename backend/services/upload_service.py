@@ -19,6 +19,7 @@ from fastapi import UploadFile, Request, HTTPException
 from pathlib import Path
 import logging
 import os
+import uuid
 from slowapi.util import get_remote_address
 
 from utils.file_validation import comprehensive_image_validation, resize_image_if_needed
@@ -122,6 +123,72 @@ class UploadService:
                 f"Upload service error: user={user_id}, ip={client_ip}, error={str(e)}"
             )
             return False, {}, "Internal upload processing error"
+
+    async def save_chat_audio(
+        self,
+        audio_content: bytes,
+        user_id: int,
+        *,
+        mime_type: Optional[str] = None,
+        message_id: Optional[int] = None,
+    ) -> Tuple[bool, Dict[str, Any], Optional[str]]:
+        """Persist chat audio bytes and return upload metadata."""
+        if not audio_content:
+            return False, {}, "Audio content is empty"
+
+        max_size_bytes = 15 * 1024 * 1024
+        if len(audio_content) > max_size_bytes:
+            return False, {}, "Audio content exceeds 15MB limit"
+
+        allowed_mime_types = {
+            "audio/mpeg": ".mp3",
+            "audio/mp3": ".mp3",
+            "audio/wav": ".wav",
+            "audio/x-wav": ".wav",
+            "audio/wave": ".wav",
+            "audio/webm": ".webm",
+            "audio/ogg": ".ogg",
+        }
+
+        normalized_mime = (mime_type or "audio/wav").split(";")[0].strip().lower()
+        if normalized_mime not in allowed_mime_types:
+            normalized_mime = "audio/wav"
+        extension = allowed_mime_types[normalized_mime]
+
+        file_id = uuid.uuid4().hex
+        prefix = f"chat_{message_id}" if message_id else "chat_audio"
+        filename = f"{prefix}_{file_id}{extension}"
+
+        try:
+            storage_path = self._build_storage_path("chat_audio", filename)
+            stored_file = await self.storage.upload(
+                storage_path,
+                audio_content,
+                mimetype=normalized_mime,
+            )
+
+            response_data = {
+                "url": stored_file.public_url,
+                "filename": filename,
+                "size": stored_file.size,
+                "contentType": stored_file.mimetype or normalized_mime,
+                "storagePath": stored_file.path,
+            }
+
+            self.logger.info(
+                "Chat audio stored: user=%s message=%s size=%s bytes",
+                user_id,
+                message_id or "unknown",
+                stored_file.size,
+            )
+            return True, response_data, None
+
+        except StorageManagerError as storage_error:
+            self.logger.error(f"Storage error while saving chat audio: {storage_error}")
+            return False, {}, str(storage_error)
+        except Exception as e:
+            self.logger.error(f"Failed to save chat audio: {e}")
+            return False, {}, f"Chat audio save failed: {str(e)}"
     
     async def _save_validated_file(
         self,
@@ -201,6 +268,7 @@ class UploadService:
             'character_avatar': 'user_characters_img',
             'character_gallery': f'character_galleries/character_{character_id}' if character_id else 'character_galleries',
             'chat_image': 'chat_images', 
+            'chat_audio': 'chat_audio',
             'user_profile': 'user_profiles',
             # Admin-curated character images for reuse across characters
             'admin_character_asset': 'characters_img'
@@ -217,6 +285,7 @@ class UploadService:
             'character_avatar': 'user_characters_img',
             'character_gallery': f'character_galleries/character_{character_id}' if character_id else 'character_galleries',
             'chat_image': 'chat_images',
+            'chat_audio': 'chat_audio',
             'user_profile': 'user_profiles',
             'admin_character_asset': 'characters_img'
         }

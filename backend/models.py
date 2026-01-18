@@ -181,6 +181,9 @@ class ChatMessage(Base):
     role = Column(String(50), nullable=False)  # 'user' or 'assistant'
     content = Column(String(10000), nullable=False)  # 10KB limit to prevent DoS attacks
     state_snapshot = Column(Text, nullable=True)
+    audio_url = Column(Text, nullable=True)
+    audio_status = Column(String(32), nullable=True)
+    audio_error = Column(Text, nullable=True)
     timestamp = Column(DateTime, default=func.now())
 
     # Relationships

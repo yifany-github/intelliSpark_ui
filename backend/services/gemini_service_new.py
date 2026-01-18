@@ -17,6 +17,9 @@ This is the simplified architecture version post-Issue #129.
 from google import genai
 from google.genai import types
 from typing import List, Optional, Dict, Tuple, Any, Iterable
+import base64
+import io
+import wave
 import json
 import re
 import os
@@ -49,6 +52,7 @@ class GeminiService(AIServiceBase):
         model_name = os.getenv("GEMINI_MODEL", "").strip() or default_model
         super().__init__(model_name, api_key)
         self._intent_service = None  # Lazy-loaded intent service
+        self.last_audio_mime_type: Optional[str] = None
 
     async def initialize(self) -> bool:
         """Initialize Gemini service client"""
@@ -208,6 +212,125 @@ class GeminiService(AIServiceBase):
         except Exception as e:
             self.logger.error(f"❌ Error generating opening line: {e}")
             raise AIServiceError(str(e))
+
+    async def generate_speech(
+        self,
+        text: str,
+        voice_config: Optional[dict] = None,
+        safety_settings: Optional[list[types.SafetySetting]] = None,
+    ) -> bytes:
+        """Generate speech audio bytes for the provided text."""
+        if not text or not text.strip():
+            raise AIServiceError("Text input for speech generation is empty")
+
+        if not self.is_available:
+            raise AIServiceError("Gemini service unavailable")
+
+        tts_model = os.getenv("GEMINI_TTS_MODEL", "").strip() or "gemini-2.5-flash-preview-tts"
+        tts_api_version = os.getenv("GEMINI_TTS_API_VERSION", "").strip()
+        self.last_audio_mime_type = None
+
+        try:
+            tts_client = self.client
+            if tts_api_version:
+                tts_client = genai.Client(
+                    api_key=self.api_key,
+                    http_options=types.HttpOptions(api_version=tts_api_version),
+                )
+
+            default_voice = os.getenv("GEMINI_TTS_VOICE", "").strip() or "Kore"
+            voice_name = default_voice
+            language_code = None
+            if voice_config:
+                voice_name = (
+                    voice_config.get("voice_name")
+                    or voice_config.get("voiceName")
+                    or voice_name
+                )
+                language_code = voice_config.get("language_code") or voice_config.get("languageCode")
+
+            speech_config = None
+            if voice_name or language_code:
+                voice_config_obj = (
+                    types.VoiceConfig(
+                        prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                            voice_name=voice_name
+                        )
+                    )
+                    if voice_name
+                    else None
+                )
+                speech_config = types.SpeechConfig(
+                    voice_config=voice_config_obj,
+                    language_code=language_code,
+                )
+
+            response = tts_client.models.generate_content(
+                model=tts_model,
+                contents=text,
+                config=types.GenerateContentConfig(
+                    response_modalities=["AUDIO"],
+                    speech_config=speech_config,
+                    safety_settings=safety_settings,
+                ),
+            )
+
+            audio_bytes, mime_type = self._extract_audio_response(response)
+            wav_bytes = self._ensure_wav_bytes(audio_bytes)
+            self.last_audio_mime_type = "audio/wav"
+            return wav_bytes
+
+        except Exception as e:
+            self.logger.error(f"❌ Error generating Gemini speech: {e}")
+            raise AIServiceError(str(e))
+
+    @staticmethod
+    def _extract_audio_response(response) -> Tuple[bytes, Optional[str]]:
+        if not response:
+            raise AIServiceError("Gemini TTS returned no response")
+
+        prompt_feedback = getattr(response, "prompt_feedback", None)
+        if prompt_feedback and getattr(prompt_feedback, "block_reason", None):
+            block_reason = prompt_feedback.block_reason
+            block_message = getattr(prompt_feedback, "block_reason_message", None)
+            detail = f"{block_reason}"
+            if block_message:
+                detail = f"{detail}: {block_message}"
+            raise AIServiceError(f"Gemini TTS blocked: {detail}")
+
+        candidates = getattr(response, "candidates", None) or []
+        for candidate in candidates:
+            content = getattr(candidate, "content", None)
+            if not content:
+                continue
+            parts = getattr(content, "parts", None) or []
+            for part in parts:
+                inline_data = getattr(part, "inline_data", None)
+                if inline_data and getattr(inline_data, "data", None):
+                    raw_data = inline_data.data
+                    if isinstance(raw_data, str):
+                        raw_bytes = base64.b64decode(raw_data)
+                    elif isinstance(raw_data, bytes):
+                        raw_bytes = raw_data
+                    else:
+                        raise AIServiceError("Unexpected audio payload type")
+                    return raw_bytes, getattr(inline_data, "mime_type", None)
+
+        raise AIServiceError("Gemini TTS returned no audio content")
+
+    @staticmethod
+    def _ensure_wav_bytes(pcm_bytes: bytes) -> bytes:
+        if len(pcm_bytes) >= 12 and pcm_bytes[:4] == b"RIFF" and pcm_bytes[8:12] == b"WAVE":
+            return pcm_bytes
+
+        buffer = io.BytesIO()
+        with wave.open(buffer, "wb") as wave_file:
+            wave_file.setnchannels(1)
+            wave_file.setsampwidth(2)
+            wave_file.setframerate(24000)
+            wave_file.writeframes(pcm_bytes)
+
+        return buffer.getvalue()
 
     async def generate_state_seed(
         self,
