@@ -308,19 +308,30 @@ class NotificationService:
             batch_id = self._legacy_batch_id(notification)
         return batch_id
 
+    def _is_admin_broadcast(self, notification: Notification) -> bool:
+        meta = notification.meta_data or {}
+        return bool(meta.get("admin_batch_id")) or notification.type == 'admin'
+
     def get_admin_notification_batches(self, limit: int = 6) -> List[Dict[str, Any]]:
         """Aggregate recently sent admin notification batches."""
         notifications = (
             self.db.query(Notification)
-            .filter(Notification.type == 'admin')
+            .filter(
+                or_(
+                    Notification.type == 'admin',
+                    Notification.meta_data.isnot(None)
+                )
+            )
             .order_by(Notification.created_at.desc())
-            .limit(limit * 100)
+            .limit(limit * 200)
             .all()
         )
 
         batches: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
 
         for notification in notifications:
+            if not self._is_admin_broadcast(notification):
+                continue
             meta = notification.meta_data or {}
             batch_id = self._resolve_batch_id(notification)
 
@@ -359,7 +370,12 @@ class NotificationService:
 
         admin_rows = (
             self.db.query(Notification)
-            .filter(Notification.type == 'admin')
+            .filter(
+                or_(
+                    Notification.type == 'admin',
+                    Notification.meta_data.isnot(None)
+                )
+            )
             .all()
         )
 
@@ -367,6 +383,8 @@ class NotificationService:
         recent_batches_set: Set[str] = set()
 
         for note in admin_rows:
+            if not self._is_admin_broadcast(note):
+                continue
             batch_id = self._resolve_batch_id(note)
             all_batches.add(batch_id)
             if note.created_at and note.created_at >= week_ago:
