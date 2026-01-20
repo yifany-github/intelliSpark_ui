@@ -1,18 +1,50 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from database import get_db
 from auth.routes import get_current_user
+from auth.admin_routes import get_current_admin
 from models import User
 from schemas import (
     Notification, NotificationCreate, NotificationUpdate, NotificationStats,
     NotificationTemplate, NotificationTemplateCreate, BulkNotificationCreate,
-    AdminNotificationCreate, MessageResponse
+    AdminNotificationCreate, MessageResponse, NotificationAdminAnalytics
 )
-from notification_service import get_notification_service, NotificationService
+from notification_service import get_notification_service
+
+try:
+    from routes.admin import is_admin
+except ModuleNotFoundError:
+    from backend.routes.admin import is_admin
 
 router = APIRouter(prefix="/api/notifications", tags=["notifications"])
+admin_bearer = HTTPBearer(auto_error=False)
+
+
+def require_admin_access(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials = Depends(admin_bearer),
+    db: Session = Depends(get_db)
+):
+    """Allow Admin JWT tokens or Supabase-admin users."""
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Authorization header missing")
+
+    # Try Admin JWT verification
+    try:
+        get_current_admin(credentials)
+        return {"admin": True}
+    except HTTPException:
+        pass
+
+    # Fallback to Supabase user token
+    user = get_current_user(request, credentials, db)
+    if not is_admin(user):
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    return {"user": user}
 
 @router.get("/", response_model=List[Notification])
 async def get_notifications(
@@ -88,12 +120,10 @@ async def delete_notification(
 @router.post("/admin/send", response_model=List[Notification])
 async def send_admin_notification(
     admin_data: AdminNotificationCreate,
-    current_user: User = Depends(get_current_user),
+    _: dict = Depends(require_admin_access),
     db: Session = Depends(get_db)
 ):
     """Send admin notification to users (admin only)"""
-    # TODO: Add admin role check
-    # For now, allow all authenticated users to send admin notifications
     service = get_notification_service(db)
     notifications = service.send_admin_notification(admin_data)
     
@@ -102,11 +132,10 @@ async def send_admin_notification(
 @router.post("/admin/bulk", response_model=List[Notification])
 async def send_bulk_notifications(
     bulk_data: BulkNotificationCreate,
-    current_user: User = Depends(get_current_user),
+    _: dict = Depends(require_admin_access),
     db: Session = Depends(get_db)
 ):
     """Send bulk notifications using a template (admin only)"""
-    # TODO: Add admin role check
     service = get_notification_service(db)
     notifications = service.send_bulk_notifications(bulk_data)
     
@@ -115,11 +144,10 @@ async def send_bulk_notifications(
 @router.post("/admin/templates", response_model=NotificationTemplate)
 async def create_notification_template(
     template_data: NotificationTemplateCreate,
-    current_user: User = Depends(get_current_user),
+    _: dict = Depends(require_admin_access),
     db: Session = Depends(get_db)
 ):
     """Create a notification template (admin only)"""
-    # TODO: Add admin role check
     service = get_notification_service(db)
     template = service.create_template(template_data)
     
@@ -128,11 +156,10 @@ async def create_notification_template(
 @router.get("/admin/templates/{template_name}", response_model=NotificationTemplate)
 async def get_notification_template(
     template_name: str,
-    current_user: User = Depends(get_current_user),
+    _: dict = Depends(require_admin_access),
     db: Session = Depends(get_db)
 ):
     """Get a notification template (admin only)"""
-    # TODO: Add admin role check
     service = get_notification_service(db)
     template = service.get_template(template_name)
     
@@ -143,15 +170,23 @@ async def get_notification_template(
 
 @router.post("/admin/cleanup", response_model=MessageResponse)
 async def cleanup_expired_notifications(
-    current_user: User = Depends(get_current_user),
+    _: dict = Depends(require_admin_access),
     db: Session = Depends(get_db)
 ):
     """Clean up expired notifications (admin only)"""
-    # TODO: Add admin role check
     service = get_notification_service(db)
     count = service.cleanup_expired_notifications()
     
     return MessageResponse(message=f"Cleaned up {count} expired notifications")
+
+@router.get("/admin/analytics", response_model=NotificationAdminAnalytics)
+async def get_admin_notification_analytics(
+    _: dict = Depends(require_admin_access),
+    db: Session = Depends(get_db)
+):
+    """Get aggregated notification insights for admin dashboard."""
+    service = get_notification_service(db)
+    return service.get_admin_notification_analytics()
 
 # Public routes for creating specific types of notifications
 @router.post("/system/welcome", response_model=Notification)

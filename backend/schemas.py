@@ -450,11 +450,31 @@ class BulkNotificationCreate(BaseSchema):
 class AdminNotificationCreate(BaseSchema):
     title: str
     content: str
+    type: str = Field(default='admin', description="Notification type to assign")
     user_ids: Optional[List[int]] = None  # If None, send to all users
     priority: str = 'normal'
     action_type: Optional[str] = None
     action_data: Optional[Dict[str, Any]] = None
     expires_at: Optional[datetime] = None
+
+class AdminNotificationBatch(BaseSchema):
+    batch_id: str
+    title: str
+    content: str
+    type: str
+    priority: str
+    target_scope: str
+    target_count: int
+    delivered_count: int
+    read_count: int
+    created_at: datetime
+
+class NotificationAdminAnalytics(BaseSchema):
+    total_notifications: int
+    total_admin_notifications: int
+    admin_last_7_days: int
+    active_users: int
+    recent_batches: List[AdminNotificationBatch]
 
 # Default Avatar schemas
 class DefaultAvatar(BaseSchema):

@@ -1,7 +1,9 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, or_, func
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Set
 from datetime import datetime, timedelta
+from uuid import uuid4
+from collections import OrderedDict
 from string import Template
 import logging
 
@@ -259,6 +261,7 @@ class NotificationService:
     def send_admin_notification(self, admin_data: AdminNotificationCreate) -> List[Notification]:
         """Send admin notification to users"""
         notifications = []
+        batch_id = str(uuid4())
         
         # If no specific users, send to all users
         if not admin_data.user_ids:
@@ -267,16 +270,24 @@ class NotificationService:
         else:
             user_ids = admin_data.user_ids
         
+        target_scope = "all" if not admin_data.user_ids else "specific"
+        meta_template = {
+            "admin_batch_id": batch_id,
+            "target_scope": target_scope,
+            "target_count": len(user_ids),
+        }
+        
         for user_id in user_ids:
             notification_data = NotificationCreate(
                 user_id=user_id,
                 title=admin_data.title,
                 content=admin_data.content,
-                type='admin',
+                type=admin_data.type or 'admin',
                 priority=admin_data.priority,
                 action_type=admin_data.action_type,
                 action_data=admin_data.action_data,
-                expires_at=admin_data.expires_at
+                expires_at=admin_data.expires_at,
+                meta_data=meta_template
             )
             
             notification = self.create_notification(notification_data)
@@ -284,6 +295,92 @@ class NotificationService:
         
         logger.info(f"Sent admin notification to {len(notifications)} users")
         return notifications
+
+    def _legacy_batch_id(self, notification: Notification) -> str:
+        safe_title = notification.title or "untitled"
+        timestamp = int(notification.created_at.timestamp()) if notification.created_at else 0
+        return f"legacy-{safe_title}-{timestamp}"
+
+    def _resolve_batch_id(self, notification: Notification) -> str:
+        meta = notification.meta_data or {}
+        batch_id = meta.get("admin_batch_id")
+        if not batch_id:
+            batch_id = self._legacy_batch_id(notification)
+        return batch_id
+
+    def get_admin_notification_batches(self, limit: int = 6) -> List[Dict[str, Any]]:
+        """Aggregate recently sent admin notification batches."""
+        notifications = (
+            self.db.query(Notification)
+            .filter(Notification.type == 'admin')
+            .order_by(Notification.created_at.desc())
+            .limit(limit * 100)
+            .all()
+        )
+
+        batches: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
+
+        for notification in notifications:
+            meta = notification.meta_data or {}
+            batch_id = self._resolve_batch_id(notification)
+
+            if batch_id not in batches:
+                target_count = meta.get("target_count")
+                if target_count is None:
+                    target_count = 1
+
+                batches[batch_id] = {
+                    "batch_id": batch_id,
+                    "title": notification.title,
+                    "content": notification.content,
+                    "type": notification.type,
+                    "priority": notification.priority,
+                    "target_scope": meta.get("target_scope", "specific"),
+                    "target_count": target_count,
+                    "delivered_count": 0,
+                    "read_count": 0,
+                    "created_at": notification.created_at,
+                }
+
+            batch = batches[batch_id]
+            batch["delivered_count"] += 1
+            if notification.is_read:
+                batch["read_count"] += 1
+
+            if batch["target_count"] < batch["delivered_count"]:
+                batch["target_count"] = batch["delivered_count"]
+
+        return list(batches.values())[:limit]
+
+    def get_admin_notification_analytics(self, limit: int = 6) -> Dict[str, Any]:
+        """Compute high-level metrics for admin notifications."""
+        week_ago = datetime.utcnow() - timedelta(days=7)
+        active_users = self.db.query(User).filter(User.is_suspended == False).count()
+
+        admin_rows = (
+            self.db.query(Notification)
+            .filter(Notification.type == 'admin')
+            .all()
+        )
+
+        all_batches: Set[str] = set()
+        recent_batches_set: Set[str] = set()
+
+        for note in admin_rows:
+            batch_id = self._resolve_batch_id(note)
+            all_batches.add(batch_id)
+            if note.created_at and note.created_at >= week_ago:
+                recent_batches_set.add(batch_id)
+
+        recent_batches = self.get_admin_notification_batches(limit)
+
+        return {
+            "total_notifications": len(all_batches),
+            "total_admin_notifications": len(all_batches),
+            "admin_last_7_days": len(recent_batches_set),
+            "active_users": active_users,
+            "recent_batches": recent_batches,
+        }
 
     # Specialized notification creators
     def create_payment_success_notification(self, user_id: int, amount: int, tokens: int) -> Notification:

@@ -4,9 +4,7 @@ import {
   Bell, 
   CheckCircle, 
   Filter,
-  RefreshCw,
-  Trash2,
-  Settings
+  RefreshCw
 } from 'lucide-react';
 import { Button } from '../ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
@@ -19,6 +17,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { NotificationItem } from './NotificationItem';
 import { apiRequest } from '@/lib/queryClient';
+import NotificationDetailDialog from './NotificationDetailDialog';
 
 interface Notification {
   id: number;
@@ -61,6 +60,7 @@ export const NotificationList: React.FC<NotificationListProps> = ({
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [hasMore, setHasMore] = useState(true);
+  const [selectedNotification, setSelectedNotification] = useState<Notification | null>(null);
 
   // Fetch notifications
   const { 
@@ -130,28 +130,12 @@ export const NotificationList: React.FC<NotificationListProps> = ({
   });
 
   // Delete notification
-  const deleteNotificationMutation = useMutation({
-    mutationFn: async (notificationId: number) => {
-      const response = await apiRequest('DELETE', `/api/notifications/${notificationId}`);
-      if (!response.ok) throw new Error('Failed to delete notification');
-      return response.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['notificationStats'] });
-    }
-  });
-
   const handleMarkAsRead = (notificationId: number) => {
     markAsReadMutation.mutate(notificationId);
   };
 
   const handleMarkAllAsRead = () => {
     markAllAsReadMutation.mutate();
-  };
-
-  const handleDelete = (notificationId: number) => {
-    deleteNotificationMutation.mutate(notificationId);
   };
 
   const handleAction = (notification: Notification) => {
@@ -166,8 +150,16 @@ export const NotificationList: React.FC<NotificationListProps> = ({
       handleMarkAsRead(notification.id);
     } else if (notification.action_type === 'dismiss') {
       // Delete for dismiss
-      handleDelete(notification.id);
+      handleMarkAsRead(notification.id);
     }
+  };
+
+  const handleViewNotification = (notification: Notification) => {
+    setSelectedNotification(notification);
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedNotification(null);
   };
 
   const loadMore = () => {
@@ -333,8 +325,9 @@ export const NotificationList: React.FC<NotificationListProps> = ({
                   key={notification.id}
                   notification={notification}
                   onMarkAsRead={handleMarkAsRead}
-                  onDelete={handleDelete}
                   onAction={handleAction}
+                  onView={handleViewNotification}
+                  hideDelete
                   compact={compact}
                 />
               ))}
@@ -361,6 +354,14 @@ export const NotificationList: React.FC<NotificationListProps> = ({
           )}
         </div>
       </CardContent>
+
+      <NotificationDetailDialog
+        notification={selectedNotification}
+        open={!!selectedNotification}
+        onClose={handleCloseDetail}
+        onMarkAsRead={handleMarkAsRead}
+        onAction={handleAction}
+      />
     </Card>
   );
 };

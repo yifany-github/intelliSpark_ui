@@ -29,9 +29,11 @@ interface NotificationItemProps {
     read_at?: string | null;
   };
   onMarkAsRead: (id: number) => void;
-  onDelete: (id: number) => void;
+  onDelete?: (id: number) => void;
   onAction?: (notification: any) => void;
+  onView?: (notification: any) => void;
   compact?: boolean;
+  hideDelete?: boolean;
 }
 
 export const NotificationItem: React.FC<NotificationItemProps> = ({
@@ -39,7 +41,9 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
   onMarkAsRead,
   onDelete,
   onAction,
-  compact = false
+  onView,
+  compact = false,
+  hideDelete = false
 }) => {
   const { t } = useLanguage();
 
@@ -127,27 +131,55 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
     }
   };
 
-  const handleAction = () => {
+  const handleAction = (event: React.MouseEvent) => {
+    event.stopPropagation();
     if (onAction) {
       onAction(notification);
     }
   };
 
-  const handleMarkAsRead = () => {
+  const handleMarkAsRead = (event: React.MouseEvent) => {
+    event.stopPropagation();
     onMarkAsRead(notification.id);
   };
 
-  const handleDelete = () => {
-    onDelete(notification.id);
+  const handleDelete = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    onDelete?.(notification.id);
+  };
+
+  const handleContainerClick = (event: React.MouseEvent) => {
+    if (onView) {
+      const target = event.target as HTMLElement;
+      if (target.closest('button')) {
+        return;
+      }
+      onView(notification);
+    }
+  };
+
+  const handleContainerKeyDown = (event: React.KeyboardEvent) => {
+    if (!onView) return;
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onView(notification);
+    }
   };
 
   return (
-    <div className={cn(
-      'border rounded-lg p-4 transition-all duration-200 hover:shadow-sm',
-      getPriorityColor(),
-      !notification.is_read && 'shadow-md',
-      compact && 'p-3'
-    )}>
+    <div
+      className={cn(
+        'border rounded-lg p-4 transition-all duration-200 hover:shadow-sm',
+        getPriorityColor(),
+        !notification.is_read && 'shadow-md',
+        compact && 'p-3',
+        onView && 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-brand-accent/70'
+      )}
+      onClick={handleContainerClick}
+      onKeyDown={handleContainerKeyDown}
+      role={onView ? 'button' : undefined}
+      tabIndex={onView ? 0 : undefined}
+    >
       <div className="flex items-start justify-between">
         <div className="flex items-start space-x-3 flex-1">
           {/* Type Icon */}
@@ -229,14 +261,16 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                   </Button>
                 )}
                 
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={handleDelete}
-                  className="h-6 px-2 text-xs text-gray-400 hover:text-red-400"
-                >
-                  <X className="h-3 w-3" />
-                </Button>
+                {!hideDelete && onDelete && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleDelete}
+                    className="h-6 px-2 text-xs text-gray-400 hover:text-red-400"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
             </div>
           </div>
