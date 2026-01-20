@@ -314,7 +314,7 @@ class NotificationService:
 
     def get_admin_notification_batches(self, limit: int = 6) -> List[Dict[str, Any]]:
         """Aggregate recently sent admin notification batches."""
-        notifications = (
+        query = (
             self.db.query(Notification)
             .filter(
                 or_(
@@ -323,13 +323,20 @@ class NotificationService:
                 )
             )
             .order_by(Notification.created_at.desc())
-            .limit(limit * 200)
-            .all()
         )
 
         batches: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
 
-        for notification in notifications:
+        def _completed_first_batches() -> bool:
+            if len(batches) < limit:
+                return False
+            first_keys = list(batches.keys())[:limit]
+            return all(
+                batches[key]["delivered_count"] >= batches[key]["target_count"]
+                for key in first_keys
+            )
+
+        for notification in query.yield_per(500):
             if not self._is_admin_broadcast(notification):
                 continue
             meta = notification.meta_data or {}
@@ -360,6 +367,9 @@ class NotificationService:
 
             if batch["target_count"] < batch["delivered_count"]:
                 batch["target_count"] = batch["delivered_count"]
+
+            if _completed_first_batches():
+                break
 
         return list(batches.values())[:limit]
 
