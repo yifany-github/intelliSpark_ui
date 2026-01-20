@@ -178,6 +178,27 @@ interface AdminChatDetail {
   }>;
 }
 
+interface AdminNotificationBatchSummary {
+  batchId: string;
+  title: string;
+  content: string;
+  type: string;
+  priority: string;
+  targetScope: "all" | "specific";
+  targetCount: number;
+  deliveredCount: number;
+  readCount: number;
+  createdAt: string;
+}
+
+interface AdminNotificationAnalytics {
+  totalNotifications: number;
+  totalAdminNotifications: number;
+  adminLast7Days: number;
+  activeUsers: number;
+  recentBatches: AdminNotificationBatchSummary[];
+}
+
 type AdminTokenResponse = {
   access_token: string;
   refresh_token: string;
@@ -851,11 +872,9 @@ const AdminPage = () => {
   };
 
   const filteredCharacters = characters.filter(character => {
-    // 文本搜索
     const matchesSearch = character.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       character.backstory.toLowerCase().includes(searchTerm.toLowerCase());
 
-    // 分类过滤
     if (categoryFilter === "all") {
       return matchesSearch;
     } else if (categoryFilter === "uncategorized") {
@@ -864,6 +883,64 @@ const AdminPage = () => {
       return matchesSearch && character.categories && character.categories.includes(categoryFilter);
     }
   });
+
+  const {
+    data: notificationAnalytics,
+    isLoading: notificationAnalyticsLoading,
+    refetch: refetchNotificationAnalytics
+  } = useQuery<AdminNotificationAnalytics>({
+    queryKey: ["admin-notification-analytics"],
+    queryFn: async () => {
+      const response = await fetch(`${API_BASE_URL}/api/notifications/admin/analytics`, {
+        headers: {
+          "Content-Type": "application/json",
+          ...authHeaders
+        }
+      });
+      if (!response.ok) {
+        throw new Error(await response.text() || "Failed to load notification analytics");
+      }
+      const data = await response.json();
+      return {
+        totalNotifications: data.total_notifications ?? 0,
+        totalAdminNotifications: data.total_admin_notifications ?? 0,
+        adminLast7Days: data.admin_last_7_days ?? 0,
+        activeUsers: data.active_users ?? 0,
+        recentBatches: (data.recent_batches || []).map((batch: any) => ({
+          batchId: batch.batch_id,
+          title: batch.title,
+          content: batch.content,
+          type: batch.type,
+          priority: batch.priority,
+          targetScope: batch.target_scope,
+          targetCount: batch.target_count,
+          deliveredCount: batch.delivered_count,
+          readCount: batch.read_count,
+          createdAt: batch.created_at
+        }))
+      };
+    },
+    enabled: isAuthenticated && !!authToken,
+    staleTime: 60000
+  });
+
+  const formatMetric = (value?: number) =>
+    typeof value === "number" && !Number.isNaN(value) ? value.toLocaleString() : "---";
+
+  const notificationRecentBatches = notificationAnalytics?.recentBatches || [];
+
+  const getPriorityBadgeClass = (priority: string) => {
+    switch (priority) {
+      case "urgent":
+        return "bg-red-100 text-red-700 border-red-200";
+      case "high":
+        return "bg-orange-100 text-orange-700 border-orange-200";
+      case "normal":
+        return "bg-emerald-100 text-emerald-700 border-emerald-200";
+      default:
+        return "bg-slate-100 text-slate-600 border-slate-200";
+    }
+  };
 
   // Notification mutations
   const sendNotificationMutation = useMutation({
@@ -875,28 +952,22 @@ const AdminPage = () => {
       target: string;
       userIds?: number[];
     }) => {
-      const endpoint = notificationData.target === "all" ? "bulk" : "";
-      const response = await fetch(`${API_BASE_URL}/api/notifications/admin/${endpoint}`, {
+      const targetAll = notificationData.target === "all";
+      const payload = {
+        title: notificationData.title,
+        content: notificationData.content,
+        type: notificationData.type,
+        priority: notificationData.priority,
+        ...(targetAll ? {} : { user_ids: notificationData.userIds })
+      };
+
+      const response = await fetch(`${API_BASE_URL}/api/notifications/admin/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...authHeaders,
         },
-        body: JSON.stringify(notificationData.target === "all" ? {
-          template_name: "admin_message",
-          variables: {
-            title: notificationData.title,
-            content: notificationData.content
-          },
-          type: notificationData.type,
-          priority: notificationData.priority
-        } : {
-          title: notificationData.title,
-          content: notificationData.content,
-          type: notificationData.type,
-          priority: notificationData.priority,
-          user_ids: notificationData.userIds
-        }),
+        body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error("Failed to send notification");
       return response.json();
@@ -916,6 +987,7 @@ const AdminPage = () => {
         target: "all",
         userIds: []
       });
+      refetchNotificationAnalytics();
     },
     onError: (error) => {
       toast({
@@ -2110,7 +2182,9 @@ const AdminPage = () => {
                   <Bell className="w-4 h-4 text-slate-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-slate-900">---</div>
+                  <div className="text-2xl font-bold text-slate-900">
+                    {notificationAnalyticsLoading ? "…" : formatMetric(notificationAnalytics?.totalAdminNotifications)}
+                  </div>
                   <p className="text-xs text-slate-600">All time notifications sent</p>
                 </CardContent>
               </Card>
@@ -2121,7 +2195,9 @@ const AdminPage = () => {
                   <Users className="w-4 h-4 text-slate-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-slate-900">{totalUsers}</div>
+                  <div className="text-2xl font-bold text-slate-900">
+                    {notificationAnalyticsLoading ? "…" : formatMetric(notificationAnalytics?.activeUsers ?? totalUsers)}
+                  </div>
                   <p className="text-xs text-slate-600">Users who can receive notifications</p>
                 </CardContent>
               </Card>
@@ -2132,7 +2208,9 @@ const AdminPage = () => {
                   <Activity className="w-4 h-4 text-slate-600" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold text-slate-900">---</div>
+                  <div className="text-2xl font-bold text-slate-900">
+                    {notificationAnalyticsLoading ? "…" : formatMetric(notificationAnalytics?.adminLast7Days)}
+                  </div>
                   <p className="text-xs text-slate-600">Notifications sent this week</p>
                 </CardContent>
               </Card>
@@ -2243,6 +2321,80 @@ const AdminPage = () => {
                 </CardContent>
               </Card>
             </div>
+
+            <Card className="shadow-sm border-slate-200">
+              <CardHeader className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <CardTitle className="text-lg text-slate-900">Recent Broadcasts</CardTitle>
+                  <p className="text-sm text-slate-500">Logged delivery and read counts for each admin send.</p>
+                </div>
+                <Button
+                  variant="outline"
+                  className="border-slate-200 text-slate-700 hover:bg-slate-100"
+                  onClick={() => refetchNotificationAnalytics()}
+                  disabled={notificationAnalyticsLoading}
+                >
+                  <RefreshCw className={`w-4 h-4 mr-2 ${notificationAnalyticsLoading ? "animate-spin" : ""}`} />
+                  Refresh
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-slate-100 text-sm">
+                    <thead className="bg-slate-50 text-left text-xs font-semibold uppercase text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Title</th>
+                        <th className="px-4 py-3">Sent</th>
+                        <th className="px-4 py-3">Target</th>
+                        <th className="px-4 py-3">Delivered</th>
+                        <th className="px-4 py-3">Read</th>
+                        <th className="px-4 py-3">Priority</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {notificationAnalyticsLoading && (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-6 text-center text-slate-500">Loading logs…</td>
+                        </tr>
+                      )}
+                      {!notificationAnalyticsLoading && notificationRecentBatches.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-6 text-center text-slate-500">
+                            No admin notifications have been sent yet.
+                          </td>
+                        </tr>
+                      )}
+                      {notificationRecentBatches.map((batch) => (
+                        <tr key={batch.batchId} className="hover:bg-slate-50/70">
+                          <td className="px-4 py-3">
+                            <p className="font-medium text-slate-900">{batch.title}</p>
+                            <p className="text-xs text-slate-500 line-clamp-1">{batch.content}</p>
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {new Date(batch.createdAt).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
+                              {batch.targetScope === "all" ? "All users" : `${batch.targetCount} users`}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-slate-700">{batch.deliveredCount.toLocaleString()}</td>
+                          <td className="px-4 py-3 text-slate-700">
+                            {batch.readCount}/{batch.deliveredCount}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`rounded-full px-3 py-1 text-xs font-semibold border ${getPriorityBadgeClass(batch.priority)}`}>
+                              {batch.priority}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+
           </TabsContent>
 
           <TabsContent value="system" className="space-y-6">

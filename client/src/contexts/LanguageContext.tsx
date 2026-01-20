@@ -262,6 +262,9 @@ export type TranslationKey =
   | 'allNotificationsRead'
   | 'unreadNotifications'
   | 'notificationTypes'
+  | 'notificationAction'
+  | 'unread'
+  | 'close'
   | 'system'
   | 'payment'
   | 'admin'
@@ -1132,6 +1135,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     allNotificationsRead: 'All notifications marked as read',
     unreadNotifications: 'Unread notifications',
     notificationTypes: 'Notification types',
+    notificationAction: 'Notification action',
+    unread: 'Unread',
+    close: 'Close',
     system: 'System',
     payment: 'Payment',
     admin: 'Admin',
@@ -2045,6 +2051,9 @@ const translations: Record<Language, Record<TranslationKey, string>> = {
     allNotificationsRead: '所有通知已标记为已读',
     unreadNotifications: '未读通知',
     notificationTypes: '通知类型',
+    notificationAction: '通知操作',
+    unread: '未读',
+    close: '关闭',
     system: '系统',
     payment: '支付',
     admin: '管理员',
