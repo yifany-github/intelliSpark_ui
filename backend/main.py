@@ -87,6 +87,17 @@ else:
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+@app.middleware("http")
+async def apply_forwarded_proto(request: Request, call_next):
+    """Respect x-forwarded-proto for redirects without trusting arbitrary client IPs."""
+    forwarded_proto = request.headers.get("x-forwarded-proto")
+    if forwarded_proto:
+        primary_proto = forwarded_proto.split(",")[0].strip().lower()
+        if primary_proto in {"http", "https"}:
+            request.scope["scheme"] = primary_proto
+    response = await call_next(request)
+    return response
+
 # Add CORS middleware to allow frontend requests
 # In production, restrict to ALLOWED_ORIGINS only. Use localhost defaults only when not configured.
 wildcard_patterns = []

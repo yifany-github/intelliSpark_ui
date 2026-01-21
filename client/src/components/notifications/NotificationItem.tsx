@@ -169,7 +169,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
   return (
     <div
       className={cn(
-        'border rounded-lg p-4 transition-all duration-200 hover:shadow-sm',
+        'border rounded-lg p-4 transition-all duration-200 hover:shadow-sm overflow-hidden',
         getPriorityColor(),
         !notification.is_read && 'shadow-md',
         compact && 'p-3',
