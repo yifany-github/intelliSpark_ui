@@ -221,9 +221,10 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
                       key={notification.id}
                       notification={notification}
                       onMarkAsRead={handleMarkAsRead}
+                      onDelete={handleMarkAsRead}
                       onAction={handleAction}
                       onView={handleViewNotification}
-                      hideDelete
+                      hideDelete={notification.is_read}
                       compact={true}
                     />
                   ))}
