@@ -92,7 +92,9 @@ async def apply_forwarded_proto(request: Request, call_next):
     """Respect x-forwarded-proto for redirects without trusting arbitrary client IPs."""
     forwarded_proto = request.headers.get("x-forwarded-proto")
     if forwarded_proto:
-        request.scope["scheme"] = forwarded_proto
+        primary_proto = forwarded_proto.split(",")[0].strip().lower()
+        if primary_proto in {"http", "https"}:
+            request.scope["scheme"] = primary_proto
     response = await call_next(request)
     return response
 
