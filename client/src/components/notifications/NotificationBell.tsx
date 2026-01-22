@@ -232,17 +232,15 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
               )}
 
               {/* View All Button */}
-              {recentNotifications.length > 0 && (
-                <div className="pt-3 border-t border-gray-700 mt-3">
-                  <Button
-                    variant="outline"
-                    onClick={handleViewAll}
-                    className="w-full bg-secondary border-secondary hover:bg-secondary/80 text-white"
-                  >
-                    {t('viewAll')} {t('notifications')}
-                  </Button>
-                </div>
-              )}
+              <div className="pt-3 border-t border-gray-700 mt-3">
+                <Button
+                  variant="outline"
+                  onClick={handleViewAll}
+                  className="w-full bg-secondary border-secondary hover:bg-secondary/80 text-white"
+                >
+                  {t('viewAll')} {t('notifications')}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
