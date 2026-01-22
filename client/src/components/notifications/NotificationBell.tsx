@@ -47,9 +47,9 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
 
   // Fetch recent notifications for dropdown
   const { data: recentNotifications = [] } = useQuery({
-    queryKey: ['recentNotifications'],
+    queryKey: ['recentNotifications', 'unread-only'],
     queryFn: async () => {
-      const res = await apiRequest('GET', '/api/notifications?limit=5');
+      const res = await apiRequest('GET', '/api/notifications?limit=5&unread_only=true');
       if (!res.ok) throw new Error('Failed to fetch recent notifications');
       return res.json();
     },
