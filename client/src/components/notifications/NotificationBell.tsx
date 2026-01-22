@@ -47,9 +47,9 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
 
   // Fetch recent notifications for dropdown
   const { data: recentNotifications = [] } = useQuery({
-    queryKey: ['recentNotifications'],
+    queryKey: ['recentNotifications', 'unread-only'],
     queryFn: async () => {
-      const res = await apiRequest('GET', '/api/notifications?limit=5');
+      const res = await apiRequest('GET', '/api/notifications?limit=5&unread_only=true');
       if (!res.ok) throw new Error('Failed to fetch recent notifications');
       return res.json();
     },
@@ -232,17 +232,15 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({ className })
               )}
 
               {/* View All Button */}
-              {recentNotifications.length > 0 && (
-                <div className="pt-3 border-t border-gray-700 mt-3">
-                  <Button
-                    variant="outline"
-                    onClick={handleViewAll}
-                    className="w-full bg-secondary border-secondary hover:bg-secondary/80 text-white"
-                  >
-                    {t('viewAll')} {t('notifications')}
-                  </Button>
-                </div>
-              )}
+              <div className="pt-3 border-t border-gray-700 mt-3">
+                <Button
+                  variant="outline"
+                  onClick={handleViewAll}
+                  className="w-full bg-secondary border-secondary hover:bg-secondary/80 text-white"
+                >
+                  {t('viewAll')} {t('notifications')}
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </div>
