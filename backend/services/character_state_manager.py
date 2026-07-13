@@ -88,54 +88,49 @@ class CharacterStateManager:
         target_lang: str,
         fallback_template: Dict[str, Union[str, Dict[str, Any]]],
     ) -> Dict[str, Any]:
+        """
+        Translate state descriptions into target_lang when needed.
+
+        IMPORTANT: never clobber a coherent character/chat state with the
+        generic fallback template. Older logic did that whenever translation
+        was skipped, which erased scene-bootstrap environments (e.g. 营帐 → 私密空间).
+        """
         if not state or not target_lang:
             return state
 
         translator = get_translation_service()
         has_translator = bool(getattr(translator, "client", None))
-        if has_translator:
-            needs_translation = False
-            if target_lang in {"zh", "en", "es", "ko"}:
-                for value in state.values():
-                    if isinstance(value, dict) and "description" in value:
-                        description = value.get("description", "")
-                        if isinstance(description, str) and description.strip():
-                            if translator.detect_language(description) != target_lang:
-                                needs_translation = True
-                                break
-                    elif isinstance(value, str) and value.strip():
-                        if translator.detect_language(value) != target_lang:
+        if not has_translator:
+            return state
+
+        needs_translation = False
+        if target_lang in {"zh", "en", "es", "ko"}:
+            for value in state.values():
+                if isinstance(value, dict) and "description" in value:
+                    description = value.get("description", "")
+                    if isinstance(description, str) and description.strip():
+                        if translator.detect_language(description) != target_lang:
                             needs_translation = True
                             break
-            else:
-                needs_translation = True
+                elif isinstance(value, str) and value.strip():
+                    if translator.detect_language(value) != target_lang:
+                        needs_translation = True
+                        break
+        else:
+            needs_translation = True
 
-            if needs_translation:
-                translated = await translator.translate_state_json_values(state, target_lang)
-                if isinstance(translated, dict) and translated:
-                    return translated
-                self.logger.warning("State translation failed; returning original state")
-                return state
+        if not needs_translation:
+            return state
 
-        localized: Dict[str, Any] = {}
-        for key, value in state.items():
-            fallback = fallback_template.get(key)
-            if isinstance(value, dict) and "description" in value:
-                description = value.get("description", "")
-                if isinstance(fallback, dict):
-                    description = fallback.get("description", description) or description
-                localized[key] = {"value": value.get("value"), "description": description}
-            elif isinstance(value, str):
-                if isinstance(fallback, str):
-                    localized[key] = fallback
-                elif isinstance(fallback, dict):
-                    localized[key] = fallback.get("description", value)
-                else:
-                    localized[key] = value
-            else:
-                localized[key] = value
+        translated = await translator.translate_state_json_values(state, target_lang)
+        if isinstance(translated, dict) and translated:
+            return translated
 
-        return localized
+        self.logger.warning(
+            "State translation failed for lang=%s; keeping original state",
+            target_lang,
+        )
+        return state
 
     @staticmethod
     def _normalize_state_value(value: Union[None, str, Dict[str, Any]]) -> Union[str, Dict[str, Any]]:

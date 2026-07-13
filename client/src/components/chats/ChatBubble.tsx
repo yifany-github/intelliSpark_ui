@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from 'react';
+import { memo, useRef, useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { ChatMessage } from '../../types';
 import { format } from 'date-fns';
@@ -23,7 +23,22 @@ interface ChatBubbleProps {
   stateSnapshot?: Record<string, string | { value: number; description: string }>;
 }
 
-const ChatBubble = ({ message, avatarUrl, onRegenerate, stateSnapshot }: ChatBubbleProps) => {
+// Process message content for markdown-like formatting (outside render path for reuse)
+const processContent = (content: string) => {
+  // Handle **bold** before *italic* so nested markers stay stable
+  let html = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  html = html.split('\n\n').map((p) => `<p>${p}</p>`).join('');
+  html = html.replace(/\n/g, '<br />');
+  return DOMPurify.sanitize(html);
+};
+
+/** Immersive but cheap typewriter: chunked reveal capped ~1.4s */
+const TYPEWRITER_TARGET_MS = 1400;
+const TYPEWRITER_INTERVAL_MS = 32;
+const TYPEWRITER_MAX_CHUNK = 14;
+
+const ChatBubble = memo(function ChatBubble({ message, avatarUrl, onRegenerate, stateSnapshot }: ChatBubbleProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isAI = message.role === 'assistant';
@@ -126,32 +141,35 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate, stateSnapshot }: ChatBub
     // Mark as initialized to prevent re-typing on updates
     hasInitialized.current = true;
 
-    // New AI message - apply typewriter effect
+    // New AI message — chunked typewriter (keeps immersion, fewer DOM updates)
     setIsTyping(true);
     setDisplayedContent('');
 
-    let currentIndex = 0;
     const content = message.content;
-    const typingSpeed = 15; // milliseconds per character
+    const ticks = Math.max(1, Math.ceil(TYPEWRITER_TARGET_MS / TYPEWRITER_INTERVAL_MS));
+    const chunkSize = Math.min(
+      TYPEWRITER_MAX_CHUNK,
+      Math.max(2, Math.ceil(content.length / ticks)),
+    );
 
+    let currentIndex = 0;
     const intervalId = setInterval(() => {
-      if (currentIndex < content.length) {
-        setDisplayedContent(content.substring(0, currentIndex + 1));
-        currentIndex++;
-      } else {
+      currentIndex = Math.min(content.length, currentIndex + chunkSize);
+      setDisplayedContent(content.substring(0, currentIndex));
+
+      if (currentIndex >= content.length) {
         setIsTyping(false);
         clearInterval(intervalId);
 
-        // Mark this message as typed
         try {
           const currentTyped = getTypedMessages();
-          const updated = [...currentTyped, message.id].slice(-50); // Keep last 50
+          const updated = [...currentTyped, message.id].slice(-50);
           localStorage.setItem(typedMessagesKey, JSON.stringify(updated));
         } catch (e) {
           console.warn('Failed to save typed message', e);
         }
       }
-    }, typingSpeed);
+    }, TYPEWRITER_INTERVAL_MS);
 
     return () => clearInterval(intervalId);
   }, [message.id, message.content, isAI]);
@@ -175,20 +193,10 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate, stateSnapshot }: ChatBub
     });
   };
 
-  // Process message content for markdown-like formatting
-  const processContent = (content: string) => {
-    // Handle *text* for italics
-    content = content.replace(/\*(.*?)\*/g, '<em>$1</em>');
-    // Handle **text** for bold
-    content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-    // Handle paragraphs
-    content = content.split('\n\n').map(p => `<p>${p}</p>`).join('');
-    // Handle line breaks
-    content = content.replace(/\n/g, '<br />');
-
-    // Sanitize HTML to prevent XSS attacks
-    return DOMPurify.sanitize(content);
-  };
+  const htmlContent = useMemo(
+    () => processContent(isAI ? displayedContent : message.content),
+    [isAI, displayedContent, message.content],
+  );
 
   const formatAudioTime = (seconds: number | null) => {
     if (!seconds || Number.isNaN(seconds) || !Number.isFinite(seconds)) {
@@ -419,7 +427,7 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate, stateSnapshot }: ChatBub
         <div className={`${isAI ? "chat-bubble-ai" : "chat-bubble-user"} ${isSending ? "message-sending" : ""}`}>
           <div
             dangerouslySetInnerHTML={{
-              __html: processContent(isAI ? displayedContent : message.content)
+              __html: htmlContent
             }}
           />
           {isAI && isTyping && (
@@ -541,6 +549,6 @@ const ChatBubble = ({ message, avatarUrl, onRegenerate, stateSnapshot }: ChatBub
       </div>
     </div>
   );
-};
+});
 
 export default ChatBubble;

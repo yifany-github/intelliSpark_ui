@@ -26,6 +26,7 @@ from models import ChatMessage
 from config import settings
 from prompts.sexual_stage_detection import build_stage_detection_prompt
 from prompts.sexual_stage_reminders import get_stage_reminder
+from utils.gemini_response import extract_text_parts
 
 
 class NSFWIntentService:
@@ -97,8 +98,9 @@ class NSFWIntentService:
                 )
             )
 
-            if response and response.text:
-                detected_stage = response.text.strip()
+            response_text = extract_text_parts(response)
+            if response_text:
+                detected_stage = response_text.strip()
 
                 # Validate stage - must match system.py stages exactly
                 valid_stages = ["其他", "插入前", "准备插入", "插入时", "抽插时", "角色高潮（自然发生）"]
