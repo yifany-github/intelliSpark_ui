@@ -230,6 +230,73 @@ class AIModelManager:
             # Final fallback
             return f"Hello! I'm {character.name}. {character.backstory[:100] if character.backstory else 'Nice to meet you!'}..."
 
+    async def generate_scene_bootstrap(
+        self,
+        character: Character,
+        user: Optional[User] = None,
+        language: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Atomically generate opening_line + default state for one shared scene.
+
+        Falls back to separate opening + state calls if the provider lacks
+        generate_scene_bootstrap or the atomic call fails empty.
+        """
+        safe_mode = (character.nsfw_level or 0) == 0
+        selected_provider = await self._select_model(user, character)
+
+        async def _invoke(provider: ModelProvider) -> Dict[str, Any]:
+            service = self.services.get(provider)
+            if service and hasattr(service, "generate_scene_bootstrap"):
+                return await service.generate_scene_bootstrap(
+                    character,
+                    safe_mode=safe_mode,
+                    language=language,
+                )
+            return {}
+
+        if selected_provider:
+            try:
+                bundle = await _invoke(selected_provider)
+                if bundle.get("opening_line") and bundle.get("state"):
+                    self.logger.info(
+                        "✅ Scene bootstrap via %s",
+                        self.services[selected_provider].service_name,
+                    )
+                    return bundle
+            except Exception as exc:
+                self.logger.error(
+                    "❌ Scene bootstrap failed with %s: %s",
+                    selected_provider.value,
+                    exc,
+                )
+
+            if self.admin_settings["fallback_enabled"]:
+                fallback_provider = await self._get_fallback_model(selected_provider)
+                if fallback_provider and fallback_provider in self.services:
+                    try:
+                        bundle = await _invoke(fallback_provider)
+                        if bundle.get("opening_line") and bundle.get("state"):
+                            self.logger.info(
+                                "✅ Scene bootstrap fallback via %s",
+                                self.services[fallback_provider].service_name,
+                            )
+                            return bundle
+                    except Exception as exc:
+                        self.logger.warning("Scene bootstrap fallback failed: %s", exc)
+
+        # Legacy split path — better than nothing, but not atomic
+        self.logger.warning("⚠️ Falling back to split opening + state seed generation")
+        opening = await self.generate_opening_line(character, user=user)
+        state = await self.generate_character_state_seed(
+            character, user=user, language=language
+        )
+        return {
+            "opening_line": opening,
+            "state": state or {},
+            "scene_summary": "",
+        }
+
     async def generate_character_state_seed(
         self,
         character: Character,

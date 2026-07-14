@@ -43,6 +43,31 @@ import ChatList from "@/components/chats/ChatList";
 
 const createTempMessageId = () => -Math.floor(Date.now() + Math.random() * 1000);
 
+/** Normalize API / realtime message payloads into the client ChatMessage shape. */
+const toClientMessage = (raw: Record<string, unknown>, fallbackChatId = 0): ChatMessage => {
+  const timestamp =
+    (typeof raw.timestamp === "string" && raw.timestamp) ||
+    (typeof raw.createdAt === "string" && raw.createdAt) ||
+    new Date().toISOString();
+
+  return {
+    id: Number(raw.id),
+    chatId: Number(raw.chatId ?? raw.chat_id ?? fallbackChatId),
+    role: raw.role as ChatMessage["role"],
+    content: String(raw.content ?? ""),
+    audioUrl: (raw.audioUrl ?? raw.audio_url) as string | undefined,
+    audio_url: (raw.audio_url ?? raw.audioUrl) as string | undefined,
+    audioStatus: (raw.audioStatus ?? raw.audio_status) as string | undefined,
+    audio_status: (raw.audio_status ?? raw.audioStatus) as string | undefined,
+    audioError: (raw.audioError ?? raw.audio_error) as string | undefined,
+    audio_error: (raw.audio_error ?? raw.audioError) as string | undefined,
+    timestamp,
+    createdAt: (typeof raw.createdAt === "string" && raw.createdAt) || timestamp,
+    updatedAt: (typeof raw.updatedAt === "string" && raw.updatedAt) || timestamp,
+    stateSnapshot: (raw.stateSnapshot ?? raw.state_snapshot) as ChatMessage["stateSnapshot"],
+  };
+};
+
 interface ChatPageProps {
   chatId?: string;
 }
@@ -60,6 +85,8 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
   const [isBrowserMounted, setIsBrowserMounted] = useState(false);
   const [quickReplies, setQuickReplies] = useState<string[]>([]);
   const [recentChatsOpen, setRecentChatsOpen] = useState(true); // 控制最近聊天列表折叠状态
+  // Stays true from send until assistant reply / error — prevents typing UX flicker
+  const [awaitingAssistant, setAwaitingAssistant] = useState(false);
 
   // If no chatId is provided, show chat list
   const showChatListOnly = !chatId;
@@ -265,13 +292,20 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     messagesQueryKey: messagesCacheKey ? `/api/chats/${messagesCacheKey}/messages` : undefined,
     invalidateKeys: generationInvalidateKeys,
     onSuccess: () => {
+      setAwaitingAssistant(false);
       invalidateTokenBalance();
       generateQuickReplies();
+    },
+    onError: () => {
+      setAwaitingAssistant(false);
     },
   });
 
   useRealtimeMessages(canonicalUuid ?? undefined, {
-    onAssistantMessage: generation.handleAssistantMessage,
+    onAssistantMessage: () => {
+      setAwaitingAssistant(false);
+      generation.handleAssistantMessage();
+    },
   });
 
   useEffect(() => {
@@ -307,38 +341,78 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     </div>
   );
 
-  // Mutation for sending messages
+  // Mutation for sending messages (optimistic user bubble, then generate)
   const { mutate: sendMessage, isPending: isSending, error: sendMessageError, reset: resetSendError } = useMutation({
     mutationFn: async (content: string) => {
       if (!chatId || !chat) {
         throw new Error("Chat not ready");
       }
       // Use chatId from route - backend accepts both numeric and UUID
-      return apiRequest(
+      const response = await apiRequest(
         "POST",
         `/api/chats/${chatId}/messages`,
         { content, role: "user" }
       );
+      return (await response.json()) as Record<string, unknown>;
     },
-    onMutate: () => {
+    onMutate: async (content: string) => {
       generation.clearError();
       generation.cancelGeneration();
+      setAwaitingAssistant(true);
+
+      if (!messagesCacheKey || !chat) {
+        return undefined;
+      }
+
+      const queryKey = [`/api/chats/${messagesCacheKey}/messages`] as const;
+      await queryClient.cancelQueries({ queryKey });
+
+      const now = new Date().toISOString();
+      const tempId = createTempMessageId();
+      const optimisticMessage: ChatMessage = {
+        id: tempId,
+        chatId: chat.id,
+        role: "user",
+        content,
+        timestamp: now,
+        createdAt: now,
+        updatedAt: now,
+      };
+
+      queryClient.setQueryData<ChatMessage[]>(queryKey, (old = []) => [...old, optimisticMessage]);
+
+      return { tempId, queryKey };
     },
-    onSuccess: async () => {
-      if (!canonicalUuid) return;
+    onSuccess: (rawMessage, _content, context) => {
+      try {
+        if (context?.queryKey) {
+          const serverMessage = toClientMessage(rawMessage, chat?.id ?? 0);
+          queryClient.setQueryData<ChatMessage[]>(context.queryKey, (old = []) => {
+            const withoutTemp = old.filter((msg) => msg.id !== context.tempId);
+            if (withoutTemp.some((msg) => msg.id === serverMessage.id)) {
+              return withoutTemp;
+            }
+            return [...withoutTemp, serverMessage];
+          });
+        }
+      } catch (error) {
+        console.warn("Failed to merge server message into cache", error);
+        if (context?.queryKey) {
+          queryClient.invalidateQueries({ queryKey: context.queryKey });
+        }
+      }
 
-      // Invalidate to show user's message immediately
-      queryClient.invalidateQueries({
-        queryKey: [`/api/chats/${messagesCacheKey}/messages`],
-      });
-
-      // Kick off AI response
+      // Kick off AI response without waiting for a messages refetch
       generation.triggerGeneration();
     },
-    onError: (error: any) => {
+    onError: (error: unknown, _content, context) => {
       console.error("Message sending failed:", error);
-      // Error state is now handled by mutation state, not cache mutation
-      // This prevents React Query state conflicts that cause crashes
+      setAwaitingAssistant(false);
+      if (context?.queryKey) {
+        queryClient.setQueryData<ChatMessage[]>(context.queryKey, (old = []) =>
+          old.filter((message) => message.id !== context.tempId),
+        );
+      }
     },
   });
   
@@ -373,17 +447,23 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     },
   });
 
-  // Derive typing indicator from AI mutation state
+  // Derive typing indicator from AI mutation state + durable awaiting flag
+  // awaitingAssistant bridges send→generate and survives realtime user-message events
   const isTyping = generation.typing;
+  const showCharacterTyping = awaitingAssistant || isSending || isTyping;
 
-  // Derive loading states
+  // Derive loading states — show opening preview immediately when available
+  // instead of masking the first character voice behind a typing placeholder.
   const waitingForFirstMessage = !!chat && messages.length === 0;
+  const hasOpeningPreview =
+    waitingForFirstMessage &&
+    displayMessages.length > 0 &&
+    !!character?.openingLine;
   const showTypingPlaceholder =
     (isLoadingChat && !showPlaceholderMessage) ||
-    waitingForFirstMessage ||
-    isLoadingMessages ||
-    isLoadingCharacter ||
-    isInitializing;
+    isInitializing ||
+    (isLoadingCharacter && !hasOpeningPreview) ||
+    ((isLoadingMessages || waitingForFirstMessage) && !hasOpeningPreview);
   const showEmptyState = !messagesError && !showTypingPlaceholder && displayMessages.length === 0 && !!chat;
 
   // Regenerate the last AI message
@@ -477,10 +557,11 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     return t("daysAgo", { count });
   };
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom on new messages / typing indicator — instant to avoid smooth-scroll jank
+  const lastMessageId = displayMessages[displayMessages.length - 1]?.id;
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [displayMessages, isTyping]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+  }, [displayMessages.length, lastMessageId, showCharacterTyping]);
   
   // Refresh chat list when returning to it
   useEffect(() => {
@@ -1017,7 +1098,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
                 </>
               )}
 
-              {isTyping && !showTypingPlaceholder && renderTypingBubble()}
+              {showCharacterTyping && !showTypingPlaceholder && renderTypingBubble()}
 
               <div ref={messagesEndRef} />
             </div>
@@ -1026,13 +1107,13 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
             <QuickReplies
               suggestions={quickReplies}
               onSelect={handleQuickReply}
-              isLoading={isSending || isTyping}
+              isLoading={showCharacterTyping}
             />
 
             {/* Chat Input */}
             <ChatInput
               onSendMessage={sendMessage}
-              isLoading={isSending || isTyping}
+              isLoading={showCharacterTyping}
               disabled={!chat}
               placeholder={!chat ? t('creatingChat') : undefined}
               className="border-t border-pink-500/10 bg-slate-900/80 backdrop-blur-xl relative z-10"

@@ -444,7 +444,7 @@
   }
 
   .chat-bubble-ai {
-    @apply rounded-[18px] rounded-bl-[4px] p-3 text-white relative;
+    @apply rounded-[18px] rounded-bl-[4px] p-3.5 text-[15px] leading-relaxed text-white relative sm:text-base sm:leading-7;
     background: linear-gradient(
       135deg,
       rgba(236, 72, 153, 0.45) 0%,
@@ -587,7 +587,7 @@
   }
 
   .chat-bubble-user {
-    @apply rounded-[18px] rounded-br-[4px] p-3 text-white relative;
+    @apply rounded-[18px] rounded-br-[4px] p-3.5 text-[15px] leading-relaxed text-white relative sm:text-base sm:leading-7;
     background: linear-gradient(
       135deg,
       rgba(100, 116, 139, 0.4) 0%,

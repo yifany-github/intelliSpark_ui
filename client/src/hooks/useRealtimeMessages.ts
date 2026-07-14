@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabaseClient';
@@ -28,6 +28,8 @@ export function useRealtimeMessages(
 ) {
   const { user, isReady } = useAuth();
   const queryClient = useQueryClient();
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   useEffect(() => {
     if (!isReady || !user?.id || !canonicalUuid) {
@@ -50,6 +52,9 @@ export function useRealtimeMessages(
           console.log('[Realtime] New message received in current chat');
 
           const newMessage = payload.new as ChatMessage;
+          const messageRole =
+            (newMessage as { role?: string }).role ??
+            (payload.new as { role?: string } | null)?.role;
 
           // Directly mutate messages cache using canonical UUID
           queryClient.setQueryData<ChatMessage[]>(
@@ -62,16 +67,29 @@ export function useRealtimeMessages(
                 return oldMessages;
               }
 
+              // Drop optimistic placeholders that match this real message
+              // (keep synthetic opening-line id === -1)
+              const withoutOptimistic = oldMessages.filter(
+                (msg) =>
+                  !(
+                    msg.id < 0 &&
+                    msg.id !== -1 &&
+                    msg.role === newMessage.role &&
+                    msg.content === newMessage.content
+                  ),
+              );
+
               console.log('[Realtime] Adding new message to cache');
-              return [...oldMessages, newMessage];
+              return [...withoutOptimistic, newMessage];
             }
           );
 
-          options?.onAssistantMessage?.(newMessage);
+          // Only assistant replies may clear typing / awaiting UX
+          if (messageRole === 'assistant') {
+            optionsRef.current?.onAssistantMessage?.(newMessage);
+          }
 
           // Invalidate chat detail queries to refresh metadata (message count, timestamps)
-          // The UUID-first cache keys + backend normalization already ensure both /chat/123
-          // and /chat/uuid routes work correctly; this just keeps metadata fresh when messages arrive
           queryClient.invalidateQueries({
             predicate: (query) => {
               const key = query.queryKey[0];

@@ -271,8 +271,7 @@ class CharacterService:
 
             self.db.add(character)
 
-            await self._maybe_set_opening_line(character, force=True)
-            await self._maybe_set_default_state(character, force=True)
+            await self._maybe_set_scene_bootstrap(character, force=True)
 
             self.db.commit()
             self.db.refresh(character)
@@ -383,6 +382,96 @@ class CharacterService:
                 self.logger.warning("AI model manager initialization issue: %s", exc)
             self._ai_manager = manager
         return self._ai_manager
+
+    async def _maybe_set_scene_bootstrap(self, character: Character, force: bool = False) -> None:
+        """
+        Atomically set opening_line + default_state_json from one shared scene.
+
+        Prefer this over separate opening/state generators so the first message
+        and the state panel describe the same world.
+        """
+        self._last_opening_line_regenerated = False
+        has_opening = bool(getattr(character, "opening_line", None) and character.opening_line.strip())
+        has_state = bool(getattr(character, "default_state_json", None))
+        if not force and has_opening and has_state:
+            return
+
+        keys_to_use = (
+            SAFE_DEFAULT_STATE_KEYS
+            if getattr(character, "nsfw_level", 0) == 0
+            else NSFW_DEFAULT_STATE_KEYS
+        )
+        fallback_state = {key: "未设定" for key in keys_to_use}
+        fallback_line = f"你好，我是{character.name}，期待与你开始这段故事。"
+
+        bundle: Dict[str, Any] = {}
+        try:
+            ai_manager = await self._get_ai_manager()
+            bundle = await ai_manager.generate_scene_bootstrap(character) or {}
+        except Exception as exc:
+            self.logger.warning(
+                "Scene bootstrap failed for %s: %s; falling back to split generators",
+                character.name,
+                exc,
+            )
+
+        opening_line = (bundle.get("opening_line") or "").strip()
+        state_seed = bundle.get("state") if isinstance(bundle.get("state"), dict) else {}
+
+        from prompts.scene_bootstrap import scene_pair_looks_coherent
+
+        safe_mode = getattr(character, "nsfw_level", 0) == 0
+        bundle_ok = bool(
+            opening_line
+            and state_seed
+            and scene_pair_looks_coherent(opening_line, state_seed, safe_mode=safe_mode)
+        )
+
+        if not bundle_ok:
+            # Split fallback keeps create/update from failing hard
+            self.logger.warning(
+                "Scene bootstrap incomplete for %s; using split generators",
+                character.name,
+            )
+            await self._maybe_set_opening_line(character, force=True)
+            await self._maybe_set_default_state(character, force=True)
+            opening_line = (character.opening_line or fallback_line).strip()
+            try:
+                state_seed = json.loads(character.default_state_json or "{}")
+            except (TypeError, json.JSONDecodeError):
+                state_seed = {}
+
+        if not opening_line:
+            opening_line = fallback_line
+
+        merged_state: Dict[str, Any] = {}
+        for key in keys_to_use:
+            value = state_seed.get(key) if isinstance(state_seed, dict) else None
+            normalized = CharacterStateManager._normalize_state_value(value)
+            if not normalized:
+                # Prefer omitting over writing "未设定" for scene-critical fields
+                continue
+            if key in CharacterStateManager.QUANTIFIABLE_KEYS and isinstance(normalized, dict):
+                merged_state[key] = normalized
+            elif key not in CharacterStateManager.QUANTIFIABLE_KEYS and isinstance(normalized, str):
+                if normalized.strip() == "未设定":
+                    continue
+                merged_state[key] = normalized
+
+        # Fill any still-missing keys from soft fallback only after real values applied
+        for key in keys_to_use:
+            if key not in merged_state:
+                merged_state[key] = fallback_state[key]
+
+        character.opening_line = opening_line
+        character.default_state_json = json.dumps(merged_state, ensure_ascii=False)
+        self._last_opening_line_regenerated = True
+        if bundle.get("scene_summary"):
+            self.logger.info(
+                "Scene bootstrap for %s: %s",
+                character.name,
+                str(bundle.get("scene_summary"))[:120],
+            )
 
     async def _maybe_set_opening_line(self, character: Character, force: bool = False) -> None:
         self._last_opening_line_regenerated = False
@@ -555,11 +644,17 @@ class CharacterService:
             if (effective_nsfw or 0) > 0 and (effective_age is None or effective_age < 18):
                 return False, {}, "NSFW characters must have age 18 or above"
 
-            if opening_line_needs_refresh or not (character.opening_line and character.opening_line.strip()):
-                await self._maybe_set_opening_line(character, force=opening_line_needs_refresh)
-
-            if default_state_needs_refresh or not getattr(character, "default_state_json", None):
-                await self._maybe_set_default_state(character, force=default_state_needs_refresh)
+            if (
+                opening_line_needs_refresh
+                or default_state_needs_refresh
+                or not (character.opening_line and character.opening_line.strip())
+                or not getattr(character, "default_state_json", None)
+            ):
+                # Always refresh opening + state together so they stay one scene
+                await self._maybe_set_scene_bootstrap(
+                    character,
+                    force=opening_line_needs_refresh or default_state_needs_refresh,
+                )
 
             self.db.commit()
             self.db.refresh(character)

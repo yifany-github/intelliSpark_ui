@@ -30,12 +30,9 @@ def _extract_dialogue(text: str) -> list[str]:
 
 
 def _strip_state_update(text: str) -> str:
-    if not text:
-        return ""
-    pattern = r"\[\[STATE_UPDATE\]\].*?\[\[/STATE_UPDATE\]\]"
-    cleaned = re.sub(pattern, "", text, flags=re.DOTALL).strip()
-    if "[[STATE_UPDATE]]" in cleaned:
-        cleaned = cleaned.split("[[STATE_UPDATE]]", 1)[0].strip()
+    from utils.state_block import extract_state_update
+
+    cleaned, _ = extract_state_update(text or "")
     return cleaned
 
 

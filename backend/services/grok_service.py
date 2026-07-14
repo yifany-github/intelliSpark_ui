@@ -195,7 +195,91 @@ class GrokService(AIServiceBase):
         except Exception as e:
             self.logger.error(f"❌ Error generating Grok opening line: {e}")
             return f"Hello! I'm {character.name}. {character.backstory[:100] if character.backstory else 'Nice to meet you!'}..."
-    
+
+    async def generate_scene_bootstrap(
+        self,
+        character: Character,
+        *,
+        safe_mode: bool,
+        language: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Atomically generate opening_line + default state for one shared scene."""
+        from prompts.scene_bootstrap import (
+            build_scene_bootstrap_prompt,
+            parse_scene_bootstrap_response,
+            scene_pair_looks_coherent,
+        )
+        from prompts.state_initialization import STATE_KEYS as NSFW_STATE_KEYS
+        from prompts.state_initialization_safe import SAFE_STATE_KEYS
+        from utils.language_utils import normalize_language_code
+
+        if not self.is_available:
+            return {}
+
+        allowed_keys = SAFE_STATE_KEYS if safe_mode else NSFW_STATE_KEYS
+        raw_language = normalize_language_code(language or "zh")
+        target_language = "zh" if raw_language == "zh" else "en"
+        persona_text = (
+            (getattr(character, "persona_prompt", None) or "").strip()
+            or (getattr(character, "backstory", None) or "").strip()
+            or (character.description or "")
+            or ""
+        )
+        prompt_bundle = build_scene_bootstrap_prompt(
+            character_name=character.name or "",
+            description=character.description or "",
+            persona_text=persona_text,
+            voice_style=getattr(character, "voice_style", None) or "",
+            safe_mode=safe_mode,
+            state_keys=list(allowed_keys),
+            language=target_language,
+        )
+
+        async def _once(user_prompt: str) -> Dict[str, Any]:
+            response = await self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": prompt_bundle.system_instruction},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=1200,
+                temperature=0.7,
+            )
+            text = ""
+            if response and response.choices and response.choices[0].message:
+                text = response.choices[0].message.content or ""
+            parsed = parse_scene_bootstrap_response(text, allowed_keys)
+            if not parsed.get("opening_line") or not parsed.get("state"):
+                return {}
+            return parsed
+
+        try:
+            result = await _once(prompt_bundle.user_prompt)
+            if result and scene_pair_looks_coherent(
+                result["opening_line"], result["state"], safe_mode=safe_mode
+            ):
+                self.logger.info("✅ Grok scene bootstrap for %s", character.name)
+                return result
+
+            missing_hint = (
+                "你必须补全 state 里每一个键，尤其是非空的：环境、衣服、姿势、胸部、下体"
+                if not safe_mode
+                else "你必须补全 state 里每一个键，尤其是非空的：环境、衣着、仪态、动作、语气"
+            )
+            self.logger.warning("⚠️ Grok scene bootstrap incomplete for %s; retrying", character.name)
+            retry_prompt = (
+                prompt_bundle.user_prompt
+                + f"\n\n【重试强调】上一版不合格。{missing_hint}。"
+                "opening_line 必须与这些描述字段处于同一现场。"
+            )
+            result = await _once(retry_prompt)
+            if result.get("opening_line") and result.get("state"):
+                return result
+        except Exception as exc:
+            self.logger.error("❌ Grok scene bootstrap failed: %s", exc)
+
+        return {}
+
     def _build_grok_messages(
         self, 
         character_prompt: dict, 
@@ -247,7 +331,37 @@ class GrokService(AIServiceBase):
                 grok_messages.append({"role": "user", "content": message.content})
             elif message.role == 'assistant':
                 grok_messages.append({"role": "assistant", "content": message.content})
-        
+
+        # Beat progression + turn contract (same policy as Gemini path)
+        try:
+            from prompts.beat_progression import build_beat_hint, detect_beat_mode
+            from prompts.turn_contract import build_turn_contract
+
+            mode = detect_beat_mode(messages)
+            persona_for_contract = ""
+            if character is not None:
+                persona_for_contract = (
+                    (getattr(character, "persona_prompt", None) or "").strip()
+                    or (getattr(character, "backstory", None) or "").strip()
+                    or (getattr(character, "description", None) or "").strip()
+                )
+            contract = build_turn_contract(
+                messages,
+                state,
+                language="zh",
+                persona_text=persona_for_contract,
+            )
+            if contract.mode in {"intimacy", "conflict", "execute", "lead"}:
+                mode = contract.mode
+            grok_messages.append(
+                {"role": "system", "content": build_beat_hint(mode, "zh")}
+            )
+            grok_messages.append(
+                {"role": "system", "content": contract.to_prompt("zh")}
+            )
+        except Exception as exc:
+            self.logger.debug("Beat/contract skipped for Grok: %s", exc)
+
         return grok_messages
     
     def _build_system_message(self, character_prompt: dict, character: Optional[Character] = None) -> str:
@@ -333,31 +447,9 @@ Grok AI Instructions:
             messages.append({"role": current_role, "content": '\n'.join(current_content)})
 
     def _extract_state_update(self, response_text: str) -> Tuple[str, Dict[str, str]]:
-        pattern = r"\[\[STATE_UPDATE\]\](?P<content>.*?)\[\[/STATE_UPDATE\]\]"
-        matches = list(re.finditer(pattern, response_text, re.DOTALL))
-        if not matches:
-            if "[[STATE_UPDATE]]" in response_text:
-                cleaned = response_text.split("[[STATE_UPDATE]]", 1)[0].strip()
-                return cleaned, {}
-            return response_text, {}
+        from utils.state_block import extract_state_update
 
-        raw_content = matches[0].group("content")
-        state_update: Dict[str, str] = {}
-
-        if raw_content:
-            start = raw_content.find("{")
-            end = raw_content.rfind("}")
-            if start != -1 and end != -1 and start < end:
-                candidate = raw_content[start : end + 1]
-                try:
-                    state_update = json.loads(candidate)
-                    if not isinstance(state_update, dict):
-                        state_update = {}
-                except json.JSONDecodeError:
-                    self.logger.warning("⚠️ Failed to parse Grok state update block: %s", candidate)
-
-        cleaned = re.sub(pattern, "", response_text, flags=re.DOTALL).strip()
-        return cleaned, state_update
+        return extract_state_update(response_text or "")
     
     def _build_generation_config(self, user_preferences: Optional[dict]) -> dict:
         """

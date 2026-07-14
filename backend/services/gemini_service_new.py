@@ -28,6 +28,23 @@ from .ai_service_base import AIServiceBase, AIServiceError
 from utils.prompt_selector import select_system_prompt
 from .prompt_engine import PromptEngine
 from prompts.opening_line import build_opening_line_prompt
+from prompts.beat_progression import (
+    build_beat_hint,
+    detect_beat_mode,
+    last_assistant_text,
+    last_user_text,
+    reply_needs_quality_retry,
+)
+from prompts.turn_contract import (
+    build_turn_contract,
+    contract_violated,
+    detect_location_from_recent,
+)
+from prompts.scene_bootstrap import (
+    build_scene_bootstrap_prompt,
+    parse_scene_bootstrap_response,
+    scene_pair_looks_coherent,
+)
 from prompts.state_initialization import (
     STATE_KEYS as NSFW_STATE_KEYS,
     build_state_initialization_prompt,
@@ -37,6 +54,7 @@ from prompts.state_initialization_safe import (
     build_state_initialization_prompt_safe,
 )
 from utils.language_utils import get_language_labels, normalize_language_code
+from utils.gemini_response import extract_text_parts
 import logging
 
 logger = logging.getLogger(__name__)
@@ -110,6 +128,21 @@ class GeminiService(AIServiceBase):
 
             # Detect sexual activity stage for targeted user-agency protection
             stage = await self._detect_user_intent_background(managed_messages)
+            beat_mode = detect_beat_mode(managed_messages)
+            persona_for_contract = (
+                (getattr(character, "persona_prompt", None) or "").strip()
+                or (getattr(character, "backstory", None) or "").strip()
+                or (getattr(character, "description", None) or "").strip()
+            )
+            turn_contract = build_turn_contract(
+                managed_messages,
+                state,
+                language=target_language or "zh",
+                persona_text=persona_for_contract,
+            )
+            # Align beat hint with director contract when intimacy / conflict / execute / lead fires
+            if turn_contract.mode in {"intimacy", "conflict", "execute", "lead"}:
+                beat_mode = turn_contract.mode
 
             # Build conversation prompt with full history, state, and stage reminder
             conversation_prompt = self._build_conversation_prompt(
@@ -118,41 +151,93 @@ class GeminiService(AIServiceBase):
                 state,
                 stage,
                 language=target_language,
+                beat_mode=beat_mode,
+                turn_contract=turn_contract,
             )
 
             # Get selected system prompt (SAFE vs NSFW)
             selected_system_prompt, prompt_type = select_system_prompt(character)
-            self.logger.info(f"🧭 Using {prompt_type} system prompt")
+            self.logger.info(
+                f"🧭 Using {prompt_type} system prompt (beat={beat_mode}, contract={turn_contract.mode})"
+            )
 
             # Build system instruction
             system_instruction = f"{selected_system_prompt}\n\n{character_prompt}"
 
-            # Direct API call (no caching)
+            is_nsfw = prompt_type == "NSFW"
             thinking_config = self._build_thinking_config()
+            generate_config = self._build_generate_config(
+                system_instruction=system_instruction,
+                thinking_config=thinking_config,
+                is_nsfw=is_nsfw,
+            )
             response = self.client.models.generate_content(
                 model=self.model_name,
                 contents=conversation_prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=system_instruction,
-                    thinking_config=thinking_config,
-                ),
+                config=generate_config,
             )
 
-            if response and response.text:
-                # Count tokens from usage metadata
+            response_text = extract_text_parts(response)
+            if response_text:
+                clean_text, state_update = self._extract_state_update(response_text.strip())
+                clean_text = self._remove_character_name_prefix(clean_text, character)
+
+                needs_retry = reply_needs_quality_retry(
+                    reply=clean_text,
+                    mode=beat_mode,
+                    previous_assistant=last_assistant_text(managed_messages),
+                    last_user=last_user_text(managed_messages),
+                ) or contract_violated(
+                    clean_text,
+                    turn_contract,
+                    state_update,
+                    location_hint=detect_location_from_recent(managed_messages),
+                    messages=managed_messages,
+                    prior_state=state if isinstance(state, dict) else None,
+                )
+
+                if needs_retry:
+                    self.logger.warning(
+                        "⚠️ Quality retry (beat=%s, contract=%s)",
+                        beat_mode,
+                        turn_contract.mode,
+                    )
+                    retry_prompt = self._build_conversation_prompt(
+                        managed_messages,
+                        character,
+                        state,
+                        stage,
+                        language=target_language,
+                        beat_mode=beat_mode,
+                        turn_contract=turn_contract,
+                        force_pass_ball=(beat_mode == "pass_ball" or turn_contract.mode == "execute"),
+                        force_quality_retry=True,
+                    )
+                    retry_response = self.client.models.generate_content(
+                        model=self.model_name,
+                        contents=retry_prompt,
+                        config=generate_config,
+                    )
+                    retry_text = extract_text_parts(retry_response)
+                    if retry_text:
+                        clean_text, state_update = self._extract_state_update(
+                            retry_text.strip()
+                        )
+                        clean_text = self._remove_character_name_prefix(clean_text, character)
+                        response = retry_response
+
                 input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0)
                 output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0)
 
                 token_info = {
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
-                    "total_tokens": input_tokens + output_tokens
+                    "total_tokens": input_tokens + output_tokens,
+                    "beat_mode": beat_mode,
+                    "turn_contract": turn_contract.mode,
                 }
-                clean_text, state_update = self._extract_state_update(response.text.strip())
-
-                # Remove character name prefix if LLM echoed it
-                clean_text = self._remove_character_name_prefix(clean_text, character)
-
+                if getattr(turn_contract, "active_dynamic", ""):
+                    token_info["active_dynamic"] = turn_contract.active_dynamic
                 if state_update:
                     token_info["state_update"] = state_update
 
@@ -184,9 +269,14 @@ class GeminiService(AIServiceBase):
             raise AIServiceError("Gemini service unavailable")
 
         try:
+            persona_for_opener = (
+                (getattr(character, "persona_prompt", None) or "").strip()
+                or (getattr(character, "backstory", None) or "").strip()
+                or (character.description or "")
+            )
             prompt_bundle = build_opening_line_prompt(
                 character.name,
-                character.description or "",
+                persona_for_opener,
             )
 
             response = self.client.models.generate_content(
@@ -198,8 +288,9 @@ class GeminiService(AIServiceBase):
                 ),
             )
 
-            if response and response.text:
-                return response.text.strip()
+            response_text = extract_text_parts(response)
+            if response_text:
+                return response_text.strip()
 
             block_reason = self._get_block_reason(response)
             if block_reason:
@@ -212,6 +303,131 @@ class GeminiService(AIServiceBase):
         except Exception as e:
             self.logger.error(f"❌ Error generating opening line: {e}")
             raise AIServiceError(str(e))
+
+    async def generate_scene_bootstrap(
+        self,
+        character: Character,
+        *,
+        safe_mode: bool,
+        language: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Atomically generate opening_line + default state for ONE shared scene.
+
+        Returns:
+            {"opening_line": str, "state": dict, "scene_summary": str}
+        """
+        allowed_keys: Iterable[str] = SAFE_STATE_KEYS if safe_mode else NSFW_STATE_KEYS
+        raw_language = normalize_language_code(language or "zh")
+        target_language = "zh" if raw_language == "zh" else "en"
+        fallback_state = self._simulate_state_seed(
+            allowed_keys,
+            safe_mode=safe_mode,
+            language=target_language,
+        )
+        fallback_opening = (
+            f"你好，我是{character.name}，期待与你开始这段故事。"
+            if character and character.name
+            else "你好，我是你的专属向导。"
+        )
+        # Empty dict = hard failure so AIModelManager can try another provider
+        if not self.is_available:
+            self.logger.warning("⚠️ No Gemini client available for scene bootstrap")
+            return {}
+
+        persona_text = (
+            (getattr(character, "persona_prompt", None) or "").strip()
+            or (getattr(character, "backstory", None) or "").strip()
+            or (character.description or "")
+            or ""
+        )
+        prompt_bundle = build_scene_bootstrap_prompt(
+            character_name=character.name or "",
+            description=character.description or "",
+            persona_text=persona_text,
+            voice_style=getattr(character, "voice_style", None) or "",
+            safe_mode=safe_mode,
+            state_keys=list(allowed_keys),
+            language=target_language,
+        )
+
+        try:
+            result = await self._request_scene_bootstrap(
+                prompt_bundle=prompt_bundle,
+                allowed_keys=allowed_keys,
+                fallback_state=fallback_state,
+                fallback_opening=fallback_opening,
+            )
+            if result and scene_pair_looks_coherent(
+                result["opening_line"], result["state"], safe_mode=safe_mode
+            ):
+                return result
+
+            self.logger.warning(
+                "⚠️ Scene bootstrap incomplete/incoherent for %s; retrying once",
+                getattr(character, "name", "?"),
+            )
+            missing_hint = (
+                "补全非空：环境、衣服、姿势、胸部、下体"
+                if not safe_mode
+                else "补全非空：环境、衣着、仪态、动作、语气"
+            )
+            retry_user = (
+                prompt_bundle.user_prompt
+                + f"\n\n【重试强调】上一版不合格。{missing_hint}。opening_line 必须与这些字段同一现场。"
+            )
+            retry_bundle = type(prompt_bundle)(
+                system_instruction=prompt_bundle.system_instruction,
+                user_prompt=retry_user,
+            )
+            result = await self._request_scene_bootstrap(
+                prompt_bundle=retry_bundle,
+                allowed_keys=allowed_keys,
+                fallback_state=fallback_state,
+                fallback_opening=fallback_opening,
+            )
+            if result and result.get("opening_line") and result.get("state"):
+                return result
+        except Exception as exc:
+            self.logger.error(f"❌ Error generating scene bootstrap: {exc}")
+
+        return {}
+
+    async def _request_scene_bootstrap(
+        self,
+        *,
+        prompt_bundle,
+        allowed_keys: Iterable[str],
+        fallback_state: Dict[str, Any],
+        fallback_opening: str,
+    ) -> Optional[Dict[str, Any]]:
+        response = self.client.models.generate_content(
+            model=self.model_name,
+            contents=prompt_bundle.user_prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=prompt_bundle.system_instruction,
+                thinking_config=self._build_thinking_config(),
+            ),
+        )
+        response_text = extract_text_parts(response)
+        if not response_text:
+            block_reason = self._get_block_reason(response)
+            if block_reason:
+                self.logger.warning("⚠️ Gemini blocked scene bootstrap: %s", block_reason)
+            return None
+
+        parsed = parse_scene_bootstrap_response(response_text, allowed_keys)
+        if not parsed:
+            return None
+
+        opening = (parsed.get("opening_line") or "").strip() or fallback_opening
+        state = fallback_state.copy()
+        state.update(parsed.get("state") or {})
+        return {
+            "opening_line": opening,
+            "state": state,
+            "scene_summary": (parsed.get("scene_summary") or "").strip(),
+        }
 
     async def generate_speech(
         self,
@@ -386,8 +602,9 @@ class GeminiService(AIServiceBase):
                 ),
             )
 
-            if response and response.text:
-                parsed = self._parse_state_seed(response.text, allowed_keys)
+            response_text = extract_text_parts(response)
+            if response_text:
+                parsed = self._parse_state_seed(response_text, allowed_keys)
                 if parsed:
                     merged = fallback_state.copy()
                     merged.update(parsed)
@@ -427,15 +644,19 @@ class GeminiService(AIServiceBase):
             persona_source = compiled['used_fields'].get('persona_source', 'unknown')
             self.logger.info(f"📝 Character prompt source: {persona_source}")
 
-            # Return the assembled system text (without the system_header which is already in selected_system_prompt)
+            # Return character sections only (system_header is already selected separately)
             sections = compiled.get('sections', {})
             persona_parts = []
 
-            if 'persona' in sections:
-                persona_parts.append(sections['persona'])
-            if 'gender_hint' in sections:
-                persona_parts.append(sections['gender_hint'])
-            if 'language_instruction' in sections:
+            if sections.get('character_block'):
+                persona_parts.append(sections['character_block'])
+            else:
+                if sections.get('persona'):
+                    persona_parts.append(sections['persona'])
+                if sections.get('gender_hint'):
+                    persona_parts.append(sections['gender_hint'])
+
+            if sections.get('language_instruction'):
                 persona_parts.append(sections['language_instruction'])
 
             return '\n\n'.join(persona_parts) if persona_parts else ""
@@ -673,6 +894,10 @@ class GeminiService(AIServiceBase):
         state: Optional[Dict[str, Any]] = None,
         stage: Optional[str] = None,
         language: Optional[str] = None,
+        beat_mode: Optional[str] = None,
+        turn_contract=None,
+        force_pass_ball: bool = False,
+        force_quality_retry: bool = False,
     ) -> List[Dict]:
         """
         Build conversation prompt with FULL conversation history, state tracking, and stage reminder.
@@ -680,6 +905,8 @@ class GeminiService(AIServiceBase):
         Combines:
         - Stage reminder (SHORT negative constraint, only for high-risk stages)
         - State tracking (character state persistence)
+        - Turn contract (director sheet for this beat)
+        - Beat progression (keep user in-scene, not as audience)
         - Natural conversation flow
         """
 
@@ -715,17 +942,117 @@ class GeminiService(AIServiceBase):
                 state_context = f"[{state_prefix}: {state_json}]\n\n"
 
         # Create conversation prompt with stage reminder and state
-        if conversation_history:
-            # End with character name to prompt natural continuation
-            full_prompt = f"{stage_reminder}{state_context}{conversation_history.rstrip()}\n{character_name}:"
+        # Do NOT end with "{name}:" — that biases the model into third-person novel narration.
+        # Length ramp: early turns stay shorter so opening → first reply doesn't whiplash.
+        mode = beat_mode or detect_beat_mode(messages)
+        if force_pass_ball:
+            mode = "pass_ball"
+        if turn_contract is None:
+            persona_for_contract = (
+                (getattr(character, "persona_prompt", None) or "").strip()
+                or (getattr(character, "backstory", None) or "").strip()
+                or (getattr(character, "description", None) or "").strip()
+            )
+            turn_contract = build_turn_contract(
+                messages,
+                state,
+                language=target_language,
+                persona_text=persona_for_contract,
+            )
+        if turn_contract.mode in {"intimacy", "conflict", "execute", "lead"}:
+            mode = turn_contract.mode
+        early_turn = mode == "early"
+        if turn_contract.mode in {"intimacy", "conflict", "execute"}:
+            continue_hint = {
+                "zh": "（请以角色本人继续回应：第一人称对白 + *动作*；亲密/执行拍篇幅约160–320字，写足眼神表情与身体反应；换场后禁止复读旧场景气味；不要用「角色名听到/感受到」开场；禁止一两句软拒或「你满意了吧」）",
+                "en": "(Continue in-character: first-person + *actions*; intimacy/execute — erotic density, matching-scene sensory; no soft-refuse or confirmation-loop endings.)",
+                "es": "(Continúa en personaje: diálogo + *acciones*; densidad erótica; sin rechazo vacío ni '¿quedaste satisfecho?'.)",
+                "ko": "(캐릭터 본인으로: 1인칭 + *동작*; 친밀/실행 턴은 시선·표정·신체 반응; 이전 장면 냄새 금지; 거절/확인 한 줄로 끝내지 마세요.)",
+            }.get(
+                target_language,
+                "(Continue in-character: intimacy/execute — immersive erotic density, scene-matched sensory, no soft-refuse one-liner.)",
+            )
+        elif turn_contract.mode == "lead":
+            continue_hint = {
+                "zh": "（请以角色本人继续回应：用户在邀请你带领——只推进半拍到一格，制造期待；主动可以，禁止一次跳到性交中段；约120–240字）",
+                "en": "(Continue in-character: user invites you to lead — half-beat anticipation, not mid-act dump.)",
+                "es": "(Continúa en personaje: medio compás de anticipación, no saltes al acto.)",
+                "ko": "(캐릭터로: 반 박자만 전진, 기대감 유지. 중반 섹스로 점프 금지.)",
+            }.get(
+                target_language,
+                "(Continue in-character: lead with half-beat anticipation.)",
+            )
+        elif early_turn:
+            continue_hint = {
+                "zh": "（请以角色本人继续回应：第一人称对白 + *动作*；此为开场后前几轮，篇幅约80–180字即可，先立住角色口吻与情绪；不要用「角色名听到/感受到」开场；不要只回一两句空壳，也不要写成小作文）",
+                "en": "(Continue in-character: first-person dialogue + *actions*; early turns — about a short immersive paragraph, not a wall of text; do not open with '{name} hears/feels' narration.)",
+                "es": "(Continúa en personaje: diálogo en primera persona + *acciones*; turnos iniciales — un párrafo inmersivo corto, no un muro de texto; no abras con narración 'el personaje oye/siente'.)",
+                "ko": "(캐릭터 본인으로 이어가세요: 1인칭 대사 + *동작*; 초반 턴은 짧은 몰입 문단 정도면 됩니다; '이름이 듣고/느끼며' 식 서술로 시작하지 마세요.)",
+            }.get(
+                target_language,
+                "(Continue in-character: first-person dialogue + *actions*; early turn — short immersive paragraph, not a wall of text.)",
+            )
         else:
-            # For new conversations, just start with character name
-            full_prompt = f"{stage_reminder}{state_context}{character_name}:"
+            continue_hint = {
+                "zh": "（请以角色本人继续回应：第一人称对白 + *动作*；完整沉浸篇幅约120–350字；不要用「角色名听到/感受到」开场；不要只回一两句空壳）",
+                "en": "(Continue in-character: first-person dialogue + *actions*; aim for a full immersive reply, not a one-liner; do not open with '{name} hears/feels' narration.)",
+                "es": "(Continúa en personaje: diálogo en primera persona + *acciones*; respuesta inmersiva completa, no una sola frase; no abras con narración 'el personaje oye/siente'.)",
+                "ko": "(캐릭터 본인으로 이어가세요: 1인칭 대사 + *동작*; 한두 문장 껍데기가 아니라 몰입감 있는 분량으로; '이름이 듣고/느끼며' 식 서술로 시작하지 마세요.)",
+            }.get(
+                target_language,
+                "(Continue in-character: first-person dialogue + *actions*; full immersive reply, not a one-liner.)",
+            )
+        if "{name}" in continue_hint:
+            continue_hint = continue_hint.replace("{name}", character_name)
+
+        beat_hint = build_beat_hint(mode, target_language)
+        if force_pass_ball:
+            beat_hint = (
+                beat_hint
+                + (
+                    " 【重试】上一版仍在独角戏里忽略用户；本轮必须把用户拉进动作里。"
+                    if target_language == "zh"
+                    else " [RETRY] Previous reply still sidelined the user — pull them into the action."
+                )
+            )
+        if force_quality_retry:
+            if turn_contract.mode in {"intimacy", "conflict"}:
+                beat_hint = (
+                    beat_hint
+                    + (
+                        " 【重试】上一版亲密拍太短或只有软拒、关系没动。"
+                        "本轮必须写出人设冲突/心动张力，身体有推进，欲望或好感要变，篇幅写够。"
+                        if target_language == "zh"
+                        else " [RETRY] Prior intimacy beat was thin or soft-refuse only. "
+                        "Write Desire vs Role tension, advance the body/relationship, update desire/favor, write enough length."
+                    )
+                )
+            else:
+                beat_hint = (
+                    beat_hint
+                    + (
+                        " 【重试】上一版太像色话机器或忽略了用户的人情/日常，或问句菜单太多。"
+                        "本轮先像人：接住用户原话里的关心/问题，少问多做，写入真实环境感官；整段最多一句问句。"
+                        if target_language == "zh"
+                        else " [RETRY] Prior reply felt like a smut machine, ignored the human beat, or used a question menu. "
+                        "Be a person first; do more ask less; ground real sensory detail; at most one question."
+                    )
+                )
+        continue_hint = f"{continue_hint}\n{beat_hint}\n{turn_contract.to_prompt(target_language)}"
+
+        if conversation_history:
+            full_prompt = f"{stage_reminder}{state_context}{conversation_history.rstrip()}\n\n{continue_hint}"
+        else:
+            full_prompt = f"{stage_reminder}{state_context}{continue_hint}"
 
         if stage_reminder:
-            self.logger.info(f"💬 Conversation prompt with stage reminder: {len(messages)} messages for {character_name}, stage '{stage}'")
+            self.logger.info(
+                f"💬 Conversation prompt with stage reminder: {len(messages)} messages for {character_name}, stage '{stage}', beat '{mode}', contract '{turn_contract.mode}'"
+            )
         else:
-            self.logger.info(f"💬 Conversation prompt built: {len(messages)} messages for {character_name}")
+            self.logger.info(
+                f"💬 Conversation prompt built: {len(messages)} messages for {character_name}, beat '{mode}', contract '{turn_contract.mode}'"
+            )
 
         # Return in Gemini API format
         return [{
@@ -765,6 +1092,66 @@ class GeminiService(AIServiceBase):
 
         return None
 
+    def _build_generate_config(
+        self,
+        *,
+        system_instruction: str,
+        thinking_config: Optional[types.ThinkingConfig],
+        is_nsfw: bool,
+    ) -> types.GenerateContentConfig:
+        """
+        Generation knobs tuned for immersive RP quality.
+
+        Higher temperature for NSFW keeps sensory variety; safety BLOCK_NONE
+        only for sexually_explicit on NSFW characters so heat isn't soft-censored.
+        """
+        temperature = 0.95 if is_nsfw else 0.8
+        try:
+            env_temp = os.getenv("GEMINI_TEMPERATURE", "").strip()
+            if env_temp:
+                temperature = float(env_temp)
+        except ValueError:
+            self.logger.warning("Invalid GEMINI_TEMPERATURE; using default")
+
+        max_output_tokens = 1200 if is_nsfw else 900
+        try:
+            env_max = os.getenv("GEMINI_MAX_OUTPUT_TOKENS", "").strip()
+            if env_max:
+                max_output_tokens = int(env_max)
+        except ValueError:
+            self.logger.warning("Invalid GEMINI_MAX_OUTPUT_TOKENS; using default")
+
+        return types.GenerateContentConfig(
+            system_instruction=system_instruction,
+            thinking_config=thinking_config,
+            temperature=temperature,
+            top_p=0.95,
+            max_output_tokens=max_output_tokens,
+            safety_settings=self._build_chat_safety_settings(is_nsfw=is_nsfw),
+        )
+
+    def _build_chat_safety_settings(
+        self,
+        *,
+        is_nsfw: bool,
+    ) -> Optional[list[types.SafetySetting]]:
+        if not is_nsfw:
+            return None
+
+        raw_flag = os.getenv("GEMINI_CHAT_ALLOW_NSFW", "").strip().lower()
+        if raw_flag in {"0", "false", "no"}:
+            return None
+        # Default allow for NSFW characters unless explicitly disabled
+        if raw_flag and raw_flag not in {"1", "true", "yes"}:
+            return None
+
+        return [
+            types.SafetySetting(
+                category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                threshold=types.HarmBlockThreshold.BLOCK_NONE,
+            ),
+        ]
+
     @staticmethod
     def _thinking_budget_for_level(level: str) -> Optional[int]:
         level = level.lower()
@@ -796,31 +1183,9 @@ class GeminiService(AIServiceBase):
         return None
 
     def _extract_state_update(self, response_text: str) -> Tuple[str, Dict[str, Any]]:
-        pattern = r"\[\[STATE_UPDATE\]\](?P<content>.*?)\[\[/STATE_UPDATE\]\]"
-        matches = list(re.finditer(pattern, response_text, re.DOTALL))
-        if not matches:
-            if "[[STATE_UPDATE]]" in response_text:
-                cleaned = response_text.split("[[STATE_UPDATE]]", 1)[0].strip()
-                return cleaned, {}
-            return response_text, {}
+        from utils.state_block import extract_state_update
 
-        raw_content = matches[0].group("content")
-        state_update: Dict[str, Any] = {}
-
-        if raw_content:
-            start = raw_content.find("{")
-            end = raw_content.rfind("}")
-            if start != -1 and end != -1 and start < end:
-                candidate = raw_content[start : end + 1]
-                try:
-                    state_update = json.loads(candidate)
-                    if not isinstance(state_update, dict):
-                        state_update = {}
-                except json.JSONDecodeError:
-                    self.logger.warning("⚠️ Failed to parse state update block: %s", candidate)
-
-        cleaned = re.sub(pattern, "", response_text, flags=re.DOTALL).strip()
-        return cleaned, state_update
+        return extract_state_update(response_text or "")
 
     def _simulate_response(
         self,

@@ -403,7 +403,11 @@ async def get_chat_state(
     ).scalars().first()
     updated_at = format_datetime(state_row.updated_at) if state_row else None
 
-    return {"chat_id": chat.id, "state": state, "updated_at": updated_at}
+    return {
+        "chat_id": chat.id,
+        "state": manager.public_state(state),
+        "updated_at": updated_at,
+    }
 
 
 @router.post("/{chat_id}/state", response_model=ChatState)
@@ -445,7 +449,11 @@ async def update_chat_state(
     ).scalars().first()
     updated_at = format_datetime(state_row.updated_at) if state_row else None
 
-    return {"chat_id": chat.id, "state": state, "updated_at": updated_at}
+    return {
+        "chat_id": chat.id,
+        "state": manager.public_state(state),
+        "updated_at": updated_at,
+    }
 
 
 @router.delete("", response_model=MessageResponse)

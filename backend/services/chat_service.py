@@ -74,7 +74,8 @@ class ChatService:
         if not state:
             return None
         try:
-            return json.dumps(state, ensure_ascii=False)
+            public_state = CharacterStateManager.public_state(state)
+            return json.dumps(public_state, ensure_ascii=False)
         except (TypeError, ValueError):
             return None
 
@@ -92,34 +93,9 @@ class ChatService:
 
     @staticmethod
     def _extract_state_update_from_text(response_text: str) -> Tuple[str, Dict[str, Any]]:
-        if not response_text:
-            return "", {}
+        from utils.state_block import extract_state_update
 
-        pattern = r"\[\[STATE_UPDATE\]\](?P<content>.*?)\[\[/STATE_UPDATE\]\]"
-        matches = list(re.finditer(pattern, response_text, re.DOTALL))
-        if not matches:
-            if "[[STATE_UPDATE]]" in response_text:
-                cleaned = response_text.split("[[STATE_UPDATE]]", 1)[0].strip()
-                return cleaned, {}
-            return response_text, {}
-
-        raw_content = matches[0].group("content")
-        state_update: Dict[str, Any] = {}
-
-        if raw_content:
-            start = raw_content.find("{")
-            end = raw_content.rfind("}")
-            if start != -1 and end != -1 and start < end:
-                candidate = raw_content[start : end + 1]
-                try:
-                    state_update = json.loads(candidate)
-                    if not isinstance(state_update, dict):
-                        state_update = {}
-                except json.JSONDecodeError:
-                    logger.warning("Failed to parse state update block: %s", candidate)
-
-        cleaned = re.sub(pattern, "", response_text, flags=re.DOTALL).strip()
-        return cleaned, state_update
+        return extract_state_update(response_text or "")
 
     @staticmethod
     def _normalize_language(language: Optional[str]) -> Optional[str]:
@@ -598,6 +574,14 @@ class ChatService:
                         state_update = parsed_update
                 response_content = cleaned_content
 
+                active_dynamic = (token_info or {}).get("active_dynamic")
+                if active_dynamic:
+                    from prompts.persona_dynamics import LAST_DYNAMIC_KEY
+
+                    if not isinstance(state_update, dict):
+                        state_update = {}
+                    state_update[LAST_DYNAMIC_KEY] = active_dynamic
+
                 try:
                     if state_update:
                         state = await self.state_manager.update_state(
@@ -686,7 +670,7 @@ class ChatService:
                     "audio_status": message_model.audio_status,
                     "audio_error": message_model.audio_error,
                     "timestamp": format_datetime(message_model.timestamp),
-                    "state_snapshot": state,
+                    "state_snapshot": CharacterStateManager.public_state(state),
                 }
 
                 retry_meta = self._retry_meta(
@@ -930,7 +914,7 @@ class ChatService:
                 "audio_status": opening_message.audio_status,
                 "audio_error": opening_message.audio_error,
                 "timestamp": format_datetime(opening_message.timestamp),
-                "state_snapshot": state,
+                "state_snapshot": CharacterStateManager.public_state(state),
             }
 
             self.ai_service.log_opening_line_usage(
