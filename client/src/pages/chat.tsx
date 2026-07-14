@@ -367,7 +367,6 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
       const queryKey = [`/api/chats/${messagesCacheKey}/messages`] as const;
       await queryClient.cancelQueries({ queryKey });
 
-      const previousMessages = queryClient.getQueryData<ChatMessage[]>(queryKey);
       const now = new Date().toISOString();
       const tempId = createTempMessageId();
       const optimisticMessage: ChatMessage = {
@@ -382,7 +381,7 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
 
       queryClient.setQueryData<ChatMessage[]>(queryKey, (old = []) => [...old, optimisticMessage]);
 
-      return { previousMessages, tempId, queryKey };
+      return { tempId, queryKey };
     },
     onSuccess: (rawMessage, _content, context) => {
       try {
@@ -409,8 +408,10 @@ const ChatPage = ({ chatId }: ChatPageProps) => {
     onError: (error: unknown, _content, context) => {
       console.error("Message sending failed:", error);
       setAwaitingAssistant(false);
-      if (context?.previousMessages && context.queryKey) {
-        queryClient.setQueryData(context.queryKey, context.previousMessages);
+      if (context?.queryKey) {
+        queryClient.setQueryData<ChatMessage[]>(context.queryKey, (old = []) =>
+          old.filter((message) => message.id !== context.tempId),
+        );
       }
     },
   });

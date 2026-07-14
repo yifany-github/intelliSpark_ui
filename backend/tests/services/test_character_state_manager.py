@@ -1,9 +1,12 @@
+from datetime import datetime, timezone
+
 import pytest
 import pytest_asyncio
 from unittest.mock import AsyncMock
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from backend.models import Base, Chat, Character, CharacterChatState, User
+from backend.schemas import ChatState
 from backend.services.character_state_manager import CharacterStateManager
 from backend.services.chat_service import ChatService
 
@@ -122,7 +125,12 @@ async def test_generate_ai_response_updates_state_snapshot(async_session: AsyncS
         async def generate_response(self, character, messages, user_preferences=None, user=None, state=None):
             return (
                 "这是角色的回答",
-                {"input_tokens": 5, "output_tokens": 12, "state_update": {"衣服": "上衣已脱"}},
+                {
+                    "input_tokens": 5,
+                    "output_tokens": 12,
+                    "state_update": {"衣服": "上衣已脱"},
+                    "active_dynamic": "initiative",
+                },
             )
 
     async def fake_get_ai_model_manager():
@@ -142,9 +150,33 @@ async def test_generate_ai_response_updates_state_snapshot(async_session: AsyncS
     assert success is True
     assert error is None
     assert payload["message"]["state_snapshot"]["衣服"] == "上衣已脱"
+    assert "_last_dynamic" not in payload["message"]["state_snapshot"]
 
     updated_state = await manager.get_state(chat.id)
     assert updated_state["衣服"] == "上衣已脱"
+    assert updated_state["_last_dynamic"] == "initiative"
+
+
+def test_public_state_strips_internal_meta():
+    internal_state = {
+        "环境": "厨房",
+        "动作": "靠在料理台边",
+        "_last_dynamic": "initiative",
+        "_relationship_read": "仍在试探",
+        "_internal_debug": "not public",
+    }
+
+    public_state = CharacterStateManager.public_state(internal_state)
+
+    assert public_state == {"环境": "厨房", "动作": "靠在料理台边"}
+    assert internal_state["_last_dynamic"] == "initiative"
+
+    response = ChatState(
+        chat_id=1,
+        state=public_state,
+        updated_at=datetime.now(timezone.utc),
+    )
+    assert response.state == public_state
 
 
 @pytest.mark.asyncio

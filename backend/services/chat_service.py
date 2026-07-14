@@ -74,7 +74,8 @@ class ChatService:
         if not state:
             return None
         try:
-            return json.dumps(state, ensure_ascii=False)
+            public_state = CharacterStateManager.public_state(state)
+            return json.dumps(public_state, ensure_ascii=False)
         except (TypeError, ValueError):
             return None
 
@@ -669,7 +670,7 @@ class ChatService:
                     "audio_status": message_model.audio_status,
                     "audio_error": message_model.audio_error,
                     "timestamp": format_datetime(message_model.timestamp),
-                    "state_snapshot": state,
+                    "state_snapshot": CharacterStateManager.public_state(state),
                 }
 
                 retry_meta = self._retry_meta(
@@ -913,7 +914,7 @@ class ChatService:
                 "audio_status": opening_message.audio_status,
                 "audio_error": opening_message.audio_error,
                 "timestamp": format_datetime(opening_message.timestamp),
-                "state_snapshot": state,
+                "state_snapshot": CharacterStateManager.public_state(state),
             }
 
             self.ai_service.log_opening_line_usage(

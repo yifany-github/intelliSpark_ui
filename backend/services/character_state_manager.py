@@ -73,6 +73,17 @@ class CharacterStateManager:
         self.session = session
         self.logger = logging.getLogger(__name__)
 
+    @classmethod
+    def public_state(cls, state: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """Return client-safe state without internal persona metadata."""
+        if not state:
+            return {}
+        return {
+            key: value
+            for key, value in state.items()
+            if not key.startswith("_")
+        }
+
     @staticmethod
     def _normalize_language(language: Optional[str]) -> Optional[str]:
         if not language:
