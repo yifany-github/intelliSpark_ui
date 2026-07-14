@@ -421,9 +421,11 @@ class CharacterService:
         from prompts.scene_bootstrap import scene_pair_looks_coherent
 
         safe_mode = getattr(character, "nsfw_level", 0) == 0
+        scene_summary_preview = (bundle.get("scene_summary") or "").strip() if bundle else ""
         bundle_ok = bool(
             opening_line
             and state_seed
+            and scene_summary_preview
             and scene_pair_looks_coherent(opening_line, state_seed, safe_mode=safe_mode)
         )
 
