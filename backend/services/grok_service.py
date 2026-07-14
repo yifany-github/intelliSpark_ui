@@ -447,31 +447,9 @@ Grok AI Instructions:
             messages.append({"role": current_role, "content": '\n'.join(current_content)})
 
     def _extract_state_update(self, response_text: str) -> Tuple[str, Dict[str, str]]:
-        pattern = r"\[\[STATE_UPDATE\]\](?P<content>.*?)\[\[/STATE_UPDATE\]\]"
-        matches = list(re.finditer(pattern, response_text, re.DOTALL))
-        if not matches:
-            if "[[STATE_UPDATE]]" in response_text:
-                cleaned = response_text.split("[[STATE_UPDATE]]", 1)[0].strip()
-                return cleaned, {}
-            return response_text, {}
+        from utils.state_block import extract_state_update
 
-        raw_content = matches[0].group("content")
-        state_update: Dict[str, str] = {}
-
-        if raw_content:
-            start = raw_content.find("{")
-            end = raw_content.rfind("}")
-            if start != -1 and end != -1 and start < end:
-                candidate = raw_content[start : end + 1]
-                try:
-                    state_update = json.loads(candidate)
-                    if not isinstance(state_update, dict):
-                        state_update = {}
-                except json.JSONDecodeError:
-                    self.logger.warning("⚠️ Failed to parse Grok state update block: %s", candidate)
-
-        cleaned = re.sub(pattern, "", response_text, flags=re.DOTALL).strip()
-        return cleaned, state_update
+        return extract_state_update(response_text or "")
     
     def _build_generation_config(self, user_preferences: Optional[dict]) -> dict:
         """

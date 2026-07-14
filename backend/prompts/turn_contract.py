@@ -26,6 +26,7 @@ from .beat_progression import (
     user_has_mundane_beat,
     user_pushes_intimacy,
 )
+from .persona_dynamics import build_persona_goal
 
 
 # User commands that mean "do it", not "ask me if it's ok".
@@ -60,6 +61,25 @@ LEAD_INVITE_MARKERS = (
     "你会怎么",
     "想怎样",
     "怎么玩",
+)
+
+# Ask preference / consequence — choice beat, not "do the creampie menu now"
+PREFERENCE_ASK_MARKERS = (
+    "射在哪里",
+    "射哪里",
+    "射哪儿",
+    "射在哪",
+    "想射哪",
+    "要射哪",
+    "内射还是",
+    "外面还是",
+    "嘴里还是",
+    "脸上还是",
+    "想我射",
+    "要我射哪",
+    "叫我什么",
+    "想听我叫",
+    "想不想被内",
 )
 
 CONFIRMATION_LOOPS = (
@@ -139,6 +159,7 @@ class TurnContract:
     must_not: tuple[str, ...]
     state_sync: tuple[str, ...]
     intensity: str = "medium"  # light | medium | heavy — proportional to user stimulus
+    active_dynamic: str = ""  # persona dynamics key activated this turn
 
     def to_prompt(self, language: str = "zh") -> str:
         if language != "zh":
@@ -224,6 +245,48 @@ def user_invites_lead(text: str) -> bool:
     }:
         return True
     return False
+
+
+def user_asks_preference(text: str) -> bool:
+    """User asks where/how/what they want — choice beat, not hard execute."""
+    body = (text or "").strip()
+    if not body:
+        return False
+    compact = body.replace(" ", "")
+    return any(m in compact for m in PREFERENCE_ASK_MARKERS)
+
+
+def _with_persona_goal(
+    contract: TurnContract,
+    *,
+    persona_text: str,
+    state: Optional[Dict[str, Any]],
+    preference: bool = False,
+    threshold: bool = False,
+) -> TurnContract:
+    """Attach one active dynamics goal; replaces boolean throughline prescriptions."""
+    goal, key = build_persona_goal(
+        mode=contract.mode,
+        intensity=contract.intensity,
+        persona_text=persona_text,
+        state=state,
+        preference=preference,
+        threshold=threshold,
+    )
+    if not goal:
+        return contract
+    return TurnContract(
+        mode=contract.mode,
+        must=contract.must + (goal,),
+        must_not=contract.must_not
+        + (
+            "禁止用「作为××/我是某种人格」解释自己",
+            "禁止连续两轮用同一种人格说明书腔复读",
+        ),
+        state_sync=contract.state_sync,
+        intensity=contract.intensity,
+        active_dynamic=key,
+    )
 
 
 def _intimacy_length_rule(language: str = "zh") -> str:
@@ -629,14 +692,35 @@ def _build_lead_contract(
     extra_must: tuple[str, ...] = (),
     extra_forbid: tuple[str, ...] = (),
     intensity: str = "medium",
+    preference: bool = False,
+    has_conflict: bool = False,
 ) -> TurnContract:
-    """Invite-to-lead: half-beat anticipation — keep heat, don't dump mid-act."""
-    return TurnContract(
-        mode="lead",
-        must=(
+    """Invite-to-lead or preference ask: half-beat — keep heat, don't dump completion."""
+    del has_conflict  # dynamics goal carries persona; keep kw for call-site compat
+    if preference:
+        head = (
+            f"用户在问偏好/后果（「{user_text[:40]}」）：这是选择拍，不是立刻做完",
+            "先按本轮人物选择做反应，再表态或把决定权轻轻交回；身体仍可诚实露骨",
+            "禁止无犹豫的菜单式献上",
+        )
+        forbid_extra = (
+            "禁止把「射哪里/想怎样」理解成立刻内射完成态并主动填满献上",
+            "禁止跳过人物选择直接服务腔答应",
+        )
+    else:
+        head = (
             f"用户在邀请你带领（「{user_text[:40]}」）：只推进半拍到一格，制造期待",
             "角色可以主动、可以色，但停在「再近一点/再过分一点」的门槛前，把下一拍决定权留给用户",
             "本轮一个新的有效刺激即可（触感或动作或关系），不要塞满同一套氛围清单",
+        )
+        forbid_extra = (
+            "禁止把「接下来会怎样」理解成立刻跨坐/解拉链/明确性交中段",
+            "禁止一次跳到完成态或明显性行为中段",
+        )
+    return TurnContract(
+        mode="lead",
+        must=(
+            *head,
             *extra_must,
             person_rule,
             env_rule,
@@ -646,8 +730,7 @@ def _build_lead_contract(
             no_confirm,
             no_menu,
             *extra_forbid,
-            "禁止把「接下来会怎样」理解成立刻跨坐/解拉链/明确性交中段",
-            "禁止一次跳到完成态或明显性行为中段",
+            *forbid_extra,
             "禁止替用户发明未写出的表情与身体细节（哭腔、委屈、手茧、满脸通红等）",
             "禁止空停或只甩选择题把球踢回",
         ),
@@ -771,18 +854,19 @@ def _build_execute_contract(
             if has_conflict
             else "少问多做，真正执行到位"
         )
+    must = [
+        f"执行用户意图（「{user_text[:40]}」）：推进到可观察的完成态或明显中段，不要假动作后停问",
+        conflict_note,
+        _erotic_density_rule(undress=True, sex_act=sex_act, intensity=intensity),
+        *extra_must,
+        person_rule,
+        env_rule,
+        "用身体把用户留在戏里（拉近、动手、继续脱/伺候），不要停在征求意见",
+        "视角：角色第一人称对白 + *动作*；对用户称「你」，禁止「他/她」旁观腔",
+    ]
     return TurnContract(
         mode="execute",
-        must=(
-            f"执行用户意图（「{user_text[:40]}」）：推进到可观察的完成态或明显中段，不要假动作后停问",
-            conflict_note,
-            _erotic_density_rule(undress=True, sex_act=sex_act, intensity=intensity),
-            *extra_must,
-            person_rule,
-            env_rule,
-            "用身体把用户留在戏里（拉近、动手、继续脱/伺候），不要停在征求意见",
-            "视角：角色第一人称对白 + *动作*；对用户称「你」，禁止「他/她」旁观腔",
-        ),
+        must=tuple(must),
         must_not=(
             no_confirm,
             no_menu,
@@ -792,6 +876,7 @@ def _build_execute_contract(
             "禁止把上一场景的饭菜/碗碟气味硬贴进本轮",
             "禁止脱衣拍只写动作不写胸部/乳头/下体",
             "禁止性爱进行中只回短句空壳（缺吞吐/唾液/触感）",
+            "禁止人设下班变成无性格的服务旁白",
         ),
         state_sync=_intimacy_state_rules(
             location_hint=location_hint, undress=True
@@ -818,9 +903,11 @@ def build_turn_contract(
     has_conflict = persona_has_role_conflict(persona_text)
     intimacy = user_pushes_intimacy(user_text)
     invites_lead = user_invites_lead(user_text)
+    asks_preference = user_asks_preference(user_text)
     location_hint = _detect_location_from_recent(messages)
     is_command = _user_is_command(user_text)
-    sex_act = _recent_sex_act_context(messages) and (
+    # Preference asks are never hard sex-execute even mid-act
+    sex_act = (not asks_preference) and _recent_sex_act_context(messages) and (
         _user_asks_sex_detail(user_text) or is_continue_cue(user_text) or is_command
     )
     threshold = _is_sex_threshold_crossing(messages, user_text)
@@ -828,8 +915,8 @@ def build_turn_contract(
     intensity = detect_stimulus_intensity(
         user_text, messages, sex_act=sex_act, threshold=threshold
     )
-    # Invite-to-lead stays light/medium — don't max meltdown on curiosity
-    if invites_lead and intensity == "heavy":
+    # Invite/preference stays light/medium — don't max meltdown on curiosity
+    if (invites_lead or asks_preference) and intensity == "heavy":
         intensity = "medium"
     prop_must, prop_forbid = _proportion_rules(intensity)
     heat_budget = _heat_budget_rule(state)
@@ -844,6 +931,7 @@ def build_turn_contract(
         or sex_act
         or threshold
         or invites_lead
+        or asks_preference
         or mode in {"pass_ball", "react_to_user"}
     )
     env_rule = _build_env_rule(state, location_hint=location_hint, heat=heat)
@@ -866,6 +954,15 @@ def build_turn_contract(
             *state_rules,
         )
 
+    def _finish(contract: TurnContract) -> TurnContract:
+        return _with_persona_goal(
+            contract,
+            persona_text=persona_text,
+            state=state if isinstance(state, dict) else None,
+            preference=asks_preference,
+            threshold=threshold,
+        )
+
     if (mode == "human_first" or user_has_mundane_beat(user_text)) and not sex_act:
         extra = ()
         if intimacy:
@@ -875,40 +972,46 @@ def build_turn_contract(
                 )
             else:
                 extra = ("人情接住后：对亲密意图给出身体反应并推进一格，不要只软拒",)
-        return TurnContract(
-            mode="human_first",
-            must=(
-                "先接住用户话里的日常/人情（回答、关心、小反应）",
-                "再自然进入或继续亲密（若用户也有亲密意图）",
-                *extra,
-                *prop_must,
-                person_rule,
-                env_rule,
-            ),
-            must_not=(
-                no_menu,
-                "禁止把用户的人情句当空气、只回色话",
-                no_confirm,
-                *extra_forbid,
-            ),
-            state_sync=_intimacy_state_rules(location_hint=location_hint)
-            if intimacy
-            else state_rules,
-            intensity=intensity,
+        return _finish(
+            TurnContract(
+                mode="human_first",
+                must=(
+                    "先接住用户话里的日常/人情（回答、关心、小反应）",
+                    "再自然进入或继续亲密（若用户也有亲密意图）",
+                    *extra,
+                    *prop_must,
+                    person_rule,
+                    env_rule,
+                ),
+                must_not=(
+                    no_menu,
+                    "禁止把用户的人情句当空气、只回色话",
+                    no_confirm,
+                    *extra_forbid,
+                ),
+                state_sync=_intimacy_state_rules(location_hint=location_hint)
+                if intimacy
+                else state_rules,
+                intensity=intensity,
+            )
         )
 
-    # Invite to lead / anticipation — BEFORE hard execute (fixes 「接下来会发生什么」)
-    if invites_lead and not sex_act and not threshold:
-        return _build_lead_contract(
-            user_text,
-            env_rule,
-            person_rule,
-            no_confirm,
-            no_menu,
-            location_hint=location_hint,
-            extra_must=extra_must,
-            extra_forbid=extra_forbid,
-            intensity=intensity,
+    # Preference / invite-to-lead — BEFORE hard execute (incl. mid-sex 「射哪里」)
+    if asks_preference or (invites_lead and not sex_act and not threshold):
+        return _finish(
+            _build_lead_contract(
+                user_text,
+                env_rule,
+                person_rule,
+                no_confirm,
+                no_menu,
+                location_hint=location_hint,
+                extra_must=extra_must,
+                extra_forbid=extra_forbid,
+                intensity=intensity,
+                preference=asks_preference,
+                has_conflict=has_conflict,
+            )
         )
 
     # Hard commands / mid-sex continue & detail questions → execute with density
@@ -919,74 +1022,84 @@ def build_turn_contract(
         or sex_act
         or threshold
     ):
-        return _build_execute_contract(
-            user_text,
-            env_rule,
-            person_rule,
-            no_confirm,
-            no_menu,
-            has_conflict=has_conflict,
-            location_hint=location_hint,
-            sex_act=sex_act or _recent_sex_act_context(messages) or threshold,
-            extra_must=extra_must,
-            extra_forbid=extra_forbid,
-            intensity=intensity,
-        )
-
-    # Soft intimacy — conflict only when not a hard execute
-    if intimacy:
-        if has_conflict:
-            return _build_conflict_contract(
+        return _finish(
+            _build_execute_contract(
                 user_text,
                 env_rule,
                 person_rule,
                 no_confirm,
                 no_menu,
-                assistant_text=assistant_text,
+                has_conflict=has_conflict,
+                location_hint=location_hint,
+                sex_act=sex_act or _recent_sex_act_context(messages) or threshold,
+                extra_must=extra_must,
+                extra_forbid=extra_forbid,
+                intensity=intensity,
+            )
+        )
+
+    # Soft intimacy — conflict only when not a hard execute
+    if intimacy:
+        if has_conflict:
+            return _finish(
+                _build_conflict_contract(
+                    user_text,
+                    env_rule,
+                    person_rule,
+                    no_confirm,
+                    no_menu,
+                    assistant_text=assistant_text,
+                    location_hint=location_hint,
+                    extra_must=extra_must,
+                    extra_forbid=extra_forbid,
+                    intensity=intensity,
+                )
+            )
+        return _finish(
+            _build_intimacy_contract(
+                user_text,
+                env_rule,
+                person_rule,
+                no_confirm,
+                no_menu,
                 location_hint=location_hint,
                 extra_must=extra_must,
                 extra_forbid=extra_forbid,
                 intensity=intensity,
             )
-        return _build_intimacy_contract(
-            user_text,
-            env_rule,
-            person_rule,
-            no_confirm,
-            no_menu,
-            location_hint=location_hint,
-            extra_must=extra_must,
-            extra_forbid=extra_forbid,
-            intensity=intensity,
         )
 
     if mode == "react_to_user" or user_described_action(user_text):
-        return TurnContract(
-            mode="react",
-            must=(
-                "优先写对用户这一拍动作的即时身体/情绪反应（眼神、表情、触感）",
-                "推进场景一个具体变化",
-                *prop_must,
-                person_rule,
-                env_rule,
-            ),
-            must_not=(no_menu, "禁止无视用户动作改去自摸", *prop_forbid),
-            state_sync=state_rules,
-            intensity=intensity,
+        return _finish(
+            TurnContract(
+                mode="react",
+                must=(
+                    "优先写对用户这一拍动作的即时身体/情绪反应（眼神、表情、触感）",
+                    "推进场景一个具体变化",
+                    *prop_must,
+                    person_rule,
+                    env_rule,
+                ),
+                must_not=(no_menu, "禁止无视用户动作改去自摸", *prop_forbid),
+                state_sync=state_rules,
+                intensity=intensity,
+            )
         )
 
     if mode == "early":
-        return TurnContract(
-            mode="early",
-            must=(
-                "立住角色口吻与现场人情，像真人见面",
-                *prop_must,
-                person_rule,
-                env_rule,
-            ),
-            must_not=(no_menu, "禁止一上来就纯色话机器", *prop_forbid),
-            state_sync=state_rules,
-            intensity=intensity,
+        return _finish(
+            TurnContract(
+                mode="early",
+                must=(
+                    "立住角色口吻与现场人情，像真人见面",
+                    *prop_must,
+                    person_rule,
+                    env_rule,
+                ),
+                must_not=(no_menu, "禁止一上来就纯色话机器", *prop_forbid),
+                state_sync=state_rules,
+                intensity=intensity,
+            )
         )
 
     mutual_forbid: list[str] = list(prop_forbid)
@@ -996,17 +1109,19 @@ def build_turn_contract(
         mutual_forbid.append(no_confirm)
         mutual_forbid.append("上一拍已在征求确认：本轮改为推进动作")
 
-    return TurnContract(
-        mode="mutual",
-        must=(
-            "相对上一拍推进一个具体变化",
-            *prop_must,
-            person_rule,
-            env_rule,
-        ),
-        must_not=tuple([no_menu, *mutual_forbid]) or (no_menu,),
-        state_sync=state_rules,
-        intensity=intensity,
+    return _finish(
+        TurnContract(
+            mode="mutual",
+            must=(
+                "相对上一拍推进一个具体变化",
+                *prop_must,
+                person_rule,
+                env_rule,
+            ),
+            must_not=tuple([no_menu, *mutual_forbid]) or (no_menu,),
+            state_sync=state_rules,
+            intensity=intensity,
+        )
     )
 
 
@@ -1250,4 +1365,5 @@ __all__ = [
     "detect_location_from_recent",
     "detect_stimulus_intensity",
     "user_invites_lead",
+    "user_asks_preference",
 ]

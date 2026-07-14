@@ -24,9 +24,22 @@ interface ChatBubbleProps {
 }
 
 // Process message content for markdown-like formatting (outside render path for reuse)
+const stripStateBlocks = (content: string) => {
+  // Tolerate malformed open tags: [[STATE_UPDATE]{...}[[/STATE_UPDATE]]
+  let cleaned = content.replace(
+    /\[\[STATE_UPDATE\]\]?[\s\S]*?\[\[\/?STATE_UPDATE\]\]/gi,
+    "",
+  );
+  const openIdx = cleaned.search(/\[\[STATE_UPDATE\]\]?/i);
+  if (openIdx >= 0) {
+    cleaned = cleaned.slice(0, openIdx);
+  }
+  return cleaned.trim();
+};
+
 const processContent = (content: string) => {
   // Handle **bold** before *italic* so nested markers stay stable
-  let html = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  let html = stripStateBlocks(content).replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
   html = html.replace(/\*(.*?)\*/g, '<em>$1</em>');
   html = html.split('\n\n').map((p) => `<p>${p}</p>`).join('');
   html = html.replace(/\n/g, '<br />');
@@ -43,7 +56,11 @@ const ChatBubble = memo(function ChatBubble({ message, avatarUrl, onRegenerate, 
   const queryClient = useQueryClient();
   const isAI = message.role === 'assistant';
   const isSystem = message.role === 'system';
-  const [displayedContent, setDisplayedContent] = useState(message.content);
+  const visibleMessageContent = useMemo(
+    () => (isAI ? stripStateBlocks(message.content) : message.content),
+    [isAI, message.content],
+  );
+  const [displayedContent, setDisplayedContent] = useState(visibleMessageContent);
   const [isTyping, setIsTyping] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -111,7 +128,7 @@ const ChatBubble = memo(function ChatBubble({ message, avatarUrl, onRegenerate, 
   useEffect(() => {
     // Only apply typewriter to AI messages
     if (!isAI) {
-      setDisplayedContent(message.content);
+      setDisplayedContent(visibleMessageContent);
       return;
     }
 
@@ -134,7 +151,7 @@ const ChatBubble = memo(function ChatBubble({ message, avatarUrl, onRegenerate, 
 
     if (wasAlreadyTyped || hasInitialized.current || isStaleMessage) {
       // Already typed before or historic message, show immediately
-      setDisplayedContent(message.content);
+      setDisplayedContent(visibleMessageContent);
       return;
     }
 
@@ -145,7 +162,7 @@ const ChatBubble = memo(function ChatBubble({ message, avatarUrl, onRegenerate, 
     setIsTyping(true);
     setDisplayedContent('');
 
-    const content = message.content;
+    const content = visibleMessageContent;
     const ticks = Math.max(1, Math.ceil(TYPEWRITER_TARGET_MS / TYPEWRITER_INTERVAL_MS));
     const chunkSize = Math.min(
       TYPEWRITER_MAX_CHUNK,
@@ -172,7 +189,7 @@ const ChatBubble = memo(function ChatBubble({ message, avatarUrl, onRegenerate, 
     }, TYPEWRITER_INTERVAL_MS);
 
     return () => clearInterval(intervalId);
-  }, [message.id, message.content, isAI]);
+  }, [message.id, visibleMessageContent, isAI]);
 
   useEffect(() => {
     setAudioUrl(audioUrlFromMessage);
@@ -186,7 +203,7 @@ const ChatBubble = memo(function ChatBubble({ message, avatarUrl, onRegenerate, 
   }, [audioUrl]);
 
   const handleCopy = () => {
-    navigator.clipboard.writeText(message.content);
+    navigator.clipboard.writeText(visibleMessageContent);
     toast({
       title: "Copied to clipboard",
       duration: 2000,
@@ -194,8 +211,8 @@ const ChatBubble = memo(function ChatBubble({ message, avatarUrl, onRegenerate, 
   };
 
   const htmlContent = useMemo(
-    () => processContent(isAI ? displayedContent : message.content),
-    [isAI, displayedContent, message.content],
+    () => processContent(isAI ? displayedContent : visibleMessageContent),
+    [isAI, displayedContent, visibleMessageContent],
   );
 
   const formatAudioTime = (seconds: number | null) => {

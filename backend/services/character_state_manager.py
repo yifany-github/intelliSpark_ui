@@ -4,18 +4,30 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Dict, Optional, Sequence, Union, Any
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 try:
     from ..models import Character, CharacterChatState, Chat
+    from ..prompts.persona_dynamics import (
+        DYNAMICS_KEYS,
+        LAST_DYNAMIC_KEY,
+        RELATIONSHIP_READ_KEY,
+        UNRESOLVED_THREAD_KEY,
+    )
     from .ai_model_manager import get_ai_model_manager
     from .translation_service import get_translation_service
 except ImportError:
     # Fallback for script execution
     from models import Character, CharacterChatState, Chat
+    from prompts.persona_dynamics import (
+        DYNAMICS_KEYS,
+        LAST_DYNAMIC_KEY,
+        RELATIONSHIP_READ_KEY,
+        UNRESOLVED_THREAD_KEY,
+    )
     from services.ai_model_manager import get_ai_model_manager
     from services.translation_service import get_translation_service
 
@@ -26,6 +38,13 @@ class CharacterStateManager:
     NSFW_KEYS: Sequence[str] = ("胸部", "下体", "衣服", "姿势", "情绪", "环境", "好感度", "信任度", "兴奋度", "疲惫度", "欲望值", "敏感度")
     SAFE_KEYS: Sequence[str] = ("衣着", "仪态", "情绪", "环境", "动作", "语气", "好感度", "信任度", "兴奋度", "疲惫度")
     ALLOWED_KEYS: Sequence[str] = tuple(dict.fromkeys(NSFW_KEYS + SAFE_KEYS))
+
+    # Underscore meta — not diegetic UI keys; must survive init filter + never be translated
+    META_STATE_KEYS = frozenset({
+        LAST_DYNAMIC_KEY,
+        RELATIONSHIP_READ_KEY,
+        UNRESOLVED_THREAD_KEY,
+    })
 
     # Quantifiable state keys that should have numeric values
     QUANTIFIABLE_KEYS: Sequence[str] = ("情绪", "好感度", "信任度", "兴奋度", "疲惫度", "欲望值", "敏感度")
@@ -82,6 +101,43 @@ class CharacterStateManager:
             remapped[mapped_key] = value
         return remapped
 
+    def _normalize_meta_value(self, key: str, value: Any) -> Optional[Any]:
+        """Validate meta keys. `_last_dynamic` must stay an English DYNAMICS_KEYS enum."""
+        if key not in self.META_STATE_KEYS:
+            return None
+        if key == LAST_DYNAMIC_KEY:
+            if isinstance(value, str) and value.strip() in DYNAMICS_KEYS:
+                return value.strip()
+            return None
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:120]
+        return None
+
+    def _extract_meta_state(
+        self,
+        state: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """Pull whitelisted meta keys out of a raw state dict."""
+        if not state:
+            return {}
+        meta: Dict[str, Any] = {}
+        for key in self.META_STATE_KEYS:
+            if key not in state:
+                continue
+            validated = self._normalize_meta_value(key, state.get(key))
+            if validated is not None:
+                meta[key] = validated
+        return meta
+
+    def _split_meta_state(
+        self,
+        state: Dict[str, Any],
+    ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+        """Return (diegetic, meta) without mutating input."""
+        meta = self._extract_meta_state(state)
+        diegetic = {k: v for k, v in state.items() if k not in self.META_STATE_KEYS}
+        return diegetic, meta
+
     async def _localize_state_values(
         self,
         state: Dict[str, Any],
@@ -94,18 +150,22 @@ class CharacterStateManager:
         IMPORTANT: never clobber a coherent character/chat state with the
         generic fallback template. Older logic did that whenever translation
         was skipped, which erased scene-bootstrap environments (e.g. 营帐 → 私密空间).
+
+        Meta keys (`_last_dynamic`, etc.) are never sent to the translator.
         """
         if not state or not target_lang:
             return state
 
+        diegetic, meta = self._split_meta_state(state)
+
         translator = get_translation_service()
         has_translator = bool(getattr(translator, "client", None))
         if not has_translator:
-            return state
+            return {**diegetic, **meta} if meta else state
 
         needs_translation = False
         if target_lang in {"zh", "en", "es", "ko"}:
-            for value in state.values():
+            for value in diegetic.values():
                 if isinstance(value, dict) and "description" in value:
                     description = value.get("description", "")
                     if isinstance(description, str) and description.strip():
@@ -120,17 +180,18 @@ class CharacterStateManager:
             needs_translation = True
 
         if not needs_translation:
-            return state
+            return {**diegetic, **meta} if meta else state
 
-        translated = await translator.translate_state_json_values(state, target_lang)
+        translated = await translator.translate_state_json_values(diegetic, target_lang)
         if isinstance(translated, dict) and translated:
+            translated.update(meta)
             return translated
 
         self.logger.warning(
             "State translation failed for lang=%s; keeping original state",
             target_lang,
         )
-        return state
+        return {**diegetic, **meta} if meta else state
 
     @staticmethod
     def _normalize_state_value(value: Union[None, str, Dict[str, Any]]) -> Union[str, Dict[str, Any]]:
@@ -371,6 +432,7 @@ class CharacterStateManager:
                 self.logger.warning("Invalid state JSON for chat %s; regenerating defaults", chat_id)
 
         filtered_existing = self._filter_state_keys(current_state_raw, keys_to_use)
+        preserved_meta = self._extract_meta_state(current_state_raw)
 
         base_state = fallback_template.copy()
 
@@ -388,8 +450,9 @@ class CharacterStateManager:
                 if normalized:
                     base_state[key] = normalized
 
-        # Overlay existing state on top of defaults/template
+        # Overlay existing diegetic state, then restore meta (_last_dynamic, etc.)
         base_state.update(filtered_existing)
+        base_state.update(preserved_meta)
 
         if normalized_language:
             base_state = await self._localize_state_values(
@@ -423,11 +486,17 @@ class CharacterStateManager:
         keys_to_use = self._select_keys(character)
         safe_mode = character is not None and getattr(character, "nsfw_level", 0) == 0
 
-        invalid_keys = set(state_update.keys()) - set(keys_to_use)
+        # Whitelisted meta keys (persona dynamics / relationship memory) only
+        meta_update = {
+            k: v for k, v in state_update.items() if isinstance(k, str) and k in self.META_STATE_KEYS
+        }
+        diegetic_update = {k: v for k, v in state_update.items() if k not in meta_update}
+
+        invalid_keys = set(diegetic_update.keys()) - set(keys_to_use)
         if invalid_keys:
             raise ValueError(f"Invalid state keys: {', '.join(sorted(invalid_keys))}")
 
-        # Ensure we are working with a sanitized baseline state
+        # Ensure we are working with a sanitized baseline state (preserves prior meta)
         current_state = await self.initialize_state(
             chat_id,
             character,
@@ -436,12 +505,17 @@ class CharacterStateManager:
 
         fallback_template = self._fallback_state_map(safe_mode, normalized_language)
 
-        for key, value in state_update.items():
+        for key, value in diegetic_update.items():
             normalized = self._normalize_state_value(value)
             if normalized:
                 current_state[key] = normalized
             elif key not in current_state or not current_state[key]:
                 current_state[key] = fallback_template.get(key, "")
+
+        for key, value in meta_update.items():
+            validated = self._normalize_meta_value(key, value)
+            if validated is not None:
+                current_state[key] = validated
 
         if normalized_language:
             current_state = await self._localize_state_values(
