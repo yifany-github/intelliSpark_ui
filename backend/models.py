@@ -75,9 +75,14 @@ class Character(Base):
     description = Column(Text, nullable=True)  # Short description
     opening_line = Column(Text, nullable=True)  # Cached chat opener
     default_state_json = Column(Text, nullable=True)  # Cached state seed template
+    # Issue #272: versioned Scene Bundle metadata + replaceable scenario
+    scene_summary = Column(Text, nullable=True)  # Atomic bundle summary (with opening+state)
+    scenario_hook = Column(Text, nullable=True)  # Replaceable current-scene input (not persona core)
+    generation_version = Column(String(32), nullable=True)  # e.g. scene_bundle_v1
+    source_hash = Column(String(64), nullable=True)  # Hash of persona+hook inputs
     avatar_url = Column(String(500), nullable=True)  # Keep for backward compatibility
     backstory = Column(Text, nullable=False)
-    persona_prompt = Column(Text, nullable=True)  # Optional persona prompt that overrides backstory for LLM
+    persona_prompt = Column(Text, nullable=True)  # Stable character core + short Dynamics
     voice_style = Column(String(500), nullable=False)
     traits = Column(JSON, nullable=False)  # List of strings
     personality_traits = Column(JSON, nullable=True)  # Deprecated - keeping for backward compatibility

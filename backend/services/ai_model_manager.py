@@ -235,12 +235,15 @@ class AIModelManager:
         character: Character,
         user: Optional[User] = None,
         language: Optional[str] = None,
+        *,
+        allow_split_fallback: bool = True,
     ) -> Dict[str, Any]:
         """
         Atomically generate opening_line + default state for one shared scene.
 
         Falls back to separate opening + state calls if the provider lacks
-        generate_scene_bootstrap or the atomic call fails empty.
+        generate_scene_bootstrap or the atomic call fails empty — unless
+        allow_split_fallback is False (migration / strict atomic mode).
         """
         safe_mode = (character.nsfw_level or 0) == 0
         selected_provider = await self._select_model(user, character)
@@ -284,6 +287,12 @@ class AIModelManager:
                             return bundle
                     except Exception as exc:
                         self.logger.warning("Scene bootstrap fallback failed: %s", exc)
+
+        if not allow_split_fallback:
+            self.logger.warning(
+                "⚠️ Atomic scene bootstrap unavailable; refusing split fallback"
+            )
+            return {}
 
         # Legacy split path — better than nothing, but not atomic
         self.logger.warning("⚠️ Falling back to split opening + state seed generation")

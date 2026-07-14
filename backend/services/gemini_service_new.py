@@ -342,6 +342,7 @@ class GeminiService(AIServiceBase):
             or (character.description or "")
             or ""
         )
+        scenario_hook = (getattr(character, "scenario_hook", None) or "").strip()
         prompt_bundle = build_scene_bootstrap_prompt(
             character_name=character.name or "",
             description=character.description or "",
@@ -350,6 +351,7 @@ class GeminiService(AIServiceBase):
             safe_mode=safe_mode,
             state_keys=list(allowed_keys),
             language=target_language,
+            scenario_hook=scenario_hook,
         )
 
         try:
@@ -358,6 +360,7 @@ class GeminiService(AIServiceBase):
                 allowed_keys=allowed_keys,
                 fallback_state=fallback_state,
                 fallback_opening=fallback_opening,
+                safe_mode=safe_mode,
             )
             if result and scene_pair_looks_coherent(
                 result["opening_line"], result["state"], safe_mode=safe_mode
@@ -386,6 +389,7 @@ class GeminiService(AIServiceBase):
                 allowed_keys=allowed_keys,
                 fallback_state=fallback_state,
                 fallback_opening=fallback_opening,
+                safe_mode=safe_mode,
             )
             if result and result.get("opening_line") and result.get("state"):
                 return result
@@ -401,6 +405,7 @@ class GeminiService(AIServiceBase):
         allowed_keys: Iterable[str],
         fallback_state: Dict[str, Any],
         fallback_opening: str,
+        safe_mode: bool = False,
     ) -> Optional[Dict[str, Any]]:
         response = self.client.models.generate_content(
             model=self.model_name,
@@ -422,8 +427,32 @@ class GeminiService(AIServiceBase):
             return None
 
         opening = (parsed.get("opening_line") or "").strip() or fallback_opening
-        state = fallback_state.copy()
-        state.update(parsed.get("state") or {})
+        parsed_state = parsed.get("state") if isinstance(parsed.get("state"), dict) else {}
+        if not parsed_state:
+            self.logger.warning("⚠️ Scene bootstrap returned empty state object")
+            return None
+
+        # Prefer model state. Only fill missing quant keys from soft fallback —
+        # never silently keep generic descriptive env/clothes/posture templates.
+        from prompts.scene_bootstrap import QUANTIFIABLE_KEYS
+
+        state: Dict[str, Any] = {}
+        for key in allowed_keys:
+            key_str = str(key)
+            if key_str in parsed_state:
+                state[key_str] = parsed_state[key_str]
+            elif key_str in QUANTIFIABLE_KEYS and key_str in fallback_state:
+                state[key_str] = fallback_state[key_str]
+
+        required = ("环境", "衣着", "仪态") if safe_mode else ("环境", "衣服", "姿势")
+        for key in required:
+            value = state.get(key)
+            if not isinstance(value, str) or not value.strip():
+                self.logger.warning(
+                    "⚠️ Scene bootstrap missing required descriptive field: %s", key
+                )
+                return None
+
         return {
             "opening_line": opening,
             "state": state,
