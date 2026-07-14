@@ -225,6 +225,7 @@ class GrokService(AIServiceBase):
             or (character.description or "")
             or ""
         )
+        scenario_hook = (getattr(character, "scenario_hook", None) or "").strip()
         prompt_bundle = build_scene_bootstrap_prompt(
             character_name=character.name or "",
             description=character.description or "",
@@ -233,6 +234,7 @@ class GrokService(AIServiceBase):
             safe_mode=safe_mode,
             state_keys=list(allowed_keys),
             language=target_language,
+            scenario_hook=scenario_hook,
         )
 
         async def _once(user_prompt: str) -> Dict[str, Any]:
@@ -273,7 +275,10 @@ class GrokService(AIServiceBase):
                 "opening_line 必须与这些描述字段处于同一现场。"
             )
             result = await _once(retry_prompt)
-            if result.get("opening_line") and result.get("state"):
+            # Second attempt still requires coherence — never return incoherent partials.
+            if result and scene_pair_looks_coherent(
+                result["opening_line"], result["state"], safe_mode=safe_mode
+            ):
                 return result
         except Exception as exc:
             self.logger.error("❌ Grok scene bootstrap failed: %s", exc)

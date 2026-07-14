@@ -120,6 +120,10 @@ class Character(CharacterBase):
     createdAt: datetime = Field(alias="created_at")  # Map database field to frontend field
     openingLine: Optional[str] = Field(default=None, alias="opening_line")
     defaultState: Optional[Dict[str, Union[str, Dict[str, Any]]]] = Field(default=None, alias="default_state_json")
+    sceneSummary: Optional[str] = Field(default=None, alias="scene_summary")
+    scenarioHook: Optional[str] = Field(default=None, alias="scenario_hook")
+    generationVersion: Optional[str] = Field(default=None, alias="generation_version")
+    sourceHash: Optional[str] = Field(default=None, alias="source_hash")
 
     # Admin management and analytics fields
     isFeatured: bool = Field(default=False, alias="is_featured")

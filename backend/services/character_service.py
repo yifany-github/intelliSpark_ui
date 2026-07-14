@@ -466,12 +466,28 @@ class CharacterService:
         character.opening_line = opening_line
         character.default_state_json = json.dumps(merged_state, ensure_ascii=False)
         self._last_opening_line_regenerated = True
-        if bundle.get("scene_summary"):
+
+        scene_summary = (bundle.get("scene_summary") or "").strip() if bundle_ok else ""
+        if scene_summary:
+            character.scene_summary = scene_summary
             self.logger.info(
                 "Scene bootstrap for %s: %s",
                 character.name,
-                str(bundle.get("scene_summary"))[:120],
+                scene_summary[:120],
             )
+
+        # Stamp version metadata only when the atomic bundle path succeeded.
+        if bundle_ok:
+            from utils.character_content_version import (
+                SCENE_BUNDLE_GENERATION_VERSION,
+                compute_source_hash_for_character,
+            )
+            from utils.persona_scenario_split import derive_scenario_hook
+
+            if not (getattr(character, "scenario_hook", None) or "").strip():
+                character.scenario_hook = derive_scenario_hook(character)
+            character.generation_version = SCENE_BUNDLE_GENERATION_VERSION
+            character.source_hash = compute_source_hash_for_character(character)
 
     async def _maybe_set_opening_line(self, character: Character, force: bool = False) -> None:
         self._last_opening_line_regenerated = False

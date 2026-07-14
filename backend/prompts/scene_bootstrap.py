@@ -17,19 +17,28 @@ def build_scene_bootstrap_prompt(
     safe_mode: bool,
     state_keys: Sequence[str],
     language: str = "zh",
+    scenario_hook: str = "",
 ) -> PromptBundle:
     """
     Build a single prompt that returns opening_line + state for ONE shared scene.
 
     This replaces independent opening / state-seed calls that drift apart.
+    persona_text should be the stable character core; scenario_hook is the
+    replaceable current-scene input (kitchen / living room / nightclub / …).
     """
     name = (character_name or "角色").strip()
     description = (description or "").strip() or "（暂无简介）"
     persona_text = (persona_text or "").strip() or "（暂无补充人设）"
     voice_style = (voice_style or "").strip() or "（未指定）"
+    scenario_hook = (scenario_hook or "").strip()
     key_list = ", ".join(state_keys)
 
     if language == "en":
+        scenario_block = (
+            f"Current scenario hook (replaceable — use THIS as the opening place/situation):\n{scenario_hook}\n"
+            if scenario_hook
+            else "Current scenario hook: (not provided — extract ONE present opening beat from persona; do not bake it back into the character core)\n"
+        )
         system_instruction = dedent(
             f"""
             You are a roleplay scene director. From the character materials, invent ONE coherent
@@ -46,8 +55,8 @@ def build_scene_bootstrap_prompt(
 
             Hard rules:
             1. opening_line and state (especially environment / clothes / posture) MUST describe the SAME present moment.
-            2. Pick ONE present starting beat. If persona mixes long backstory with a current crisis, choose the present beat the user joins — do not summarize the whole plot.
-            3. Do not invent bondage / prison / aphrodisiac / extreme NSFW as CURRENT state unless persona clearly frames that as the starting situation.
+            2. Prefer the scenario_hook as the present beat when provided. Persona is identity/dynamics only — do not permanently relocate the character into dungeon/kitchen/etc. unless the hook says so.
+            3. Do not invent bondage / prison / aphrodisiac / extreme NSFW as CURRENT state unless persona or scenario_hook clearly frames that as the starting situation.
             4. First-meeting affinity (好感度) is usually 4–6 unless the opening premise is enmity/captivity hostility.
             5. Voice must match the character; witty characters should sound witty, not generic flirt templates.
             6. state MUST include EVERY listed key. Descriptive fields (环境, 衣服/衣着, 姿势/仪态, etc.) must be non-empty prose — never omit, never empty string.
@@ -59,15 +68,21 @@ def build_scene_bootstrap_prompt(
             Character name: {name}
             Public description: {description}
             Voice style: {voice_style}
-            Persona / backstory (may include plot — extract ONE present opening scene):
+            Stable persona / dynamics (identity only — not a locked location):
             {persona_text}
 
+            {scenario_block}
             Mode: {"SAFE (non-explicit)" if safe_mode else "NSFW-capable (can be sensual if persona warrants it)"}
 
             Return the JSON object now.
             """
         ).strip()
     else:
+        scenario_block = (
+            f"【当前场景钩子 scenario_hook｜可替换】\n{scenario_hook}\n"
+            if scenario_hook
+            else "【当前场景钩子】未提供——请从人设中抽取一个「现在时」开场；不要把地点永久写回角色核。\n"
+        )
         system_instruction = dedent(
             f"""
             你是角色扮演的场景导演。根据角色材料，只选定【一个】用户走进时的开场现场，
@@ -83,8 +98,8 @@ def build_scene_bootstrap_prompt(
 
             硬性规则：
             1. opening_line 与 state（尤其 环境 / 衣服或衣着 / 姿势或仪态）必须是同一当下。
-            2. 只选一个「现在时」开场节拍。若人设混有长篇背景与当前危机，取用户走进时的当下，不要复述整段剧情。
-            3. 除非人设明确把捆绑/地牢/春药/极端 NSFW 写成【开场当下】，否则不要把它们写进当前 state。
+            2. 若提供了 scenario_hook，必须以它为开场地点/情境；persona 只提供身份与动力学，不要把地牢/厨房/客厅等可替换场景永久写进角色核。
+            3. 除非人设或 scenario_hook 明确把捆绑/地牢/春药/极端 NSFW 写成【开场当下】，否则不要把它们写进当前 state。
             4. 初次见面好感度通常 4–6；仅当开场前提就是敌对/俘获敌意时才可更低。
             5. 语气必须像这个角色（机智角色要有机锋），禁止通用调情模板。
             6. state 必须包含上面列出的【每一个】键；描述字段（环境、衣服/衣着、姿势/仪态等）必须是非空中文句子，禁止省略、禁止空字符串。
@@ -96,9 +111,10 @@ def build_scene_bootstrap_prompt(
             角色名：{name}
             对外简介：{description}
             说话方式：{voice_style}
-            人设/背景（可能含剧情——请抽取一个开场当下）：
+            稳定人设/动力学（身份核，不是锁死地点）：
             {persona_text}
 
+            {scenario_block}
             模式：{"SAFE（非露骨）" if safe_mode else "NSFW 可用（人设需要时可以暧昧/情欲，但仍须场景自洽）"}
 
             现在输出 JSON。
@@ -144,6 +160,40 @@ def scene_pair_looks_coherent(opening_line: str, state: dict, *, safe_mode: bool
 
 
 QUANTIFIABLE_KEYS = {"情绪", "好感度", "信任度", "兴奋度", "疲惫度", "欲望值", "敏感度"}
+
+# Known soft-fallback templates — must never pass atomic migration validation.
+GENERIC_FALLBACK_ENV_MARKERS = (
+    "私密空间光线暖柔",
+    "温暖明亮的室内空间",
+    "Warm, well-lit indoor",
+    "Private space with warm soft light",
+)
+
+_PLACE_MARKERS = (
+    "厨房",
+    "客厅",
+    "夜店",
+    "吧台",
+    "营帐",
+    "洞府",
+    "办公室",
+    "画室",
+    "卧室",
+    "书房",
+    "车站",
+    "桃花",
+    "庭院",
+    "地牢",
+    "牢房",
+    "酒吧",
+    "浴室",
+    "阳台",
+)
+
+
+def place_markers(text: str) -> set:
+    body = text or ""
+    return {m for m in _PLACE_MARKERS if m in body}
 
 
 def _normalize_quantified_value(value):
@@ -233,8 +283,11 @@ def parse_scene_bootstrap_response(text, allowed_keys):
 
 
 __all__ = [
+    "GENERIC_FALLBACK_ENV_MARKERS",
+    "QUANTIFIABLE_KEYS",
     "build_scene_bootstrap_prompt",
-    "scene_pair_looks_coherent",
     "parse_scene_bootstrap_response",
     "parse_state_fields",
+    "place_markers",
+    "scene_pair_looks_coherent",
 ]

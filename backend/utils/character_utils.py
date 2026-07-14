@@ -109,6 +109,14 @@ def transform_character_to_response(character: Character, db_session=None) -> Di
                 response["defaultState"] = parsed
         except Exception:
             pass
+    if getattr(character, "scene_summary", None):
+        response["sceneSummary"] = character.scene_summary
+    if getattr(character, "scenario_hook", None):
+        response["scenarioHook"] = character.scenario_hook
+    if getattr(character, "generation_version", None):
+        response["generationVersion"] = character.generation_version
+    if getattr(character, "source_hash", None):
+        response["sourceHash"] = character.source_hash
 
     # Include multilingual fields for localization (English)
     if getattr(character, "name_en", None):
