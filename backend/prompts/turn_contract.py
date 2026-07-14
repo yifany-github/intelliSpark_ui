@@ -200,6 +200,28 @@ def _env_snippet(state: Optional[Dict[str, Any]]) -> str:
     return ""
 
 
+def _has_hard_execute_cue(text: str) -> bool:
+    """True when user text contains an explicit execute/undress directive."""
+    body = (text or "").strip()
+    if not body:
+        return False
+    compact = body.replace(" ", "")
+    if compact.rstrip("。.!！？?") in {"脱", "含", "舔", "来"}:
+        return True
+    for cue in EXECUTE_CUES:
+        if len(cue) <= 1:
+            continue
+        if cue in compact:
+            return True
+    if "脱" in compact and any(h in compact for h in ("帮", "快", "全", "衣服", "裙", "裤")):
+        return True
+    if _is_undress_beat(body):
+        return True
+    if any(c in compact for c in ("插", "含住", "口交", "射进来", "射在", "坐下骑", "坐上来")):
+        return True
+    return False
+
+
 def _user_is_command(text: str) -> bool:
     """Hard sex/execute cues only — *RP actions* are NOT commands (they are react beats)."""
     body = (text or "").strip()
@@ -208,23 +230,12 @@ def _user_is_command(text: str) -> bool:
     # Curiosity / "you lead" invites are not hard commands
     if user_invites_lead(body):
         return False
-    if user_soft_flirts(body):
-        return False
+    # Hard cues win over soft-flirt markers (「舔我，喜欢我吗」→ execute)
+    if _has_hard_execute_cue(body):
+        return True
     if is_continue_cue(body):
         return True
-    # Do NOT treat *action* narration as execute — that forced soft flirt into porn dump.
-    compact = body.replace(" ", "")
-    # Ambiguous short verbs: exact utterance only (never substring — 「来」in「原来如此」)
-    if compact.rstrip("。.!！？?") in {"脱", "含", "舔", "来"}:
-        return True
-    for cue in EXECUTE_CUES:
-        if len(cue) <= 1:
-            continue
-        if cue in compact:
-            return True
-    # 「帮我也脱了吧」— 脱 with clear undress helpers, not bare 来
-    if "脱" in compact and any(h in compact for h in ("帮", "快", "全", "衣服", "裙", "裤")):
-        return True
+    # Soft-only checks / *action* narration are NOT execute.
     return False
 
 
@@ -252,15 +263,13 @@ SOFT_FLIRT_MARKERS = (
 
 
 def user_soft_flirts(text: str) -> bool:
-    """Soft romantic check / light invite — not undress, not mid-sex."""
+    """Soft romantic check / light invite — never when hard execute cues present."""
     body = (text or "").strip()
     if not body:
         return False
+    if _has_hard_execute_cue(body):
+        return False
     compact = body.replace(" ", "")
-    if _is_undress_beat(body):
-        return False
-    if any(c in compact for c in ("插", "含住", "口交", "射", "坐下骑", "坐上来")):
-        return False
     return any(m in compact for m in SOFT_FLIRT_MARKERS)
 
 
@@ -280,11 +289,16 @@ SOFT_PACE_BRAKE = (
     "禁止把软试探/确认心意理解成立刻献身或征服完成",
 )
 
+# Contextual only — bare「掏出」false-positives「掏出手机/钥匙」
 GENITAL_EXPOSE_MARKERS = (
     "拉开拉链",
     "拉开裤链",
     "解开裤链",
-    "掏出",
+    "掏出肉棒",
+    "掏出鸡巴",
+    "掏出性器",
+    "掏出下体",
+    "掏出阴茎",
     "拉出胀",
     "拉出肉棒",
     "拉出鸡巴",
@@ -293,6 +307,19 @@ GENITAL_EXPOSE_MARKERS = (
     "脱下裤子",
     "脱掉裤子",
 )
+
+
+def _has_genital_expose(reply: str) -> bool:
+    """Soft-pace genital dump detector — contextual, not bare 掏出."""
+    body = reply or ""
+    if any(m in body for m in GENITAL_EXPOSE_MARKERS):
+        return True
+    # 「掏出」only when a sexual object is also present in the reply
+    if "掏出" in body and any(
+        x in body for x in ("肉棒", "鸡巴", "性器", "阴茎", "下体", "鸡鸡", "龟头")
+    ):
+        return True
+    return False
 
 
 def user_invites_lead(text: str) -> bool:
@@ -1488,7 +1515,7 @@ def contract_violated(
             or any("软试探" in x or "禁止主动拉开裤链" in x for x in contract.must_not)
         )
     )
-    if soft_pace and any(m in body for m in GENITAL_EXPOSE_MARKERS):
+    if soft_pace and _has_genital_expose(body):
         return True
     if messages is not None and _invents_unstated_user_affect(body, messages):
         return True

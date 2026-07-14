@@ -431,3 +431,52 @@ def test_undress_still_execute_after_soft_flirt_fix():
     )
     c = build_turn_contract(msgs, persona_text="邻家女孩", character_gender="female")
     assert c.mode == "execute"
+
+
+def test_hard_command_wins_over_soft_flirt_markers():
+    """「舔我，喜欢我吗」/「跪下，看着我」must stay execute, not soft lead."""
+    from prompts.turn_contract import user_soft_flirts
+
+    mixed = (
+        ("舔我，喜欢我吗？", True),
+        ("跪下，看着我", True),
+        ("过来，是认真的吗", True),  # 过来 is EXECUTE_CUE
+        ("你是认真的，还是开玩笑？", False),
+    )
+    for text, expect_command in mixed:
+        assert _user_is_command(text) is expect_command, text
+        assert user_soft_flirts(text) is (not expect_command), text
+
+    msgs = _msgs(
+        ("assistant", "想怎样？"),
+        ("user", "跪下，看着我"),
+    )
+    c = build_turn_contract(msgs, persona_text="娜琏", character_gender="female")
+    assert c.mode == "execute"
+
+
+def test_bare_take_out_phone_not_genital_violate():
+    """Bare「掏出」must not false-positive「掏出手机」on soft-pace replies."""
+    from prompts.turn_contract import _has_genital_expose
+
+    assert not _has_genital_expose("*从口袋掏出手机看了一眼时间* 八点了。")
+    assert _has_genital_expose("*拉开裤链掏出肉棒* 留下来陪我。")
+
+    msgs = _msgs(
+        ("assistant", "坐这儿。"),
+        ("user", "你怎么一直盯着我看，脸红红的。"),
+    )
+    c = build_turn_contract(
+        msgs, persona_text="金硕宇", character_gender="male"
+    )
+    assert c.mode == "lead"
+    phone = (
+        "*耳根红着，从口袋里掏出手机看了一眼时间，又很快锁屏塞回去，落地灯照着地毯上的手柄*"
+        "……八点了。我坐这儿等你有一会儿了，灯有点暗，你要是累，就先坐我旁边吧，我不着急开游戏。"
+    )
+    assert not contract_violated(phone, c, {"好感度": {"value": 6}}, messages=msgs)
+    dump = (
+        "*耳根红着拉开裤链掏出肉棒，呼吸乱了一拍*"
+        "留下来陪我……我想让你看清楚。"
+    )
+    assert contract_violated(dump, c, {"欲望值": {"value": 6}}, messages=msgs)
