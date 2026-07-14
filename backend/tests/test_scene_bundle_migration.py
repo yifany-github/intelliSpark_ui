@@ -585,3 +585,61 @@ def test_ensure_dynamics_idempotent_for_existing_block():
 
     assert ensure_dynamics_block(character, body) == body
     assert parse_dynamics_from_persona(body)["mask"] == "玩笑"
+
+
+def test_adopt_existing_fills_summary_and_validates():
+    from backend.services.scene_bundle_migrator import synthesize_scene_summary
+
+    persona = (
+        "你是金硕宇\n\n【开场场景】傍晚影音室，落地灯与暂停的游戏。\n"
+        "【关系】对用户心动。\n【动力学】\nmask: 装没事\ndrive: 想她坐旁边\n"
+        "defense: a\ninitiative: b\npressure_shift: c\nboundary: d"
+    )
+    opening = (
+        "*影音室只亮着一盏落地灯，电视定格在游戏过场*"
+        "……你回来了。要不要坐下？地上也行。"
+    )
+    state = {
+        "环境": "傍晚影音室：落地灯、半拉窗帘、电视暂停画面",
+        "衣服": "帽衫",
+        "姿势": "坐在地毯上",
+        "胸部": "平静",
+        "下体": "自然",
+        "情绪": {"value": 6, "description": "忐忑"},
+        "好感度": {"value": 6, "description": "心动"},
+        "信任度": {"value": 5, "description": "愿意"},
+        "兴奋度": {"value": 3, "description": "低"},
+        "疲惫度": {"value": 2, "description": "不累"},
+        "欲望值": {"value": 3, "description": "想陪伴"},
+        "敏感度": {"value": 5, "description": "易红"},
+    }
+    summary = synthesize_scene_summary(opening, state)
+    assert "影音室" in summary
+    assert "开场" in summary
+
+    character = SimpleNamespace(
+        id=70,
+        name="金硕宇",
+        description="富二代",
+        persona_prompt=persona,
+        backstory=persona,
+        voice_style="低",
+        nsfw_level=1,
+        opening_line=opening,
+        opening_line_en=None,
+        default_state_json=json.dumps(state, ensure_ascii=False),
+        default_state_json_en=None,
+        scene_summary=None,
+        scenario_hook=None,
+        generation_version=None,
+        source_hash=None,
+    )
+    migrator = SceneBundleMigrator(ai_manager=None, force=True, generate_english=False)
+    candidate = migrator.build_adopt_existing_candidate(character)
+    assert candidate.validation_ok, candidate.validation_errors
+    assert candidate.new["scene_summary"]
+    assert candidate.new["scenario_hook"]
+    assert candidate.new["generation_version"] == SCENE_BUNDLE_GENERATION_VERSION
+    assert candidate.new.get("adopt_existing") is True
+    assert candidate.baseline_fingerprint
+    assert len(candidate.new["source_hash"]) == 64

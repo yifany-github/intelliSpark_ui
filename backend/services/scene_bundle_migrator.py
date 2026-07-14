@@ -439,6 +439,96 @@ class SceneBundleMigrator:
                 )
         return True
 
+    def build_adopt_existing_candidate(self, character: Any) -> SceneBundleCandidate:
+        """
+        Promote live hand-edited content into a reviewable Scene Bundle report row.
+
+        No LLM. Keeps current persona/opening/state; fills scenario_hook + scene_summary
+        when missing so --apply-from-report can stamp generation_version/source_hash.
+        """
+        from utils.persona_scenario_split import derive_scenario_hook
+
+        audit = migration_audit_flags(character)
+        old = snapshot_character_content(character)
+        baseline = compute_baseline_fingerprint(character)
+        candidate = SceneBundleCandidate(
+            character_id=int(character.id),
+            name=str(character.name or ""),
+            audit={**audit, "adopt_existing": True},
+            old=old,
+            baseline_fingerprint=baseline,
+        )
+
+        persona = (
+            (getattr(character, "persona_prompt", None) or "").strip()
+            or (getattr(character, "backstory", None) or "").strip()
+            or (getattr(character, "description", None) or "").strip()
+        )
+        opening = (getattr(character, "opening_line", None) or "").strip()
+        state = _parse_state_json(getattr(character, "default_state_json", None))
+        hook = derive_scenario_hook(character)
+        summary = (getattr(character, "scene_summary", None) or "").strip()
+        if not summary:
+            summary = synthesize_scene_summary(opening, state)
+
+        safe_mode = int(getattr(character, "nsfw_level", 0) or 0) == 0
+        errors = validate_atomic_bundle(
+            opening_line=opening,
+            state=state,
+            scene_summary=summary,
+            safe_mode=safe_mode,
+            scenario_hook=hook,
+        )
+
+        source_hash = compute_source_hash(
+            name=character.name or "",
+            description=character.description or "",
+            backstory=character.backstory or "",
+            persona_prompt=persona,
+            scenario_hook=hook,
+            voice_style=character.voice_style or "",
+            nsfw_level=int(character.nsfw_level or 0),
+            generation_version=self.generation_version,
+        )
+
+        needs_en = bool(
+            (getattr(character, "opening_line_en", None) or "").strip()
+            or (getattr(character, "default_state_json_en", None) or "").strip()
+        )
+        # Hand-edited ZH pilots often keep stale EN that would shadow the new scene.
+        clear_english = bool(needs_en)
+        candidate.new = {
+            "persona_prompt": persona,
+            "scenario_hook": hook,
+            "opening_line": opening or None,
+            "opening_line_en": None if clear_english else getattr(character, "opening_line_en", None),
+            "default_state": state,
+            "default_state_en": {}
+            if clear_english
+            else _parse_state_json(getattr(character, "default_state_json_en", None)),
+            "scene_summary": summary or None,
+            "generation_version": self.generation_version,
+            "source_hash": source_hash,
+            "clear_english_fields": clear_english,
+            "adopt_existing": True,
+        }
+
+        candidate.validation_errors = errors
+        candidate.validation_ok = not errors
+        return candidate
+
+
+def synthesize_scene_summary(opening: str, state: Mapping[str, Any]) -> str:
+    """Build a short scene_summary from live opening + 环境 when column is empty."""
+    env = str((state or {}).get("环境") or "").strip().rstrip("。.")
+    beat = (opening or "").replace("*", " ").replace("\n", " ").strip()
+    beat = " ".join(beat.split())
+    if len(beat) > 72:
+        beat = beat[:69] + "…"
+    if env and beat:
+        return f"{env}。开场：{beat}"[:240]
+    return (env or beat or "当前场景")[:240]
+
 
 def load_candidates_from_report(path: str) -> List[SceneBundleCandidate]:
     with open(path, "r", encoding="utf-8") as fh:
@@ -475,5 +565,6 @@ __all__ = [
     "load_candidates_from_report",
     "select_characters",
     "snapshot_character_content",
+    "synthesize_scene_summary",
     "validate_atomic_bundle",
 ]

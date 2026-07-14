@@ -87,6 +87,12 @@ def _parse_args() -> argparse.Namespace:
         help="DEPRECATED unsafe mode. Use --apply-from-report instead.",
     )
     parser.add_argument(
+        "--adopt-existing",
+        action="store_true",
+        help="Dry-run: promote live persona/opening/state into a reviewable report "
+        "(no LLM). Use for hand-edited pilots then --apply-from-report.",
+    )
+    parser.add_argument(
         "--apply-from-report",
         type=str,
         default="",
@@ -322,6 +328,77 @@ async def run_apply_from_report(
     return 0 if refused == 0 else 2
 
 
+async def run_adopt_existing(
+    *,
+    character_ids: Optional[Sequence[int]],
+    featured_only: bool,
+    limit: int,
+    output_path: str,
+    generation_version: str,
+) -> int:
+    """Promote live hand-edited content into an apply-ready dry-run report (no LLM)."""
+    logger.info("ADOPT-EXISTING dry-run — no database writes; no LLM.")
+    migrator = SceneBundleMigrator(
+        ai_manager=None,
+        generation_version=generation_version,
+        force=True,
+        generate_english=False,
+    )
+    session = SessionLocal()
+    report = {
+        "mode": "adopt-existing",
+        "generation_version": generation_version,
+        "started_at": datetime.now(timezone.utc).isoformat(),
+        "candidates": [],
+        "summary": {},
+    }
+    try:
+        characters = select_characters(
+            session,
+            character_ids=character_ids,
+            featured_only=featured_only,
+            limit=limit,
+        )
+        if not characters:
+            logger.warning("No characters matched selection filters.")
+            report["summary"] = {"matched": 0}
+            return 0
+
+        ok = fail = 0
+        for character in characters:
+            candidate = migrator.build_adopt_existing_candidate(character)
+            _print_candidate(candidate)
+            report["candidates"].append(candidate.to_dict())
+            if candidate.validation_ok:
+                ok += 1
+            else:
+                fail += 1
+
+        report["summary"] = {
+            "matched": len(characters),
+            "validation_ok": ok,
+            "validation_failed": fail,
+            "skipped_idempotent": 0,
+            "applied": 0,
+        }
+        logger.info("Summary: %s", report["summary"])
+        logger.info(
+            "Next: review this report, then apply with "
+            "--apply-from-report <this file> [--ids ...]"
+        )
+    finally:
+        session.close()
+
+    out = Path(output_path) if output_path else Path("tmp") / (
+        f"scene_bundle_adopt_existing_"
+        f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
+    )
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
+    logger.info("Wrote adopt-existing report: %s", out)
+    return 0 if fail == 0 else 2
+
+
 async def run_migration(
     *,
     character_ids: Optional[Sequence[int]],
@@ -334,6 +411,7 @@ async def run_migration(
     generation_version: str,
     audit_only: bool = False,
     skip_english: bool = False,
+    adopt_existing: bool = False,
 ) -> int:
     if apply and not apply_from_report:
         logger.error(
@@ -346,6 +424,15 @@ async def run_migration(
         return await run_apply_from_report(
             report_path=apply_from_report,
             character_ids=character_ids,
+        )
+
+    if adopt_existing:
+        return await run_adopt_existing(
+            character_ids=character_ids,
+            featured_only=featured_only,
+            limit=limit,
+            output_path=output_path,
+            generation_version=generation_version,
         )
 
     if audit_only:
@@ -455,6 +542,7 @@ def main() -> None:
             generation_version=args.generation_version,
             audit_only=args.audit_only,
             skip_english=args.skip_english,
+            adopt_existing=args.adopt_existing,
         )
     )
     sys.exit(code)
