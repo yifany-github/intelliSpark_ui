@@ -355,6 +355,7 @@ class GrokService(AIServiceBase):
                 state,
                 language="zh",
                 persona_text=persona_for_contract,
+                character_gender=getattr(character, "gender", None) or "",
             )
             if contract.mode in {"intimacy", "conflict", "execute", "lead"}:
                 mode = contract.mode

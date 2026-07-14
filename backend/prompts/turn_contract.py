@@ -200,19 +200,12 @@ def _env_snippet(state: Optional[Dict[str, Any]]) -> str:
     return ""
 
 
-def _user_is_command(text: str) -> bool:
+def _has_hard_execute_cue(text: str) -> bool:
+    """True when user text contains an explicit execute/undress directive."""
     body = (text or "").strip()
     if not body:
         return False
-    # Curiosity / "you lead" invites are not hard commands
-    if user_invites_lead(body):
-        return False
-    if is_continue_cue(body):
-        return True
-    if user_described_action(body):
-        return True
     compact = body.replace(" ", "")
-    # Ambiguous short verbs: exact utterance only (never substring — 「来」in「原来如此」)
     if compact.rstrip("。.!！？?") in {"脱", "含", "舔", "来"}:
         return True
     for cue in EXECUTE_CUES:
@@ -220,8 +213,111 @@ def _user_is_command(text: str) -> bool:
             continue
         if cue in compact:
             return True
-    # 「帮我也脱了吧」— 脱 with clear undress helpers, not bare 来
     if "脱" in compact and any(h in compact for h in ("帮", "快", "全", "衣服", "裙", "裤")):
+        return True
+    if _is_undress_beat(body):
+        return True
+    if any(c in compact for c in ("插", "含住", "口交", "射进来", "射在", "坐下骑", "坐上来")):
+        return True
+    return False
+
+
+def _user_is_command(text: str) -> bool:
+    """Hard sex/execute cues only — *RP actions* are NOT commands (they are react beats)."""
+    body = (text or "").strip()
+    if not body:
+        return False
+    # Curiosity / "you lead" invites are not hard commands
+    if user_invites_lead(body):
+        return False
+    # Hard cues win over soft-flirt markers (「舔我，喜欢我吗」→ execute)
+    if _has_hard_execute_cue(body):
+        return True
+    if is_continue_cue(body):
+        return True
+    # Soft-only checks / *action* narration are NOT execute.
+    return False
+
+
+# Soft check / flirt — half-beat, never execute (shared ladder; gendered copy later)
+SOFT_FLIRT_MARKERS = (
+    "认真的",
+    "是认真",
+    "开玩笑",
+    "盯着我",
+    "看着我",
+    "脸红",
+    "红红的",
+    "留下来",
+    "陪你一会儿",
+    "陪我一会儿",
+    "陪你一下",
+    "想我吗",
+    "喜欢我吗",
+    "怎么一直",
+    "为什么一直",
+    "你怎么一直",
+    "是不是喜欢",
+    "在想什么",
+)
+
+
+def user_soft_flirts(text: str) -> bool:
+    """Soft romantic check / light invite — never when hard execute cues present."""
+    body = (text or "").strip()
+    if not body:
+        return False
+    if _has_hard_execute_cue(body):
+        return False
+    compact = body.replace(" ", "")
+    return any(m in compact for m in SOFT_FLIRT_MARKERS)
+
+
+def normalize_body_pov(gender: Optional[str]) -> str:
+    """Map character.gender → body POV for director copy: male | female | neutral."""
+    g = (gender or "").strip().lower()
+    if g in {"male", "m", "man", "boy", "男", "男性"}:
+        return "male"
+    if g in {"female", "f", "woman", "girl", "女", "女性"}:
+        return "female"
+    return "neutral"
+
+
+SOFT_PACE_BRAKE = (
+    "禁止主动拉开裤链/掏出性器/脱掉内裤展示",
+    "禁止在用户未明确要求性爱时写插入/口交/射精完成态",
+    "禁止把软试探/确认心意理解成立刻献身或征服完成",
+)
+
+# Contextual only — bare「掏出」false-positives「掏出手机/钥匙」
+GENITAL_EXPOSE_MARKERS = (
+    "拉开拉链",
+    "拉开裤链",
+    "解开裤链",
+    "掏出肉棒",
+    "掏出鸡巴",
+    "掏出性器",
+    "掏出下体",
+    "掏出阴茎",
+    "拉出胀",
+    "拉出肉棒",
+    "拉出鸡巴",
+    "露出肉棒",
+    "露出鸡巴",
+    "脱下裤子",
+    "脱掉裤子",
+)
+
+
+def _has_genital_expose(reply: str) -> bool:
+    """Soft-pace genital dump detector — contextual, not bare 掏出."""
+    body = reply or ""
+    if any(m in body for m in GENITAL_EXPOSE_MARKERS):
+        return True
+    # 「掏出」only when a sexual object is also present in the reply
+    if "掏出" in body and any(
+        x in body for x in ("肉棒", "鸡巴", "性器", "阴茎", "下体", "鸡鸡", "龟头")
+    ):
         return True
     return False
 
@@ -300,23 +396,37 @@ def _erotic_density_rule(
     undress: bool = False,
     sex_act: bool = False,
     intensity: str = "medium",
+    body_pov: str = "female",
 ) -> str:
-    """Impact density — explicit R18 when heat is on; emotion scaled by intensity."""
+    """Impact density — explicit R18 when heat is on; emotion scaled by intensity + body POV."""
     craft = (
         "帧级写法：不要动词清单堆砌。"
         "写清一个动作的起承（含到哪→喘不过气停半拍→再吞；或抽出再顶入），"
         "液体怎么动、哪一处新破防；每轮换新鲜细节，禁止复读同一套生理口号"
     )
     if intensity == "light":
-        base = (
-            "轻刺激也要身体诚实露骨（湿润/充血/触感可直称），"
-            "但情绪破防保持轻档：心虚、轻颤、呼吸乱即可；"
-            "禁止泪崩、抽泣、道德崩溃；身份冲突最多半句潜台词"
-        )
+        if body_pov == "male":
+            base = (
+                "轻刺激：男角身体诚实（喉结滚动、掌心热、呼吸乱、裤料绷紧可暗示），"
+                "情绪轻档：羞、忍、被看穿；禁止泪崩；禁止主动掏出/解裤展示性器"
+            )
+        else:
+            base = (
+                "轻刺激也要身体诚实露骨（湿润/充血/触感可直称），"
+                "但情绪破防保持轻档：心虚、轻颤、呼吸乱即可；"
+                "禁止泪崩、抽泣、道德崩溃；身份冲突最多半句潜台词"
+            )
     elif intensity == "heavy":
         base = (
             "重刺激可写满档破防：生理性泪、失神、破音、被撑满、涎丝——"
             "仍须器官直称与自我感觉；禁止空洞哭喊代替身体细节"
+        )
+    elif body_pov == "male":
+        base = (
+            "冲击感＝用户感到「他在为我失控」。必须真·身体诚实，禁止「那里/下面」委婉："
+            "写清他自己的破防（喉结、喘息、耳根烫、掌心发抖、裤料绷紧、眼神躲又黏——"
+            "轮换，勿每句只写硬）；用户未明确升级时禁止主动掏出/解裤链展示；"
+            "若已进入明确性爱，器官可直称（肉棒/龟头等）"
         )
     else:
         base = (
@@ -326,12 +436,24 @@ def _erotic_density_rule(
             "禁止只报流程空壳，也禁止无上下文脏词清单"
         )
     if sex_act:
+        if body_pov == "male":
+            return (
+                f"{base}；{craft}；"
+                "进行中：他自己的硬度/温度/前液、呼吸与腰腹发力、对「你」的触感——"
+                "直白词按场景，感官至少三层；篇幅约200–350字"
+            )
         return (
             f"{base}；{craft}；"
             "进行中：吞吐深浅或抽插节奏、唾液/爱液拉丝、温度与水声、龟头/内壁触感——"
             "直白词（鸡巴/肉棒/小穴/精液等按场景），感官至少三层；篇幅约200–350字"
         )
     if undress:
+        if body_pov == "male":
+            return (
+                f"{base}；{craft}；"
+                "脱衣/裸露：胸膛/腹肌/下体兴奋态写清并同步状态；"
+                "仅当用户已要求脱/看/做时才写掏出展示；篇幅约160–320字"
+            )
         return (
             f"{base}；{craft}；"
             "脱衣/裸露：乳头充血、阴唇/蜜穴湿润等写清并同步 胸部/下体 状态；篇幅约160–320字"
@@ -382,6 +504,13 @@ def detect_stimulus_intensity(
         "怎么了",
         "真的吗",
         "是不是真的",
+        "认真的",
+        "开玩笑",
+        "留下来",
+        "盯着",
+        "脸红",
+        "陪你",
+        "陪我",
         "有点",
         "没事",
     )
@@ -681,6 +810,30 @@ def _heat_budget_rule(state: Optional[Dict[str, Any]]) -> Optional[str]:
     return None
 
 
+def _gender_performance_must(body_pov: str, *, soft: bool = False) -> tuple[str, ...]:
+    """Shared ladder, branched performance — not per-character patches."""
+    if body_pov == "male":
+        if soft:
+            return (
+                "男角表演：青涩/克制优先于展示；用眼神、呼吸、喉结、耳根、手抖制造期待；"
+                "可以承认心动。本轮最多一次裤料紧绷暗示，禁止反复写裤裆/硬物特写，禁止主动脱裤掏出",
+            )
+        return (
+            "男角表演：欲望要像这个男人（忍、烫、被你带动），不要写成无性格的色情旁白机",
+        )
+    if body_pov == "female":
+        if soft:
+            return (
+                "女角表演：可羞可靠近或轻撩，一个有效刺激即可；禁止无用户升级跳到性交中段",
+            )
+        return (
+            "女角表演：欲望与破防要像这个女人，不要写成无性格的服务旁白",
+        )
+    if soft:
+        return ("本轮只推进半拍人情/暧昧，禁止无用户升级跳到性爱完成态",)
+    return ()
+
+
 def _build_lead_contract(
     user_text: str,
     env_rule: str,
@@ -694,6 +847,8 @@ def _build_lead_contract(
     intensity: str = "medium",
     preference: bool = False,
     has_conflict: bool = False,
+    body_pov: str = "female",
+    soft_flirt: bool = False,
 ) -> TurnContract:
     """Invite-to-lead or preference ask: half-beat — keep heat, don't dump completion."""
     del has_conflict  # dynamics goal carries persona; keep kw for call-site compat
@@ -717,10 +872,13 @@ def _build_lead_contract(
             "禁止把「接下来会怎样」理解成立刻跨坐/解拉链/明确性交中段",
             "禁止一次跳到完成态或明显性行为中段",
         )
+    soft_must = _gender_performance_must(body_pov, soft=True) if soft_flirt else ()
+    soft_forbid = SOFT_PACE_BRAKE if soft_flirt or intensity == "light" else ()
     return TurnContract(
         mode="lead",
         must=(
             *head,
+            *soft_must,
             *extra_must,
             person_rule,
             env_rule,
@@ -731,6 +889,7 @@ def _build_lead_contract(
             no_menu,
             *extra_forbid,
             *forbid_extra,
+            *soft_forbid,
             "禁止替用户发明未写出的表情与身体细节（哭腔、委屈、手茧、满脸通红等）",
             "禁止空停或只甩选择题把球踢回",
         ),
@@ -751,6 +910,7 @@ def _build_conflict_contract(
     extra_must: tuple[str, ...] = (),
     extra_forbid: tuple[str, ...] = (),
     intensity: str = "medium",
+    body_pov: str = "female",
 ) -> TurnContract:
     """Desire vs Role — show conflict, don't lecture the family tree every turn."""
     undress = _is_undress_beat(user_text)
@@ -770,7 +930,8 @@ def _build_conflict_contract(
         mode="conflict",
         must=(
             *conflict_must,
-            _erotic_density_rule(undress=undress, intensity=intensity),
+            _erotic_density_rule(undress=undress, intensity=intensity, body_pov=body_pov),
+            *_gender_performance_must(body_pov),
             *extra_must,
             person_rule,
             env_rule,
@@ -801,6 +962,7 @@ def _build_intimacy_contract(
     extra_must: tuple[str, ...] = (),
     extra_forbid: tuple[str, ...] = (),
     intensity: str = "medium",
+    body_pov: str = "female",
 ) -> TurnContract:
     """Intimacy escalate without role-taboo — still full embodied advance."""
     undress = _is_undress_beat(user_text)
@@ -809,7 +971,8 @@ def _build_intimacy_contract(
         must=(
             f"用户在推进亲密（「{user_text[:40]}」）：写足身体与情绪反应，并推进关系一格",
             "可羞/可犹豫，但必须有可观察的靠近或动情，禁止软拒后空停",
-            _erotic_density_rule(undress=undress, intensity=intensity),
+            _erotic_density_rule(undress=undress, intensity=intensity, body_pov=body_pov),
+            *_gender_performance_must(body_pov),
             *extra_must,
             person_rule,
             env_rule,
@@ -840,6 +1003,7 @@ def _build_execute_contract(
     extra_must: tuple[str, ...] = (),
     extra_forbid: tuple[str, ...] = (),
     intensity: str = "medium",
+    body_pov: str = "female",
 ) -> TurnContract:
     """Hard command: do it. Conflict is seasoning, not a lecture loop."""
     if intensity == "light":
@@ -857,7 +1021,10 @@ def _build_execute_contract(
     must = [
         f"执行用户意图（「{user_text[:40]}」）：推进到可观察的完成态或明显中段，不要假动作后停问",
         conflict_note,
-        _erotic_density_rule(undress=True, sex_act=sex_act, intensity=intensity),
+        _erotic_density_rule(
+            undress=True, sex_act=sex_act, intensity=intensity, body_pov=body_pov
+        ),
+        *_gender_performance_must(body_pov),
         *extra_must,
         person_rule,
         env_rule,
@@ -891,17 +1058,21 @@ def build_turn_contract(
     *,
     language: str = "zh",
     persona_text: str = "",
+    character_gender: str = "",
 ) -> TurnContract:
     """
     Derive this turn's director contract from history (+ optional state/persona).
 
     Modes align with beat_progression, plus intimacy / conflict when user escalates.
+    Shared escalation ladder; gendered performance copy via character_gender.
     """
     mode = detect_beat_mode(messages)
     user_text = last_user_text(messages)
     assistant_text = last_assistant_text(messages)
+    body_pov = normalize_body_pov(character_gender)
     has_conflict = persona_has_role_conflict(persona_text)
     intimacy = user_pushes_intimacy(user_text)
+    soft_flirt = user_soft_flirts(user_text)
     invites_lead = user_invites_lead(user_text)
     asks_preference = user_asks_preference(user_text)
     location_hint = _detect_location_from_recent(messages)
@@ -915,9 +1086,13 @@ def build_turn_contract(
     intensity = detect_stimulus_intensity(
         user_text, messages, sex_act=sex_act, threshold=threshold
     )
-    # Invite/preference stays light/medium — don't max meltdown on curiosity
-    if (invites_lead or asks_preference) and intensity == "heavy":
+    # Invite/preference/soft-flirt stays light/medium — don't max meltdown on curiosity
+    if (invites_lead or asks_preference or soft_flirt) and intensity == "heavy":
         intensity = "medium"
+    if soft_flirt and intensity not in {"light", "medium"}:
+        intensity = "light"
+    if soft_flirt and intensity == "medium" and not intimacy and not is_command:
+        intensity = "light"
     prop_must, prop_forbid = _proportion_rules(intensity)
     heat_budget = _heat_budget_rule(state)
     extra_must: tuple[str, ...] = prop_must + (
@@ -932,6 +1107,7 @@ def build_turn_contract(
         or threshold
         or invites_lead
         or asks_preference
+        or soft_flirt
         or mode in {"pass_ball", "react_to_user"}
     )
     env_rule = _build_env_rule(state, location_hint=location_hint, heat=heat)
@@ -979,6 +1155,7 @@ def build_turn_contract(
                     "先接住用户话里的日常/人情（回答、关心、小反应）",
                     "再自然进入或继续亲密（若用户也有亲密意图）",
                     *extra,
+                    *_gender_performance_must(body_pov, soft=soft_flirt),
                     *prop_must,
                     person_rule,
                     env_rule,
@@ -987,6 +1164,7 @@ def build_turn_contract(
                     no_menu,
                     "禁止把用户的人情句当空气、只回色话",
                     no_confirm,
+                    *SOFT_PACE_BRAKE,
                     *extra_forbid,
                 ),
                 state_sync=_intimacy_state_rules(location_hint=location_hint)
@@ -1011,6 +1189,28 @@ def build_turn_contract(
                 intensity=intensity,
                 preference=asks_preference,
                 has_conflict=has_conflict,
+                body_pov=body_pov,
+                soft_flirt=soft_flirt,
+            )
+        )
+
+    # Soft flirt / soft check — half-beat lead, NEVER execute
+    if soft_flirt and not sex_act and not threshold and not is_command:
+        return _finish(
+            _build_lead_contract(
+                user_text,
+                env_rule,
+                person_rule,
+                no_confirm,
+                no_menu,
+                location_hint=location_hint,
+                extra_must=extra_must,
+                extra_forbid=extra_forbid,
+                intensity="light",
+                preference=False,
+                has_conflict=has_conflict,
+                body_pov=body_pov,
+                soft_flirt=True,
             )
         )
 
@@ -1035,6 +1235,7 @@ def build_turn_contract(
                 extra_must=extra_must,
                 extra_forbid=extra_forbid,
                 intensity=intensity,
+                body_pov=body_pov,
             )
         )
 
@@ -1053,6 +1254,7 @@ def build_turn_contract(
                     extra_must=extra_must,
                     extra_forbid=extra_forbid,
                     intensity=intensity,
+                    body_pov=body_pov,
                 )
             )
         return _finish(
@@ -1066,6 +1268,30 @@ def build_turn_contract(
                 extra_must=extra_must,
                 extra_forbid=extra_forbid,
                 intensity=intensity,
+                body_pov=body_pov,
+            )
+        )
+
+    # Early greeting beats beat *action* react — soft pace, not porn dump
+    if mode == "early" and not sex_act and not threshold and not is_command:
+        return _finish(
+            TurnContract(
+                mode="early",
+                must=(
+                    "立住角色口吻与现场人情，像真人见面",
+                    *_gender_performance_must(body_pov, soft=True),
+                    *prop_must,
+                    person_rule,
+                    env_rule,
+                ),
+                must_not=(
+                    no_menu,
+                    "禁止一上来就纯色话机器",
+                    *SOFT_PACE_BRAKE,
+                    *prop_forbid,
+                ),
+                state_sync=state_rules,
+                intensity="light" if intensity == "heavy" else intensity,
             )
         )
 
@@ -1076,27 +1302,17 @@ def build_turn_contract(
                 must=(
                     "优先写对用户这一拍动作的即时身体/情绪反应（眼神、表情、触感）",
                     "推进场景一个具体变化",
+                    *_gender_performance_must(body_pov, soft=True),
                     *prop_must,
                     person_rule,
                     env_rule,
                 ),
-                must_not=(no_menu, "禁止无视用户动作改去自摸", *prop_forbid),
-                state_sync=state_rules,
-                intensity=intensity,
-            )
-        )
-
-    if mode == "early":
-        return _finish(
-            TurnContract(
-                mode="early",
-                must=(
-                    "立住角色口吻与现场人情，像真人见面",
-                    *prop_must,
-                    person_rule,
-                    env_rule,
+                must_not=(
+                    no_menu,
+                    "禁止无视用户动作改去自摸",
+                    *SOFT_PACE_BRAKE,
+                    *prop_forbid,
                 ),
-                must_not=(no_menu, "禁止一上来就纯色话机器", *prop_forbid),
                 state_sync=state_rules,
                 intensity=intensity,
             )
@@ -1114,11 +1330,12 @@ def build_turn_contract(
             mode="mutual",
             must=(
                 "相对上一拍推进一个具体变化",
+                *_gender_performance_must(body_pov),
                 *prop_must,
                 person_rule,
                 env_rule,
             ),
-            must_not=tuple([no_menu, *mutual_forbid]) or (no_menu,),
+            must_not=tuple([no_menu, *SOFT_PACE_BRAKE, *mutual_forbid]) or (no_menu,),
             state_sync=state_rules,
             intensity=intensity,
         )
@@ -1289,6 +1506,16 @@ def contract_violated(
     if getattr(contract, "intensity", "medium") == "light" and _light_intensity_meltdown(
         body
     ):
+        return True
+    # Soft-pace modes: forbid unprompted genital expose / zipper pull
+    soft_pace = contract.mode in {"early", "react", "human_first", "mutual"} or (
+        contract.mode == "lead"
+        and (
+            getattr(contract, "intensity", "medium") == "light"
+            or any("软试探" in x or "禁止主动拉开裤链" in x for x in contract.must_not)
+        )
+    )
+    if soft_pace and _has_genital_expose(body):
         return True
     if messages is not None and _invents_unstated_user_affect(body, messages):
         return True
