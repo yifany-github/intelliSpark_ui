@@ -370,3 +370,64 @@ def test_malformed_state_block_stripped():
     assert "含糊" in cleaned
     assert state.get("欲望值", {}).get("value") == 10
     assert state.get("姿势") == "跪着"
+
+
+def test_star_action_is_not_hard_command():
+    """RP *actions* must not force execute — that made soft male flirt into porn dump."""
+    assert not _user_is_command(
+        "*我刚进门，把包放在沙发上* 硕宇？你怎么一直盯着我看……脸上红红的。"
+    )
+    assert not _user_is_command("*轻轻碰了碰他手背* 那……你想我留下来陪你一会儿吗？")
+    assert _user_is_command("快脱啊，帮我也脱了吧")
+
+
+def test_soft_flirt_male_is_lead_not_execute():
+    from prompts.turn_contract import user_soft_flirts
+
+    soft = "*走近一点，故意歪头* 你刚才说我身上香……是认真的，还是又在开玩笑？"
+    assert user_soft_flirts(soft)
+    msgs = _msgs(
+        ("assistant", "你身上好香，是…是我想象过的味道。"),
+        ("user", soft),
+    )
+    c = build_turn_contract(
+        msgs,
+        persona_text="金硕宇，青涩富二代",
+        character_gender="male",
+    )
+    assert c.mode == "lead"
+    assert c.intensity == "light"
+    prompt = c.to_prompt("zh")
+    assert "推进到可观察的完成态" not in prompt
+    assert "男角" in prompt or "裤链" in prompt
+    assert "禁止主动拉开裤链" in prompt or "掏出" in prompt
+
+    dump = (
+        "*我反握住你，拉开裤链掏出胀硬的肉棒* 留下来陪我。"
+    )
+    assert contract_violated(dump, c, {"欲望值": {"value": 6}}, messages=msgs)
+
+
+def test_soft_flirt_female_copy_differs_from_male():
+    msgs = _msgs(
+        ("assistant", "回来啦。"),
+        ("user", "*歪头* 你是认真的，还是开玩笑？"),
+    )
+    male = build_turn_contract(
+        msgs, persona_text="金硕宇", character_gender="male"
+    )
+    female = build_turn_contract(
+        msgs, persona_text="嘉允", character_gender="female"
+    )
+    assert male.mode == female.mode == "lead"
+    assert "男角" in male.to_prompt("zh")
+    assert "女角" in female.to_prompt("zh")
+
+
+def test_undress_still_execute_after_soft_flirt_fix():
+    msgs = _msgs(
+        ("assistant", "浴室到了。"),
+        ("user", "快脱啊，帮我也脱了吧"),
+    )
+    c = build_turn_contract(msgs, persona_text="邻家女孩", character_gender="female")
+    assert c.mode == "execute"

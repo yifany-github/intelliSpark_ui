@@ -139,6 +139,7 @@ class GeminiService(AIServiceBase):
                 state,
                 language=target_language or "zh",
                 persona_text=persona_for_contract,
+                character_gender=getattr(character, "gender", None) or "",
             )
             # Align beat hint with director contract when intimacy / conflict / execute / lead fires
             if turn_contract.mode in {"intimacy", "conflict", "execute", "lead"}:
@@ -958,6 +959,7 @@ class GeminiService(AIServiceBase):
                 state,
                 language=target_language,
                 persona_text=persona_for_contract,
+                character_gender=getattr(character, "gender", None) or "",
             )
         if turn_contract.mode in {"intimacy", "conflict", "execute", "lead"}:
             mode = turn_contract.mode
