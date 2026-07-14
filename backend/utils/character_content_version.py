@@ -8,7 +8,7 @@ import re
 from typing import Any, Mapping, Optional
 
 # Bump when Scene Bundle prompt contract or hash inputs change.
-SCENE_BUNDLE_GENERATION_VERSION = "scene_bundle_v2"
+SCENE_BUNDLE_GENERATION_VERSION = "scene_bundle_v3"
 
 _WHITESPACE_RE = re.compile(r"\s+")
 
@@ -103,8 +103,11 @@ def compute_source_hash_for_character(
 
 def compute_baseline_fingerprint(character: Any) -> str:
     """
-    Fingerprint of currently stored content used to detect drift between
-    dry-run review and later --apply-from-report.
+    Fingerprint of currently stored generation inputs + outputs used to detect
+    drift between dry-run review and later --apply-from-report.
+
+    Must include every field that affects Scene Bundle generation inputs
+    (name/description/voice/nsfw) as well as stored content fields.
     """
     state_raw = getattr(character, "default_state_json", None) or ""
     if isinstance(state_raw, dict):
@@ -112,6 +115,10 @@ def compute_baseline_fingerprint(character: Any) -> str:
     payload = "\n".join(
         [
             f"id={getattr(character, 'id', '')}",
+            f"name={normalize_for_hash(getattr(character, 'name', None))}",
+            f"description={normalize_for_hash(getattr(character, 'description', None))}",
+            f"voice_style={normalize_for_hash(getattr(character, 'voice_style', None))}",
+            f"nsfw_level={int(getattr(character, 'nsfw_level', 0) or 0)}",
             f"persona={normalize_for_hash(getattr(character, 'persona_prompt', None))}",
             f"backstory={normalize_for_hash(getattr(character, 'backstory', None))}",
             f"hook={normalize_for_hash(getattr(character, 'scenario_hook', None))}",

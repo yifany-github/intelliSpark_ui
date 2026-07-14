@@ -314,8 +314,10 @@ class SceneBundleMigrator:
         """
         Write a previously reviewed candidate onto the Character (caller commits).
 
-        When require_baseline_match is True (apply-from-report), refuse if the live
-        character fingerprint no longer matches the dry-run baseline.
+        Never trusts report flags alone:
+        - re-validates opening/state/summary coherence
+        - recomputes source_hash from live generation inputs + reviewed persona/hook
+        - refuses mismatched generation_version / drifted baseline
         """
         if candidate.skipped:
             return False
@@ -345,7 +347,7 @@ class SceneBundleMigrator:
                 )
                 return False
 
-        new = candidate.new
+        new = dict(candidate.new or {})
         required = (
             "persona_prompt",
             "scenario_hook",
@@ -363,6 +365,57 @@ class SceneBundleMigrator:
                     key,
                 )
                 return False
+
+        report_version = str(new.get("generation_version") or "").strip()
+        if report_version != self.generation_version:
+            logger.warning(
+                "Refusing apply for %s: generation_version %r != target %r",
+                candidate.character_id,
+                report_version,
+                self.generation_version,
+            )
+            return False
+
+        safe_mode = int(getattr(character, "nsfw_level", 0) or 0) == 0
+        state = new.get("default_state") if isinstance(new.get("default_state"), dict) else {}
+        recheck = validate_atomic_bundle(
+            opening_line=str(new.get("opening_line") or ""),
+            state=state,
+            scene_summary=str(new.get("scene_summary") or ""),
+            safe_mode=safe_mode,
+            scenario_hook=str(new.get("scenario_hook") or ""),
+        )
+        if recheck:
+            logger.warning(
+                "Refusing apply for %s (%s): report payload failed re-validation: %s",
+                candidate.character_id,
+                candidate.name,
+                recheck,
+            )
+            return False
+
+        expected_hash = compute_source_hash(
+            name=character.name or "",
+            description=character.description or "",
+            backstory=character.backstory or "",
+            persona_prompt=str(new["persona_prompt"]),
+            scenario_hook=str(new["scenario_hook"]),
+            voice_style=character.voice_style or "",
+            nsfw_level=int(character.nsfw_level or 0),
+            generation_version=self.generation_version,
+        )
+        reported_hash = str(new.get("source_hash") or "").strip()
+        if reported_hash and reported_hash != expected_hash:
+            logger.warning(
+                "Refusing apply for %s: report source_hash does not match recomputed hash "
+                "(report may be tampered or stale relative to live inputs)",
+                candidate.character_id,
+            )
+            return False
+
+        # Always persist the recomputed hash / canonical version.
+        new["source_hash"] = expected_hash
+        new["generation_version"] = self.generation_version
 
         character.persona_prompt = new["persona_prompt"]
         character.scenario_hook = new["scenario_hook"]

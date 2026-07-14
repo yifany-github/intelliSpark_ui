@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import re
-from typing import Any, Dict, Mapping, Optional, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 from prompts.persona_dynamics import (
     DYNAMICS_KEYS,
@@ -213,24 +213,134 @@ def _structured_bits(persona_text: str) -> Dict[str, str]:
     return bits
 
 
+def _short_name(character: Any) -> str:
+    name = (getattr(character, "name", None) or "她").strip()
+    return re.split(r"\s+|《", name, maxsplit=1)[0] or "她"
+
+
+def _is_already_slim(persona_text: str) -> bool:
+    """Structured short personas (嘉允/娜琏/恩爱 style) should stay intact."""
+    text = persona_text or ""
+    if len(text) > 900:
+        return False
+    return any(
+        marker in text
+        for marker in ("【关系】", "【冲突", "【性格锚】", "【动力学】", "【口吻】")
+    )
+
+
+def _clause_around(text: str, needle: str, radius: int = 36) -> str:
+    body = text or ""
+    idx = body.find(needle)
+    if idx < 0:
+        return ""
+    # Expand to nearest sentence / section boundaries.
+    start = idx
+    while start > 0 and body[start - 1] not in "。！？\n【】":
+        start -= 1
+        if idx - start > radius + 20:
+            break
+    end = idx + len(needle)
+    while end < len(body) and body[end] not in "。！？\n【":
+        end += 1
+        if end - idx > radius + 40:
+            break
+    snippet = body[start:end]
+    # Drop section headers accidentally captured.
+    snippet = re.sub(r"【[^】]*】?", "", snippet)
+    snippet = re.sub(r"^[^【\n]{0,8}】", "", snippet)
+    snippet = re.sub(r"\s+", " ", snippet).strip(" ；;,.。：:")
+    if len(snippet) < 4:
+        return ""
+    return snippet[:80]
+
+
+def _first_matching_clause(text: str, needles: Sequence[str]) -> str:
+    for needle in needles:
+        if not needle:
+            continue
+        hit = _clause_around(text, needle)
+        if hit and "【" not in hit:
+            return hit
+    return ""
+
+
+def _identity_bullets(persona_text: str, limit: int = 3) -> List[str]:
+    out: list[str] = []
+    for line in (persona_text or "").splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if any(k in stripped for k in ("身份", "性格", "你是", "角色设定", "外貌")):
+            cleaned = re.sub(r"^[-*•\t\d.、\s]+", "", stripped)
+            cleaned = re.sub(r"^(身份|性格|外貌)\s*[:：]\s*", "", cleaned)
+            if cleaned and cleaned not in out:
+                out.append(cleaned[:100])
+        if len(out) >= limit:
+            break
+    return out
+
+
+def rebuild_slim_persona_core(character: Any, stripped_core: str) -> str:
+    """
+    Rebuild a short stable core from bloated legacy prompts.
+
+    Keeps identity + relationship/conflict cues; drops long example dumps and
+    replaceable wardrobe/place prose.
+    """
+    short = _short_name(character)
+    description = (getattr(character, "description", None) or "").strip()
+    voice = (getattr(character, "voice_style", None) or "").strip()
+    bits = _structured_bits(stripped_core)
+    bullets = _identity_bullets(stripped_core)
+
+    parts: list[str] = []
+    head = f"你是{short}。"
+    if description:
+        head += description[:140].rstrip("。") + "。"
+    parts.append(head)
+
+    if bullets:
+        parts.append("【身份核】" + "；".join(bullets[:3]))
+
+    if bits.get("关系"):
+        parts.append("【关系】" + bits["关系"][:140])
+    if bits.get("冲突"):
+        parts.append("【冲突 Desire vs Role】" + bits["冲突"][:140])
+
+    if bits.get("性格锚"):
+        parts.append("【性格锚】" + bits["性格锚"][:120])
+    elif bullets:
+        # Reuse a non-appearance bullet as temperament cue when present.
+        for b in bullets:
+            if not b.startswith("外貌") and "寸" not in b:
+                parts.append(f"【性格锚】{b[:100]}")
+                break
+
+    tone = bits.get("口吻") or voice or "符合本人习惯的说话方式"
+    parts.append(f"【口吻】{tone[:100]}")
+    parts.append("【外形要点】具体衣服/姿势/环境以【当前状态】与 scenario_hook 为准。")
+    parts.append("【扮演】先做人，再进入亲密；换场后感官跟新场景。禁止复述「不是AI / 满足任何幻想」套话。")
+    return "\n\n".join(parts)
+
+
 def build_differentiated_dynamics(character: Any, persona_text: str) -> Dict[str, str]:
     """
-    Build a short Dynamics card that is character-specific.
+    Build a short Dynamics card from THIS character's text.
 
-    Prefer explicit 【动力学】; else derive from structured slim sections and
-    distinctive persona fragments — never return the same generic else-template
-    for every legacy character.
+    Prefer explicit 【动力学】; else derive concrete choice snippets from the
+    persona/description — not one shared else-template with a name splice.
     """
     parsed = parse_dynamics_from_persona(persona_text)
     if any(parsed.values()):
         return parsed
 
     bits = _structured_bits(persona_text)
-    name = (getattr(character, "name", None) or "她").strip()
-    # Prefer the short public name without series suffix.
-    short_name = re.split(r"\s+|《", name, maxsplit=1)[0] or "她"
+    short = _short_name(character)
     description = (getattr(character, "description", None) or "").strip()
     voice = (getattr(character, "voice_style", None) or "").strip()
+    body = persona_text or ""
+    seed = f"{description}\n{body}"
 
     conflict = bits.get("冲突", "")
     relation = bits.get("关系", "")
@@ -239,44 +349,87 @@ def build_differentiated_dynamics(character: Any, persona_text: str) -> Dict[str
 
     out: Dict[str, str] = {k: "" for k in DYNAMICS_KEYS}
 
-    if conflict or "Desire vs Role" in (persona_text or "") or "【冲突" in (persona_text or ""):
-        out["mask"] = f"先维持{short_name}在关系里得体的一面" + (
-            f"：{(relation[:40] if relation else '可靠、照顾人的日常角色')}"
+    if conflict or "Desire vs Role" in body or "【冲突" in body:
+        rel = (relation or _first_matching_clause(seed, ("姨妈", "继母", "继子", "闺蜜")))[:48]
+        out["mask"] = (
+            f"先维持{short}在这段关系里得体的一面"
+            + (f"（{rel}）" if rel else "")
         )
         out["drive"] = (
-            conflict.split("。")[0].strip()[:80]
+            conflict.split("。")[0].strip()[:90]
             if conflict
-            else "想被靠近与确认，却不能丢掉自己的体面"
+            else (
+                _first_matching_clause(seed, ("想被", "渴望", "禁忌吸引", "想要"))
+                or "想被靠近与确认，却不能丢掉体面"
+            )
         )
-        out["defense"] = "被点破时用身份口吻/推开半寸/改话题护住自己"
-        out["initiative"] = "真要越线时先犹豫半拍，再用动作而不是演讲推进"
-        out["pressure_shift"] = "压力升高时嘴上还想维持原来的自己，身体先诚实"
-        out["boundary"] = f"不会立刻变成无脑献上的服务机；仍是{short_name}"
-    elif any(k in (persona_text or "") for k in ("夜店", "吧台", "酒吧")):
-        out["mask"] = f"用大胆玩笑盖住认真动情——像{short_name}本人，不是通用浪女模板"
-        out["drive"] = (anchor.split("。")[0].strip()[:80] if anchor else "要掌控节奏、被接住、玩得过瘾")
-        out["defense"] = "被看穿时更用力挑衅或把人往暗处带"
-        out["initiative"] = "先撩并留半拍门槛，被接住才加码"
-        out["pressure_shift"] = "真动情时玩笑变少，动作和眼神比嘴更直"
-        out["boundary"] = "不做谁都行的换皮服务机"
+        out["defense"] = (
+            _first_matching_clause(seed, ("推开", "改话题", "心虚", "掩饰", "抗拒"))
+            or "被点破时用身份口吻推开半寸或改话题"
+        )
+        out["initiative"] = (
+            _first_matching_clause(seed, ("犹豫", "靠近", "半拍"))
+            or "真要越线时先犹豫半拍，再用动作推进"
+        )
+        out["pressure_shift"] = (
+            _first_matching_clause(seed, ("发颤", "嘴硬", "身体比嘴"))
+            or "压力升高时嘴上还想维持原来的自己，身体先诚实"
+        )
+        out["boundary"] = f"不会立刻变成无脑献上的服务机；仍是{short}"
+    elif any(k in body for k in ("夜店", "吧台", "酒吧")):
+        out["mask"] = (
+            _first_matching_clause(seed, ("玩笑", "挑衅", "大胆", "浪"))
+            or f"用大胆玩笑盖住认真动情——像{short}"
+        )
+        out["drive"] = (
+            (anchor.split("。")[0].strip()[:90] if anchor else "")
+            or _first_matching_clause(seed, ("掌控", "接住", "玩", "独占"))
+            or "要掌控节奏、被接住、玩得过瘾"
+        )
+        out["defense"] = (
+            _first_matching_clause(seed, ("看穿", "暗处", "更用力", "吃醋"))
+            or "被看穿时更用力挑衅或把人往暗处带"
+        )
+        out["initiative"] = (
+            _first_matching_clause(seed, ("先撩", "门槛", "加码", "过来"))
+            or "先撩并留半拍门槛，被接住才加码"
+        )
+        out["pressure_shift"] = (
+            _first_matching_clause(seed, ("动情", "玩笑变少", "眼神", "直"))
+            or "真动情时玩笑变少，动作和眼神比嘴更直"
+        )
+        out["boundary"] = f"不做谁都行的换皮服务机；始终是{short}"
     else:
-        # Fingerprint from description/persona so two legacy blobs don't share one card.
-        seed = (description or persona_text or short_name)[:120]
+        # Content-derived snippets — each key pulls a different cue from THIS text.
         trait = ""
-        for token in ("机智", "温柔", "霸道", "娇羞", "冷淡", "腹黑", "母性", "傲娇", "顺从", "挑逗"):
+        for token in ("机智", "温柔", "霸道", "娇羞", "冷淡", "腹黑", "母性", "傲娇", "顺从", "挑逗", "精分", "征服"):
             if token in seed:
                 trait = token
                 break
-        trait = trait or "她惯有的语气"
-        out["mask"] = f"用{trait}保护自己，先像{short_name}再进亲密"
-        if description:
-            out["drive"] = f"想被认真对待：{description[:60]}"
-        else:
-            out["drive"] = f"想被当成{short_name}本人，而不是工具"
-        out["defense"] = f"被逼近时先缩回自己的说话方式" + (f"（{tone[:24]}）" if tone else "")
-        out["initiative"] = f"主动时用符合{short_name}口吻的一小步"
-        out["pressure_shift"] = "压力升高时破绽从语气和动作里漏出来"
-        out["boundary"] = f"不忽然换成另一个人的性格；始终是{short_name}"
+        mask_cue = _first_matching_clause(seed, ("表面", "外表", "伪装", "掩饰"))
+        if not mask_cue and trait:
+            mask_cue = f"用{trait}保护自己，先像{short}再进亲密"
+        drive_cue = _first_matching_clause(
+            seed, ("渴望", "想要", "攻略", "目标", "征服", "吃肉", "欲望")
+        ) or (description.split("。")[0][:70] if description else "")
+        defense_cue = _first_matching_clause(
+            seed, ("抗拒", "推开", "冷笑", "缩回", "戒备", "害羞")
+        )
+        initiative_cue = _first_matching_clause(
+            seed, ("主动", "试探", "引导", "靠近", "开口", "撩")
+        )
+        pressure_cue = _first_matching_clause(
+            seed, ("失控", "破绽", "颤抖", "湿润", "沉沦", "快感")
+        )
+
+        out["mask"] = mask_cue or f"先维持{short}习惯的距离与语气"
+        out["drive"] = drive_cue or f"想被认真对待，而不是被当成工具（{short}）"
+        out["defense"] = defense_cue or (
+            f"被逼近时退回自己的口吻" + (f"：{tone[:28]}" if tone else "")
+        )
+        out["initiative"] = initiative_cue or f"主动时只走符合{short}性格的一小步"
+        out["pressure_shift"] = pressure_cue or f"压力升高时{short}的破绽从语气和动作漏出"
+        out["boundary"] = f"不忽然换成另一个人的性格；始终是{short}"
 
     return normalize_dynamics(out)
 
@@ -300,20 +453,15 @@ def build_compact_persona_prompt(character: Any) -> str:
     """
     Stable character core + short Dynamics.
 
-    Strips replaceable scene locks out of the core; keeps slim structured
-    personas (嘉允/娜琏/恩爱) largely intact.
+    Slim structured personas stay intact. Bloated legacy prompts are rebuilt
+    into a short core so migration does not grow persona length.
     """
     source = _persona_source(character)
-    core, _extracted = extract_and_strip_scene_locks(source)
+    if _is_already_slim(source):
+        return ensure_dynamics_block(character, source)
 
-    if core and "以【当前状态】为准" not in core and "当前状态" not in core:
-        if len(source) > 900 or _extracted or any(h in source for h in _SCENE_LOCK_HINTS):
-            core = (
-                f"{core.rstrip()}\n\n"
-                "【场景提示】具体衣服/姿势/环境以【当前状态】与 scenario_hook 为准；"
-                "不要把可替换的地牢/厨房/客厅等开场现场永久写进角色核。"
-            )
-
+    stripped, _extracted = extract_and_strip_scene_locks(source)
+    core = rebuild_slim_persona_core(character, stripped or source)
     return ensure_dynamics_block(character, core)
 
 
@@ -321,7 +469,6 @@ def separate_persona_and_scenario(character: Any) -> Tuple[str, str]:
     """Return (persona_prompt, scenario_hook) for migration candidates."""
     persona = build_compact_persona_prompt(character)
     hook = derive_scenario_hook(character)
-    # If hook is still empty-ish but we extracted scene locks, prefer those.
     if not hook or hook.startswith("与"):
         _, extracted = extract_and_strip_scene_locks(_persona_source(character))
         if extracted:
@@ -383,6 +530,7 @@ __all__ = [
     "hook_has_internal_place_conflict",
     "migration_audit_flags",
     "persona_has_explicit_dynamics",
+    "rebuild_slim_persona_core",
     "separate_persona_and_scenario",
     "strip_scene_sections",
 ]
