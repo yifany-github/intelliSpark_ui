@@ -779,7 +779,12 @@ class GeminiService(AIServiceBase):
             self.logger.warning(f"⚠️ Stage detection failed: {e}")
             return None  # Graceful fallback - conversation continues without stage reminder
 
-    def _build_intent_guidance(self, stage: str, language: Optional[str] = None) -> str:
+    def _build_intent_guidance(
+        self,
+        stage: str,
+        language: Optional[str] = None,
+        interaction_frame=None,
+    ) -> str:
         """
         Build SHORT stage-specific reminder based on detected stage
 
@@ -787,7 +792,11 @@ class GeminiService(AIServiceBase):
         """
         # Use the centralized reminder from the stage detection service
         if self.intent_service:
-            return self.intent_service.build_intent_guidance(stage, language=language)
+            return self.intent_service.build_intent_guidance(
+                stage,
+                language=language,
+                interaction_frame=interaction_frame,
+            )
         else:
             # No fallback needed - empty string is fine
             return ""
@@ -955,10 +964,30 @@ class GeminiService(AIServiceBase):
             elif message.role == 'assistant':
                 conversation_history += f"{character_name}: {message.content}\n"
 
+        # Ensure turn contract (and interaction frame) before stage reminder
+        if turn_contract is None:
+            persona_for_contract = (
+                (getattr(character, "persona_prompt", None) or "").strip()
+                or (getattr(character, "backstory", None) or "").strip()
+                or (getattr(character, "description", None) or "").strip()
+            )
+            turn_contract = build_turn_contract(
+                messages,
+                state,
+                language=target_language,
+                persona_text=persona_for_contract,
+                character_gender=getattr(character, "gender", None) or "",
+            )
+
         # Build context sections
         stage_reminder = ""
         if stage:
-            reminder_text = self._build_intent_guidance(stage, language=target_language)
+            frame = getattr(turn_contract, "interaction_frame", None)
+            reminder_text = self._build_intent_guidance(
+                stage,
+                language=target_language,
+                interaction_frame=frame,
+            )
             if reminder_text:  # Only inject if there's a reminder (high-risk stage)
                 stage_reminder = f"{reminder_text}\n\n"
 
@@ -977,19 +1006,6 @@ class GeminiService(AIServiceBase):
         mode = beat_mode or detect_beat_mode(messages)
         if force_pass_ball:
             mode = "pass_ball"
-        if turn_contract is None:
-            persona_for_contract = (
-                (getattr(character, "persona_prompt", None) or "").strip()
-                or (getattr(character, "backstory", None) or "").strip()
-                or (getattr(character, "description", None) or "").strip()
-            )
-            turn_contract = build_turn_contract(
-                messages,
-                state,
-                language=target_language,
-                persona_text=persona_for_contract,
-                character_gender=getattr(character, "gender", None) or "",
-            )
         if turn_contract.mode in {"intimacy", "conflict", "execute", "lead"}:
             mode = turn_contract.mode
         early_turn = mode == "early"

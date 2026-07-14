@@ -27,7 +27,7 @@ def build_state_initialization_prompt(
     """
 
     persona_prompt = (persona_prompt or "").strip()
-    persona_section = persona_prompt if persona_prompt else "（暂无额外设定，按常规成熟女性塑造。）"
+    persona_section = persona_prompt if persona_prompt else "（暂无额外设定，按角色人设与可见形象塑造，勿默认成熟女性。）"
 
     avatar_hint = (avatar_url or "").strip() or "（Avatar URL 未提供）"
 

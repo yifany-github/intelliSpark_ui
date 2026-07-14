@@ -141,18 +141,29 @@ class NSFWIntentService:
         # Actual prompt is now in prompts/sexual_stage_detection.py
         return build_stage_detection_prompt(conversation)
     
-    def build_intent_guidance(self, stage: str, language: Optional[str] = None) -> str:
+    def build_intent_guidance(
+        self,
+        stage: str,
+        language: Optional[str] = None,
+        interaction_frame=None,
+    ) -> str:
         """
         Build SHORT stage-specific reminder (not long prescriptive guidance)
 
         Args:
             stage: Detected sexual activity stage
+            language: output language
+            interaction_frame: optional InteractionFrame for role-aware overlay
 
         Returns:
             Short reminder text (empty if low-risk stage)
         """
         # Delegate to centralized reminder mapping
-        reminder = get_stage_reminder(stage, language=language or "zh")
+        reminder = get_stage_reminder(
+            stage,
+            language=language or "zh",
+            interaction_frame=interaction_frame,
+        )
 
         if reminder:
             self.logger.info(f"💡 Stage reminder for '{stage}': {reminder}")

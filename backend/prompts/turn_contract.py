@@ -26,6 +26,12 @@ from .beat_progression import (
     user_has_mundane_beat,
     user_pushes_intimacy,
 )
+from .interaction_frame import (
+    InteractionFrame,
+    build_interaction_frame,
+    frame_forbids_user_as_releaser,
+    frame_release_contract_lines,
+)
 from .persona_dynamics import build_persona_goal
 
 
@@ -160,19 +166,23 @@ class TurnContract:
     state_sync: tuple[str, ...]
     intensity: str = "medium"  # light | medium | heavy — proportional to user stimulus
     active_dynamic: str = ""  # persona dynamics key activated this turn
+    interaction_frame: Optional[InteractionFrame] = None
 
     def to_prompt(self, language: str = "zh") -> str:
         if language != "zh":
             must = "; ".join(self.must)
             must_not = "; ".join(self.must_not) if self.must_not else "n/a"
             sync = "; ".join(self.state_sync) if self.state_sync else "n/a"
-            return (
+            base = (
                 f"[TURN CONTRACT mode={self.mode} intensity={self.intensity}]\n"
                 f"MUST: {must}\n"
                 f"MUST NOT: {must_not}\n"
                 f"STATE SYNC: {sync}\n"
                 "Write in-character. Obey the contract over generic smut filler."
             )
+            if self.interaction_frame is not None:
+                return f"{base}\n{self.interaction_frame.to_prompt(language)}"
+            return base
 
         lines = [
             f"【导演合同 · {self.mode} · 力度{self.intensity}】本轮硬性要求（优先于习惯性色话模板）：",
@@ -188,7 +198,10 @@ class TurnContract:
             lines.append("状态同步（[[STATE_UPDATE]] 必须反映正文）：")
             for item in self.state_sync:
                 lines.append(f"  - {item}")
-        return "\n".join(lines)
+        body = "\n".join(lines)
+        if self.interaction_frame is not None:
+            return f"{body}\n{self.interaction_frame.to_prompt(language)}"
+        return body
 
 
 def _env_snippet(state: Optional[Dict[str, Any]]) -> str:
@@ -382,6 +395,7 @@ def _with_persona_goal(
         state_sync=contract.state_sync,
         intensity=contract.intensity,
         active_dynamic=key,
+        interaction_frame=contract.interaction_frame,
     )
 
 
@@ -1070,6 +1084,9 @@ def build_turn_contract(
     user_text = last_user_text(messages)
     assistant_text = last_assistant_text(messages)
     body_pov = normalize_body_pov(character_gender)
+    # Gender → body vocabulary only; act subject/object from dialogue evidence
+    frame = build_interaction_frame(messages, character_gender=character_gender)
+    frame_must = frame_release_contract_lines(frame)
     has_conflict = persona_has_role_conflict(persona_text)
     intimacy = user_pushes_intimacy(user_text)
     soft_flirt = user_soft_flirts(user_text)
@@ -1095,9 +1112,12 @@ def build_turn_contract(
         intensity = "light"
     prop_must, prop_forbid = _proportion_rules(intensity)
     heat_budget = _heat_budget_rule(state)
-    extra_must: tuple[str, ...] = prop_must + (
-        (_threshold_friction_rule(),) if threshold else ()
-    ) + ((heat_budget,) if heat_budget else ())
+    extra_must: tuple[str, ...] = (
+        prop_must
+        + frame_must
+        + ((_threshold_friction_rule(),) if threshold else ())
+        + ((heat_budget,) if heat_budget else ())
+    )
     extra_forbid = anti_cliche + prop_forbid
 
     heat = (
@@ -1131,12 +1151,28 @@ def build_turn_contract(
         )
 
     def _finish(contract: TurnContract) -> TurnContract:
-        return _with_persona_goal(
+        finished = _with_persona_goal(
             contract,
             persona_text=persona_text,
             state=state if isinstance(state, dict) else None,
             preference=asks_preference,
             threshold=threshold,
+        )
+        # Attach frame even on branches that built must before frame_must merged
+        # (human_first / early paths may need frame_must spliced in).
+        must = finished.must
+        if frame_must:
+            missing = tuple(m for m in frame_must if m not in must)
+            if missing:
+                must = must + missing
+        return TurnContract(
+            mode=finished.mode,
+            must=must,
+            must_not=finished.must_not,
+            state_sync=finished.state_sync,
+            intensity=finished.intensity,
+            active_dynamic=finished.active_dynamic,
+            interaction_frame=frame,
         )
 
     if (mode == "human_first" or user_has_mundane_beat(user_text)) and not sex_act:
@@ -1498,6 +1534,9 @@ def contract_violated(
 ) -> bool:
     """Lightweight post-check for retry."""
     body = reply or ""
+    frame = getattr(contract, "interaction_frame", None)
+    if frame is not None and frame_forbids_user_as_releaser(body, frame):
+        return True
     if any(c in body for c in ("你满意了吧", "满意了吧")):
         return True
     if _stale_kitchen_in_bath(body, location_hint):
@@ -1593,4 +1632,6 @@ __all__ = [
     "detect_stimulus_intensity",
     "user_invites_lead",
     "user_asks_preference",
+    "InteractionFrame",
+    "build_interaction_frame",
 ]
