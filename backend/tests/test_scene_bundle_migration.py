@@ -10,21 +10,47 @@ import pytest
 from backend.utils.character_content_version import (
     SCENE_BUNDLE_GENERATION_VERSION,
     character_needs_regeneration,
+    clear_generation_metadata,
+    compute_baseline_fingerprint,
     compute_source_hash,
 )
 from backend.utils.persona_scenario_split import (
     build_compact_persona_prompt,
+    build_differentiated_dynamics,
     derive_scenario_hook,
-    ensure_dynamics_block,
+    extract_and_strip_scene_locks,
+    hook_has_internal_place_conflict,
     separate_persona_and_scenario,
 )
-from backend.services.scene_bundle_migrator import SceneBundleMigrator, validate_atomic_bundle
+from backend.services.scene_bundle_migrator import (
+    SceneBundleCandidate,
+    SceneBundleMigrator,
+    validate_atomic_bundle,
+)
+from backend.prompts.persona_dynamics import parse_dynamics_from_persona
+
+
+def test_source_hash_includes_backstory_fallback():
+    base = dict(
+        name="角色",
+        persona_prompt="",
+        backstory="完整背景故事",
+        scenario_hook="客厅",
+        voice_style="轻",
+        nsfw_level=1,
+        description="简介",
+    )
+    h1 = compute_source_hash(**base)
+    changed = dict(base)
+    changed["backstory"] = "改过的背景"
+    assert compute_source_hash(**changed) != h1
 
 
 def test_source_hash_stable_and_sensitive():
     base = dict(
         name="嘉允",
         persona_prompt="你是嘉允\n【动力学】\nmask: a",
+        backstory="",
         scenario_hook="家里客厅暖灯",
         voice_style="轻柔",
         nsfw_level=1,
@@ -50,6 +76,7 @@ def test_needs_regeneration_when_missing_version():
         scenario_hook="客厅",
         name="x",
         description="",
+        backstory="",
         persona_prompt="p",
         voice_style="",
         nsfw_level=0,
@@ -63,6 +90,7 @@ def test_needs_regeneration_false_when_current():
     character = SimpleNamespace(
         name="嘉允",
         description="继母",
+        backstory="",
         persona_prompt=persona,
         scenario_hook=hook,
         voice_style="轻",
@@ -74,6 +102,7 @@ def test_needs_regeneration_false_when_current():
         source_hash=compute_source_hash(
             name="嘉允",
             description="继母",
+            backstory="",
             persona_prompt=persona,
             scenario_hook=hook,
             voice_style="轻",
@@ -83,10 +112,22 @@ def test_needs_regeneration_false_when_current():
     assert character_needs_regeneration(character) is False
 
 
-def test_derive_scenario_hook_from_environment():
+def test_clear_generation_metadata():
+    character = SimpleNamespace(
+        generation_version="scene_bundle_v2",
+        source_hash="abc",
+        scene_summary="s",
+    )
+    clear_generation_metadata(character)
+    assert character.generation_version is None
+    assert character.source_hash is None
+    assert character.scene_summary is None
+
+
+def test_derive_scenario_hook_rejects_conflicting_opening():
     character = SimpleNamespace(
         scenario_hook=None,
-        opening_line="你回来了啊",
+        opening_line="夜店吧台边嗨起来",
         default_state_json=json.dumps({"环境": "家里客厅，暖灯"}, ensure_ascii=False),
         persona_prompt="你是嘉允",
         backstory="",
@@ -95,27 +136,52 @@ def test_derive_scenario_hook_from_environment():
     )
     hook = derive_scenario_hook(character)
     assert "客厅" in hook
-    assert "开场" in hook
+    assert "夜店" not in hook
+    assert not hook_has_internal_place_conflict(hook)
 
 
-def test_ensure_dynamics_idempotent_for_existing_block():
-    body = "你是娜琏\n\n【动力学】\nmask: 玩笑\ndrive: 掌控"
-    assert ensure_dynamics_block(body) == body
-
-
-def test_compact_persona_adds_dynamics_when_missing():
-    character = SimpleNamespace(
-        persona_prompt="你是郑恩爱，姨妈。【冲突 Desire vs Role】想被靠近。",
-        backstory="",
-        description="",
-        scenario_hook=None,
-        opening_line=None,
-        default_state_json=None,
-        name="恩爱",
+def test_huangrong_scene_locks_extracted_from_core():
+    persona = (
+        "你将扮演黄蓉。\n"
+        "角色背景\n"
+        "\t•\t身份：丐帮帮主。\n"
+        "\t•\t处境：为探查蒙古军情深入边境，意外被俘，受化功散与春药控制，多次被凌辱。\n"
+        "核心特质\n"
+        "智慧与谋略：你是女诸葛。\n"
     )
-    persona, hook = separate_persona_and_scenario(character)
-    assert "【动力学】" in persona
-    assert hook
+    character = SimpleNamespace(
+        persona_prompt=persona,
+        backstory=persona,
+        description="黄蓉",
+        name="黄蓉",
+        voice_style="酷女侠",
+        scenario_hook=None,
+        opening_line="营帐里风冷",
+        default_state_json=json.dumps({"环境": "简陋边境营帐内"}, ensure_ascii=False),
+    )
+    compact, extracted = extract_and_strip_scene_locks(persona)
+    assert "被俘" in extracted or "春药" in extracted or "化功散" in extracted
+    assert "女诸葛" in compact
+    # Core should shrink vs original after lock extraction
+    new_persona, hook = separate_persona_and_scenario(character)
+    assert "【动力学】" in new_persona
+    assert "被俘" not in new_persona or "场景提示" in new_persona
+    # Lock lines / crisis props moved out of core
+    assert "多次被凌辱" not in new_persona
+    assert "春药" not in new_persona
+    assert "营帐" in hook or extracted
+    dyn = parse_dynamics_from_persona(new_persona)
+    # Must not misclassify 黄蓉 as nightclub dynamics
+    assert "夜店" not in dyn.get("mask", "") and "浪女" not in dyn.get("mask", "")
+
+
+def test_differentiated_dynamics_not_identical_for_two_legacies():
+    a = SimpleNamespace(name="叶萱", description="快穿攻略女主，娇羞多变", voice_style="柔媚")
+    b = SimpleNamespace(name="黄蓉", description="机智女侠，丐帮帮主", voice_style="酷女侠")
+    da = build_differentiated_dynamics(a, "叶萱快穿世界")
+    db = build_differentiated_dynamics(b, "黄蓉武侠机智")
+    assert da != db
+    assert da["mask"] != db["mask"]
 
 
 def test_validate_atomic_bundle_requires_all_three():
@@ -159,7 +225,7 @@ def test_validate_rejects_generic_fallback_environment():
 @pytest.mark.asyncio
 async def test_migrator_refuses_apply_on_validation_failure():
     class StubAI:
-        async def generate_scene_bootstrap(self, character, allow_split_fallback=False):
+        async def generate_scene_bootstrap(self, character, language="zh", allow_split_fallback=False):
             return {
                 "opening_line": "hi",
                 "state": {"环境": "地牢", "衣服": "囚衣", "姿势": "绑着"},
@@ -175,9 +241,11 @@ async def test_migrator_refuses_apply_on_validation_failure():
         voice_style="平静",
         nsfw_level=1,
         opening_line="旧开场",
+        opening_line_en=None,
         default_state_json=json.dumps(
             {"环境": "客厅", "衣服": "家居服", "姿势": "坐着"}, ensure_ascii=False
         ),
+        default_state_json_en=None,
         scene_summary=None,
         scenario_hook=None,
         generation_version=None,
@@ -194,7 +262,7 @@ async def test_migrator_refuses_apply_on_validation_failure():
 @pytest.mark.asyncio
 async def test_migrator_apply_writes_only_when_valid():
     class StubAI:
-        async def generate_scene_bootstrap(self, character, allow_split_fallback=False):
+        async def generate_scene_bootstrap(self, character, language="zh", allow_split_fallback=False):
             return {
                 "opening_line": "新开场，厨房见。",
                 "state": {
@@ -223,21 +291,72 @@ async def test_migrator_apply_writes_only_when_valid():
         voice_style="轻软",
         nsfw_level=1,
         opening_line="旧",
+        opening_line_en="Old English opening that must be cleared or replaced",
         default_state_json='{"环境":"厨房"}',
+        default_state_json_en='{"环境":"old en"}',
         scene_summary=None,
         scenario_hook=None,
         generation_version=None,
         source_hash=None,
     )
-    migrator = SceneBundleMigrator(ai_manager=StubAI(), force=True)
+    migrator = SceneBundleMigrator(ai_manager=StubAI(), force=True, generate_english=True)
     candidate = await migrator.build_candidate(character)
     assert candidate.validation_ok is True
-    assert migrator.apply_candidate(character, candidate) is True
+    assert candidate.baseline_fingerprint
+    # EN stub returns ZH-shaped coherent bundle → may keep or clear; apply must succeed
+    assert migrator.apply_candidate(character, candidate, require_baseline_match=True) is True
     assert character.opening_line.startswith("新开场")
     assert character.generation_version == SCENE_BUNDLE_GENERATION_VERSION
     assert character.source_hash
     assert character.scene_summary
     assert character.scenario_hook
+
+
+@pytest.mark.asyncio
+async def test_apply_from_report_refuses_baseline_drift():
+    character = SimpleNamespace(
+        id=71,
+        name="嘉允",
+        description="继母",
+        persona_prompt="你是嘉允",
+        backstory="",
+        voice_style="轻",
+        nsfw_level=1,
+        opening_line="回来了",
+        opening_line_en=None,
+        default_state_json='{"环境":"客厅"}',
+        default_state_json_en=None,
+        scene_summary=None,
+        scenario_hook=None,
+        generation_version=None,
+        source_hash=None,
+    )
+    baseline = compute_baseline_fingerprint(character)
+    candidate = SceneBundleCandidate(
+        character_id=71,
+        name="嘉允",
+        validation_ok=True,
+        baseline_fingerprint=baseline,
+        new={
+            "persona_prompt": "新persona\n【动力学】\nmask: x",
+            "scenario_hook": "客厅",
+            "opening_line": "新开场",
+            "default_state": {"环境": "客厅", "衣服": "家居服", "姿势": "坐着"},
+            "scene_summary": "客厅见面",
+            "generation_version": SCENE_BUNDLE_GENERATION_VERSION,
+            "source_hash": "abc123",
+            "clear_english_fields": False,
+        },
+    )
+    migrator = SceneBundleMigrator(ai_manager=None)
+    # Drift: change live content after report
+    character.opening_line = "被人改过了"
+    assert migrator.apply_candidate(character, candidate, require_baseline_match=True) is False
+    # Restore and apply
+    character.opening_line = "回来了"
+    assert compute_baseline_fingerprint(character) == baseline
+    assert migrator.apply_candidate(character, candidate, require_baseline_match=True) is True
+    assert character.opening_line == "新开场"
 
 
 @pytest.mark.asyncio
@@ -248,6 +367,7 @@ async def test_migrator_idempotent_skip():
             backstory="",
             description="",
             name="嘉允",
+            voice_style="轻",
             scenario_hook=None,
             opening_line=None,
             default_state_json=None,
@@ -257,6 +377,7 @@ async def test_migrator_idempotent_skip():
     source_hash = compute_source_hash(
         name="嘉允",
         description="继母",
+        backstory="",
         persona_prompt=persona,
         scenario_hook=hook,
         voice_style="轻",
@@ -276,7 +397,9 @@ async def test_migrator_idempotent_skip():
         voice_style="轻",
         nsfw_level=1,
         opening_line="回来了",
+        opening_line_en=None,
         default_state_json=json.dumps({"环境": "家里客厅"}, ensure_ascii=False),
+        default_state_json_en=None,
         scene_summary="客厅",
         scenario_hook=hook,
         generation_version=SCENE_BUNDLE_GENERATION_VERSION,
@@ -286,3 +409,12 @@ async def test_migrator_idempotent_skip():
     candidate = await migrator.build_candidate(character)
     assert candidate.skipped is True
     assert candidate.validation_ok is True
+
+
+def test_ensure_dynamics_idempotent_for_existing_block():
+    body = "你是娜琏\n\n【动力学】\nmask: 玩笑\ndrive: 掌控"
+    character = SimpleNamespace(name="娜琏", description="夜店", voice_style="沙哑")
+    from backend.utils.persona_scenario_split import ensure_dynamics_block
+
+    assert ensure_dynamics_block(character, body) == body
+    assert parse_dynamics_from_persona(body)["mask"] == "玩笑"

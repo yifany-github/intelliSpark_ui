@@ -467,27 +467,33 @@ class CharacterService:
         character.default_state_json = json.dumps(merged_state, ensure_ascii=False)
         self._last_opening_line_regenerated = True
 
-        scene_summary = (bundle.get("scene_summary") or "").strip() if bundle_ok else ""
-        if scene_summary:
-            character.scene_summary = scene_summary
-            self.logger.info(
-                "Scene bootstrap for %s: %s",
-                character.name,
-                scene_summary[:120],
-            )
+        from utils.character_content_version import (
+            SCENE_BUNDLE_GENERATION_VERSION,
+            clear_generation_metadata,
+            compute_source_hash_for_character,
+        )
+        from utils.persona_scenario_split import derive_scenario_hook
 
-        # Stamp version metadata only when the atomic bundle path succeeded.
         if bundle_ok:
-            from utils.character_content_version import (
-                SCENE_BUNDLE_GENERATION_VERSION,
-                compute_source_hash_for_character,
-            )
-            from utils.persona_scenario_split import derive_scenario_hook
-
+            scene_summary = (bundle.get("scene_summary") or "").strip()
+            if scene_summary:
+                character.scene_summary = scene_summary
+                self.logger.info(
+                    "Scene bootstrap for %s: %s",
+                    character.name,
+                    scene_summary[:120],
+                )
             if not (getattr(character, "scenario_hook", None) or "").strip():
                 character.scenario_hook = derive_scenario_hook(character)
             character.generation_version = SCENE_BUNDLE_GENERATION_VERSION
             character.source_hash = compute_source_hash_for_character(character)
+        else:
+            # Split fallback changed opening/state — never leave stale migration stamps.
+            clear_generation_metadata(character)
+            self.logger.warning(
+                "Cleared generation metadata for %s after non-atomic split fallback",
+                character.name,
+            )
 
     async def _maybe_set_opening_line(self, character: Character, force: bool = False) -> None:
         self._last_opening_line_regenerated = False

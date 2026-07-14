@@ -1,16 +1,17 @@
 """Migrate legacy characters to versioned Scene Bundles (Issue #272).
 
-Defaults to dry-run. Writes only with explicit --apply after validation.
+Defaults to dry-run. Production writes require --apply-from-report <dryrun.json>
+so the reviewed candidate is written verbatim (no second LLM call).
 
 Examples:
-  # Audit + generate candidates for 12 featured characters (no DB writes)
-  python scripts/migrate_scene_bundles.py --featured
+  # Generate reviewable candidates (no DB writes)
+  python scripts/migrate_scene_bundles.py --featured --output tmp/featured_dryrun.json
 
-  # Specific IDs
-  python scripts/migrate_scene_bundles.py --ids 4,13,67,71,73
+  # After review, write exactly those candidates
+  python scripts/migrate_scene_bundles.py --apply-from-report tmp/featured_dryrun.json --ids 71,73,67
 
-  # After review, apply validated candidates only
-  python scripts/migrate_scene_bundles.py --featured --apply
+  # Audit persona/scenario split only
+  python scripts/migrate_scene_bundles.py --featured --audit-only
 """
 
 from __future__ import annotations
@@ -32,7 +33,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from database import SessionLocal
-from services.scene_bundle_migrator import SceneBundleMigrator, select_characters
+from services.scene_bundle_migrator import (
+    SceneBundleMigrator,
+    load_candidates_from_report,
+    select_characters,
+)
 from utils.character_content_version import SCENE_BUNDLE_GENERATION_VERSION
 
 logger = logging.getLogger(__name__)
@@ -53,12 +58,12 @@ def _parse_args() -> argparse.Namespace:
         "--ids",
         type=str,
         default="",
-        help="Comma-separated character IDs to process.",
+        help="Comma-separated character IDs to process / filter apply-from-report.",
     )
     parser.add_argument(
         "--featured",
         action="store_true",
-        help="Process featured characters only.",
+        help="Process featured characters only (dry-run / audit).",
     )
     parser.add_argument(
         "--limit",
@@ -79,7 +84,14 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--apply",
         action="store_true",
-        help="Write validated candidates to the database. Without this flag, dry-run only.",
+        help="DEPRECATED unsafe mode. Use --apply-from-report instead.",
+    )
+    parser.add_argument(
+        "--apply-from-report",
+        type=str,
+        default="",
+        help="Path to a reviewed dry-run JSON report. Writes those candidates verbatim "
+        "(no LLM regeneration). Refuses if live baseline_fingerprint drifted.",
     )
     parser.add_argument(
         "--output",
@@ -92,6 +104,11 @@ def _parse_args() -> argparse.Namespace:
         type=str,
         default=SCENE_BUNDLE_GENERATION_VERSION,
         help="Target generation_version stamp.",
+    )
+    parser.add_argument(
+        "--skip-english",
+        action="store_true",
+        help="Do not generate EN bundles; clear opening_line_en/default_state_json_en on apply.",
     )
     return parser.parse_args()
 
@@ -114,15 +131,19 @@ def _print_candidate(candidate) -> None:
         logger.info("  errors: %s", "; ".join(candidate.validation_errors))
     audit = candidate.audit or {}
     logger.info(
-        "  audit: dynamics=%s persona_len=%s scene_locks=%s",
+        "  audit: dynamics=%s persona_len=%s→compact=%s locks=%s en_cleared=%s",
         audit.get("has_explicit_dynamics"),
         audit.get("persona_len"),
+        audit.get("compact_persona_len"),
         audit.get("scene_lock_hints"),
+        audit.get("english_fields_cleared"),
     )
     old = candidate.old or {}
     new = candidate.new or {}
     logger.info("  OLD opening: %s", _preview_text(old.get("opening_line")))
     logger.info("  NEW opening: %s", _preview_text(new.get("opening_line")))
+    if new.get("opening_line_en"):
+        logger.info("  NEW opening_en: %s", _preview_text(new.get("opening_line_en")))
     logger.info("  OLD scene_summary: %s", _preview_text(old.get("scene_summary")))
     logger.info("  NEW scene_summary: %s", _preview_text(new.get("scene_summary")))
     logger.info("  NEW scenario_hook: %s", _preview_text(new.get("scenario_hook"), 200))
@@ -131,9 +152,10 @@ def _print_candidate(candidate) -> None:
     logger.info("  OLD 环境: %s", _preview_text(str(old_env or "")))
     logger.info("  NEW 环境: %s", _preview_text(str(new_env or "")))
     logger.info(
-        "  meta: version=%s hash=%s",
+        "  meta: version=%s hash=%s baseline=%s",
         new.get("generation_version"),
         _preview_text(new.get("source_hash"), 16),
+        _preview_text(candidate.baseline_fingerprint, 16),
     )
 
 
@@ -144,12 +166,12 @@ async def run_audit_only(
     limit: int,
     output_path: str,
 ) -> int:
-    """Persona/scenario separation preview without calling the LLM."""
     from services.scene_bundle_migrator import snapshot_character_content
     from utils.persona_scenario_split import migration_audit_flags, separate_persona_and_scenario
     from utils.character_content_version import (
         SCENE_BUNDLE_GENERATION_VERSION,
         character_needs_regeneration,
+        compute_baseline_fingerprint,
         compute_source_hash,
     )
 
@@ -184,6 +206,7 @@ async def run_audit_only(
                 "character_id": character.id,
                 "name": character.name,
                 "needs_regeneration": stale,
+                "baseline_fingerprint": compute_baseline_fingerprint(character),
                 "audit": audit,
                 "old": snapshot_character_content(character),
                 "proposed": {
@@ -193,6 +216,7 @@ async def run_audit_only(
                     "source_hash": compute_source_hash(
                         name=character.name or "",
                         description=character.description or "",
+                        backstory=character.backstory or "",
                         persona_prompt=persona,
                         scenario_hook=hook,
                         voice_style=character.voice_style or "",
@@ -229,6 +253,75 @@ async def run_audit_only(
     return 0
 
 
+async def run_apply_from_report(
+    *,
+    report_path: str,
+    character_ids: Optional[Sequence[int]],
+) -> int:
+    """Write reviewed dry-run candidates verbatim — no LLM calls."""
+    logger.warning(
+        "APPLY-FROM-REPORT — writing reviewed candidates from %s (no LLM regeneration).",
+        report_path,
+    )
+    candidates = load_candidates_from_report(report_path)
+    if character_ids:
+        allow = set(character_ids)
+        candidates = [c for c in candidates if c.character_id in allow]
+
+    session = SessionLocal()
+    applied = refused = skipped = 0
+    # Migrator only needed for apply_candidate helper (no AI).
+    migrator = SceneBundleMigrator(ai_manager=None, force=False)
+    try:
+        from models import Character
+
+        for candidate in candidates:
+            if candidate.skipped:
+                skipped += 1
+                logger.info("[%s] %s SKIP (was idempotent in report)", candidate.character_id, candidate.name)
+                continue
+            if not candidate.validation_ok:
+                refused += 1
+                logger.warning(
+                    "[%s] %s REFUSE — report marked invalid: %s",
+                    candidate.character_id,
+                    candidate.name,
+                    candidate.validation_errors,
+                )
+                continue
+
+            character = (
+                session.query(Character)
+                .filter(Character.id == candidate.character_id)
+                .first()
+            )
+            if not character:
+                refused += 1
+                logger.warning("[%s] REFUSE — character not found", candidate.character_id)
+                continue
+
+            if migrator.apply_candidate(character, candidate, require_baseline_match=True):
+                session.add(character)
+                session.commit()
+                applied += 1
+                logger.info("[%s] %s applied from report", character.id, character.name)
+            else:
+                session.rollback()
+                refused += 1
+    finally:
+        session.close()
+
+    summary = {
+        "mode": "apply-from-report",
+        "report": report_path,
+        "applied": applied,
+        "refused": refused,
+        "skipped_idempotent": skipped,
+    }
+    logger.info("Summary: %s", summary)
+    return 0 if refused == 0 else 2
+
+
 async def run_migration(
     *,
     character_ids: Optional[Sequence[int]],
@@ -236,14 +329,26 @@ async def run_migration(
     limit: int,
     force: bool,
     apply: bool,
+    apply_from_report: str,
     output_path: str,
     generation_version: str,
     audit_only: bool = False,
+    skip_english: bool = False,
 ) -> int:
+    if apply and not apply_from_report:
+        logger.error(
+            "Bare --apply is disabled. Generate a dry-run report, review it, then run:\n"
+            "  python scripts/migrate_scene_bundles.py --apply-from-report <report.json> [--ids ...]"
+        )
+        return 1
+
+    if apply_from_report:
+        return await run_apply_from_report(
+            report_path=apply_from_report,
+            character_ids=character_ids,
+        )
+
     if audit_only:
-        if apply:
-            logger.error("--audit-only cannot be combined with --apply")
-            return 1
         return await run_audit_only(
             character_ids=character_ids,
             featured_only=featured_only,
@@ -251,10 +356,7 @@ async def run_migration(
             output_path=output_path,
         )
 
-    if apply:
-        logger.warning("APPLY MODE — validated candidates will be written to the database.")
-    else:
-        logger.info("DRY-RUN mode — no database writes (pass --apply to write).")
+    logger.info("DRY-RUN mode — no database writes.")
 
     from services.ai_model_manager import AIModelManager
 
@@ -268,11 +370,12 @@ async def run_migration(
         ai_manager=manager,
         generation_version=generation_version,
         force=force,
+        generate_english=not skip_english,
     )
 
     session = SessionLocal()
     report = {
-        "mode": "apply" if apply else "dry-run",
+        "mode": "dry-run",
         "generation_version": generation_version,
         "started_at": datetime.now(timezone.utc).isoformat(),
         "candidates": [],
@@ -292,7 +395,7 @@ async def run_migration(
             return 0
 
         logger.info("Processing %d character(s)...", len(characters))
-        ok = fail = skipped = applied = 0
+        ok = fail = skipped = 0
 
         for character in characters:
             candidate = await migrator.build_candidate(character)
@@ -306,30 +409,24 @@ async def run_migration(
                 fail += 1
                 continue
             ok += 1
-            if apply:
-                if migrator.apply_candidate(character, candidate):
-                    session.add(character)
-                    session.commit()
-                    applied += 1
-                    logger.info("  applied id=%s", character.id)
-                else:
-                    session.rollback()
-                    fail += 1
-                    ok -= 1
 
         report["summary"] = {
             "matched": len(characters),
             "validation_ok": ok,
             "validation_failed": fail,
             "skipped_idempotent": skipped,
-            "applied": applied if apply else 0,
+            "applied": 0,
         }
         logger.info("Summary: %s", report["summary"])
+        logger.info(
+            "Next: review this report, then apply with "
+            "--apply-from-report <this file> [--ids ...]"
+        )
     finally:
         session.close()
 
     out = Path(output_path) if output_path else Path("tmp") / (
-        f"scene_bundle_migration_{'apply' if apply else 'dryrun'}_"
+        f"scene_bundle_migration_dryrun_"
         f"{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}.json"
     )
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -342,8 +439,8 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO, format="[%(levelname)s] %(message)s")
     args = _parse_args()
     ids = _parse_ids(args.ids)
-    if not ids and not args.featured and args.limit <= 0:
-        logger.error("Specify --featured, --ids, or --limit to select characters.")
+    if not args.apply_from_report and not ids and not args.featured and args.limit <= 0:
+        logger.error("Specify --featured, --ids, --limit, or --apply-from-report.")
         sys.exit(1)
 
     code = asyncio.run(
@@ -353,9 +450,11 @@ def main() -> None:
             limit=args.limit,
             force=args.force,
             apply=args.apply,
+            apply_from_report=args.apply_from_report,
             output_path=args.output,
             generation_version=args.generation_version,
             audit_only=args.audit_only,
+            skip_english=args.skip_english,
         )
     )
     sys.exit(code)
