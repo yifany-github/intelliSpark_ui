@@ -8,6 +8,8 @@ Evidence priority: explicit_current > recent_context > unknown
 
 from __future__ import annotations
 
+import json
+import re
 from dataclasses import dataclass
 from typing import Any, Optional, Sequence
 
@@ -143,15 +145,132 @@ def _hits(text: str, cues: Sequence[str]) -> int:
     return sum(1 for c in cues if c in body)
 
 
+def parse_interaction_frame_payload(raw: str) -> Optional[InteractionFrame]:
+    """Parse LLM JSON (possibly fenced) into InteractionFrame; None if invalid."""
+    text = (raw or "").strip()
+    if not text:
+        return None
+    fence = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if fence:
+        text = fence.group(1).strip()
+    # First JSON object in the reply
+    start = text.find("{")
+    end = text.rfind("}")
+    if start < 0 or end <= start:
+        return None
+    try:
+        data = json.loads(text[start : end + 1])
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    act_type = str(data.get("act_type") or "none").strip()
+    char_role = str(data.get("character_role") or "unknown").strip()
+    user_role = str(data.get("user_role") or "unknown").strip()
+    release_actor = str(data.get("release_actor") or "unknown").strip()
+    release_target = str(data.get("release_target") or "unknown").strip()
+    evidence = str(data.get("evidence") or "unknown").strip()
+    try:
+        confidence = float(data.get("confidence") or 0.0)
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+
+    if act_type not in ACT_TYPES:
+        act_type = "none"
+    if char_role not in ROLES:
+        char_role = "unknown"
+    if user_role not in ROLES:
+        user_role = "unknown"
+    if release_actor not in RELEASE_ACTORS:
+        release_actor = "unknown"
+    if release_target not in RELEASE_TARGETS:
+        release_target = "unknown"
+    if evidence not in EVIDENCE_LEVELS:
+        evidence = "unknown"
+
+    return InteractionFrame(
+        act_type=act_type,
+        character_role=char_role,
+        user_role=user_role,
+        release_actor=release_actor,
+        release_target=release_target,
+        confidence=confidence,
+        evidence=evidence,
+    )
+
+
+def coalesce_interaction_frame(
+    primary: Optional[InteractionFrame],
+    fallback: InteractionFrame,
+) -> InteractionFrame:
+    """
+    Prefer LLM primary; fill unknown fields from keyword heuristic fallback.
+    If primary is empty, return fallback wholesale.
+    """
+    if primary is None:
+        return fallback
+    primary_empty = (
+        primary.act_type == "none"
+        and primary.character_role == "unknown"
+        and primary.user_role == "unknown"
+        and primary.release_actor == "unknown"
+        and primary.release_target == "unknown"
+    )
+    if primary_empty and fallback.confidence > primary.confidence:
+        return fallback
+
+    act_type = primary.act_type if primary.act_type != "none" else fallback.act_type
+    character_role = (
+        primary.character_role
+        if primary.character_role != "unknown"
+        else fallback.character_role
+    )
+    user_role = (
+        primary.user_role if primary.user_role != "unknown" else fallback.user_role
+    )
+    release_actor = (
+        primary.release_actor
+        if primary.release_actor != "unknown"
+        else fallback.release_actor
+    )
+    release_target = (
+        primary.release_target
+        if primary.release_target != "unknown"
+        else fallback.release_target
+    )
+    evidence = primary.evidence if primary.evidence != "unknown" else fallback.evidence
+    confidence = max(primary.confidence, fallback.confidence)
+    # If we borrowed critical role/release from fallback, keep at least fallback evidence
+    borrowed = (
+        (primary.character_role == "unknown" and character_role != "unknown")
+        or (primary.release_actor == "unknown" and release_actor != "unknown")
+    )
+    if borrowed and evidence == "unknown":
+        evidence = fallback.evidence
+
+    return InteractionFrame(
+        act_type=act_type if act_type in ACT_TYPES else "none",
+        character_role=character_role if character_role in ROLES else "unknown",
+        user_role=user_role if user_role in ROLES else "unknown",
+        release_actor=release_actor if release_actor in RELEASE_ACTORS else "unknown",
+        release_target=release_target if release_target in RELEASE_TARGETS else "unknown",
+        confidence=float(confidence),
+        evidence=evidence if evidence in EVIDENCE_LEVELS else "unknown",
+    )
+
+
 def build_interaction_frame(
     messages: Sequence[Any],
     *,
     character_gender: str = "",
 ) -> InteractionFrame:
     """
-    Infer act roles from chat evidence.
+    Keyword / heuristic fallback for act roles.
 
     character_gender is accepted for API symmetry but MUST NOT decide roles.
+    Prefer LLM director via NSFWIntentService.detect_interaction_frame in generate path.
     """
     del character_gender  # explicit: gender is not an act-role signal
     user_text = last_user_text(messages)
@@ -321,6 +440,8 @@ def frame_release_contract_lines(frame: InteractionFrame) -> tuple[str, ...]:
 __all__ = [
     "InteractionFrame",
     "build_interaction_frame",
+    "parse_interaction_frame_payload",
+    "coalesce_interaction_frame",
     "frame_forbids_user_as_releaser",
     "frame_release_contract_lines",
 ]

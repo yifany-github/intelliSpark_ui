@@ -3,8 +3,11 @@
 from types import SimpleNamespace
 
 from prompts.interaction_frame import (
+    InteractionFrame,
     build_interaction_frame,
+    coalesce_interaction_frame,
     frame_forbids_user_as_releaser,
+    parse_interaction_frame_payload,
 )
 from prompts.sexual_stage_reminders import get_stage_reminder
 from prompts.turn_contract import build_turn_contract, contract_violated
@@ -108,9 +111,71 @@ def test_insufficient_context_stays_unknown():
     assert frame.evidence == "unknown"
 
 
-def test_stage_reminder_role_overlay_for_actor():
-    from prompts.interaction_frame import InteractionFrame
+def test_parse_interaction_frame_payload_json_and_fence():
+    raw = (
+        '```json\n{"act_type":"penetration","character_role":"actor",'
+        '"user_role":"receiver","release_actor":"character",'
+        '"release_target":"user","confidence":0.91,"evidence":"explicit_current"}\n```'
+    )
+    frame = parse_interaction_frame_payload(raw)
+    assert frame is not None
+    assert frame.release_actor == "character"
+    assert frame.release_target == "user"
+    assert frame.confidence == 0.91
 
+
+def test_coalesce_fills_unknown_release_from_heuristic():
+    llm = InteractionFrame(
+        act_type="penetration",
+        character_role="actor",
+        user_role="receiver",
+        release_actor="unknown",
+        release_target="unknown",
+        confidence=0.6,
+        evidence="recent_context",
+    )
+    heuristic = InteractionFrame(
+        act_type="penetration",
+        character_role="actor",
+        user_role="receiver",
+        release_actor="character",
+        release_target="user",
+        confidence=0.9,
+        evidence="explicit_current",
+    )
+    merged = coalesce_interaction_frame(llm, heuristic)
+    assert merged.release_actor == "character"
+    assert merged.release_target == "user"
+    assert merged.character_role == "actor"
+
+
+def test_turn_contract_prefers_injected_llm_frame():
+    msgs = _msgs(
+        ("user", "你好"),
+        ("assistant", "嗯"),
+        ("user", "射在里面可以吗？"),
+    )
+    # Heuristic alone may leave release unknown; injected LLM frame must win
+    llm = InteractionFrame(
+        act_type="penetration",
+        character_role="actor",
+        user_role="receiver",
+        release_actor="character",
+        release_target="user",
+        confidence=0.95,
+        evidence="explicit_current",
+    )
+    c = build_turn_contract(
+        msgs,
+        persona_text="金硕宇",
+        character_gender="male",
+        interaction_frame=llm,
+    )
+    assert c.interaction_frame == llm
+    assert any("射入用户" in m for m in c.must)
+
+
+def test_stage_reminder_role_overlay_for_actor():
     frame = InteractionFrame(
         act_type="penetration",
         character_role="actor",

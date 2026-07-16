@@ -119,9 +119,28 @@ class GrokService(AIServiceBase):
             
             # Manage conversation length
             managed_messages = self._manage_conversation_length(messages)
+
+            # LLM Interaction Frame (same director as Gemini); keyword fallback on failure
+            interaction_frame = None
+            try:
+                from services.nsfw_intent_service import NSFWIntentService
+
+                frame_svc = NSFWIntentService()
+                interaction_frame = await frame_svc.detect_interaction_frame(
+                    managed_messages,
+                    character_gender=getattr(character, "gender", None) or "",
+                )
+            except Exception as exc:
+                self.logger.debug("Interaction frame skipped for Grok: %s", exc)
             
             # Build messages for Grok API
-            grok_messages = self._build_grok_messages(character_prompt, managed_messages, character, state)
+            grok_messages = self._build_grok_messages(
+                character_prompt,
+                managed_messages,
+                character,
+                state,
+                interaction_frame=interaction_frame,
+            )
             
             # Apply user preferences
             generation_config = self._build_generation_config(user_preferences)
@@ -291,6 +310,7 @@ class GrokService(AIServiceBase):
         messages: List[ChatMessage], 
         character: Optional[Character],
         state: Optional[Dict[str, str]] = None,
+        interaction_frame=None,
     ) -> List[Dict[str, str]]:
         """
         Build message format for Grok API
@@ -299,6 +319,7 @@ class GrokService(AIServiceBase):
             character_prompt: Character prompt configuration
             messages: Conversation messages
             character: Character context
+            interaction_frame: optional LLM/heuristic InteractionFrame
             
         Returns:
             List[Dict]: Messages in Grok API format
@@ -356,6 +377,7 @@ class GrokService(AIServiceBase):
                 language="zh",
                 persona_text=persona_for_contract,
                 character_gender=getattr(character, "gender", None) or "",
+                interaction_frame=interaction_frame,
             )
             if contract.mode in {"intimacy", "conflict", "execute", "lead"}:
                 mode = contract.mode

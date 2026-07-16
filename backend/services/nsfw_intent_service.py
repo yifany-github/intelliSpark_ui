@@ -24,6 +24,13 @@ from google.genai import types
 
 from models import ChatMessage
 from config import settings
+from prompts.interaction_frame import (
+    InteractionFrame,
+    build_interaction_frame,
+    coalesce_interaction_frame,
+    parse_interaction_frame_payload,
+)
+from prompts.interaction_frame_detection import build_interaction_frame_detection_prompt
 from prompts.sexual_stage_detection import build_stage_detection_prompt
 from prompts.sexual_stage_reminders import get_stage_reminder
 from utils.gemini_response import extract_text_parts
@@ -134,6 +141,76 @@ class NSFWIntentService:
                 conversation_lines.append(f"AI: {content}")
         
         return "\n".join(conversation_lines)
+
+    def _format_messages_for_frame(self, messages: List[ChatMessage]) -> str:
+        """Format recent turns for interaction-frame director (keep more assistant body cues)."""
+        conversation_lines = []
+        for message in messages:
+            if message.role == "user":
+                conversation_lines.append(f"用户: {message.content}")
+            elif message.role == "assistant":
+                content = message.content or ""
+                if len(content) > 280:
+                    content = content[:280] + "..."
+                conversation_lines.append(f"角色: {content}")
+        return "\n".join(conversation_lines)
+
+    async def detect_interaction_frame(
+        self,
+        recent_messages: List[ChatMessage],
+        *,
+        character_gender: str = "",
+    ) -> InteractionFrame:
+        """
+        Structured LLM Interaction Frame director + keyword fallback.
+
+        Same client/model pattern as stage detection. Gender is passed only for
+        API symmetry into the heuristic fallback and must not decide roles.
+        """
+        heuristic = build_interaction_frame(
+            recent_messages or [],
+            character_gender=character_gender,
+        )
+        if not self.client:
+            self.logger.warning("No Gemini client for interaction frame; using heuristic")
+            return heuristic
+        if not recent_messages:
+            return heuristic
+
+        try:
+            conversation = self._format_messages_for_frame(recent_messages[-8:])
+            frame_prompt = build_interaction_frame_detection_prompt(conversation)
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[{"role": "user", "parts": [{"text": frame_prompt}]}],
+                config=types.GenerateContentConfig(
+                    max_output_tokens=120,
+                    temperature=0.1,
+                    thinking_config=types.ThinkingConfig(thinking_budget=0),
+                ),
+            )
+            response_text = extract_text_parts(response)
+            parsed = parse_interaction_frame_payload(response_text or "")
+            frame = coalesce_interaction_frame(parsed, heuristic)
+            self.logger.info(
+                "🎯 Interaction frame: act=%s char=%s user=%s release=%s->%s "
+                "evidence=%s conf=%.2f (llm=%s)",
+                frame.act_type,
+                frame.character_role,
+                frame.user_role,
+                frame.release_actor,
+                frame.release_target,
+                frame.evidence,
+                frame.confidence,
+                parsed is not None,
+            )
+            return frame
+        except (ConnectionError, TimeoutError) as e:
+            self.logger.warning("Interaction frame LLM unavailable: %s; heuristic", e)
+            return heuristic
+        except Exception as e:
+            self.logger.error("Interaction frame detection failed: %s; heuristic", e)
+            return heuristic
     
     def _build_intent_detection_prompt(self, conversation: str) -> str:
         """Legacy method - now delegates to centralized prompt"""

@@ -17,6 +17,7 @@ This is the simplified architecture version post-Issue #129.
 from google import genai
 from google.genai import types
 from typing import List, Optional, Dict, Tuple, Any, Iterable
+import asyncio
 import base64
 import io
 import wave
@@ -126,8 +127,14 @@ class GeminiService(AIServiceBase):
             # Manage conversation length to stay within token limits
             managed_messages = self._manage_conversation_length(messages)
 
-            # Detect sexual activity stage for targeted user-agency protection
-            stage = await self._detect_user_intent_background(managed_messages)
+            # Stage + interaction-frame directors (parallel; frame falls back to keywords)
+            stage, interaction_frame = await asyncio.gather(
+                self._detect_user_intent_background(managed_messages),
+                self._detect_interaction_frame_background(
+                    managed_messages,
+                    character_gender=getattr(character, "gender", None) or "",
+                ),
+            )
             beat_mode = detect_beat_mode(managed_messages)
             persona_for_contract = (
                 (getattr(character, "persona_prompt", None) or "").strip()
@@ -140,6 +147,7 @@ class GeminiService(AIServiceBase):
                 language=target_language or "zh",
                 persona_text=persona_for_contract,
                 character_gender=getattr(character, "gender", None) or "",
+                interaction_frame=interaction_frame,
             )
             # Align beat hint with director contract when intimacy / conflict / execute / lead fires
             if turn_contract.mode in {"intimacy", "conflict", "execute", "lead"}:
@@ -778,6 +786,25 @@ class GeminiService(AIServiceBase):
         except Exception as e:
             self.logger.warning(f"⚠️ Stage detection failed: {e}")
             return None  # Graceful fallback - conversation continues without stage reminder
+
+    async def _detect_interaction_frame_background(
+        self,
+        messages: List[ChatMessage],
+        *,
+        character_gender: str = "",
+    ):
+        """LLM Interaction Frame director; keyword fallback inside intent service."""
+        try:
+            if self.intent_service:
+                return await self.intent_service.detect_interaction_frame(
+                    messages,
+                    character_gender=character_gender,
+                )
+        except Exception as e:
+            self.logger.warning(f"⚠️ Interaction frame detection failed: {e}")
+        from prompts.interaction_frame import build_interaction_frame
+
+        return build_interaction_frame(messages, character_gender=character_gender)
 
     def _build_intent_guidance(
         self,

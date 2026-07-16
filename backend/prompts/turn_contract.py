@@ -1073,19 +1073,23 @@ def build_turn_contract(
     language: str = "zh",
     persona_text: str = "",
     character_gender: str = "",
+    interaction_frame: Optional[InteractionFrame] = None,
 ) -> TurnContract:
     """
     Derive this turn's director contract from history (+ optional state/persona).
 
     Modes align with beat_progression, plus intimacy / conflict when user escalates.
     Shared escalation ladder; gendered performance copy via character_gender.
+    Prefer LLM InteractionFrame from generate path; keyword heuristic is fallback.
     """
     mode = detect_beat_mode(messages)
     user_text = last_user_text(messages)
     assistant_text = last_assistant_text(messages)
     body_pov = normalize_body_pov(character_gender)
     # Gender → body vocabulary only; act subject/object from dialogue evidence
-    frame = build_interaction_frame(messages, character_gender=character_gender)
+    frame = interaction_frame or build_interaction_frame(
+        messages, character_gender=character_gender
+    )
     frame_must = frame_release_contract_lines(frame)
     has_conflict = persona_has_role_conflict(persona_text)
     intimacy = user_pushes_intimacy(user_text)
