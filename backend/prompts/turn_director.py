@@ -272,6 +272,9 @@ def build_turn_director_prompt(
 6. 「进来拿手机」类日常 → act_type=none，勿判 penetration
 7. soft/想你了/抱一下 → user_intent=soft，next_beat 只要半拍身体/情绪，禁止跳到插入
 8. next_beat 必须服务角色延续与节奏，禁止代写用户高潮/哭腔
+9. 「进来」歧义：若最近角色已用自己的阴茎/肉棒顶着用户、或用户在叫角色进入 → character_role=actor；
+   仅当用户明确「我插你/让我进去插你」时才把角色判为 receiver。禁止无依据把插入方男角翻成被插入。
+10. 上一张导演帧若已有稳定 character_role/user_role，无明确互换证据时保持延续，勿无故翻转
 
 上一张导演帧: {_prev_snippet(prev_director)}
 当前状态摘要: {_state_snippet(state)}
