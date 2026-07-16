@@ -30,9 +30,9 @@ from .interaction_frame import (
     InteractionFrame,
     build_interaction_frame,
     frame_forbids_user_as_releaser,
-    frame_release_contract_lines,
 )
 from .persona_dynamics import build_persona_goal
+from .turn_director import TurnDirector, director_contract_lines
 
 
 # User commands that mean "do it", not "ask me if it's ok".
@@ -167,6 +167,7 @@ class TurnContract:
     intensity: str = "medium"  # light | medium | heavy — proportional to user stimulus
     active_dynamic: str = ""  # persona dynamics key activated this turn
     interaction_frame: Optional[InteractionFrame] = None
+    turn_director: Optional[TurnDirector] = None
 
     def to_prompt(self, language: str = "zh") -> str:
         if language != "zh":
@@ -180,6 +181,8 @@ class TurnContract:
                 f"STATE SYNC: {sync}\n"
                 "Write in-character. Obey the contract over generic smut filler."
             )
+            if self.turn_director is not None:
+                return f"{base}\n{self.turn_director.to_prompt(language)}"
             if self.interaction_frame is not None:
                 return f"{base}\n{self.interaction_frame.to_prompt(language)}"
             return base
@@ -199,6 +202,8 @@ class TurnContract:
             for item in self.state_sync:
                 lines.append(f"  - {item}")
         body = "\n".join(lines)
+        if self.turn_director is not None:
+            return f"{body}\n{self.turn_director.to_prompt(language)}"
         if self.interaction_frame is not None:
             return f"{body}\n{self.interaction_frame.to_prompt(language)}"
         return body
@@ -396,6 +401,7 @@ def _with_persona_goal(
         intensity=contract.intensity,
         active_dynamic=key,
         interaction_frame=contract.interaction_frame,
+        turn_director=contract.turn_director,
     )
 
 
@@ -1074,23 +1080,39 @@ def build_turn_contract(
     persona_text: str = "",
     character_gender: str = "",
     interaction_frame: Optional[InteractionFrame] = None,
+    turn_director: Optional[TurnDirector] = None,
 ) -> TurnContract:
     """
     Derive this turn's director contract from history (+ optional state/persona).
 
     Modes align with beat_progression, plus intimacy / conflict when user escalates.
     Shared escalation ladder; gendered performance copy via character_gender.
-    Prefer LLM InteractionFrame from generate path; keyword heuristic is fallback.
+    Prefer unified TurnDirector from generate path; do not invent roles if unknown.
     """
     mode = detect_beat_mode(messages)
     user_text = last_user_text(messages)
     assistant_text = last_assistant_text(messages)
     body_pov = normalize_body_pov(character_gender)
-    # Gender → body vocabulary only; act subject/object from dialogue evidence
-    frame = interaction_frame or build_interaction_frame(
-        messages, character_gender=character_gender
-    )
-    frame_must = frame_release_contract_lines(frame)
+    # Gender → body vocabulary only; act subject/object from director / evidence
+    director = turn_director
+    if director is not None:
+        frame = director.to_interaction_frame()
+        frame_must = director_contract_lines(director)
+    else:
+        frame = interaction_frame or build_interaction_frame(
+            messages, character_gender=character_gender
+        )
+        frame_must = director_contract_lines(
+            TurnDirector(
+                act_type=frame.act_type,
+                character_role=frame.character_role,
+                user_role=frame.user_role,
+                release_actor=frame.release_actor,
+                release_target=frame.release_target,
+                confidence=frame.confidence,
+                evidence=frame.evidence,
+            )
+        )
     has_conflict = persona_has_role_conflict(persona_text)
     intimacy = user_pushes_intimacy(user_text)
     soft_flirt = user_soft_flirts(user_text)
@@ -1114,6 +1136,12 @@ def build_turn_contract(
         intensity = "light"
     if soft_flirt and intensity == "medium" and not intimacy and not is_command:
         intensity = "light"
+    # Unified director soft/mundane beats also cap intensity (quality: less mid-act dump)
+    if director is not None and director.user_intent in {"soft", "mundane"}:
+        if intensity == "heavy":
+            intensity = "medium"
+        if director.user_intent == "soft" and intensity == "medium" and not is_command:
+            intensity = "light"
     prop_must, prop_forbid = _proportion_rules(intensity)
     heat_budget = _heat_budget_rule(state)
     extra_must: tuple[str, ...] = (
@@ -1177,6 +1205,7 @@ def build_turn_contract(
             intensity=finished.intensity,
             active_dynamic=finished.active_dynamic,
             interaction_frame=frame,
+            turn_director=director,
         )
 
     if (mode == "human_first" or user_has_mundane_beat(user_text)) and not sex_act:

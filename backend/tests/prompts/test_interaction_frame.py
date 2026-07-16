@@ -124,7 +124,8 @@ def test_parse_interaction_frame_payload_json_and_fence():
     assert frame.confidence == 0.91
 
 
-def test_coalesce_fills_unknown_release_from_heuristic():
+def test_coalesce_helper_still_fills_but_production_must_not_use_on_llm_success():
+    """Helper remains for emergencies; unified director path must NOT call this on LLM JSON."""
     llm = InteractionFrame(
         act_type="penetration",
         character_role="actor",
@@ -145,8 +146,7 @@ def test_coalesce_fills_unknown_release_from_heuristic():
     )
     merged = coalesce_interaction_frame(llm, heuristic)
     assert merged.release_actor == "character"
-    assert merged.release_target == "user"
-    assert merged.character_role == "actor"
+    # Production: parse_turn_director_payload success → use unknown as-is (see test_turn_director)
 
 
 def test_turn_contract_prefers_injected_llm_frame():

@@ -17,6 +17,7 @@ try:
         RELATIONSHIP_READ_KEY,
         UNRESOLVED_THREAD_KEY,
     )
+    from ..prompts.turn_director import TURN_DIRECTOR_KEY
     from .ai_model_manager import get_ai_model_manager
     from .translation_service import get_translation_service
 except ImportError:
@@ -28,6 +29,7 @@ except ImportError:
         RELATIONSHIP_READ_KEY,
         UNRESOLVED_THREAD_KEY,
     )
+    from prompts.turn_director import TURN_DIRECTOR_KEY
     from services.ai_model_manager import get_ai_model_manager
     from services.translation_service import get_translation_service
 
@@ -44,6 +46,7 @@ class CharacterStateManager:
         LAST_DYNAMIC_KEY,
         RELATIONSHIP_READ_KEY,
         UNRESOLVED_THREAD_KEY,
+        TURN_DIRECTOR_KEY,
     })
 
     # Quantifiable state keys that should have numeric values
@@ -119,6 +122,26 @@ class CharacterStateManager:
         if key == LAST_DYNAMIC_KEY:
             if isinstance(value, str) and value.strip() in DYNAMICS_KEYS:
                 return value.strip()
+            return None
+        if key == TURN_DIRECTOR_KEY:
+            if isinstance(value, dict) and value:
+                # Compact storage — keep only known director fields
+                allowed = {
+                    "stage",
+                    "act_type",
+                    "character_role",
+                    "user_role",
+                    "release_actor",
+                    "release_target",
+                    "user_intent",
+                    "boundary",
+                    "next_beat",
+                    "confidence",
+                    "evidence",
+                    "source",
+                }
+                out = {k: value[k] for k in allowed if k in value}
+                return out or None
             return None
         if isinstance(value, str) and value.strip():
             return value.strip()[:120]

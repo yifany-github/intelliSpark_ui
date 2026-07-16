@@ -120,18 +120,22 @@ class GrokService(AIServiceBase):
             # Manage conversation length
             managed_messages = self._manage_conversation_length(messages)
 
-            # LLM Interaction Frame (same director as Gemini); keyword fallback on failure
-            interaction_frame = None
+            turn_director = None
             try:
                 from services.nsfw_intent_service import NSFWIntentService
 
                 frame_svc = NSFWIntentService()
-                interaction_frame = await frame_svc.detect_interaction_frame(
+                turn_director = await frame_svc.detect_turn_director(
                     managed_messages,
+                    state=state if isinstance(state, dict) else None,
                     character_gender=getattr(character, "gender", None) or "",
                 )
             except Exception as exc:
-                self.logger.debug("Interaction frame skipped for Grok: %s", exc)
+                self.logger.debug("Turn director skipped for Grok: %s", exc)
+
+            interaction_frame = (
+                turn_director.to_interaction_frame() if turn_director else None
+            )
             
             # Build messages for Grok API
             grok_messages = self._build_grok_messages(
@@ -140,6 +144,7 @@ class GrokService(AIServiceBase):
                 character,
                 state,
                 interaction_frame=interaction_frame,
+                turn_director=turn_director,
             )
             
             # Apply user preferences
@@ -155,6 +160,87 @@ class GrokService(AIServiceBase):
             if response and response.choices and response.choices[0].message:
                 raw_text = response.choices[0].message.content.strip()
                 response_text, state_update = self._extract_state_update(raw_text)
+
+                # Post-check role/release + quality; one retry if violated
+                try:
+                    from prompts.turn_contract import (
+                        build_turn_contract,
+                        contract_violated,
+                        detect_location_from_recent,
+                    )
+
+                    persona_for_contract = ""
+                    if character is not None:
+                        persona_for_contract = (
+                            (getattr(character, "persona_prompt", None) or "").strip()
+                            or (getattr(character, "backstory", None) or "").strip()
+                            or (getattr(character, "description", None) or "").strip()
+                        )
+                    contract = build_turn_contract(
+                        managed_messages,
+                        state,
+                        language="zh",
+                        persona_text=persona_for_contract,
+                        character_gender=getattr(character, "gender", None) or "",
+                        interaction_frame=interaction_frame,
+                        turn_director=turn_director,
+                    )
+                    if contract_violated(
+                        response_text,
+                        contract,
+                        state_update,
+                        location_hint=detect_location_from_recent(managed_messages),
+                        messages=managed_messages,
+                        prior_state=state if isinstance(state, dict) else None,
+                    ):
+                        self.logger.warning("⚠️ Grok contract violate; retrying once")
+                        retry_messages = list(grok_messages) + [
+                            {
+                                "role": "system",
+                                "content": (
+                                    "上一版违反导演合同（尤其主客体/释放者）。"
+                                    "重写：服从互动主客体与边界；禁止代写用户未写出的状态；"
+                                    "禁止「你想射就射吧」类搞反释放者。"
+                                ),
+                            }
+                        ]
+                        retry_resp = await self.client.chat.completions.create(
+                            model=self.model_name,
+                            messages=retry_messages,
+                            **generation_config,
+                        )
+                        if (
+                            retry_resp
+                            and retry_resp.choices
+                            and retry_resp.choices[0].message
+                        ):
+                            retry_raw = retry_resp.choices[0].message.content.strip()
+                            retry_text, retry_state = self._extract_state_update(retry_raw)
+                            still_bad = contract_violated(
+                                retry_text,
+                                contract,
+                                retry_state,
+                                location_hint=detect_location_from_recent(
+                                    managed_messages
+                                ),
+                                messages=managed_messages,
+                                prior_state=state if isinstance(state, dict) else None,
+                            )
+                            if still_bad:
+                                self.logger.warning(
+                                    "⚠️ Grok retry still violates contract; keeping retry"
+                                )
+                            response_text, state_update = retry_text, retry_state
+                            response = retry_resp
+                except Exception as exc:
+                    self.logger.debug("Grok post-check skipped: %s", exc)
+
+                if turn_director is not None:
+                    from prompts.turn_director import TURN_DIRECTOR_KEY
+
+                    if not isinstance(state_update, dict):
+                        state_update = {}
+                    state_update[TURN_DIRECTOR_KEY] = turn_director.to_storage()
                 
                 # Calculate token usage
                 token_info = {
@@ -311,6 +397,7 @@ class GrokService(AIServiceBase):
         character: Optional[Character],
         state: Optional[Dict[str, str]] = None,
         interaction_frame=None,
+        turn_director=None,
     ) -> List[Dict[str, str]]:
         """
         Build message format for Grok API
@@ -319,7 +406,8 @@ class GrokService(AIServiceBase):
             character_prompt: Character prompt configuration
             messages: Conversation messages
             character: Character context
-            interaction_frame: optional LLM/heuristic InteractionFrame
+            interaction_frame: optional InteractionFrame
+            turn_director: optional unified TurnDirector
             
         Returns:
             List[Dict]: Messages in Grok API format
@@ -378,6 +466,7 @@ class GrokService(AIServiceBase):
                 persona_text=persona_for_contract,
                 character_gender=getattr(character, "gender", None) or "",
                 interaction_frame=interaction_frame,
+                turn_director=turn_director,
             )
             if contract.mode in {"intimacy", "conflict", "execute", "lead"}:
                 mode = contract.mode

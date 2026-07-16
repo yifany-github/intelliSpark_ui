@@ -127,13 +127,15 @@ class GeminiService(AIServiceBase):
             # Manage conversation length to stay within token limits
             managed_messages = self._manage_conversation_length(messages)
 
-            # Stage + interaction-frame directors (parallel; frame falls back to keywords)
-            stage, interaction_frame = await asyncio.gather(
-                self._detect_user_intent_background(managed_messages),
-                self._detect_interaction_frame_background(
-                    managed_messages,
-                    character_gender=getattr(character, "gender", None) or "",
-                ),
+            # Unified Turn Director (stage + roles + intent/boundary/next_beat)
+            turn_director = await self._detect_turn_director_background(
+                managed_messages,
+                state=state if isinstance(state, dict) else None,
+                character_gender=getattr(character, "gender", None) or "",
+            )
+            stage = turn_director.stage if turn_director else None
+            interaction_frame = (
+                turn_director.to_interaction_frame() if turn_director else None
             )
             beat_mode = detect_beat_mode(managed_messages)
             persona_for_contract = (
@@ -148,6 +150,7 @@ class GeminiService(AIServiceBase):
                 persona_text=persona_for_contract,
                 character_gender=getattr(character, "gender", None) or "",
                 interaction_frame=interaction_frame,
+                turn_director=turn_director,
             )
             # Align beat hint with director contract when intimacy / conflict / execute / lead fires
             if turn_contract.mode in {"intimacy", "conflict", "execute", "lead"}:
@@ -229,11 +232,40 @@ class GeminiService(AIServiceBase):
                     )
                     retry_text = extract_text_parts(retry_response)
                     if retry_text:
-                        clean_text, state_update = self._extract_state_update(
+                        retry_clean, retry_state = self._extract_state_update(
                             retry_text.strip()
                         )
-                        clean_text = self._remove_character_name_prefix(clean_text, character)
+                        retry_clean = self._remove_character_name_prefix(
+                            retry_clean, character
+                        )
+                        retry_still_bad = reply_needs_quality_retry(
+                            reply=retry_clean,
+                            mode=beat_mode,
+                            previous_assistant=last_assistant_text(managed_messages),
+                            last_user=last_user_text(managed_messages),
+                        ) or contract_violated(
+                            retry_clean,
+                            turn_contract,
+                            retry_state,
+                            location_hint=detect_location_from_recent(managed_messages),
+                            messages=managed_messages,
+                            prior_state=state if isinstance(state, dict) else None,
+                        )
+                        if retry_still_bad:
+                            self.logger.warning(
+                                "⚠️ Retry still violates contract (beat=%s); keeping retry with hard note",
+                                beat_mode,
+                            )
+                        clean_text, state_update = retry_clean, retry_state
                         response = retry_response
+
+                # Persist unified director frame into chat state meta
+                if turn_director is not None:
+                    from prompts.turn_director import TURN_DIRECTOR_KEY
+
+                    if not isinstance(state_update, dict):
+                        state_update = {}
+                    state_update[TURN_DIRECTOR_KEY] = turn_director.to_storage()
 
                 input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0)
                 output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0)
@@ -787,24 +819,41 @@ class GeminiService(AIServiceBase):
             self.logger.warning(f"⚠️ Stage detection failed: {e}")
             return None  # Graceful fallback - conversation continues without stage reminder
 
+    async def _detect_turn_director_background(
+        self,
+        messages: List[ChatMessage],
+        *,
+        state: Optional[Dict[str, Any]] = None,
+        character_gender: str = "",
+    ):
+        """Unified Stage+Frame director; conservative fallback on failure."""
+        try:
+            if self.intent_service:
+                return await self.intent_service.detect_turn_director(
+                    messages,
+                    state=state,
+                    character_gender=character_gender,
+                )
+        except Exception as e:
+            self.logger.warning(f"⚠️ Turn director detection failed: {e}")
+        from prompts.turn_director import conservative_fallback_director
+
+        return conservative_fallback_director()
+
     async def _detect_interaction_frame_background(
         self,
         messages: List[ChatMessage],
         *,
         character_gender: str = "",
+        state: Optional[Dict[str, Any]] = None,
     ):
-        """LLM Interaction Frame director; keyword fallback inside intent service."""
-        try:
-            if self.intent_service:
-                return await self.intent_service.detect_interaction_frame(
-                    messages,
-                    character_gender=character_gender,
-                )
-        except Exception as e:
-            self.logger.warning(f"⚠️ Interaction frame detection failed: {e}")
-        from prompts.interaction_frame import build_interaction_frame
-
-        return build_interaction_frame(messages, character_gender=character_gender)
+        """Backward-compatible wrapper around unified turn director."""
+        director = await self._detect_turn_director_background(
+            messages,
+            state=state,
+            character_gender=character_gender,
+        )
+        return director.to_interaction_frame()
 
     def _build_intent_guidance(
         self,
