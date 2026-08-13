@@ -191,28 +191,113 @@ class GeminiService(AIServiceBase):
 
             response_text = extract_text_parts(response)
             if response_text:
-                clean_text, state_update = self._extract_state_update(response_text.strip())
-                clean_text = self._remove_character_name_prefix(clean_text, character)
-
-                needs_retry = reply_needs_quality_retry(
-                    reply=clean_text,
-                    mode=beat_mode,
-                    previous_assistant=last_assistant_text(managed_messages),
-                    last_user=last_user_text(managed_messages),
-                ) or contract_violated(
-                    clean_text,
-                    turn_contract,
-                    state_update,
-                    location_hint=detect_location_from_recent(managed_messages),
-                    messages=managed_messages,
-                    prior_state=state if isinstance(state, dict) else None,
+                from prompts.scene_frame import scene_frame_from_storage
+                from prompts.scene_pipeline import (
+                    extract_scene_result,
+                    is_high_risk_turn,
+                    merge_scene_into_state_update,
+                    resolve_scene_to_persist,
+                    scene_result_structurally_valid,
                 )
+                from prompts.turn_plan import conservative_fallback_plan
 
-                if needs_retry:
+                prev_scene = scene_frame_from_storage(
+                    state if isinstance(state, dict) else None
+                )
+                user_utt = last_user_text(managed_messages)
+                plan = turn_director or conservative_fallback_plan(prev_scene)
+
+                async def _evaluate_actor_raw(raw: str):
+                    prose, scene_result = extract_scene_result(raw.strip())
+                    clean, st_upd = self._extract_state_update(prose)
+                    clean = self._remove_character_name_prefix(clean, character)
+                    struct_ok, struct_reason = scene_result_structurally_valid(
+                        scene_result,
+                        plan,
+                        prev_scene=prev_scene,
+                        user_text=user_utt,
+                    )
+                    quality_bad = reply_needs_quality_retry(
+                        reply=clean,
+                        mode=beat_mode,
+                        previous_assistant=last_assistant_text(managed_messages),
+                        last_user=user_utt,
+                    ) or contract_violated(
+                        clean,
+                        turn_contract,
+                        st_upd,
+                        location_hint=detect_location_from_recent(managed_messages),
+                        messages=managed_messages,
+                        prior_state=state if isinstance(state, dict) else None,
+                    )
+                    from prompts.turn_plan import (
+                        RECHECK_ACTOR_FAIL,
+                        RECHECK_VERIFIER_ERROR,
+                    )
+
+                    recheck_status = RECHECK_ACTOR_FAIL  # unused unless high-risk
+                    recheck_actor_fail = False
+                    recheck_verifier_error = False
+                    if (
+                        not quality_bad
+                        and struct_ok
+                        and is_high_risk_turn(plan, prev_scene=prev_scene)
+                        and self.intent_service
+                    ):
+                        recheck_status = await self.intent_service.recheck_actor_reply(
+                            clean,
+                            plan,
+                            prev_scene=prev_scene,
+                            user_text=user_utt,
+                        )
+                        recheck_actor_fail = recheck_status == RECHECK_ACTOR_FAIL
+                        recheck_verifier_error = recheck_status == RECHECK_VERIFIER_ERROR
+                    # Hard = scene/role; soft = legacy quality (keep after retry)
+                    # Only actor_fail retries Actor; verifier_error fails closed without rewrite
+                    hard_bad = (not struct_ok) or recheck_actor_fail or recheck_verifier_error
+                    soft_bad = quality_bad
+                    retry_actor = (not struct_ok) or recheck_actor_fail
+                    if not struct_ok:
+                        reason = struct_reason
+                    elif recheck_actor_fail:
+                        reason = "director_recheck_actor_fail"
+                    elif recheck_verifier_error:
+                        reason = "director_recheck_verifier_error"
+                    elif soft_bad:
+                        reason = "quality"
+                    else:
+                        reason = "ok"
+                    return (
+                        clean,
+                        st_upd,
+                        scene_result,
+                        hard_bad,
+                        soft_bad,
+                        retry_actor,
+                        reason,
+                    )
+
+                (
+                    clean_text,
+                    state_update,
+                    scene_result,
+                    hard_bad,
+                    soft_bad,
+                    retry_actor,
+                    fail_reason,
+                ) = await _evaluate_actor_raw(response_text)
+
+                if hard_bad and not retry_actor:
+                    raise AIServiceError(
+                        f"Generation failed scene/role contract ({fail_reason})",
+                        retryable=False,
+                    )
+
+                if hard_bad or soft_bad:
                     self.logger.warning(
-                        "⚠️ Quality retry (beat=%s, contract=%s)",
+                        "⚠️ Scene/quality retry (beat=%s, reason=%s)",
                         beat_mode,
-                        turn_contract.mode,
+                        fail_reason,
                     )
                     retry_prompt = self._build_conversation_prompt(
                         managed_messages,
@@ -231,41 +316,48 @@ class GeminiService(AIServiceBase):
                         config=generate_config,
                     )
                     retry_text = extract_text_parts(retry_response)
-                    if retry_text:
-                        retry_clean, retry_state = self._extract_state_update(
-                            retry_text.strip()
-                        )
-                        retry_clean = self._remove_character_name_prefix(
-                            retry_clean, character
-                        )
-                        retry_still_bad = reply_needs_quality_retry(
-                            reply=retry_clean,
-                            mode=beat_mode,
-                            previous_assistant=last_assistant_text(managed_messages),
-                            last_user=last_user_text(managed_messages),
-                        ) or contract_violated(
-                            retry_clean,
-                            turn_contract,
-                            retry_state,
-                            location_hint=detect_location_from_recent(managed_messages),
-                            messages=managed_messages,
-                            prior_state=state if isinstance(state, dict) else None,
-                        )
-                        if retry_still_bad:
-                            self.logger.warning(
-                                "⚠️ Retry still violates contract (beat=%s); keeping retry with hard note",
-                                beat_mode,
+                    if not retry_text:
+                        if hard_bad:
+                            raise AIServiceError(
+                                f"Actor retry empty after structural failure ({fail_reason})",
+                                retryable=False,
                             )
-                        clean_text, state_update = retry_clean, retry_state
+                    else:
+                        (
+                            clean_text,
+                            state_update,
+                            scene_result,
+                            hard_still,
+                            soft_still,
+                            retry_actor_still,
+                            fail_reason,
+                        ) = await _evaluate_actor_raw(retry_text)
                         response = retry_response
+                        if hard_still:
+                            self.logger.error(
+                                "❌ Actor retry still invalid (%s); failing generation",
+                                fail_reason,
+                            )
+                            raise AIServiceError(
+                                f"Generation failed scene/role contract ({fail_reason})",
+                                retryable=False,
+                            )
+                        if soft_still:
+                            self.logger.warning(
+                                "⚠️ Quality still soft-bad after retry; keeping reply"
+                            )
 
-                # Persist unified director frame into chat state meta
-                if turn_director is not None:
-                    from prompts.turn_director import TURN_DIRECTOR_KEY
-
-                    if not isinstance(state_update, dict):
-                        state_update = {}
-                    state_update[TURN_DIRECTOR_KEY] = turn_director.to_storage()
+                if not isinstance(state_update, dict):
+                    state_update = {}
+                persist_scene = resolve_scene_to_persist(
+                    scene_result,
+                    plan,
+                    prev_scene=prev_scene,
+                    user_text=user_utt,
+                )
+                state_update = merge_scene_into_state_update(
+                    state_update, persist_scene, plan
+                )
 
                 input_tokens = getattr(response.usage_metadata, "prompt_token_count", 0)
                 output_tokens = getattr(response.usage_metadata, "candidates_token_count", 0)
@@ -292,6 +384,8 @@ class GeminiService(AIServiceBase):
             self.logger.warning("⚠️ Empty response from Gemini")
             raise AIServiceError("Empty response from Gemini")
 
+        except AIServiceError:
+            raise
         except Exception as e:
             self.logger.error(f"❌ Error generating Gemini response: {e}")
             raise AIServiceError(str(e))

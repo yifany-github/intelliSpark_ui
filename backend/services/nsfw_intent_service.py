@@ -1,8 +1,8 @@
 """
-Sexual stage + unified Turn Director for IntelliSpark.
+Sexual stage + unified TurnPlan Director for IntelliSpark.
 
-One structured LLM call produces stage + interaction roles + intent/boundary/next_beat.
-LLM JSON (including unknown) is authoritative. Conservative fallback only on API/parse failure.
+One structured LLM call produces TurnPlan (intent/boundary/transition/expected_scene).
+Switch requires evidence_quote ⊆ user text (server gate). No keyword co-director.
 """
 
 from typing import List, Dict, Any, Optional
@@ -15,21 +15,28 @@ from google.genai import types
 from models import ChatMessage
 from config import settings
 from prompts.interaction_frame import InteractionFrame
+from prompts.scene_frame import SceneFrame, scene_frame_from_storage
 from prompts.sexual_stage_detection import build_stage_detection_prompt
 from prompts.sexual_stage_reminders import get_stage_reminder
-from prompts.turn_director import (
-    TurnDirector,
-    build_turn_director_prompt,
-    conservative_fallback_director,
-    director_from_storage,
-    parse_turn_director_payload,
+from prompts.turn_plan import (
+    TurnPlan,
+    RECHECK_VERIFIER_ERROR,
+    apply_switch_gate,
+    build_director_recheck_prompt,
+    build_turn_plan_prompt,
+    clip_head_tail,
+    conservative_fallback_plan,
+    parse_recheck_payload,
+    parse_turn_plan_payload,
+    turn_plan_from_storage,
     TURN_DIRECTOR_KEY,
+    TURN_PLAN_KEY,
 )
 from utils.gemini_response import extract_text_parts
 
 
 class NSFWIntentService:
-    """Stage reminders + unified turn director."""
+    """Stage reminders + unified TurnPlan director."""
 
     def __init__(self, gemini_client=None):
         self.logger = logging.getLogger(__name__)
@@ -64,14 +71,11 @@ class NSFWIntentService:
             if message.role == "user":
                 conversation_lines.append(f"用户: {message.content}")
             elif message.role == "assistant":
-                content = message.content or ""
-                if len(content) > 280:
-                    content = content[:280] + "..."
+                content = clip_head_tail(message.content or "", max_len=420)
                 conversation_lines.append(f"角色: {content}")
         return "\n".join(conversation_lines)
 
     def _format_messages_for_analysis(self, messages: List[ChatMessage]) -> str:
-        """Legacy stage-only formatter (kept for old helpers)."""
         conversation_lines = []
         for message in messages:
             if message.role == "user":
@@ -81,12 +85,18 @@ class NSFWIntentService:
                 conversation_lines.append(f"AI: {content}")
         return "\n".join(conversation_lines)
 
-    def _sync_generate_director_json(self, prompt: str) -> str:
+    def _last_user_text(self, messages: List[ChatMessage]) -> str:
+        for message in reversed(messages or []):
+            if getattr(message, "role", None) == "user":
+                return getattr(message, "content", None) or ""
+        return ""
+
+    def _sync_generate_director_json(self, prompt: str, max_tokens: int = 280) -> str:
         response = self.client.models.generate_content(
             model=self.model_name,
             contents=[{"role": "user", "parts": [{"text": prompt}]}],
             config=types.GenerateContentConfig(
-                max_output_tokens=220,
+                max_output_tokens=max_tokens,
                 temperature=0.1,
                 thinking_config=types.ThinkingConfig(thinking_budget=0),
             ),
@@ -98,62 +108,124 @@ class NSFWIntentService:
         recent_messages: List[ChatMessage],
         *,
         state: Optional[Dict[str, Any]] = None,
-        prev_director: Optional[TurnDirector] = None,
+        prev_director: Optional[TurnPlan] = None,
         character_gender: str = "",
-    ) -> TurnDirector:
-        """
-        Unified Stage + Interaction Frame director.
-
-        character_gender accepted for API symmetry only — never used for roles.
-        """
+    ) -> TurnPlan:
+        """Unified TurnPlan director. character_gender unused for roles."""
         del character_gender
+        prev_scene = scene_frame_from_storage(state if isinstance(state, dict) else None)
         if prev_director is None and isinstance(state, dict):
-            prev_director = director_from_storage(state.get(TURN_DIRECTOR_KEY))
+            prev_director = turn_plan_from_storage(
+                state.get(TURN_PLAN_KEY) or state.get(TURN_DIRECTOR_KEY)
+            )
+        user_text = self._last_user_text(recent_messages)
 
         if not self.client:
-            self.logger.warning("No Gemini client for turn director; conservative fallback")
-            return conservative_fallback_director()
+            self.logger.warning("No Gemini client for turn plan; conservative fallback")
+            return apply_switch_gate(
+                conservative_fallback_plan(prev_scene),
+                prev_scene=prev_scene,
+                user_text=user_text,
+            )
         if not recent_messages:
-            return conservative_fallback_director()
+            return apply_switch_gate(
+                conservative_fallback_plan(prev_scene),
+                prev_scene=prev_scene,
+                user_text=user_text,
+            )
 
         try:
             conversation = self._format_messages_for_director(recent_messages[-8:])
-            prompt = build_turn_director_prompt(
+            prompt = build_turn_plan_prompt(
                 conversation,
-                prev_director=prev_director,
+                prev_scene=prev_scene,
                 state=state if isinstance(state, dict) else None,
             )
-            # Offload sync SDK call so the event loop is not blocked
             response_text = await asyncio.to_thread(self._sync_generate_director_json, prompt)
-            parsed = parse_turn_director_payload(response_text)
+            parsed = parse_turn_plan_payload(response_text)
             if parsed is None:
-                self.logger.warning("Turn director JSON unparseable; conservative fallback")
-                return conservative_fallback_director()
-            # LLM unknown is authoritative — do NOT coalesce with keyword heuristics
+                self.logger.warning("Turn plan JSON unparseable; conservative fallback")
+                return apply_switch_gate(
+                    conservative_fallback_plan(prev_scene),
+                    prev_scene=prev_scene,
+                    user_text=user_text,
+                )
+            gated = apply_switch_gate(parsed, prev_scene=prev_scene, user_text=user_text)
+            # Evidence/coherence demotion → one Director retry, never invent opposite roles
+            if gated.source == "corrected" and not gated.expected_scene.roles_known():
+                self.logger.info("🎯 TurnPlan corrected to unknown; retrying Director once")
+                retry_prompt = (
+                    prompt
+                    + "\n\n注意：上一稿证据不足或角色不互补，已被服务器否决。"
+                    "请重新输出；证据不足时 roles 必须 unknown，禁止猜测相反角色。"
+                )
+                retry_text = await asyncio.to_thread(
+                    self._sync_generate_director_json, retry_prompt
+                )
+                retried = parse_turn_plan_payload(retry_text)
+                if retried is not None:
+                    gated = apply_switch_gate(
+                        retried, prev_scene=prev_scene, user_text=user_text
+                    )
+            esc = gated.expected_scene
             self.logger.info(
-                "🎯 Turn director: stage=%s act=%s char=%s user=%s release=%s->%s "
-                "intent=%s boundary=%s conf=%.2f evidence=%s",
-                parsed.stage,
-                parsed.act_type,
-                parsed.character_role,
-                parsed.user_role,
-                parsed.release_actor,
-                parsed.release_target,
-                parsed.user_intent,
-                parsed.boundary,
-                parsed.confidence,
-                parsed.evidence,
+                "🎯 TurnPlan: intent=%s boundary=%s transition=%s "
+                "char=%s user=%s release=%s->%s quote=%r src=%s",
+                gated.intent,
+                gated.boundary,
+                gated.transition,
+                esc.character_role,
+                esc.user_role,
+                esc.release_actor,
+                esc.release_target,
+                (gated.evidence_quote or "")[:40],
+                gated.source,
             )
-            return parsed
+            return gated
         except (ConnectionError, TimeoutError) as e:
-            self.logger.warning("Turn director LLM unavailable: %s; fallback", e)
-            return conservative_fallback_director()
+            self.logger.warning("Turn plan LLM unavailable: %s; fallback", e)
+            return apply_switch_gate(
+                conservative_fallback_plan(prev_scene),
+                prev_scene=prev_scene,
+                user_text=user_text,
+            )
         except Exception as e:
-            self.logger.error("Turn director failed: %s; fallback", e)
-            return conservative_fallback_director()
+            self.logger.error("Turn plan failed: %s; fallback", e)
+            return apply_switch_gate(
+                conservative_fallback_plan(prev_scene),
+                prev_scene=prev_scene,
+                user_text=user_text,
+            )
+
+    async def recheck_actor_reply(
+        self,
+        reply: str,
+        plan: TurnPlan,
+        *,
+        prev_scene: Optional[SceneFrame] = None,
+        user_text: str = "",
+    ) -> str:
+        """High-risk Director recheck → pass | actor_fail | verifier_error."""
+        if not self.client:
+            return RECHECK_VERIFIER_ERROR
+        try:
+            prompt = build_director_recheck_prompt(
+                reply=reply,
+                plan=plan,
+                prev_scene=prev_scene,
+                user_text=user_text,
+            )
+            response_text = await asyncio.to_thread(
+                self._sync_generate_director_json, prompt, 80
+            )
+            status = parse_recheck_payload(response_text)
+            self.logger.info("🔍 Director recheck status=%s", status)
+            return status
+        except Exception as e:
+            self.logger.warning("Director recheck failed (verifier_error): %s", e)
+            return RECHECK_VERIFIER_ERROR
 
     async def detect_user_intent(self, recent_messages: List[ChatMessage]) -> str:
-        """Backward-compatible stage string via unified director."""
         director = await self.detect_turn_director(recent_messages)
         return director.stage or "其他"
 
@@ -163,9 +235,8 @@ class NSFWIntentService:
         *,
         character_gender: str = "",
         state: Optional[Dict[str, Any]] = None,
-        prev_director: Optional[TurnDirector] = None,
+        prev_director: Optional[TurnPlan] = None,
     ) -> InteractionFrame:
-        """Backward-compatible InteractionFrame via unified director."""
         director = await self.detect_turn_director(
             recent_messages,
             state=state,

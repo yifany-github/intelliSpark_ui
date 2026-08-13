@@ -163,6 +163,48 @@ class AIModelManager:
             self.logger.info(f"✅ Response generated using {service.service_name}")
             return response, enhanced_info
             
+        except AIServiceError as e:
+            self.logger.error(f"❌ Error with {selected_provider.value}: {e}")
+            # Scene/role hard fails must not hop providers or soft-succeed
+            if not getattr(e, "retryable", True):
+                return (
+                    "抱歉，AI服务暂时不可用。请稍后再试。",
+                    {"model": "error", "tokens_used": 0, "error": str(e)},
+                )
+            if self.admin_settings["fallback_enabled"]:
+                fallback_provider = await self._get_fallback_model(selected_provider)
+                if fallback_provider and fallback_provider in self.services:
+                    try:
+                        fallback_service = self.services[fallback_provider]
+                        response, token_info = await fallback_service.generate_response(
+                            character,
+                            messages,
+                            user_preferences,
+                            state,
+                        )
+                        enhanced_info = {
+                            **token_info,
+                            "model": fallback_provider.value,
+                            "service_name": fallback_service.service_name,
+                            "fallback_used": True,
+                        }
+                        self.logger.info(
+                            f"✅ Fallback response generated using {fallback_service.service_name}"
+                        )
+                        return response, enhanced_info
+                    except AIServiceError as fallback_error:
+                        self.logger.error(f"❌ Fallback also failed: {fallback_error}")
+                        return (
+                            "抱歉，AI服务暂时不可用。请稍后再试。",
+                            {
+                                "model": "error",
+                                "tokens_used": 0,
+                                "error": str(fallback_error),
+                            },
+                        )
+                    except Exception as fallback_error:
+                        self.logger.error(f"❌ Fallback also failed: {fallback_error}")
+            return "抱歉，AI服务暂时不可用。请稍后再试。", {"model": "error", "tokens_used": 0}
         except Exception as e:
             self.logger.error(f"❌ Error with {selected_provider.value}: {e}")
             

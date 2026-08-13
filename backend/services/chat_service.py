@@ -562,6 +562,10 @@ class ChatService:
                 if token_info and token_info.get("model") in {"error", "fallback"}:
                     raise ChatServiceError("AI service unavailable")
 
+                # Belt-and-suspenders: never persist provider soft-fail copy as a chat turn
+                if response_content and "AI服务暂时不可用" in response_content:
+                    raise ChatServiceError("AI service unavailable")
+
                 if chat_language:
                     response_content = await self._ensure_response_language(response_content, chat_language)
 

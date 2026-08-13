@@ -32,7 +32,11 @@ from .interaction_frame import (
     frame_forbids_user_as_releaser,
 )
 from .persona_dynamics import build_persona_goal
-from .turn_director import TurnDirector, director_contract_lines
+from .scene_frame import SceneFrame
+from .turn_plan import TurnPlan, director_contract_lines
+
+# Back-compat alias
+TurnDirector = TurnPlan
 
 
 # User commands that mean "do it", not "ask me if it's ok".
@@ -1103,14 +1107,14 @@ def build_turn_contract(
             messages, character_gender=character_gender
         )
         frame_must = director_contract_lines(
-            TurnDirector(
-                act_type=frame.act_type,
-                character_role=frame.character_role,
-                user_role=frame.user_role,
-                release_actor=frame.release_actor,
-                release_target=frame.release_target,
-                confidence=frame.confidence,
-                evidence=frame.evidence,
+            TurnPlan(
+                expected_scene=SceneFrame(
+                    act_type=frame.act_type,
+                    character_role=frame.character_role,
+                    user_role=frame.user_role,
+                    release_actor=frame.release_actor,
+                    release_target=frame.release_target,
+                )
             )
         )
     has_conflict = persona_has_role_conflict(persona_text)
@@ -1565,7 +1569,11 @@ def contract_violated(
     messages: Optional[Sequence[Any]] = None,
     prior_state: Optional[Dict[str, Any]] = None,
 ) -> bool:
-    """Lightweight post-check for retry."""
+    """Lightweight post-check for retry.
+
+    Role/release structure is enforced in the SceneFrame pipeline + Director recheck,
+    not via Chinese cue lists here.
+    """
     body = reply or ""
     frame = getattr(contract, "interaction_frame", None)
     if frame is not None and frame_forbids_user_as_releaser(body, frame):

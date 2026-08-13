@@ -24,8 +24,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 class AIServiceError(Exception):
-    """Base exception for AI service errors"""
-    pass
+    """Base exception for AI service errors.
+
+    retryable=False → manager must not fall back to another provider
+    (e.g. SceneFrame / TurnPlan hard contract failures).
+    """
+
+    def __init__(self, message: str = "", *, retryable: bool = True):
+        super().__init__(message)
+        self.retryable = retryable
 
 class AIServiceBase(ABC):
     """Abstract base class for all AI services"""

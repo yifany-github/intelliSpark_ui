@@ -96,7 +96,7 @@ class GrokService(AIServiceBase):
         """Generate AI response using Grok"""
         
         if not self.is_available:
-            return self._simulate_response(character, messages), {"tokens_used": 1}
+            raise AIServiceError("Grok service unavailable")
 
         try:
             # Extract chat_language from user_preferences for prompt generation
@@ -158,90 +158,177 @@ class GrokService(AIServiceBase):
             )
             
             if response and response.choices and response.choices[0].message:
+                from prompts.beat_progression import last_user_text as _last_user_text
+                from prompts.scene_frame import scene_frame_from_storage
+                from prompts.scene_pipeline import (
+                    extract_scene_result,
+                    is_high_risk_turn,
+                    merge_scene_into_state_update,
+                    resolve_scene_to_persist,
+                    scene_result_structurally_valid,
+                )
+                from prompts.turn_contract import (
+                    build_turn_contract,
+                    contract_violated,
+                    detect_location_from_recent,
+                )
+                from .ai_service_base import AIServiceError
+
                 raw_text = response.choices[0].message.content.strip()
-                response_text, state_update = self._extract_state_update(raw_text)
+                prev_scene = scene_frame_from_storage(
+                    state if isinstance(state, dict) else None
+                )
+                user_utt = _last_user_text(managed_messages)
+                plan = turn_director
+                if plan is None:
+                    from prompts.turn_plan import conservative_fallback_plan
 
-                # Post-check role/release + quality; one retry if violated
-                try:
-                    from prompts.turn_contract import (
-                        build_turn_contract,
-                        contract_violated,
-                        detect_location_from_recent,
-                    )
+                    plan = conservative_fallback_plan(prev_scene)
 
-                    persona_for_contract = ""
-                    if character is not None:
-                        persona_for_contract = (
-                            (getattr(character, "persona_prompt", None) or "").strip()
-                            or (getattr(character, "backstory", None) or "").strip()
-                            or (getattr(character, "description", None) or "").strip()
-                        )
-                    contract = build_turn_contract(
-                        managed_messages,
-                        state,
-                        language="zh",
-                        persona_text=persona_for_contract,
-                        character_gender=getattr(character, "gender", None) or "",
-                        interaction_frame=interaction_frame,
-                        turn_director=turn_director,
+                persona_for_contract = ""
+                if character is not None:
+                    persona_for_contract = (
+                        (getattr(character, "persona_prompt", None) or "").strip()
+                        or (getattr(character, "backstory", None) or "").strip()
+                        or (getattr(character, "description", None) or "").strip()
                     )
-                    if contract_violated(
-                        response_text,
+                contract = build_turn_contract(
+                    managed_messages,
+                    state,
+                    language="zh",
+                    persona_text=persona_for_contract,
+                    character_gender=getattr(character, "gender", None) or "",
+                    interaction_frame=interaction_frame,
+                    turn_director=plan,
+                )
+
+                async def _eval(raw: str):
+                    prose, scene_result = extract_scene_result(raw)
+                    text, st_upd = self._extract_state_update(prose)
+                    struct_ok, reason = scene_result_structurally_valid(
+                        scene_result, plan, prev_scene=prev_scene, user_text=user_utt
+                    )
+                    quality_bad = contract_violated(
+                        text,
                         contract,
-                        state_update,
+                        st_upd,
                         location_hint=detect_location_from_recent(managed_messages),
                         messages=managed_messages,
                         prior_state=state if isinstance(state, dict) else None,
+                    )
+                    from prompts.turn_plan import (
+                        RECHECK_ACTOR_FAIL,
+                        RECHECK_VERIFIER_ERROR,
+                    )
+
+                    recheck_actor_fail = False
+                    recheck_verifier_error = False
+                    if (
+                        struct_ok
+                        and not quality_bad
+                        and is_high_risk_turn(plan, prev_scene=prev_scene)
                     ):
-                        self.logger.warning("⚠️ Grok contract violate; retrying once")
-                        retry_messages = list(grok_messages) + [
-                            {
-                                "role": "system",
-                                "content": (
-                                    "上一版违反导演合同（尤其主客体/释放者）。"
-                                    "重写：服从互动主客体与边界；禁止代写用户未写出的状态；"
-                                    "禁止「你想射就射吧」类搞反释放者。"
-                                ),
-                            }
-                        ]
-                        retry_resp = await self.client.chat.completions.create(
-                            model=self.model_name,
-                            messages=retry_messages,
-                            **generation_config,
-                        )
-                        if (
-                            retry_resp
-                            and retry_resp.choices
-                            and retry_resp.choices[0].message
-                        ):
-                            retry_raw = retry_resp.choices[0].message.content.strip()
-                            retry_text, retry_state = self._extract_state_update(retry_raw)
-                            still_bad = contract_violated(
-                                retry_text,
-                                contract,
-                                retry_state,
-                                location_hint=detect_location_from_recent(
-                                    managed_messages
-                                ),
-                                messages=managed_messages,
-                                prior_state=state if isinstance(state, dict) else None,
+                        try:
+                            from services.nsfw_intent_service import NSFWIntentService
+
+                            status = await NSFWIntentService().recheck_actor_reply(
+                                text, plan, prev_scene=prev_scene, user_text=user_utt
                             )
-                            if still_bad:
-                                self.logger.warning(
-                                    "⚠️ Grok retry still violates contract; keeping retry"
-                                )
-                            response_text, state_update = retry_text, retry_state
-                            response = retry_resp
-                except Exception as exc:
-                    self.logger.debug("Grok post-check skipped: %s", exc)
+                            recheck_actor_fail = status == RECHECK_ACTOR_FAIL
+                            recheck_verifier_error = status == RECHECK_VERIFIER_ERROR
+                        except Exception:
+                            recheck_verifier_error = True
+                    hard_bad = (not struct_ok) or recheck_actor_fail or recheck_verifier_error
+                    soft_bad = quality_bad
+                    retry_actor = (not struct_ok) or recheck_actor_fail
+                    if not struct_ok:
+                        reason = reason
+                    elif recheck_actor_fail:
+                        reason = "director_recheck_actor_fail"
+                    elif recheck_verifier_error:
+                        reason = "director_recheck_verifier_error"
+                    elif soft_bad:
+                        reason = "quality"
+                    else:
+                        reason = "ok"
+                    return (
+                        text,
+                        st_upd,
+                        scene_result,
+                        hard_bad,
+                        soft_bad,
+                        retry_actor,
+                        reason,
+                    )
 
-                if turn_director is not None:
-                    from prompts.turn_director import TURN_DIRECTOR_KEY
+                (
+                    response_text,
+                    state_update,
+                    scene_result,
+                    hard_bad,
+                    soft_bad,
+                    retry_actor,
+                    reason,
+                ) = await _eval(raw_text)
 
-                    if not isinstance(state_update, dict):
-                        state_update = {}
-                    state_update[TURN_DIRECTOR_KEY] = turn_director.to_storage()
-                
+                if hard_bad and not retry_actor:
+                    raise AIServiceError(
+                        f"Generation failed scene/role contract ({reason})",
+                        retryable=False,
+                    )
+
+                if hard_bad or soft_bad:
+                    self.logger.warning("⚠️ Grok scene/contract violate; retrying once")
+                    retry_messages = list(grok_messages) + [
+                        {
+                            "role": "system",
+                            "content": (
+                                "上一版违反 SceneFrame/TurnPlan。"
+                                "重写并附 [[SCENE_RESULT]]{...}[[/SCENE_RESULT]]；"
+                                "服从 expected_scene；禁止无证据换位。"
+                            ),
+                        }
+                    ]
+                    retry_resp = await self.client.chat.completions.create(
+                        model=self.model_name,
+                        messages=retry_messages,
+                        **generation_config,
+                    )
+                    if not (
+                        retry_resp
+                        and retry_resp.choices
+                        and retry_resp.choices[0].message
+                    ):
+                        raise AIServiceError(
+                            f"Grok retry empty ({reason})",
+                            retryable=False,
+                        )
+                    retry_raw = retry_resp.choices[0].message.content.strip()
+                    (
+                        response_text,
+                        state_update,
+                        scene_result,
+                        still_hard,
+                        still_soft,
+                        _retry_actor,
+                        reason,
+                    ) = await _eval(retry_raw)
+                    response = retry_resp
+                    if still_hard:
+                        raise AIServiceError(
+                            f"Generation failed scene/role contract ({reason})",
+                            retryable=False,
+                        )
+
+                if not isinstance(state_update, dict):
+                    state_update = {}
+                persist_scene = resolve_scene_to_persist(
+                    scene_result, plan, prev_scene=prev_scene, user_text=user_utt
+                )
+                state_update = merge_scene_into_state_update(
+                    state_update, persist_scene, plan
+                )
+
                 # Calculate token usage
                 token_info = {
                     "input_tokens": response.usage.prompt_tokens if response.usage else 0,
@@ -254,12 +341,14 @@ class GrokService(AIServiceBase):
                 self.logger.info(f"✅ Grok response generated: {token_info['total_tokens']} tokens")
                 return response_text, token_info
             else:
-                self.logger.warning("⚠️ Empty response from Grok, using fallback")
-                return self._simulate_response(character, messages), {"tokens_used": 1}
+                self.logger.warning("⚠️ Empty response from Grok")
+                raise AIServiceError("Empty response from Grok API")
                 
+        except AIServiceError:
+            raise
         except Exception as e:
             self.logger.error(f"❌ Error generating Grok response: {e}")
-            return self._simulate_response(character, messages), {"tokens_used": 1}
+            raise AIServiceError(str(e))
     
     async def generate_opening_line(self, character: Character) -> str:
         """Generate opening line for character using Grok"""
