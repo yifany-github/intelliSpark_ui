@@ -53,6 +53,17 @@ jobs:
           VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
           VITE_STRIPE_PUBLISHABLE_KEY: ${{ secrets.VITE_STRIPE_PUBLISHABLE_KEY }}
           VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Verify Supabase was inlined into the bundle
+        run: |
+          js=$(ls dist/public/assets/index-*.js | head -1)
+          echo "Checking $js"
+          if ! grep -q '.supabase.co' "$js"; then
+            echo "Build is missing an inlined Supabase URL. Refusing to deploy a blank-page bundle."
+            exit 1
+          fi
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
@@ -61,7 +72,8 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: ${{ secrets.CLOUDFLARE_PROJECT_NAME }}
           directory: ./dist/public
-          branch: preview
+          # PRs stay on preview; main pushes deploy to production.
+          branch: ${{ github.event_name == 'pull_request' && 'preview' || github.ref_name }}
           wranglerVersion: '3'
       
       - name: Create Sentry Release (optional)
