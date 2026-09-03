@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useLanguage, type Language } from "@/contexts/LanguageContext";
+import { PageLanguageToggle } from "@/components/layout/PageLanguageToggle";
 
 const FEATURE_ICONS = [MessageSquare, Users, Shield, Zap, Sparkles, Heart] as const;
 
@@ -78,7 +79,7 @@ const COPY: Record<Language, {
       { label: "Curated characters", value: "80+", description: "Korean 18+ manhwa-inspired" },
       { label: "Age limit", value: "18+", description: "Fictional adult characters only" },
       { label: "How to open", value: "Web", description: "No tavern, no API key" },
-      { label: "UI language", value: "中文", description: "Chinese-first, also English" },
+      { label: "UI language", value: "Chinese", description: "Chinese-first, also English" },
     ],
     missionHeading: "Our Mission & Vision",
     missionSub: "A Chinese-first 18+ roleplay site you open in the browser — not a giant character library, and not YY Live.",
@@ -219,6 +220,7 @@ const AboutPage = () => {
   return (
     <GlobalLayout>
       <div className="container mx-auto px-4 py-8 max-w-6xl">
+        <PageLanguageToggle />
         <div className="text-center mb-16">
           <div className="flex items-center justify-center gap-3 mb-6">
             <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/30">

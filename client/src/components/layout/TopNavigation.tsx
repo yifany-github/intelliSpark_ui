@@ -435,6 +435,37 @@ export default function TopNavigation({
           )}
 
           <div className="flex items-center justify-end gap-1.5 sm:gap-2 md:gap-3 shrink-0">
+            <div
+              className="inline-flex items-center rounded-lg border border-slate-700/70 bg-slate-900/70 p-0.5 text-xs font-semibold"
+              role="group"
+              aria-label={language === 'zh' ? '界面语言' : 'Interface language'}
+            >
+              <button
+                type="button"
+                onClick={() => setLanguage('zh')}
+                aria-pressed={language === 'zh'}
+                className={`min-h-[40px] px-2 sm:px-2.5 rounded-md touch-manipulation transition whitespace-nowrap ${
+                  language === 'zh'
+                    ? 'bg-pink-500/80 text-white'
+                    : 'text-slate-400 hover:text-slate-100'
+                }`}
+              >
+                中文
+              </button>
+              <button
+                type="button"
+                onClick={() => setLanguage('en')}
+                aria-pressed={language === 'en'}
+                className={`min-h-[40px] px-2 sm:px-2.5 rounded-md touch-manipulation transition ${
+                  language === 'en'
+                    ? 'bg-pink-500/80 text-white'
+                    : 'text-slate-400 hover:text-slate-100'
+                }`}
+              >
+                EN
+              </button>
+            </div>
+
             {isAuthenticated && (
               <div className="block">
                 <ImprovedTokenBalance compact showTitle={false} showStats={false} showActions />
