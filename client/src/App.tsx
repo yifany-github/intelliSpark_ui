@@ -25,6 +25,7 @@ import PrivacyPolicyPage from "@/pages/privacy-policy";
 import TermsOfUsePage from "@/pages/terms-of-use";
 import MyCharactersPage from "@/pages/my-characters";
 import EditCharacterPage from "@/pages/edit-character";
+import CharacterPage from "@/pages/character";
 import AuthModal from "@/components/auth/AuthModal";
 import { AuthReadinessGate } from "@/components/auth/AuthReadinessGate";
 import TabNavigation from "@/components/layout/TabNavigation";
@@ -132,6 +133,9 @@ function MainApp() {
                     <EditCharacterPage characterId={params.id} />
                   </ProtectedRoute>
                 )}
+              </Route>
+              <Route path="/character/:id">
+                {params => <CharacterPage characterId={params.id} />}
               </Route>
               <Route path="/chat-preview" component={ChatPreviewPage} />
               <Route path="/chats">

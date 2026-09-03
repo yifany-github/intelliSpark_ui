@@ -488,11 +488,11 @@ const DiscoverSection = ({ searchQuery = '' }: DiscoverSectionProps) => {
             rounded-l-lg sm:rounded-l-none sm:rounded-t-xl sm:group-hover:absolute sm:group-hover:inset-0"
           onClick={(e) => {
             e.stopPropagation();
-            handlePreviewOpen(character);
+            navigateToPath(`/character/${character.id}`);
           }}
-          role="button"
+          role="link"
           tabIndex={0}
-          aria-label={`预览角色 ${character.name}`}
+          aria-label={`打开角色 ${character.name}`}
         >
           <img
             src={character.avatarUrl?.startsWith('http') ? character.avatarUrl : `${API_BASE_URL}${character.avatarUrl}`}

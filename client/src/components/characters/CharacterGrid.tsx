@@ -465,7 +465,7 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
   });
 
   const handleCharacterClick = (character: Character) => {
-    setSelectedCharacter(character);
+    setLocation(`/character/${character.id}`);
   };
 
   const handleFavoriteToggle = (characterId: number) => {
@@ -1016,7 +1016,17 @@ export default function CharacterGrid({ searchQuery = '' }: CharacterGridProps) 
                 <div className="relative z-10 flex flex-col overflow-hidden p-4 transition-all duration-500 ease-out group-hover:opacity-0 group-hover:pointer-events-none group-hover:translate-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="flex-1 font-bold text-lg text-content-primary transition-colors truncate">
-                      {character.name}
+                      <a
+                        href={`/character/${character.id}`}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setLocation(`/character/${character.id}`);
+                        }}
+                        className="hover:text-brand-secondary"
+                      >
+                        {character.name}
+                      </a>
                     </h3>
                     <div className="flex items-center">{statusBadge}</div>
                   </div>
