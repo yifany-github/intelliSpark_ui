@@ -1,10 +1,28 @@
 User-agent: *
 Allow: /
 
-# Disallow admin and API paths
+# Keep app internals out of the index
 Disallow: /admin/
 Disallow: /api/
 Disallow: /assets/private/
 
-# Sitemap location
-Sitemap: https://yychat.com/sitemap.xml
+# AI crawlers: allow the public marketing + character pages
+User-agent: GPTBot
+Allow: /
+
+User-agent: ChatGPT-User
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Applebot-Extended
+Allow: /
+
+Sitemap: https://yychat.ai/sitemap.xml
