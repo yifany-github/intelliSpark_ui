@@ -298,15 +298,45 @@ function replaceRootAndNoscript(html, inner) {
   return next;
 }
 
-function prerenderInner(route) {
+const CRAWL_NAV_LINKS = [
+  { href: `${SITE}/`, label: "YY Chat" },
+  { href: `${SITE}/about`, label: "About" },
+  { href: `${SITE}/characters`, label: "角色" },
+  { href: `${SITE}/zhongwen-wu-shencha`, label: "中文无审查" },
+  { href: `${SITE}/character-ai-alternative`, label: "Character.AI alternative" },
+];
+
+function crawlableNav(characterLinks = []) {
+  const siteLinks = CRAWL_NAV_LINKS.map(
+    (link) => `<a href="${escapeHtml(link.href)}">${escapeHtml(link.label)}</a>`,
+  ).join(" · ");
+  let nav = `<nav data-yychat-prerender-nav="1">
+      <p>${siteLinks}</p>`;
+  if (characterLinks.length > 0) {
+    const charLinks = characterLinks
+      .map(
+        (c) =>
+          `<a href="${escapeHtml(`${SITE}/character/${c.id}`)}">${escapeHtml(c.name)}</a>`,
+      )
+      .join(" · ");
+    nav += `
+      <p>部分精选 18+ 角色：${charLinks}</p>`;
+  }
+  nav += `
+    </nav>`;
+  return nav;
+}
+
+function prerenderInner(route, characterLinks = []) {
   const paragraphs = route.paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join("\n      ");
   return `<article data-yychat-prerender="1">
       <h1>${escapeHtml(route.h1)}</h1>
       ${paragraphs}
+      ${crawlableNav(characterLinks)}
     </article>`;
 }
 
-function applyRoute(shell, pathname, route) {
+function applyRoute(shell, pathname, route, characterLinks = []) {
   const canonical = pathname === "/" ? `${SITE}/` : `${SITE}${pathname}`;
   const hreflang = route.hreflang || defaultHreflang(pathname);
   let html = shell;
@@ -333,7 +363,7 @@ function applyRoute(shell, pathname, route) {
       isPartOf: { "@id": `${SITE}/#app` },
     });
   }
-  html = replaceRootAndNoscript(html, prerenderInner(route));
+  html = replaceRootAndNoscript(html, prerenderInner(route, characterLinks));
   return html;
 }
 
@@ -437,6 +467,17 @@ async function main() {
   }
 
   const sitemapPaths = locs.map(urlToPathname);
+
+  let characters = [];
+  let characterFetchError = null;
+  try {
+    characters = await fetchCharacters();
+  } catch (error) {
+    characterFetchError = error;
+    console.error(error.message);
+  }
+
+  const homeCharacterLinks = characters.slice(0, 8);
   const staticWritten = [];
   for (const pathname of sitemapPaths) {
     if (pathname.startsWith("/character/")) continue;
@@ -444,18 +485,15 @@ async function main() {
     if (!route) {
       throw new Error(`Sitemap path ${pathname} has no prerender copy. Add it to STATIC_ROUTES.`);
     }
-    const html = applyRoute(shell, pathname, route);
+    const characterLinks = pathname === "/" ? homeCharacterLinks : [];
+    const html = applyRoute(shell, pathname, route, characterLinks);
     const out = fileForPath(pathname);
     await mkdir(path.dirname(out), { recursive: true });
     await writeFile(out, html);
     staticWritten.push(pathname);
   }
 
-  let characters;
-  try {
-    characters = await fetchCharacters();
-  } catch (error) {
-    console.error(error.message);
+  if (characterFetchError) {
     console.error(
       "Static routes were written, but character pages were NOT generated. Refusing to finish a successful build.",
     );
