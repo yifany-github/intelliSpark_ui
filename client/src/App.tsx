@@ -21,6 +21,8 @@ import PaymentPage from "@/pages/payment";
 import NotificationsPage from "@/pages/notifications";
 import FAQPage from "@/pages/faq";
 import AboutPage from "@/pages/about";
+import CharacterAiAlternativePage from "@/pages/character-ai-alternative";
+import ZhongwenWuShenchaPage from "@/pages/zhongwen-wu-shencha";
 import PrivacyPolicyPage from "@/pages/privacy-policy";
 import TermsOfUsePage from "@/pages/terms-of-use";
 import MyCharactersPage from "@/pages/my-characters";
@@ -113,6 +115,8 @@ function MainApp() {
               <Route path="/characters" component={CharactersPage} />
               <Route path="/faq" component={FAQPage} />
               <Route path="/about" component={AboutPage} />
+              <Route path="/character-ai-alternative" component={CharacterAiAlternativePage} />
+              <Route path="/zhongwen-wu-shencha" component={ZhongwenWuShenchaPage} />
               <Route path="/privacy-policy" component={PrivacyPolicyPage} />
               <Route path="/terms-of-use" component={TermsOfUsePage} />
               <Route path="/favorites" component={FavoritesPage} />

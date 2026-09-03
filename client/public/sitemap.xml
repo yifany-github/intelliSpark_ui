@@ -30,6 +30,16 @@
     <priority>0.7</priority>
   </url>
   <url>
+    <loc>https://yychat.ai/character-ai-alternative</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://yychat.ai/zhongwen-wu-shencha</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://yychat.ai/privacy-policy</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
