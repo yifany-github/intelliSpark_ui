@@ -43,7 +43,6 @@ export function AgeGate({ isOpen, onVerified, onDeclined }: AgeGateProps) {
 
           {/* Action Buttons */}
           <div className="space-y-3">
-            {/* I'm 18+ Button - Enhanced */}
             <button
               onClick={onVerified}
               onMouseEnter={() => setIsHovering(true)}
@@ -61,7 +60,6 @@ export function AgeGate({ isOpen, onVerified, onDeclined }: AgeGateProps) {
               </div>
             </button>
 
-            {/* Under 18 Button - Subtle */}
             <button
               onClick={onDeclined}
               className="w-full py-3 px-4 rounded-lg border border-surface-border text-content-secondary font-medium hover:bg-surface-secondary hover:text-content-primary transition-all duration-200"
@@ -73,7 +71,10 @@ export function AgeGate({ isOpen, onVerified, onDeclined }: AgeGateProps) {
           {/* Legal Footer */}
           <div className="mt-6 pt-4 border-t border-surface-border">
             <p className="text-xs text-content-tertiary text-center mb-2">
-              By entering, you agree to our Terms of Service and Privacy Policy
+              By entering, you agree to our{" "}
+              <a href="/terms-of-use" className="underline hover:text-content-secondary">Terms of Service</a>
+              {" "}and{" "}
+              <a href="/privacy-policy" className="underline hover:text-content-secondary">Privacy Policy</a>
             </p>
             <div className="flex items-center justify-center space-x-4 text-xs text-content-tertiary">
               <div className="flex items-center space-x-1">

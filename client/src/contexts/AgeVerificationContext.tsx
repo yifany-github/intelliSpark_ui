@@ -7,6 +7,13 @@ interface AgeVerificationContextType {
 
 const AgeVerificationContext = createContext<AgeVerificationContextType | undefined>(undefined);
 
+const CRAWLER_UA = /Googlebot|Google-InspectionTool|Bingbot|DuckDuckBot|GPTBot|ChatGPT-User|ClaudeBot|PerplexityBot|Applebot|Bytespider|Baiduspider|YandexBot/i;
+
+function isSearchCrawler(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return CRAWLER_UA.test(navigator.userAgent || '');
+}
+
 export const useAgeVerification = () => {
   const context = useContext(AgeVerificationContext);
   if (context === undefined) {
@@ -24,16 +31,20 @@ export function AgeVerificationProvider({ children }: AgeVerificationProviderPro
   const [showGate, setShowGate] = useState(false);
 
   useEffect(() => {
-    // Check if user has already verified their age
+    // Search/AI crawlers must see the real 18+ marketing page, not the interstitial.
+    if (isSearchCrawler()) {
+      setIsVerified(true);
+      setShowGate(false);
+      return;
+    }
+
     try {
       const verified = localStorage?.getItem('age-verified');
       const verificationDate = localStorage?.getItem('age-verified-date');
       
       if (verified === 'true' && verificationDate) {
-        // Check if verification is still valid (within 30 days)
         const verifiedDate = new Date(verificationDate);
         
-        // Validate date is not corrupted
         if (isNaN(verifiedDate.getTime())) {
           localStorage.removeItem('age-verified');
           localStorage.removeItem('age-verified-date');
@@ -47,7 +58,6 @@ export function AgeVerificationProvider({ children }: AgeVerificationProviderPro
         if (daysDiff < 30 && daysDiff >= 0) {
           setIsVerified(true);
         } else {
-          // Re-verification needed after 30 days or invalid date
           localStorage.removeItem('age-verified');
           localStorage.removeItem('age-verified-date');
           setShowGate(true);
@@ -56,7 +66,6 @@ export function AgeVerificationProvider({ children }: AgeVerificationProviderPro
         setShowGate(true);
       }
     } catch (error) {
-      // Fallback if localStorage is not available
       console.warn('localStorage not available, showing age gate');
       setShowGate(true);
     }
@@ -74,7 +83,6 @@ export function AgeVerificationProvider({ children }: AgeVerificationProviderPro
   };
 
   const handleDeclined = () => {
-    // Redirect to a safe site
     window.location.href = 'https://google.com';
   };
 
