@@ -25,16 +25,16 @@ const AboutPage = () => {
 
   // Set SEO meta tags
   useEffect(() => {
-    document.title = "About Us - YY Chat | AI Roleplay Chat Platform";
+    document.title = "关于 YY Chat 歪歪｜18+ 韩漫 AI 角色扮演（非 YY 直播）";
     
     // Update meta description
     const metaDescription = document.querySelector('meta[name="description"]');
     if (metaDescription) {
-      metaDescription.setAttribute("content", "Learn about YY Chat, the innovative AI roleplay chat platform powered by Google Gemini. Create custom characters and enjoy immersive conversations.");
+      metaDescription.setAttribute("content", "YY Chat（歪歪，yychat.ai）是面向 18+ 的网页版 AI 角色扮演，和精选韩国成人漫画角色聊天。与 YY 直播、YY.com、易歪歪无关。");
     } else {
       const newMetaDescription = document.createElement("meta");
       newMetaDescription.name = "description";
-      newMetaDescription.content = "Learn about YY Chat, the innovative AI roleplay chat platform powered by Google Gemini. Create custom characters and enjoy immersive conversations.";
+      newMetaDescription.content = "YY Chat（歪歪，yychat.ai）是面向 18+ 的网页版 AI 角色扮演，和精选韩国成人漫画角色聊天。与 YY 直播、YY.com、易歪歪无关。";
       document.head.appendChild(newMetaDescription);
     }
 
@@ -51,8 +51,8 @@ const AboutPage = () => {
       }
     };
 
-    addMetaTag("og:title", "About YY Chat - Revolutionary AI Chat Experience");
-    addMetaTag("og:description", "Discover our mission to revolutionize AI conversations through innovative roleplay experiences and custom character creation.");
+    addMetaTag("og:title", "关于 YY Chat 歪歪｜不是 YY 直播");
+    addMetaTag("og:description", "18+ 网页版 AI 角色扮演。韩漫角色，中文界面，不用酒馆和 API Key。与 YY 直播无关。");
     addMetaTag("og:type", "website");
     
     // Cleanup function to restore original title
@@ -103,10 +103,10 @@ const AboutPage = () => {
   ];
 
   const stats = [
-    { label: "AI Characters", value: "1000+", description: "Unique personalities" },
-    { label: "Conversations", value: "50K+", description: "Messages exchanged" },
-    { label: "Active Users", value: "5K+", description: "Creative community" },
-    { label: "Uptime", value: "99.9%", description: "Reliable platform" }
+    { label: "精选角色", value: "80+", description: "韩国 18+ 漫画灵感" },
+    { label: "年龄限制", value: "18+", description: "仅虚构成人角色" },
+    { label: "打开方式", value: "网页", description: "不用酒馆，不用 API Key" },
+    { label: "界面语言", value: "中文", description: "也支持英文" }
   ];
 
   return (
@@ -123,9 +123,9 @@ const AboutPage = () => {
             </h1>
           </div>
           <p className="text-xl text-muted-foreground max-w-3xl mx-auto mb-8 leading-relaxed">
-            Experience unlimited AI conversations with diverse characters in our immersive 
-            roleplay platform. Create custom personalities and explore endless storytelling 
-            possibilities with advanced AI technology.
+            YY Chat（歪歪）是面向 18 岁及以上用户的网页版 AI 角色扮演。
+            和精选韩国成人漫画角色聊沉浸式剧情。中文界面，网页即开。
+            我们不是 YY 直播、YY.com、JOYY，也不是易歪歪。
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button 
