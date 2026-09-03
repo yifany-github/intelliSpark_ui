@@ -61,7 +61,8 @@ jobs:
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           projectName: ${{ secrets.CLOUDFLARE_PROJECT_NAME }}
           directory: ./dist/public
-          branch: preview
+          # PRs stay on preview; main pushes deploy to production.
+          branch: ${{ github.event_name == 'pull_request' && 'preview' || github.ref_name }}
           wranglerVersion: '3'
       
       - name: Create Sentry Release (optional)
