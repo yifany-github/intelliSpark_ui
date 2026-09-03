@@ -1,0 +1,4 @@
+# SPA fallback for app routes that are not prerendered files.
+# Cloudflare Pages serves a real file (about/index.html, character/4/index.html)
+# when it exists; this rewrite only applies to unknown paths such as /chat/:id.
+/*    /index.html   200

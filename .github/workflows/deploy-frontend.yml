@@ -8,6 +8,7 @@ on:
       - 'client/**'
       - 'package.json'
       - 'vite.config.ts'
+      - 'scripts/**'
       - '.github/workflows/deploy-frontend.yml'
   pull_request:
     branches:
@@ -16,6 +17,7 @@ on:
       - 'client/**'
       - 'package.json'
       - 'vite.config.ts'
+      - 'scripts/**'
 
 jobs:
   build-and-deploy:
@@ -64,6 +66,9 @@ jobs:
             echo "Build is missing an inlined Supabase URL. Refusing to deploy a blank-page bundle."
             exit 1
           fi
+
+      - name: Verify prerendered HTML is route-specific
+        run: node scripts/verify-prerender.mjs
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/pages-action@v1
