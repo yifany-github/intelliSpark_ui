@@ -17,6 +17,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useLanguage, type Language } from "@/contexts/LanguageContext";
+import { PageLanguageToggle } from "@/components/layout/PageLanguageToggle";
 
 const PAGE_URL = "https://yychat.ai/character-ai-alternative";
 const ZH_PAGE_URL = "https://yychat.ai/zhongwen-wu-shencha";
@@ -159,7 +160,7 @@ const COPY: Record<Language, {
       { label: "Catalog", value: "80+", description: "Curated, not the largest library" },
       { label: "Age", value: "18+", description: "Fictional adult characters only" },
       { label: "Setup", value: "Web", description: "No tavern, no API key" },
-      { label: "UI", value: "中文", description: "Chinese-first, also English" },
+      { label: "UI", value: "Chinese", description: "Chinese-first, also English" },
     ],
     whatTitle: "What YY Chat is — and is not",
     honestTitle: "Honest facts",
@@ -358,6 +359,7 @@ const CharacterAiAlternativePage = () => {
   return (
     <GlobalLayout>
       <div className="container mx-auto px-4 py-8 max-w-6xl">
+        <PageLanguageToggle />
         <div className="text-center mb-16">
           <div className="flex items-center justify-center gap-3 mb-6">
             <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-accent/20 border border-primary/30">

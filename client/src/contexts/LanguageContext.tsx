@@ -2666,18 +2666,69 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 // Language provider component
+const isValidLanguage = (lang: string | null): lang is Language =>
+  lang === 'en' || lang === 'zh';
+
+const readQueryLang = (): Language | null => {
+  if (typeof window === 'undefined') return null;
+  const lang = new URLSearchParams(window.location.search).get('lang');
+  return isValidLanguage(lang) ? lang : null;
+};
+
+const readStoredLang = (): Language | null => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const saved = localStorage.getItem('interfaceLanguage');
+    return isValidLanguage(saved) ? saved : null;
+  } catch {
+    return null;
+  }
+};
+
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  // Get stored language preferences or default to Chinese (Issue #69)
-  const [interfaceLanguage, setInterfaceLanguage] = useState<Language>('zh');
+  // Query ?lang=en|zh wins; else localStorage; else Chinese-first default (Issue #69)
+  const [interfaceLanguage, setInterfaceLanguage] = useState<Language>(
+    () => readQueryLang() ?? readStoredLang() ?? 'zh'
+  );
   const [chatLanguage, setChatLanguage] = useState<Language>('zh');
 
-  // Load saved preferences after component mounts to avoid hydration issues
+  // Honor ?lang= on mount and when the URL query value actually changes
   useEffect(() => {
-    const saved = localStorage.getItem('interfaceLanguage');
-    const isValidLanguage = (lang: string): lang is Language => ['en', 'zh'].includes(lang);
-    if (saved && isValidLanguage(saved)) {
-      setInterfaceLanguage(saved);
+    const fromQueryOnMount = readQueryLang();
+    if (fromQueryOnMount) {
+      setInterfaceLanguage(fromQueryOnMount);
+    } else {
+      const saved = readStoredLang();
+      if (saved) setInterfaceLanguage(saved);
     }
+
+    let lastQueryLang = fromQueryOnMount;
+    const onUrlChange = () => {
+      const fromQuery = readQueryLang();
+      if (fromQuery && fromQuery !== lastQueryLang) {
+        lastQueryLang = fromQuery;
+        setInterfaceLanguage(fromQuery);
+      } else if (!fromQuery) {
+        lastQueryLang = null;
+      }
+    };
+
+    window.addEventListener('popstate', onUrlChange);
+    const origPush = history.pushState.bind(history);
+    const origReplace = history.replaceState.bind(history);
+    history.pushState = ((data: unknown, unused: string, url?: string | URL | null) => {
+      origPush(data, unused, url);
+      onUrlChange();
+    }) as typeof history.pushState;
+    history.replaceState = ((data: unknown, unused: string, url?: string | URL | null) => {
+      origReplace(data, unused, url);
+      onUrlChange();
+    }) as typeof history.replaceState;
+    return () => {
+      window.removeEventListener('popstate', onUrlChange);
+      history.pushState = origPush;
+      history.replaceState = origReplace;
+    };
   }, []);
 
   useEffect(() => {

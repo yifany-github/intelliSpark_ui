@@ -7,8 +7,69 @@ interface AgeGateProps {
   onDeclined: () => void;
 }
 
+type AgeGateLang = "en" | "zh";
+
+const COPY: Record<AgeGateLang, {
+  title: string;
+  subtitle: string;
+  body: string;
+  highlight: string;
+  yes: string;
+  no: string;
+  legalBefore: string;
+  terms: string;
+  legalAnd: string;
+  privacy: string;
+  ssl: string;
+  privacyProtected: string;
+}> = {
+  zh: {
+    title: "需要年龄验证",
+    subtitle: "必须年满 18 岁才能进入本站",
+    body: "本站包含 AI 角色与对话，可能含有成人内容。",
+    highlight: "你必须年满 18 岁才能继续。",
+    yes: "是的，我已年满 18 岁",
+    no: "我未满 18 岁",
+    legalBefore: "进入即表示你同意我们的",
+    terms: "使用条款",
+    legalAnd: "和",
+    privacy: "隐私政策",
+    ssl: "SSL 加密",
+    privacyProtected: "隐私保护",
+  },
+  en: {
+    title: "Age Verification Required",
+    subtitle: "You must be 18+ to access this platform",
+    body: "This platform contains AI-generated characters and conversations that may include mature themes.",
+    highlight: "You must be 18 years or older to continue.",
+    yes: "Yes, I'm 18 or Older",
+    no: "I'm Under 18",
+    legalBefore: "By entering, you agree to our",
+    terms: "Terms of Service",
+    legalAnd: "and",
+    privacy: "Privacy Policy",
+    ssl: "SSL Secured",
+    privacyProtected: "Privacy Protected",
+  },
+};
+
+function readAgeGateLang(): AgeGateLang {
+  if (typeof window === "undefined") return "zh";
+  const q = new URLSearchParams(window.location.search).get("lang");
+  if (q === "en" || q === "zh") return q;
+  try {
+    const saved = localStorage.getItem("interfaceLanguage");
+    if (saved === "en" || saved === "zh") return saved;
+  } catch {
+    /* ignore */
+  }
+  return "zh";
+}
+
 export function AgeGate({ isOpen, onVerified, onDeclined }: AgeGateProps) {
   const [isHovering, setIsHovering] = useState(false);
+  const [lang] = useState<AgeGateLang>(readAgeGateLang);
+  const copy = COPY[lang];
 
   if (!isOpen) return null;
 
@@ -27,18 +88,18 @@ export function AgeGate({ isOpen, onVerified, onDeclined }: AgeGateProps) {
             <Shield className="w-8 h-8 text-brand-secondary" />
           </div>
           <h2 id="age-gate-title" className="text-xl font-bold text-content-primary mb-2">
-            Age Verification Required
+            {copy.title}
           </h2>
           <p className="text-content-secondary text-sm">
-            You must be 18+ to access this platform
+            {copy.subtitle}
           </p>
         </div>
 
         {/* Content */}
         <div className="p-6">
           <p className="text-content-secondary text-sm leading-relaxed mb-6 text-center">
-            This platform contains AI-generated characters and conversations that may include mature themes. 
-            <span className="text-content-primary font-medium"> You must be 18 years or older to continue.</span>
+            {copy.body}{" "}
+            <span className="text-content-primary font-medium">{copy.highlight}</span>
           </p>
 
           {/* Action Buttons */}
@@ -55,7 +116,7 @@ export function AgeGate({ isOpen, onVerified, onDeclined }: AgeGateProps) {
             >
               <div className="flex items-center justify-center space-x-2">
                 <Heart className="w-4 h-4" />
-                <span>Yes, I'm 18 or Older</span>
+                <span>{copy.yes}</span>
                 <Sparkles className="w-4 h-4" />
               </div>
             </button>
@@ -64,25 +125,25 @@ export function AgeGate({ isOpen, onVerified, onDeclined }: AgeGateProps) {
               onClick={onDeclined}
               className="w-full py-3 px-4 rounded-lg border border-surface-border text-content-secondary font-medium hover:bg-surface-secondary hover:text-content-primary transition-all duration-200"
             >
-              I'm Under 18
+              {copy.no}
             </button>
           </div>
 
           {/* Legal Footer */}
           <div className="mt-6 pt-4 border-t border-surface-border">
             <p className="text-xs text-content-tertiary text-center mb-2">
-              By entering, you agree to our{" "}
-              <a href="/terms-of-use" className="underline hover:text-content-secondary">Terms of Service</a>
-              {" "}and{" "}
-              <a href="/privacy-policy" className="underline hover:text-content-secondary">Privacy Policy</a>
+              {copy.legalBefore}{" "}
+              <a href="/terms-of-use" className="underline hover:text-content-secondary">{copy.terms}</a>
+              {" "}{copy.legalAnd}{" "}
+              <a href="/privacy-policy" className="underline hover:text-content-secondary">{copy.privacy}</a>
             </p>
             <div className="flex items-center justify-center space-x-4 text-xs text-content-tertiary">
               <div className="flex items-center space-x-1">
                 <Shield className="w-3 h-3" />
-                <span>SSL Secured</span>
+                <span>{copy.ssl}</span>
               </div>
               <span>•</span>
-              <span>Privacy Protected</span>
+              <span>{copy.privacyProtected}</span>
             </div>
           </div>
         </div>
