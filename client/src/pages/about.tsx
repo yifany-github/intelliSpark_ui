@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import GlobalLayout from "@/components/layout/GlobalLayout";
 import { 
   Info, 
@@ -306,6 +306,53 @@ const AboutPage = () => {
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Related public landing pages */}
+        <div className="mb-16">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl font-bold mb-4">Related pages</h2>
+            <p className="text-muted-foreground max-w-3xl mx-auto">
+              Straight comparisons for people who searched a Character.AI alternative
+              or 中文无审查网页版.
+            </p>
+          </div>
+          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+            <Card className="bg-gradient-to-br from-primary/5 to-transparent border-primary/20">
+              <CardHeader>
+                <CardTitle>
+                  <Link to="/character-ai-alternative" className="hover:underline">
+                    Character.AI alternative
+                  </Link>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground mb-3">
+                  18+ uncensored AI roleplay in the browser. No SillyTavern, no API key.
+                </p>
+                <Link to="/character-ai-alternative" className="text-primary hover:underline">
+                  Read the English comparison →
+                </Link>
+              </CardContent>
+            </Card>
+            <Card className="bg-gradient-to-br from-accent/5 to-transparent border-accent/20">
+              <CardHeader>
+                <CardTitle>
+                  <Link to="/zhongwen-wu-shencha" className="hover:underline">
+                    中文无审查 AI 角色扮演
+                  </Link>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground mb-3">
+                  网页版不用酒馆。中文界面，精选 18+ 韩漫角色。
+                </p>
+                <Link to="/zhongwen-wu-shencha" className="text-primary hover:underline">
+                  打开中文说明页 →
+                </Link>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* Contact & Support Section */}
