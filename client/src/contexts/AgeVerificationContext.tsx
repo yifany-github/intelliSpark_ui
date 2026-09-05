@@ -1,18 +1,12 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { AgeGate } from '../components/auth/AgeGate';
+import { isSearchCrawler } from '../lib/searchCrawler';
 
 interface AgeVerificationContextType {
   isVerified: boolean;
 }
 
 const AgeVerificationContext = createContext<AgeVerificationContextType | undefined>(undefined);
-
-const CRAWLER_UA = /Googlebot|Google-InspectionTool|Bingbot|DuckDuckBot|GPTBot|ChatGPT-User|ClaudeBot|PerplexityBot|Applebot|Bytespider|Baiduspider|YandexBot/i;
-
-function isSearchCrawler(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return CRAWLER_UA.test(navigator.userAgent || '');
-}
 
 export const useAgeVerification = () => {
   const context = useContext(AgeVerificationContext);
@@ -26,9 +20,49 @@ interface AgeVerificationProviderProps {
   children: ReactNode;
 }
 
+function readStoredAgeVerification(): boolean {
+  try {
+    const verified = localStorage?.getItem('age-verified');
+    const verificationDate = localStorage?.getItem('age-verified-date');
+
+    if (verified === 'true' && verificationDate) {
+      const verifiedDate = new Date(verificationDate);
+
+      if (isNaN(verifiedDate.getTime())) {
+        localStorage.removeItem('age-verified');
+        localStorage.removeItem('age-verified-date');
+        return false;
+      }
+
+      const now = new Date();
+      const daysDiff = (now.getTime() - verifiedDate.getTime()) / (1000 * 60 * 60 * 24);
+
+      if (daysDiff < 30 && daysDiff >= 0) {
+        return true;
+      }
+
+      localStorage.removeItem('age-verified');
+      localStorage.removeItem('age-verified-date');
+    }
+  } catch {
+    /* localStorage unavailable */
+  }
+  return false;
+}
+
+function getInitialAgeState(): { verified: boolean; showGate: boolean } {
+  // Resolve synchronously so the first paint never mounts AgeGate for bots
+  // or already-confirmed users (avoids SERP snapshots of age-gate copy).
+  if (isSearchCrawler()) {
+    return { verified: true, showGate: false };
+  }
+  const stored = readStoredAgeVerification();
+  return { verified: stored, showGate: !stored };
+}
+
 export function AgeVerificationProvider({ children }: AgeVerificationProviderProps) {
-  const [isVerified, setIsVerified] = useState(false);
-  const [showGate, setShowGate] = useState(false);
+  const [isVerified, setIsVerified] = useState(() => getInitialAgeState().verified);
+  const [showGate, setShowGate] = useState(() => getInitialAgeState().showGate);
 
   useEffect(() => {
     // Search/AI crawlers must see the real 18+ marketing page, not the interstitial.
@@ -38,35 +72,11 @@ export function AgeVerificationProvider({ children }: AgeVerificationProviderPro
       return;
     }
 
-    try {
-      const verified = localStorage?.getItem('age-verified');
-      const verificationDate = localStorage?.getItem('age-verified-date');
-      
-      if (verified === 'true' && verificationDate) {
-        const verifiedDate = new Date(verificationDate);
-        
-        if (isNaN(verifiedDate.getTime())) {
-          localStorage.removeItem('age-verified');
-          localStorage.removeItem('age-verified-date');
-          setShowGate(true);
-          return;
-        }
-        
-        const now = new Date();
-        const daysDiff = (now.getTime() - verifiedDate.getTime()) / (1000 * 60 * 60 * 24);
-        
-        if (daysDiff < 30 && daysDiff >= 0) {
-          setIsVerified(true);
-        } else {
-          localStorage.removeItem('age-verified');
-          localStorage.removeItem('age-verified-date');
-          setShowGate(true);
-        }
-      } else {
-        setShowGate(true);
-      }
-    } catch (error) {
-      console.warn('localStorage not available, showing age gate');
+    const stored = readStoredAgeVerification();
+    if (stored) {
+      setIsVerified(true);
+      setShowGate(false);
+    } else {
       setShowGate(true);
     }
   }, []);
