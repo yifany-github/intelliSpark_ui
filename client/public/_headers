@@ -1,0 +1,11 @@
+# Auth pages are served as the SPA shell; keep them out of search results
+# (still crawlable, links followed). Do not Disallow these in robots.txt or
+# Google can't see this header.
+/login
+  X-Robots-Tag: noindex, follow
+/login/
+  X-Robots-Tag: noindex, follow
+/register
+  X-Robots-Tag: noindex, follow
+/register/
+  X-Robots-Tag: noindex, follow

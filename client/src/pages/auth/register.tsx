@@ -11,8 +11,10 @@ import { useToast } from '../../hooks/use-toast';
 import { Link } from 'wouter';
 import { Eye, EyeOff, UserPlus } from 'lucide-react';
 import LanguageSelector from '../../components/settings/LanguageSelector';
+import { useNoIndex } from '../../hooks/useNoIndex';
 
 const RegisterPage = () => {
+  useNoIndex();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
