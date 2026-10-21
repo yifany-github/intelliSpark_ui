@@ -71,15 +71,14 @@ jobs:
         run: node scripts/verify-prerender.mjs
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/pages-action@v1
+        # cloudflare/pages-action was removed from GitHub (404); wrangler-action is the supported replacement.
+        uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          projectName: ${{ secrets.CLOUDFLARE_PROJECT_NAME }}
-          directory: ./dist/public
-          # PRs stay on preview; main pushes deploy to production.
-          branch: ${{ github.event_name == 'pull_request' && 'preview' || github.ref_name }}
           wranglerVersion: '3'
+          # PRs stay on preview; main pushes deploy to production.
+          command: pages deploy ./dist/public --project-name=${{ secrets.CLOUDFLARE_PROJECT_NAME }} --branch=${{ github.event_name == 'pull_request' && 'preview' || github.ref_name }}
       
       - name: Create Sentry Release (optional)
         if: github.ref == 'refs/heads/main'
